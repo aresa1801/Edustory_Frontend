@@ -1,16 +1,35 @@
+'use client'
+
+import Header from '@/components/header'
+import Hero from '@/components/hero'
+import Features from '@/components/features'
+import Programs from '@/components/programs'
+import HowItWorks from '@/components/how-it-works'
+import Testimonials from '@/components/testimonials'
+import Tutors from '@/components/tutors'
+import Stats from '@/components/stats'
+import Blog from '@/components/blog'
+import CTA from '@/components/cta'
+import Footer from '@/components/footer'
+import ScrollToTop from '@/components/scroll-to-top'
+import WhatsAppButton from '@/components/whatsapp-button'
+
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center font-sans">
-      <main className="flex w-full max-w-3xl flex-col items-center gap-8 px-6 py-16 text-center sm:items-start sm:text-left">
-        <div className="flex flex-col gap-4">
-          <h1 className="text-4xl font-bold tracking-tight">
-            Edustory Project
-          </h1>
-          <p className="max-w-md text-lg text-muted-foreground">
-            To get started, send a prompt or modify this page directly.
-          </p>
-        </div>
-      </main>
+    <div className="w-full">
+      <Header />
+      <Hero />
+      <Features />
+      <Programs />
+      <HowItWorks />
+      <Testimonials />
+      <Tutors />
+      <Stats />
+      <Blog />
+      <CTA />
+      <Footer />
+      <ScrollToTop />
+      <WhatsAppButton />
     </div>
-  );
+  )
 }
