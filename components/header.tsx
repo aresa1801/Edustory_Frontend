@@ -4,11 +4,24 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Menu, X, BookOpen, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
 
   const toggleMenu = () => setIsOpen(!isOpen)
+
+  const handleSignIn = () => {
+    setAuthMode('signin')
+    setAuthOpen(true)
+  }
+
+  const handleSignUp = () => {
+    setAuthMode('signup')
+    setAuthOpen(true)
+  }
 
   const menuItems = [
     { label: 'Home', href: '#home' },
@@ -51,8 +64,18 @@ const Header = () => {
             >
               Konsultasi Gratis
             </Button>
-            <Button className="bg-primary hover:bg-primary/90 text-white">
+            <Button 
+              onClick={handleSignUp}
+              className="bg-primary hover:bg-primary/90 text-white"
+            >
               Daftar Sekarang
+            </Button>
+            <Button 
+              variant="ghost"
+              onClick={handleSignIn}
+              className="text-primary hover:text-primary/80"
+            >
+              Masuk
             </Button>
           </div>
 
@@ -91,14 +114,36 @@ const Header = () => {
                 >
                   Konsultasi Gratis
                 </Button>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                <Button 
+                  onClick={() => {
+                    handleSignUp()
+                    setIsOpen(false)
+                  }}
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                >
                   Daftar Sekarang
+                </Button>
+                <Button 
+                  variant="ghost"
+                  onClick={() => {
+                    handleSignIn()
+                    setIsOpen(false)
+                  }}
+                  className="w-full text-primary hover:text-primary/80"
+                >
+                  Masuk
                 </Button>
               </div>
             </div>
           </nav>
         )}
       </div>
+
+      <AuthModalDialog 
+        isOpen={authOpen} 
+        onOpenChange={setAuthOpen}
+        defaultMode={authMode}
+      />
     </header>
   )
 }
