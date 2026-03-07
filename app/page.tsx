@@ -1,7 +1,7 @@
 'use client'
 
 import Header from '@/components/header'
-import Hero from '@/components/hero'
+import HeroWithAuth from '@/components/hero-with-auth'
 import Features from '@/components/features'
 import Programs from '@/components/programs'
 import HowItWorks from '@/components/how-it-works'
@@ -18,7 +18,7 @@ export default function Home() {
   return (
     <div className="w-full">
       <Header />
-      <Hero />
+      <HeroWithAuth />
       <Features />
       <Programs />
       <HowItWorks />
