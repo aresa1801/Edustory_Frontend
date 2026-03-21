@@ -40,7 +40,6 @@ const Header = () => {
     { label: 'Home', href: '#home' },
     { label: 'Layanan', href: '#layanan' },
     { label: 'Program', href: '#program' },
-    { label: 'Tentang Kami', href: '#tentang' },
     { label: 'Testimoni', href: '#testimoni' },
     { label: 'Blog', href: '#blog' },
     { label: 'Kontak', href: '#kontak' },
@@ -91,13 +90,6 @@ const Header = () => {
             >
               Daftar Sekarang
             </Button>
-            <Button 
-              variant="ghost"
-              onClick={handleSignIn}
-              className="text-primary hover:text-primary/80"
-            >
-              Masuk
-            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -143,16 +135,6 @@ const Header = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                 >
                   Daftar Sekarang
-                </Button>
-                <Button 
-                  variant="ghost"
-                  onClick={() => {
-                    handleSignIn()
-                    setIsOpen(false)
-                  }}
-                  className="w-full text-primary hover:text-primary/80"
-                >
-                  Masuk
                 </Button>
               </div>
             </div>

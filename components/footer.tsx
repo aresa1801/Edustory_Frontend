@@ -58,11 +58,6 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="#tentang" className="text-muted-foreground hover:text-primary transition-colors">
-                  Tentang Kami
-                </a>
-              </li>
-              <li>
                 <a href="#blog" className="text-muted-foreground hover:text-primary transition-colors">
                   Blog
                 </a>
