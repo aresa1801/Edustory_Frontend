@@ -131,29 +131,31 @@
     @apply bg-background text-foreground;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-poppins font-bold tracking-tight;
+    @apply font-bold tracking-tight;
+    font-family: var(--font-poppins, 'Poppins'), system-ui, sans-serif;
   }
   h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl leading-tight font-800 tracking-tighter;
+    @apply text-4xl md:text-5xl lg:text-6xl leading-tight font-bold tracking-tighter;
     letter-spacing: -0.02em;
   }
   h2 {
-    @apply text-3xl md:text-4xl lg:text-5xl leading-tight font-700;
+    @apply text-3xl md:text-4xl lg:text-5xl leading-tight font-bold;
     letter-spacing: -0.015em;
   }
   h3 {
-    @apply text-2xl md:text-3xl leading-snug font-600;
+    @apply text-2xl md:text-3xl leading-snug font-semibold;
     letter-spacing: -0.01em;
   }
   h4 {
-    @apply text-xl md:text-2xl font-600;
+    @apply text-xl md:text-2xl font-semibold;
   }
   h5, h6 {
-    @apply text-lg font-600;
+    @apply text-lg font-semibold;
   }
   p {
-    @apply leading-relaxed font-inter;
+    @apply leading-relaxed;
     line-height: 1.65;
+    font-family: var(--font-inter, 'Inter'), system-ui, sans-serif;
   }
   a {
     @apply font-medium;
