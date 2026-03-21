@@ -80,7 +80,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: var(--font-poppins, 'Poppins'), var(--font-inter, 'Inter'), system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -131,19 +131,32 @@
     @apply bg-background text-foreground;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-sans font-bold;
+    @apply font-poppins font-bold tracking-tight;
   }
   h1 {
-    @apply text-4xl md:text-5xl leading-tight;
+    @apply text-4xl md:text-5xl lg:text-6xl leading-tight font-800 tracking-tighter;
+    letter-spacing: -0.02em;
   }
   h2 {
-    @apply text-3xl md:text-4xl leading-tight;
+    @apply text-3xl md:text-4xl lg:text-5xl leading-tight font-700;
+    letter-spacing: -0.015em;
   }
   h3 {
-    @apply text-2xl md:text-3xl leading-snug;
+    @apply text-2xl md:text-3xl leading-snug font-600;
+    letter-spacing: -0.01em;
+  }
+  h4 {
+    @apply text-xl md:text-2xl font-600;
+  }
+  h5, h6 {
+    @apply text-lg font-600;
   }
   p {
-    @apply leading-relaxed;
+    @apply leading-relaxed font-inter;
+    line-height: 1.65;
+  }
+  a {
+    @apply font-medium;
   }
 }
 

@@ -8,7 +8,7 @@ const Footer = () => {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="w-full bg-foreground text-white">
+    <footer className="w-full bg-card border-t border-border/50">
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-16 md:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
@@ -18,21 +18,21 @@ const Footer = () => {
               <BookOpen className="w-8 h-8" />
               <span>EduStory</span>
             </div>
-            <p className="text-white/70 mb-6">
+            <p className="text-muted-foreground mb-6">
               Platform pembelajaran privat terpercaya dengan pengajar profesional dan personalized.
             </p>
             {/* Social Media Icons */}
             <div className="flex gap-3">
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
                 <Linkedin className="w-5 h-5" />
               </a>
             </div>
@@ -43,27 +43,27 @@ const Footer = () => {
             <h4 className="font-semibold text-lg mb-6">Menu Utama</h4>
             <ul className="space-y-3">
               <li>
-                <a href="#home" className="text-white/70 hover:text-white transition-colors">
+                <a href="#home" className="text-muted-foreground hover:text-primary transition-colors">
                   Home
                 </a>
               </li>
               <li>
-                <a href="#layanan" className="text-white/70 hover:text-white transition-colors">
+                <a href="#layanan" className="text-muted-foreground hover:text-primary transition-colors">
                   Layanan
                 </a>
               </li>
               <li>
-                <a href="#program" className="text-white/70 hover:text-white transition-colors">
+                <a href="#program" className="text-muted-foreground hover:text-primary transition-colors">
                   Program
                 </a>
               </li>
               <li>
-                <a href="#tentang" className="text-white/70 hover:text-white transition-colors">
+                <a href="#tentang" className="text-muted-foreground hover:text-primary transition-colors">
                   Tentang Kami
                 </a>
               </li>
               <li>
-                <a href="#blog" className="text-white/70 hover:text-white transition-colors">
+                <a href="#blog" className="text-muted-foreground hover:text-primary transition-colors">
                   Blog
                 </a>
               </li>
@@ -75,27 +75,27 @@ const Footer = () => {
             <h4 className="font-semibold text-lg mb-6">Layanan Kami</h4>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-white/70 hover:text-white transition-colors">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Les Privat
                 </a>
               </li>
               <li>
-                <a href="#" className="text-white/70 hover:text-white transition-colors">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Les Online
                 </a>
               </li>
               <li>
-                <a href="#" className="text-white/70 hover:text-white transition-colors">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Homeschooling
                 </a>
               </li>
               <li>
-                <a href="#" className="text-white/70 hover:text-white transition-colors">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Corporate Training
                 </a>
               </li>
               <li>
-                <a href="#" className="text-white/70 hover:text-white transition-colors">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Kelas Semi-Privat
                 </a>
               </li>
@@ -108,20 +108,20 @@ const Footer = () => {
             <div className="space-y-4">
               <div className="flex gap-3">
                 <MapPin className="w-5 h-5 flex-shrink-0 text-primary" />
-                <p className="text-white/70">
+                <p className="text-muted-foreground">
                   Jl. Pendidikan No. 123<br />
                   Jakarta, Indonesia 12345
                 </p>
               </div>
               <div className="flex gap-3">
                 <Phone className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href="tel:+6281234567890" className="text-white/70 hover:text-white transition-colors">
+                <a href="tel:+6281234567890" className="text-muted-foreground hover:text-primary transition-colors">
                   +62 812-3456-7890
                 </a>
               </div>
               <div className="flex gap-3">
                 <Mail className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href="mailto:info@edustory.com" className="text-white/70 hover:text-white transition-colors">
+                <a href="mailto:info@edustory.com" className="text-muted-foreground hover:text-primary transition-colors">
                   info@edustory.com
                 </a>
               </div>
@@ -131,7 +131,7 @@ const Footer = () => {
                   href="https://wa.me/6281234567890"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/70 hover:text-white transition-colors"
+                  className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   Chat WhatsApp
                 </a>
@@ -141,20 +141,20 @@ const Footer = () => {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-white/10 pt-8">
+        <div className="border-t border-border/50 pt-8">
           {/* Bottom Bar */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-white/60 text-sm">
+            <p className="text-muted-foreground text-sm">
               &copy; {currentYear} EduStory. Semua hak cipta dilindungi.
             </p>
             <div className="flex gap-6 text-sm">
-              <a href="#" className="text-white/60 hover:text-white transition-colors">
+              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 Kebijakan Privasi
               </a>
-              <a href="#" className="text-white/60 hover:text-white transition-colors">
+              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 Syarat & Ketentuan
               </a>
-              <a href="#" className="text-white/60 hover:text-white transition-colors">
+              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 FAQ
               </a>
             </div>

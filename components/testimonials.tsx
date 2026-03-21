@@ -72,10 +72,10 @@ const Testimonials = () => {
   }
 
   return (
-    <section id="testimoni" className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-primary/5 to-secondary/5">
+    <section id="testimoni" className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-background to-card/30">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
             Apa Kata Mereka?
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -85,7 +85,7 @@ const Testimonials = () => {
 
         {/* Testimonial Card */}
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12 mb-8">
+          <div className="bg-card rounded-2xl shadow-lg shadow-primary/10 border border-border/50 p-8 md:p-12 mb-8 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300">
             <div className="mb-6">
               <div className="flex gap-1 mb-4">
                 {[...Array(5)].map((_, i) => (
