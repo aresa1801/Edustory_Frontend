@@ -31,10 +31,10 @@ const HowItWorks = () => {
   ]
 
   return (
-    <section className="w-full py-16 md:py-20 lg:py-24 bg-white">
+    <section className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-background to-card/30 border-t border-border/50">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
             Cara Mudah Mulai Belajar
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -55,12 +55,12 @@ const HowItWorks = () => {
                   {/* Step Number Circle */}
                   <div className="mb-6 flex items-center justify-center">
                     <div className="relative">
-                      <div className="w-16 h-16 rounded-full bg-white border-4 border-primary flex items-center justify-center">
+                      <div className="w-16 h-16 rounded-full bg-card border-4 border-primary flex items-center justify-center hover:bg-primary/10 transition-colors duration-300">
                         <span className="text-2xl font-bold text-primary">
                           {step.number}
                         </span>
                       </div>
-                      <div className="absolute inset-0 rounded-full bg-primary/10 scale-125 -z-10"></div>
+                      <div className="absolute inset-0 rounded-full bg-primary/20 scale-125 -z-10"></div>
                     </div>
                   </div>
 

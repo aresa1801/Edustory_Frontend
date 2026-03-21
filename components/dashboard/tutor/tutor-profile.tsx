@@ -11,10 +11,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-50 text-yellow-700' },
-  approved: { label: 'Terverifikasi', color: 'bg-green-50 text-green-700' },
-  rejected: { label: 'Ditolak', color: 'bg-red-50 text-red-700' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-gray-50 text-gray-700' },
+  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-900/30 text-yellow-400' },
+  approved: { label: 'Terverifikasi', color: 'bg-green-900/30 text-green-400' },
+  rejected: { label: 'Ditolak', color: 'bg-red-900/30 text-red-400' },
+  suspended: { label: 'Ditangguhkan', color: 'bg-gray-700 text-gray-300' },
 }
 
 export default function TutorProfile() {
