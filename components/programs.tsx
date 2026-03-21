@@ -53,10 +53,10 @@ const Programs = () => {
   const programs = programData[activeTab as keyof typeof programData]
 
   return (
-    <section id="program" className="w-full py-16 md:py-20 lg:py-24 bg-gray-50">
+    <section id="program" className="w-full py-16 md:py-20 lg:py-24 bg-card/50 border-t border-border">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
             Program Pembelajaran Kami
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -70,10 +70,10 @@ const Programs = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+              className={`px-6 py-2 rounded-lg font-semibold transition-all duration-300 ${
                 activeTab === tab
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-foreground border border-border hover:border-primary'
+                  ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/20'
+                  : 'bg-card text-foreground border border-border hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10'
               }`}
             >
               {tab === 'sd' && 'SD'}
@@ -90,21 +90,21 @@ const Programs = () => {
           {programs.map((program, index) => (
             <div
               key={index}
-              className="p-6 bg-white rounded-xl border border-border hover:shadow-lg hover:border-primary transition-all duration-300"
+              className="p-6 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group transform hover:scale-102 hover:-translate-y-1"
             >
               <div className="mb-4 flex items-start justify-between">
                 <div>
-                  <h3 className="text-xl font-semibold text-foreground mb-2">
+                  <h3 className="text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
                     {program.subject}
                   </h3>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
                     {program.level}
                   </Badge>
                 </div>
               </div>
               
               <div className="mb-6">
-                <p className="text-2xl font-bold text-primary mb-1">
+                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-1">
                   {program.price}
                 </p>
                 <p className="text-sm text-muted-foreground">per sesi</p>
@@ -112,7 +112,7 @@ const Programs = () => {
 
               <Button
                 variant="outline"
-                className="w-full border-primary text-primary hover:bg-primary/5"
+                className="w-full border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
               >
                 Lihat Detail
               </Button>

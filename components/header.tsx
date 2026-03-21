@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Menu, X, BookOpen, Phone } from 'lucide-react'
+import { Menu, X, BookOpen, Phone, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 
@@ -10,6 +10,19 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [isDark, setIsDark] = useState(true)
+
+  const toggleTheme = () => {
+    const html = document.documentElement
+    const newDarkMode = !isDark
+    setIsDark(newDarkMode)
+    
+    if (newDarkMode) {
+      html.classList.add('dark')
+    } else {
+      html.classList.remove('dark')
+    }
+  }
 
   const toggleMenu = () => setIsOpen(!isOpen)
 
@@ -58,6 +71,14 @@ const Header = () => {
 
           {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </Button>
             <Button
               variant="outline"
               className="border-primary text-primary hover:bg-primary/5"

@@ -6,16 +6,20 @@ import Image from 'next/image'
 
 const Hero = () => {
   return (
-    <section id="home" className="w-full py-12 md:py-20 lg:py-24 bg-gradient-to-b from-primary/5 to-transparent">
+    <section id="home" className="w-full py-12 md:py-20 lg:py-24 bg-gradient-to-br from-background via-background to-card/30 relative overflow-hidden">
+      {/* Decorative gradient orb */}
+      <div className="absolute top-10 right-10 w-96 h-96 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl opacity-20 -z-10"></div>
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-t from-primary/10 rounded-full blur-3xl opacity-10 -z-10"></div>
+
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Content */}
           <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="text-balance text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4">
+              <h1 className="text-balance text-4xl md:text-5xl lg:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-foreground to-secondary mb-4">
                 Wujudkan Potensi Belajar Terbaik Bersama EduStory
               </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-xl">
+              <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
                 Platform pembelajaran privat terpercaya dengan pengajar profesional, fleksibel, dan personalized untuk semua usia
               </p>
             </div>

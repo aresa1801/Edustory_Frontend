@@ -37,10 +37,10 @@ const Features = () => {
   ]
 
   return (
-    <section id="layanan" className="w-full py-16 md:py-20 lg:py-24 bg-white">
+    <section id="layanan" className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-background to-card/20">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
             Mengapa Memilih EduStory?
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -54,17 +54,17 @@ const Features = () => {
             return (
               <div
                 key={index}
-                className="p-6 bg-white rounded-xl border border-border hover:border-primary hover:shadow-lg transition-all duration-300 group"
+                className="p-6 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group transform hover:scale-102 hover:-translate-y-1"
               >
                 <div className="mb-4">
-                  <div className="inline-flex p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <div className="inline-flex p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
                     <Icon className="w-6 h-6 text-primary" />
                   </div>
                 </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
+                <h3 className="text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground group-hover:text-foreground transition-colors">
                   {feature.description}
                 </p>
               </div>
