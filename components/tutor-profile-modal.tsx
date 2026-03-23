@@ -33,22 +33,23 @@ export function TutorProfileModal({ tutor, isOpen, onClose }: TutorProfileModalP
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-card rounded-2xl border border-border/50 max-w-2xl w-full my-8 shadow-2xl">
-        {/* Header with Close Button */}
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b border-border/30 bg-card/80 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-2xl border border-border/50 max-w-2xl w-full max-h-[90vh] shadow-2xl flex flex-col">
+        {/* Header with Close Button - Fixed at top */}
+        <div className="sticky top-0 flex items-center justify-between p-6 border-b border-border/30 bg-card/95 backdrop-blur-sm z-10">
           <h2 className="text-2xl font-bold text-foreground">Profil Pengajar</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-primary/10 rounded-lg transition-colors duration-300"
+            className="p-2 hover:bg-primary/10 rounded-lg transition-colors duration-300 flex-shrink-0"
             aria-label="Close modal"
           >
             <X className="w-6 h-6 text-foreground" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 md:p-8 space-y-8">
+        {/* Content - Scrollable */}
+        <div className="overflow-y-auto flex-1">
+          <div className="p-6 md:p-8 space-y-8">
           {/* Profile Header */}
           <div className="flex flex-col md:flex-row gap-6">
             {/* Photo */}
@@ -226,6 +227,7 @@ export function TutorProfileModal({ tutor, isOpen, onClose }: TutorProfileModalP
                 Hubungi Sekarang
               </Button>
             </div>
+          </div>
           </div>
         </div>
       </div>
