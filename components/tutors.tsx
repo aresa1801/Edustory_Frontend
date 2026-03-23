@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { BadgeCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -11,7 +12,7 @@ const Tutors = () => {
       subjects: 'Matematika, Kalkulus',
       experience: '12 tahun',
       rating: '4.9/5',
-      image: '👩‍🏫',
+      image: '/tutors/siti-nurhayati.jpg',
     },
     {
       name: 'Prof. Ahmad Hidayat',
@@ -19,7 +20,7 @@ const Tutors = () => {
       subjects: 'Fisika, IPA',
       experience: '15 tahun',
       rating: '4.95/5',
-      image: '👨‍🏫',
+      image: '/tutors/ahmad-hidayat.jpg',
     },
     {
       name: 'Budi Santoso, M.Ed',
@@ -27,7 +28,7 @@ const Tutors = () => {
       subjects: 'Bahasa Inggris, TOEFL',
       experience: '10 tahun',
       rating: '4.88/5',
-      image: '👨‍🏫',
+      image: '/tutors/budi-santoso.jpg',
     },
     {
       name: 'Dewi Kusuma, S.Pd',
@@ -35,7 +36,7 @@ const Tutors = () => {
       subjects: 'Kimia, Biologi',
       experience: '8 tahun',
       rating: '4.85/5',
-      image: '👩‍🏫',
+      image: '/tutors/dewi-kusuma.jpg',
     },
     {
       name: 'Rudi Hermawan, M.Kom',
@@ -43,7 +44,7 @@ const Tutors = () => {
       subjects: 'Pemrograman, IT',
       experience: '9 tahun',
       rating: '4.92/5',
-      image: '👨‍💻',
+      image: '/tutors/rudi-hermawan.jpg',
     },
     {
       name: 'Rina Lestari, S.Pd',
@@ -51,7 +52,7 @@ const Tutors = () => {
       subjects: 'Bahasa Indonesia, Sastra',
       experience: '7 tahun',
       rating: '4.87/5',
-      image: '👩‍🏫',
+      image: '/tutors/rina-lestari.jpg',
     },
   ]
 
@@ -71,20 +72,29 @@ const Tutors = () => {
           {tutors.map((tutor, index) => (
             <div
               key={index}
-              className="group bg-card rounded-xl border border-border hover:border-primary/50 overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 transform hover:scale-102 hover:-translate-y-1"
+              className="group bg-card rounded-xl border border-border overflow-hidden transition-all duration-300"
             >
-              {/* Image Area */}
-              <div className="h-40 bg-gradient-to-br from-primary/15 to-secondary/15 flex items-center justify-center text-7xl group-hover:from-primary/25 group-hover:to-secondary/25 transition-all duration-300">
-                {tutor.image}
+              {/* Image Area - 3:4 Ratio */}
+              <div className="relative h-80 overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900">
+                <Image
+                  src={tutor.image}
+                  alt={tutor.name}
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority={index < 3}
+                />
+                {/* Hover Overlay - Minimalist */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300"></div>
               </div>
 
               {/* Content */}
-              <div className="p-6">
+              <div className="p-6 border-t border-border/50 group-hover:border-primary/30 transition-colors duration-300">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
                       {tutor.name}
-                      <BadgeCheck className="w-5 h-5 text-primary" />
+                      <BadgeCheck className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
                     </h3>
                     <p className="text-sm text-primary font-medium">
                       {tutor.qualification}
@@ -97,7 +107,7 @@ const Tutors = () => {
                     <p className="text-xs text-muted-foreground uppercase font-semibold">
                       Mata Pelajaran
                     </p>
-                    <p className="text-foreground">
+                    <p className="text-foreground group-hover:text-slate-100 transition-colors duration-300">
                       {tutor.subjects}
                     </p>
                   </div>
@@ -111,7 +121,7 @@ const Tutors = () => {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Rating</p>
-                      <p className="font-semibold text-primary">
+                      <p className="font-semibold text-primary group-hover:text-cyan-400 transition-colors duration-300">
                         {tutor.rating}
                       </p>
                     </div>
@@ -120,9 +130,11 @@ const Tutors = () => {
 
                 <Button
                   variant="outline"
-                  className="w-full border-primary text-primary hover:bg-primary/5"
+                  className="w-full border-primary text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300 group/btn"
                 >
-                  Lihat Profil
+                  <span className="group-hover/btn:text-cyan-300 transition-colors duration-300">
+                    Lihat Profil
+                  </span>
                 </Button>
               </div>
             </div>
