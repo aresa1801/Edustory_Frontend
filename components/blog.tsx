@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -14,6 +15,7 @@ const Blog = () => {
       readTime: '5 min',
       image: '📚',
       color: 'bg-primary/10',
+      slug: 'tips-belajar-efektif-smp',
     },
     {
       id: 2,
@@ -24,6 +26,7 @@ const Blog = () => {
       readTime: '7 min',
       image: '✏️',
       color: 'bg-secondary/10',
+      slug: 'cara-mempersiapkan-utbk',
     },
     {
       id: 3,
@@ -34,6 +37,7 @@ const Blog = () => {
       readTime: '4 min',
       image: '💬',
       color: 'bg-accent/10',
+      slug: 'pentingnya-komunikasi-pembelajaran-online',
     },
   ]
 
@@ -88,13 +92,15 @@ const Blog = () => {
                   <span className="text-sm text-muted-foreground">
                     {post.readTime} baca
                   </span>
-                  <Button
-                    variant="ghost"
-                    className="text-primary hover:text-primary/90 p-0 h-auto font-semibold flex items-center gap-2"
-                  >
-                    Baca Selengkapnya
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
+                  <Link href={`/blog/${post.slug}`}>
+                    <Button
+                      variant="ghost"
+                      className="text-primary hover:text-primary/90 p-0 h-auto font-semibold flex items-center gap-2"
+                    >
+                      Baca Selengkapnya
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </article>
