@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { BookOpen, MapPin, Phone, Mail, MessageCircle, Facebook, Instagram, Linkedin, Twitter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CONTACT_INFO } from '@/lib/constants'
 
 const Footer = () => {
   const currentYear = new Date().getFullYear()
@@ -110,20 +111,20 @@ const Footer = () => {
               </div>
               <div className="flex gap-3">
                 <Phone className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href="tel:+6281234567890" className="text-muted-foreground hover:text-primary transition-colors">
-                  +62 812-3456-7890
+                <a href={`tel:${CONTACT_INFO.phone}`} className="text-muted-foreground hover:text-primary transition-colors">
+                  {CONTACT_INFO.phoneFormatted}
                 </a>
               </div>
               <div className="flex gap-3">
                 <Mail className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href="mailto:info@edustory.com" className="text-muted-foreground hover:text-primary transition-colors">
-                  info@edustory.com
+                <a href={`mailto:${CONTACT_INFO.email}`} className="text-muted-foreground hover:text-primary transition-colors">
+                  {CONTACT_INFO.email}
                 </a>
               </div>
               <div className="flex gap-3">
                 <MessageCircle className="w-5 h-5 flex-shrink-0 text-primary" />
                 <a
-                  href="https://wa.me/6281234567890"
+                  href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-primary transition-colors"
