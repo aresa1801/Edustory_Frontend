@@ -2,10 +2,11 @@
 
 import { Button } from '@/components/ui/button'
 import { MessageCircle, Phone } from 'lucide-react'
+import { CONTACT_INFO, WHATSAPP_MESSAGES } from '@/lib/constants'
 
 const CTA = () => {
-  const whatsappNumber = '6281234567890'
-  const phoneNumber = '+62812-3456-7890'
+  const whatsappNumber = CONTACT_INFO.whatsapp
+  const phoneNumber = CONTACT_INFO.phoneFormatted
 
   const openWhatsApp = () => {
     window.open(`https://wa.me/${whatsappNumber}`, '_blank')
