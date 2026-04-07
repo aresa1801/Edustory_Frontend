@@ -1,25 +1,36 @@
-import { Suspense } from 'react'
-import { LoginForm } from '@/components/auth/login-form'
-import { Spinner } from '@/components/ui/spinner'
+'use client';
 
-function LoginFormSkeleton() {
-  return (
-    <div className="w-full max-w-md">
-      <div className="bg-card rounded-2xl shadow-lg shadow-primary/10 border border-border p-8">
-        <div className="mb-8 text-center flex justify-center">
-          <Spinner className="h-6 w-6" />
-        </div>
-      </div>
-    </div>
-  )
-}
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
+  const supabase = createClient();
+
+  const handleGoogleLogin = async () => {
+    // Gunakan URL dari environment variable
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const redirectUrl = `${appUrl}/auth/callback`;
+    console.log('📍 Redirect URL akan dikirim ke Google:', redirectUrl);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (error) {
+      console.error('❌ Login error:', error.message);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-card/30 flex items-center justify-center py-12 px-4">
-      <Suspense fallback={<LoginFormSkeleton />}>
-        <LoginForm />
-      </Suspense>
+    <div className="flex min-h-screen items-center justify-center">
+      <button
+        onClick={handleGoogleLogin}
+        className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
+      >
+        Masuk dengan Google
+      </button>
     </div>
-  )
+  );
 }

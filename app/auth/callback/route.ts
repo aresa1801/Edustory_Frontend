@@ -1,21 +1,30 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-
-  if (code) {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
-
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+export async function GET(request: Request) {
+  console.log('🚀 CALLBACK DIPANGGIL!')
+  
+  const url = new URL(request.url)
+  const access_token = url.searchParams.get('access_token')
+  const refresh_token = url.searchParams.get('refresh_token')
+  
+  console.log('Access token:', access_token ? 'ADA' : 'TIDAK ADA')
+  
+  if (access_token && refresh_token) {
+    // Set session manually
+    const supabase = await createClient()
+    const { error } = await supabase.auth.setSession({
+      access_token,
+      refresh_token,
+    })
+    
     if (!error) {
-      return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+      console.log('✅ Session berhasil diset!')
+      return NextResponse.redirect(new URL('/', request.url))
     }
+    
+    console.error('❌ Error set session:', error)
   }
-
-  return NextResponse.redirect(`${requestUrl.origin}/login?error=auth`)
+  
+  return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))
 }
