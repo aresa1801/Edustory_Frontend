@@ -23,16 +23,11 @@ export default function SelectRolePage() {
     getUser()
   }, [router])
 
-  const handleRoleSelection = async (role: 'student' | 'tutor' | 'admin') => {
+  const handleRoleSelection = async (role: 'student' | 'tutor') => {
     if (!user) return
 
     setLoading(role)
     try {
-      // Check if admin email
-      if (role === 'admin' && user.email !== 'storyaunty.evi@gmail.com') {
-        throw new Error('Anda tidak memiliki akses sebagai admin')
-      }
-
       // Create or update user profile
       const { error } = await supabase
         .from('user_profiles')
