@@ -23,8 +23,10 @@ export default function RegisterPage() {
     const initializeForm = async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        console.log('[v0] Register page - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
         
         if (sessionError || !session) {
+          console.log('[v0] No session, redirecting to login')
           router.push('/auth/login')
           return
         }
@@ -32,16 +34,18 @@ export default function RegisterPage() {
         // Check if Google OAuth
         const provider = session.user.app_metadata?.provider
         if (provider === 'google') {
+          console.log('[v0] Google OAuth detected, pre-filling form')
           setIsGoogleAuth(true)
           // Pre-fill data from Google
           setEmail(session.user.email || '')
           setFullName(session.user.user_metadata?.full_name || '')
         } else {
           // If not Google OAuth, redirect to select-role
+          console.log('[v0] Not Google OAuth, redirecting to select-role')
           router.push('/auth/select-role')
         }
       } catch (err) {
-        console.error('Initialize error:', err)
+        console.error('[v0] Initialize error:', err)
       } finally {
         setLoading(false)
       }
@@ -71,6 +75,7 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    console.log('[v0] Register form submitted - isGoogleAuth:', isGoogleAuth)
 
     if (!fullName || !email) {
       setError('Nama dan email harus diisi')
@@ -100,6 +105,7 @@ export default function RegisterPage() {
       // For Google OAuth, user is already authenticated
       // Just create the user profile
       if (isGoogleAuth) {
+        console.log('[v0] Creating user profile for Google auth user')
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
@@ -123,9 +129,11 @@ export default function RegisterPage() {
         }
 
         // Redirect to role selection
+        console.log('[v0] Profile created, redirecting to select-role')
         router.push('/auth/select-role')
       } else {
         // For email/password signup
+        console.log('[v0] Creating new user with email/password')
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -140,9 +148,11 @@ export default function RegisterPage() {
         if (error) throw error
 
         // Redirect to role selection
+        console.log('[v0] User signed up, redirecting to select-role')
         router.push('/auth/select-role')
       }
     } catch (err) {
+      console.error('[v0] Register error:', err)
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setLoading(false)

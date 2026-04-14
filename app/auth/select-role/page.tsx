@@ -26,31 +26,33 @@ export default function SelectRolePage() {
   const handleRoleSelection = async (role: 'student' | 'tutor') => {
     if (!user) return
 
+    console.log('[v0] Role selected:', role)
     setLoading(role)
     try {
       // Create or update user profile
+      console.log('[v0] Updating user profile with role:', role)
       const { error } = await supabase
         .from('user_profiles')
-        .insert({
+        .upsert({
           id: user.id,
           email: user.email,
           name: user.user_metadata?.full_name || user.email,
           role: role,
           avatar_url: user.user_metadata?.avatar_url,
-          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', user.id)
         .select()
 
-      if (error && error.code !== '23505') {
-        // 23505 is unique constraint violation
+      if (error) {
         throw error
       }
 
       // Redirect based on role
+      console.log('[v0] Role updated, redirecting to dashboard:', role)
       router.push(`/dashboard/${role}`)
     } catch (error) {
-      console.error('Error selecting role:', error)
+      console.error('[v0] Error selecting role:', error)
       alert(error instanceof Error ? error.message : 'Terjadi kesalahan')
     } finally {
       setLoading(null)

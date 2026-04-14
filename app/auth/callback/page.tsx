@@ -14,14 +14,17 @@ export default function AuthCallback() {
       try {
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        console.log('[v0] Auth Callback - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
 
         if (sessionError || !session) {
+          console.log('[v0] No session found, redirecting to login')
           router.push('/auth/login')
           return
         }
 
         // Check if user is admin
         if (session.user.email === 'storyaunty.evi@gmail.com') {
+          console.log('[v0] Admin detected, redirecting to admin dashboard')
           router.push('/dashboard/admin')
           return
         }
@@ -37,11 +40,14 @@ export default function AuthCallback() {
           // User doesn't exist yet, check if logged in via Google OAuth
           // If so, redirect to register with pre-filled data
           const provider = session.user.app_metadata?.provider
+          console.log('[v0] User profile not found, provider:', provider)
           if (provider === 'google') {
             // Redirect to register page with Google data
+            console.log('[v0] Google user, redirecting to register')
             router.push('/auth/register')
           } else {
             // Email signup, redirect to role selection
+            console.log('[v0] Email signup, redirecting to select-role')
             router.push('/auth/select-role')
           }
           return
@@ -54,12 +60,14 @@ export default function AuthCallback() {
         // Redirect to appropriate dashboard based on role
         if (userProfile) {
           const role = userProfile.role as string
+          console.log('[v0] User profile found with role:', role)
           router.push(`/dashboard/${role}`)
         } else {
+          console.log('[v0] No role found, redirecting to select-role')
           router.push('/auth/select-role')
         }
       } catch (err) {
-        console.error('Callback error:', err)
+        console.error('[v0] Callback error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
       } finally {
         setLoading(false)
