@@ -5,6 +5,8 @@
 
 :root {
   /* Dark mode as default for modern aesthetic */
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-poppins: 'Poppins', system-ui, sans-serif;
   --background: #0A0E27;
   --foreground: #E8EEF1;
   --card: #1A1F3A;

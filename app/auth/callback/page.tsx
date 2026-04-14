@@ -12,6 +12,14 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        // Handle implicit flow: access_token + refresh_token passed as query params
+        const searchParams = new URLSearchParams(window.location.search)
+        const access_token = searchParams.get('access_token')
+        const refresh_token = searchParams.get('refresh_token')
+        if (access_token && refresh_token) {
+          await supabase.auth.setSession({ access_token, refresh_token })
+        }
+
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         console.log('[v0] Auth Callback - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)

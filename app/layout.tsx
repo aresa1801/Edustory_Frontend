@@ -1,20 +1,9 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Poppins } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProvider } from '@/components/app-provider'
 import './globals.css'
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-inter'
-})
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-poppins'
-})
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'EduStory - Platform Pembelajaran Privat Terpercaya',
@@ -46,9 +35,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className="dark">
-      <body className={`${inter.variable} ${poppins.variable} font-sans`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-sans antialiased">
         <AppProvider>
-          <div className="font-sans antialiased">
+          <div>
             {children}
           </div>
         </AppProvider>
