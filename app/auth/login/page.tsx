@@ -133,7 +133,7 @@ export default function LoginPage() {
             <p className="text-sm text-muted-foreground">
               Belum punya akun?{' '}
               <Link
-                href="/auth/signup"
+                href="/auth/register"
                 className="text-primary hover:text-primary/80 font-medium transition-colors"
               >
                 Daftar di sini
