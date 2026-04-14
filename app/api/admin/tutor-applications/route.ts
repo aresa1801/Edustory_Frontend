@@ -1,13 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // Get all pending tutor applications
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase()
   try {
     const authHeader = request.headers.get('authorization')
 
@@ -77,6 +80,7 @@ export async function GET(request: NextRequest) {
 
 // Approve or reject a tutor application
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase()
   try {
     const { applicationId, status, rejectionReason } = await request.json()
     const authHeader = request.headers.get('authorization')
