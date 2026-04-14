@@ -34,8 +34,16 @@ export default function AuthCallback() {
           .single()
 
         if (profileError && profileError.code === 'PGRST116') {
-          // User doesn't exist yet, redirect to role selection
-          router.push('/auth/select-role')
+          // User doesn't exist yet, check if logged in via Google OAuth
+          // If so, redirect to register with pre-filled data
+          const provider = session.user.app_metadata?.provider
+          if (provider === 'google') {
+            // Redirect to register page with Google data
+            router.push('/auth/register')
+          } else {
+            // Email signup, redirect to role selection
+            router.push('/auth/select-role')
+          }
           return
         }
 
