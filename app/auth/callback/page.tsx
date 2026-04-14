@@ -20,6 +20,12 @@ export default function AuthCallback() {
           return
         }
 
+        // Check if user is admin
+        if (session.user.email === 'storyaunty.evi@gmail.com') {
+          router.push('/dashboard/admin')
+          return
+        }
+
         // Check if user has a role in the database
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
