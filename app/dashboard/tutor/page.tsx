@@ -9,6 +9,7 @@ import TutorMyMatches from '@/components/dashboard/tutor/my-matches'
 import TutorProfile from '@/components/dashboard/tutor/tutor-profile'
 import TutorAssessmentStatus from '@/components/dashboard/tutor/assessment-status'
 import { createClient } from '@/lib/auth'
+import Link from 'next/link'
 
 export default function TutorDashboard() {
   const [profile, setProfile] = useState<any>(null)
@@ -79,9 +80,9 @@ export default function TutorDashboard() {
         <Alert className="mb-6 bg-amber-50 border-amber-200">
           <AlertDescription className="text-amber-800">
             ⚠️ Harap selesaikan semua tahapan kurasi agar bisa menerima permintaan dari siswa.{' '}
-            <a href="/curation/progress" className="font-medium underline">
+            <Link href="/curation/progress" className="font-medium underline">
               Lihat status kurasi →
-            </a>
+            </Link>
           </AlertDescription>
         </Alert>
       )}
