@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         learning_goals,
         address,
         status,
-        users_profile:user_id(full_name, email, phone, avatar_url)
+        user_profiles:user_id(name, email, phone, avatar_url)
       `)
       .eq('user_id', user.id)
       .single()

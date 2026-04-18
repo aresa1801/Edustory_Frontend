@@ -1,26 +1,98 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/auth'
+import { User, BookOpen, MapPin, Save, Mail, Phone, ShieldCheck, Target, Calendar, Wallet, CheckCircle2, Users } from 'lucide-react'
+
+const GRADE_LEVELS = [
+  'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
+  'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
+  'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
+  'Mahasiswa', 'Umum',
+]
+
+const SUBJECTS = [
+  'Matematika', 'Bahasa Inggris', 'Bahasa Indonesia', 'Sains', 'Fisika', 'Kimia', 'Biologi',
+  'Sejarah', 'Geografi', 'IPA', 'IPS', 'Ekonomi', 'Pemrograman', 'Desain Grafis', 'Musik',
+]
+
+const SCHEDULE_OPTIONS = [
+  'Senin – Jumat (Pagi)', 'Senin – Jumat (Siang)', 'Senin – Jumat (Sore)',
+  'Sabtu – Minggu (Pagi)', 'Sabtu – Minggu (Siang)', 'Sabtu – Minggu (Sore)',
+  'Fleksibel',
+]
+
+const CITIES = [
+  'Jakarta Selatan', 'Jakarta Barat', 'Jakarta Timur', 'Jakarta Utara', 'Jakarta Pusat',
+  'Bogor', 'Depok', 'Tangerang', 'Bekasi', 'Bandung', 'Surabaya', 'Medan',
+  'Makassar', 'Semarang', 'Yogyakarta', 'Palembang', 'Lainnya',
+]
 
 export default function StudentProfile() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [profile, setProfile] = useState<any>(null)
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
+  // user_profiles fields
+  const [userProfile, setUserProfile] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    bio: '',
+    gender: '',
+  })
 
-  const fetchProfile = async () => {
+  // students table fields
+  const [studentData, setStudentData] = useState({
+    id: '',
+    user_id: '',
+    grade_level: '',
+    subjects: [] as string[],
+    learning_goals: '',
+    preferred_schedule: '',
+    budget_per_month: '',
+    address: '',
+    city: '',
+    status: '',
+    parent_name: '',
+    parent_email: '',
+    parent_phone: '',
+  })
+
+  // Profile completion score (0–100)
+  const completionScore = useMemo(() => {
+    const fields = [
+      userProfile.name.trim(),
+      userProfile.phone.trim(),
+      userProfile.gender,
+      userProfile.bio.trim(),
+      studentData.grade_level,
+      studentData.subjects.length > 0 ? 'ok' : '',
+      studentData.learning_goals.trim(),
+      studentData.preferred_schedule,
+      studentData.address.trim(),
+      studentData.city,
+      studentData.parent_name.trim(),
+      studentData.parent_phone.trim(),
+    ]
+    const filled = fields.filter(Boolean).length
+    return Math.round((filled / fields.length) * 100)
+  }, [userProfile, studentData])
+
+  const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
       const supabase = createClient()
@@ -31,57 +103,123 @@ export default function StudentProfile() {
         return
       }
 
-      const { data, error } = await supabase
+      const { data: up, error: upErr } = await supabase
+        .from('user_profiles')
+        .select('name, email, phone, bio, gender')
+        .eq('id', user.id)
+        .single()
+
+      if (upErr) throw upErr
+
+      setUserProfile({
+        name: up?.name || '',
+        // Always use the auth email as the authoritative source
+        email: user.email || up?.email || '',
+        phone: up?.phone || '',
+        bio: up?.bio || '',
+        gender: up?.gender || '',
+      })
+
+      const { data: sd, error: sdErr } = await supabase
         .from('students')
-        .select(`
-          id,
-          grade_level,
-          subjects,
-          learning_goals,
-          address,
-          status,
-          users_profile:user_id(
-            full_name,
-            email,
-            phone,
-            bio,
-            avatar_url
-          )
-        `)
+        .select('id, user_id, grade_level, subjects, learning_goals, preferred_schedule, budget_per_month, address, city, status, parent_name, parent_email, parent_phone')
         .eq('user_id', user.id)
         .single()
 
-      if (error) throw error
+      if (sdErr && sdErr.code !== 'PGRST116') throw sdErr
 
-      setProfile(data)
+      setStudentData({
+        id: sd?.id || '',
+        user_id: user.id,
+        grade_level: sd?.grade_level || '',
+        subjects: sd?.subjects || [],
+        learning_goals: sd?.learning_goals || '',
+        preferred_schedule: sd?.preferred_schedule || '',
+        budget_per_month: sd?.budget_per_month?.toString() || '',
+        address: sd?.address || '',
+        city: sd?.city || '',
+        status: sd?.status || '',
+        parent_name: sd?.parent_name || '',
+        parent_email: sd?.parent_email || '',
+        parent_phone: sd?.parent_phone || '',
+      })
+
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat profil')
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
+
+  const handleSubjectToggle = (subject: string) => {
+    setStudentData(prev => ({
+      ...prev,
+      subjects: prev.subjects.includes(subject)
+        ? prev.subjects.filter(s => s !== subject)
+        : [...prev.subjects, subject],
+    }))
   }
 
-  const handleSaveProfile = async () => {
+  const handleSave = async () => {
+    if (!userProfile.name.trim()) {
+      setError('Nama lengkap tidak boleh kosong')
+      return
+    }
+
     setSaving(true)
+    setError(null)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-
       if (!user) throw new Error('Anda harus login terlebih dahulu')
 
-      // Update students table
-      const { error } = await supabase
-        .from('students')
+      // Update user_profiles
+      const { error: upErr } = await supabase
+        .from('user_profiles')
         .update({
-          grade_level: profile.grade_level,
-          subjects: profile.subjects,
-          learning_goals: profile.learning_goals,
-          address: profile.address,
+          name: userProfile.name.trim(),
+          phone: userProfile.phone.trim(),
+          bio: userProfile.bio.trim(),
+          gender: userProfile.gender || null,
         })
-        .eq('id', profile.id)
+        .eq('id', user.id)
 
-      if (error) throw error
+      if (upErr) throw upErr
+
+      // Upsert students table (update if exists, insert if not)
+      const studentPayload = {
+        grade_level: studentData.grade_level || null,
+        subjects: studentData.subjects,
+        learning_goals: studentData.learning_goals.trim() || null,
+        preferred_schedule: studentData.preferred_schedule || null,
+        budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
+        address: studentData.address.trim() || null,
+        city: studentData.city || null,
+        parent_name: studentData.parent_name.trim() || null,
+        parent_email: studentData.parent_email.trim() || null,
+        parent_phone: studentData.parent_phone.trim() || null,
+      }
+
+      if (studentData.id) {
+        const { error: sdErr } = await supabase
+          .from('students')
+          .update(studentPayload)
+          .eq('id', studentData.id)
+        if (sdErr) throw sdErr
+      } else {
+        const { data: newSd, error: sdErr } = await supabase
+          .from('students')
+          .insert({ user_id: user.id, ...studentPayload })
+          .select('id')
+          .single()
+        if (sdErr) throw sdErr
+        if (newSd) setStudentData(prev => ({ ...prev, id: newSd.id }))
+      }
 
       setSuccess('Profil berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
@@ -94,144 +232,370 @@ export default function StudentProfile() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <Spinner className="h-8 w-8 text-primary" />
+        <p className="text-sm text-muted-foreground">Memuat profil…</p>
       </div>
     )
   }
 
-  if (!profile) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>Profil tidak ditemukan</AlertDescription>
-      </Alert>
-    )
-  }
+  const initials = userProfile.name
+    ? userProfile.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '?'
+
+  const completionColor =
+    completionScore >= 80 ? 'text-green-600' :
+    completionScore >= 50 ? 'text-yellow-600' :
+    'text-red-500'
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Alerts */}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
       {success && (
         <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-700">{success}</AlertDescription>
+          <AlertDescription className="flex items-center gap-2 text-green-700">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {success}
+          </AlertDescription>
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Informasi Pribadi</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="fullName">Nama Lengkap</Label>
-              <Input
-                id="fullName"
-                value={profile.users_profile?.full_name || ''}
-                disabled
-                className="mt-1"
-              />
+      {/* Profile Header Card */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardContent className="pt-6 pb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0 ring-2 ring-primary/20">
+              {initials}
             </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                value={profile.users_profile?.email || ''}
-                disabled
-                className="mt-1"
-              />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-lg leading-tight truncate">{userProfile.name || 'Nama belum diisi'}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{userProfile.email}</span>
+              </p>
+              {studentData.status && (
+                <span className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  studentData.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  <ShieldCheck className="w-3 h-3" />
+                  {studentData.status === 'active' ? 'Akun Aktif' : studentData.status}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="phone">Nomor Telepon</Label>
-              <Input
-                id="phone"
-                value={profile.users_profile?.phone || ''}
-                disabled
-                className="mt-1"
-              />
+          {/* Profile completion */}
+          <Separator className="my-4" />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Kelengkapan Profil</span>
+              <span className={`font-semibold ${completionColor}`}>{completionScore}%</span>
             </div>
-            <div>
-              <Label htmlFor="gradeLevel">Tingkat Kelas</Label>
-              <Input
-                id="gradeLevel"
-                value={profile.grade_level || ''}
-                onChange={e => setProfile(prev => ({ ...prev, grade_level: e.target.value }))}
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="address">Alamat</Label>
-            <Input
-              id="address"
-              value={profile.address || ''}
-              onChange={e => setProfile(prev => ({ ...prev, address: e.target.value }))}
-              className="mt-1"
-            />
+            <Progress value={completionScore} className="h-1.5" />
+            {completionScore < 100 && (
+              <p className="text-xs text-muted-foreground">Lengkapi profil Anda agar lebih mudah dicocokkan dengan pengajar.</p>
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {/* Personal Info */}
       <Card>
-        <CardHeader>
-          <CardTitle>Informasi Pembelajaran</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <User className="w-4 h-4 text-blue-600" />
+            </div>
+            Informasi Pribadi
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="subjects">Mata Pelajaran</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {profile.subjects?.map((subject: string) => (
-                <div key={subject} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
-                  {subject}
-                </div>
-              ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="name">
+                Nama Lengkap <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                value={userProfile.name}
+                onChange={e => setUserProfile(p => ({ ...p, name: e.target.value }))}
+                placeholder="Nama lengkap Anda"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="flex items-center gap-1">
+                Email
+                <span className="text-xs text-muted-foreground font-normal">(dari akun login)</span>
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  value={userProfile.email}
+                  readOnly
+                  className="pl-9 bg-muted/40 cursor-not-allowed text-muted-foreground"
+                />
+              </div>
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="learningGoals">Tujuan Belajar</Label>
-            <textarea
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="phone" className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground" /> Nomor Telepon
+              </Label>
+              <Input
+                id="phone"
+                value={userProfile.phone}
+                onChange={e => setUserProfile(p => ({ ...p, phone: e.target.value }))}
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gender">Jenis Kelamin</Label>
+              <Select value={userProfile.gender} onValueChange={v => setUserProfile(p => ({ ...p, gender: v }))}>
+                <SelectTrigger id="gender">
+                  <SelectValue placeholder="Pilih jenis kelamin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="laki-laki">Laki-laki</SelectItem>
+                  <SelectItem value="perempuan">Perempuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bio">Tentang Saya</Label>
+            <Textarea
+              id="bio"
+              value={userProfile.bio}
+              onChange={e => setUserProfile(p => ({ ...p, bio: e.target.value }))}
+              placeholder="Ceritakan sedikit tentang diri Anda…"
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground text-right">{userProfile.bio.length} karakter</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Learning Info */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-4 h-4 text-purple-600" />
+            </div>
+            Informasi Pembelajaran
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="gradeLevel">Tingkat Kelas</Label>
+              <Select value={studentData.grade_level} onValueChange={v => setStudentData(p => ({ ...p, grade_level: v }))}>
+                <SelectTrigger id="gradeLevel">
+                  <SelectValue placeholder="Pilih tingkat kelas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRADE_LEVELS.map(level => (
+                    <SelectItem key={level} value={level}>{level}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="schedule" className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Jadwal Belajar
+              </Label>
+              <Select value={studentData.preferred_schedule} onValueChange={v => setStudentData(p => ({ ...p, preferred_schedule: v }))}>
+                <SelectTrigger id="schedule">
+                  <SelectValue placeholder="Pilih jadwal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHEDULE_OPTIONS.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              Mata Pelajaran
+              {studentData.subjects.length > 0 && (
+                <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                  {studentData.subjects.length} dipilih
+                </Badge>
+              )}
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border border-input bg-muted/20">
+              {SUBJECTS.map(subject => (
+                <label
+                  key={subject}
+                  htmlFor={`subj-${subject}`}
+                  className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-background transition-colors"
+                >
+                  <Checkbox
+                    id={`subj-${subject}`}
+                    checked={studentData.subjects.includes(subject)}
+                    onCheckedChange={() => handleSubjectToggle(subject)}
+                  />
+                  <span className="text-sm leading-none">{subject}</span>
+                </label>
+              ))}
+            </div>
+            {studentData.subjects.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {studentData.subjects.map(s => (
+                  <Badge
+                    key={s}
+                    variant="secondary"
+                    className="text-xs cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    onClick={() => handleSubjectToggle(s)}
+                  >
+                    {s} ×
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="learningGoals" className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-muted-foreground" /> Tujuan Belajar
+            </Label>
+            <Textarea
               id="learningGoals"
-              value={profile.learning_goals || ''}
-              onChange={e => setProfile(prev => ({ ...prev, learning_goals: e.target.value }))}
-              className="mt-1 w-full px-3 py-2 border border-input rounded-md text-sm"
-              rows={4}
-              placeholder="Jelaskan tujuan belajar Anda"
+              value={studentData.learning_goals}
+              onChange={e => setStudentData(p => ({ ...p, learning_goals: e.target.value }))}
+              placeholder="Jelaskan tujuan belajar Anda, misalnya: persiapan ujian, meningkatkan nilai, dll."
+              rows={3}
+              className="resize-none"
             />
           </div>
 
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <div className="mt-1 p-3 bg-muted rounded-md">
-              <p className="text-sm font-medium capitalize">
-                {profile.status === 'active' ? '✓ Aktif' : profile.status}
+          <div className="space-y-1.5">
+            <Label htmlFor="budget" className="flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-muted-foreground" /> Anggaran Per Bulan (Rp)
+            </Label>
+            <Input
+              id="budget"
+              type="number"
+              min={0}
+              value={studentData.budget_per_month}
+              onChange={e => setStudentData(p => ({ ...p, budget_per_month: e.target.value }))}
+              placeholder="Contoh: 500000"
+            />
+            {studentData.budget_per_month && (
+              <p className="text-xs text-muted-foreground">
+                ≈ Rp {Number(studentData.budget_per_month).toLocaleString('id-ID')} / bulan
               </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Address */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <MapPin className="w-4 h-4 text-emerald-600" />
+            </div>
+            Lokasi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="address">Alamat Lengkap</Label>
+            <Input
+              id="address"
+              value={studentData.address}
+              onChange={e => setStudentData(p => ({ ...p, address: e.target.value }))}
+              placeholder="Jl. Contoh No. 1, RT/RW, Kelurahan, Kecamatan"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="city">Kota / Kabupaten</Label>
+            <Select value={studentData.city} onValueChange={v => setStudentData(p => ({ ...p, city: v }))}>
+              <SelectTrigger id="city">
+                <SelectValue placeholder="Pilih kota" />
+              </SelectTrigger>
+              <SelectContent>
+                {CITIES.map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parent / Guardian Info */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <Users className="w-4 h-4 text-orange-600" />
+            </div>
+            Informasi Orang Tua / Wali
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="parentName">Nama Orang Tua / Wali</Label>
+            <Input
+              id="parentName"
+              value={studentData.parent_name}
+              onChange={e => setStudentData(p => ({ ...p, parent_name: e.target.value }))}
+              placeholder="Nama lengkap orang tua / wali"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="parentEmail" className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-muted-foreground" /> Email Orang Tua / Wali
+              </Label>
+              <Input
+                id="parentEmail"
+                type="email"
+                value={studentData.parent_email}
+                onChange={e => setStudentData(p => ({ ...p, parent_email: e.target.value }))}
+                placeholder="email@contoh.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="parentPhone" className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground" /> Telepon Orang Tua / Wali
+              </Label>
+              <Input
+                id="parentPhone"
+                value={studentData.parent_phone}
+                onChange={e => setStudentData(p => ({ ...p, parent_phone: e.target.value }))}
+                placeholder="08xxxxxxxxxx"
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Button
-        onClick={handleSaveProfile}
+        onClick={handleSave}
         disabled={saving}
-        className="w-full bg-primary hover:bg-primary/90"
+        size="lg"
+        className="w-full"
       >
         {saving ? (
-          <>
-            <Spinner className="mr-2 h-4 w-4" />
-            Menyimpan...
-          </>
+          <><Spinner className="mr-2 h-4 w-4" />Menyimpan…</>
         ) : (
-          'Simpan Perubahan'
+          <><Save className="mr-2 h-4 w-4" />Simpan Perubahan</>
         )}
       </Button>
     </div>

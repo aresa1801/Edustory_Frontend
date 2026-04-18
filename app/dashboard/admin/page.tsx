@@ -24,7 +24,7 @@ export default function AdminDashboard() {
         if (currentUser) {
           const supabase = createClient()
           const { data } = await supabase
-            .from('users_profile')
+            .from('user_profiles')
             .select('role')
             .eq('id', currentUser.id)
             .single()

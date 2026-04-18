@@ -158,7 +158,7 @@ export default function StudentRegistrationForm() {
 
       // Update user profile with phone
       await supabase
-        .from('users_profile')
+        .from('user_profiles')
         .update({ phone: formData.phone })
         .eq('id', user.id)
 

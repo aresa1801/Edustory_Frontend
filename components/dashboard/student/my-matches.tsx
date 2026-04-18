@@ -94,7 +94,7 @@ export default function StudentMyMatches() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg">{tutor?.users_profile?.full_name}</CardTitle>
+                  <CardTitle className="text-lg">{tutor?.user_profiles?.name}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">Mata Pelajaran: {match.subject}</p>
                 </div>
                 <Badge variant="outline" className={`${statusConfig.color} border`}>
@@ -131,11 +131,11 @@ export default function StudentMyMatches() {
                 </div>
               </div>
 
-              {tutor?.users_profile?.bio && (
+              {tutor?.user_profiles?.bio && (
                 <div className="pt-2 border-t">
                   <p className="text-xs text-muted-foreground mb-1">Tentang Pengajar</p>
                   <p className="text-sm text-foreground line-clamp-2">
-                    {tutor.users_profile.bio}
+                    {tutor.user_profiles.bio}
                   </p>
                 </div>
               )}

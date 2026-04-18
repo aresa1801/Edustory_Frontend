@@ -13,7 +13,7 @@ export default function DashboardRouter() {
     if (loading) return
 
     if (!user) {
-      router.push('/login')
+      router.push('/auth/login')
       return
     }
 
@@ -29,7 +29,7 @@ export default function DashboardRouter() {
         router.push('/dashboard/admin')
         break
       default:
-        router.push('/login')
+        router.push('/auth/login')
     }
   }, [user, userRole, loading, router])
 
