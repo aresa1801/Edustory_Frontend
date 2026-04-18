@@ -1,10 +1,22 @@
 import { createServerClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Authenticate via cookie-based session
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+
+    // Use service-role client for DB writes (bypasses RLS so INSERT works)
+    const supabase = getAdminClient()
 
     if (!user) {
       return NextResponse.json(
@@ -29,23 +41,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get or create curation progress
-    let { data: progress } = await supabase
+    // Get or create curation progress (psychology is the first step)
+    const { data: progress, error: progressError } = await supabase
       .from('curation_progress')
-      .select('id')
-      .eq('tutor_id', tutor.id)
+      .upsert(
+        { tutor_id: tutor.id, current_step: 'psychology' },
+        { onConflict: 'tutor_id', ignoreDuplicates: false }
+      )
+      .select('id, completed_steps')
       .single()
 
-    if (!progress) {
-      const { data: newProgress } = await supabase
-        .from('curation_progress')
-        .insert({
-          tutor_id: tutor.id,
-          current_step: 'psychology'
-        })
-        .select()
-        .single()
-      progress = newProgress
+    if (progressError || !progress) {
+      console.error('Failed to upsert curation progress:', progressError)
+      return NextResponse.json(
+        { error: 'Failed to initialize curation progress' },
+        { status: 500 }
+      )
     }
 
     // Save psychology assessment
@@ -65,12 +76,17 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
 
+    const existingSteps: string[] = progress.completed_steps || []
+    const newSteps = existingSteps.includes('psychology')
+      ? existingSteps
+      : [...existingSteps, 'psychology']
+
     // Update curation progress
     await supabase
       .from('curation_progress')
       .update({
         current_step: 'academic',
-        completed_steps: ['psychology'],
+        completed_steps: newSteps,
         updated_at: new Date().toISOString()
       })
       .eq('id', progress.id)

@@ -5,70 +5,104 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { Badge } from '@/components/ui/badge'
 
-const HANDWRITING_PROMPT = `Salin teks berikut dengan tulisan tangan Anda yang jelas dan rapi, lalu foto hasilnya:
+const HANDWRITING_PROBLEMS = [
+  {
+    id: 1,
+    title: 'Soal 1 — Matematika',
+    problem: 'Selesaikan soal berikut dengan cara lengkap dan tulisan tangan yang jelas:\n\nSebuah kolam renang berbentuk balok dengan panjang 25 m, lebar 10 m, dan kedalaman 2 m. Jika kolam terisi 3/4 penuh, berapakah volume air di dalam kolam tersebut? (dalam m³)',
+    hint: 'Tuliskan rumus, langkah-langkah penyelesaian, dan jawaban akhir dengan jelas.',
+  },
+  {
+    id: 2,
+    title: 'Soal 2 — Penalaran & Penjelasan',
+    problem: 'Jelaskan dengan kata-kata dan diagram/ilustrasi mengapa 0,5 = 1/2 = 50%. Tunjukkan setidaknya 2 cara berbeda untuk membuktikan kesetaraan ini kepada siswa SD kelas 5.',
+    hint: 'Gunakan gambar, diagram batang, atau contoh nyata dari kehidupan sehari-hari.',
+  },
+]
 
-"Pendidikan adalah investasi terbaik yang dapat kita berikan kepada generasi penerus bangsa. Seorang pengajar yang baik tidak hanya mentransfer pengetahuan, tetapi juga menginspirasi siswa untuk terus belajar dan berkembang. Dengan dedikasi, kesabaran, dan kreativitas, setiap anak dapat mencapai potensi terbaiknya."`
+interface ProblemState {
+  imageFile: File | null
+  imagePreview: string
+  explanation: string
+}
 
 export default function HandwritingPage() {
   const router = useRouter()
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [notes, setNotes] = useState('')
+  const [problems, setProblems] = useState<ProblemState[]>(
+    HANDWRITING_PROBLEMS.map(() => ({ imageFile: null, imagePreview: '', explanation: '' }))
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('File harus berupa gambar (JPG, PNG, dll.)')
-        return
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Ukuran gambar tidak boleh lebih dari 10MB')
-        return
-      }
-      setImageFile(file)
-      setError(null)
+    if (!file) return
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Ukuran gambar tidak boleh lebih dari 10MB')
+      return
     }
+    if (!file.type.startsWith('image/')) {
+      setError('Hanya file gambar yang diperbolehkan (JPG, PNG, WEBP)')
+      return
+    }
+
+    const preview = URL.createObjectURL(file)
+    setProblems(prev =>
+      prev.map((p, i) =>
+        i === index ? { ...p, imageFile: file, imagePreview: preview } : p
+      )
+    )
+    setError(null)
   }
+
+  const handleExplanationChange = (index: number, value: string) => {
+    setProblems(prev =>
+      prev.map((p, i) => (i === index ? { ...p, explanation: value } : p))
+    )
+  }
+
+  const isFormValid = () =>
+    problems.every(p => p.imageFile !== null && p.explanation.trim().length >= 50)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-
-    if (!imageFile) {
-      setError('Harap unggah foto tulisan tangan Anda')
+    if (!isFormValid()) {
+      setError('Unggah foto jawaban dan isi penjelasan (minimal 50 karakter) untuk setiap soal.')
       return
     }
 
     setLoading(true)
+    setError(null)
+
     try {
       const formData = new FormData()
-      formData.append('image', imageFile)
-      formData.append('notes', notes)
-      formData.append('step', 'handwriting')
+      formData.append('problem1_image', problems[0].imageFile!)
+      formData.append('problem1_explanation', problems[0].explanation)
+      formData.append('problem2_image', problems[1].imageFile!)
+      formData.append('problem2_explanation', problems[1].explanation)
 
-      const response = await fetch('/api/assessments/microteaching', {
+      const response = await fetch('/api/assessments/handwriting', {
         method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Gagal mengirim data')
+        const body = await response.json()
+        throw new Error(body?.error || 'Gagal mengirim jawaban')
       }
 
       setSuccess(true)
-      setTimeout(() => {
-        router.push('/curation/progress')
-      }, 2000)
+      setTimeout(() => router.push('/curation/progress'), 2500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan. Silakan coba lagi.')
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setLoading(false)
     }
@@ -78,10 +112,10 @@ export default function HandwritingPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
         <Card className="w-full max-w-2xl p-8 text-center">
-          <div className="text-6xl mb-6">✍️</div>
-          <h2 className="text-3xl font-bold mb-4 text-foreground">Berhasil Dikirim!</h2>
-          <p className="text-muted-foreground mb-6">
-            Sampel tulisan tangan Anda telah berhasil dikirim. Admin akan meninjau dalam 1-2 hari kerja.
+          <div className="text-6xl mb-4">✍️</div>
+          <h2 className="text-3xl font-bold mb-4">Jawaban Berhasil Dikirim</h2>
+          <p className="text-lg text-muted-foreground mb-6">
+            Tim kami akan meninjau tulisan tangan Anda. Lanjutkan ke tahap AI Interview!
           </p>
           <Spinner className="mx-auto" />
         </Card>
@@ -93,117 +127,134 @@ export default function HandwritingPage() {
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Penilaian Tulisan Tangan</h1>
-          <p className="text-lg text-muted-foreground">
-            Tahap 4 dari 5 — Kirimkan foto sampel tulisan tangan Anda
+          <div className="flex items-center gap-3 mb-4">
+            <Badge variant="outline" className="text-primary border-primary">
+              Tahap 4 dari 5
+            </Badge>
+            <Badge className="bg-purple-100 text-purple-700 border-purple-200">✍️ Tulisan Tangan</Badge>
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Tes Tulisan Tangan & Penjelasan
+          </h1>
+          <p className="text-muted-foreground">
+            Selesaikan soal-soal di bawah ini dengan tulisan tangan yang jelas. Foto jawaban Anda
+            dan unggah bersama penjelasan metode pengajaran yang akan Anda gunakan.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Instructions */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">📋 Panduan</h2>
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <p>1. Salin teks berikut dengan tulisan tangan Anda di kertas putih bersih.</p>
-              <p>2. Pastikan tulisan terbaca dengan jelas dan rapi.</p>
-              <p>3. Foto hasilnya dengan pencahayaan yang cukup.</p>
-              <p>4. Unggah foto tersebut di formulir ini.</p>
-            </div>
+        <Alert className="mb-8 bg-blue-50 border-blue-200">
+          <AlertDescription className="text-blue-800">
+            <ul className="space-y-1">
+              <li>📷 Ambil foto jawaban tulisan tangan Anda dengan pencahayaan yang baik</li>
+              <li>✏️ Pastikan tulisan jelas, rapi, dan mudah dibaca</li>
+              <li>📝 Sertakan penjelasan cara Anda akan menerangkan soal ini ke siswa</li>
+              <li>📁 Format gambar: JPG/PNG, maks. 10MB per gambar</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
 
-            <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
-              <h3 className="font-semibold text-foreground mb-2">Teks yang harus disalin:</h3>
-              <p className="text-sm text-foreground leading-relaxed italic">{HANDWRITING_PROMPT}</p>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {HANDWRITING_PROBLEMS.map((problem, index) => (
+            <Card key={problem.id} className="p-8">
+              <h2 className="text-xl font-bold text-foreground mb-2">{problem.title}</h2>
 
-            <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <h3 className="font-semibold text-amber-800 mb-1">Tips:</h3>
-              <ul className="text-sm text-amber-700 space-y-1">
-                <li>✓ Gunakan pulpen atau pena dengan tinta hitam/biru</li>
-                <li>✓ Foto dalam kondisi cahaya yang baik</li>
-                <li>✓ Pastikan seluruh tulisan terlihat dalam foto</li>
-                <li>✓ Hindari foto yang buram atau terpotong</li>
-              </ul>
-            </div>
-          </Card>
+              <div className="bg-muted/50 rounded-lg p-4 mb-6 whitespace-pre-line text-sm text-foreground border border-border">
+                {problem.problem}
+              </div>
 
-          {/* Upload Form */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-6">📤 Unggah Foto</h2>
+              <p className="text-xs text-muted-foreground italic mb-6">
+                💡 Petunjuk: {problem.hint}
+              </p>
 
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <Label htmlFor="image" className="block mb-2 font-medium">
-                  Foto Tulisan Tangan <span className="text-destructive">*</span>
+              {/* Image Upload */}
+              <div className="mb-6">
+                <Label className="text-base font-semibold mb-2 block">
+                  Foto Jawaban Tulisan Tangan *
                 </Label>
                 <div
-                  className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => document.getElementById('image-input')?.click()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    problems[index].imageFile
+                      ? 'border-green-400 bg-green-50'
+                      : 'border-border hover:border-primary/50'
+                  }`}
                 >
-                  {imageFile ? (
-                    <div className="py-4">
-                      <div className="text-4xl mb-3">🖼️</div>
-                      <p className="text-sm font-medium text-foreground">{imageFile.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {(imageFile.size / 1024).toFixed(1)} KB — Klik untuk mengganti
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-4xl mb-3">📷</div>
-                      <p className="text-muted-foreground text-sm">
-                        Klik untuk memilih gambar atau seret ke sini
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        JPG, PNG, atau WEBP — maks. 10MB
-                      </p>
-                    </>
+                  <Input
+                    id={`image-${index}`}
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handleImageChange(index, e)}
+                    className="hidden"
+                  />
+                  <label htmlFor={`image-${index}`} className="cursor-pointer block">
+                    {problems[index].imagePreview ? (
+                      <img
+                        src={problems[index].imagePreview}
+                        alt={`Preview soal ${index + 1}`}
+                        className="mx-auto max-h-64 rounded-lg object-contain border border-border"
+                      />
+                    ) : (
+                      <div>
+                        <p className="text-4xl mb-2">📷</p>
+                        <p className="font-semibold text-foreground">Klik untuk unggah foto</p>
+                        <p className="text-sm text-muted-foreground">JPG, PNG, WEBP • Maks 10MB</p>
+                      </div>
+                    )}
+                  </label>
+                  {problems[index].imageFile && (
+                    <p className="text-sm text-green-700 mt-2 font-medium">
+                      ✓ {problems[index].imageFile!.name}
+                    </p>
                   )}
                 </div>
-                <input
-                  id="image-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
               </div>
 
+              {/* Explanation */}
               <div>
-                <Label htmlFor="notes" className="block mb-2 font-medium">
-                  Catatan Tambahan (opsional)
+                <Label className="text-base font-semibold mb-2 block">
+                  Penjelasan Metode Pengajaran *
                 </Label>
                 <Textarea
-                  id="notes"
-                  placeholder="Informasi tambahan jika ada..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
+                  value={problems[index].explanation}
+                  onChange={e => handleExplanationChange(index, e.target.value)}
+                  placeholder="Bagaimana Anda akan menjelaskan soal dan solusi ini kepada siswa? Metode apa yang akan digunakan? Analogi apa yang membantu pemahaman siswa?"
+                  className="min-h-32"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {problems[index].explanation.length}/50 karakter minimum
+                  {problems[index].explanation.length >= 50 && (
+                    <span className="text-green-600 ml-2">✓ Mencukupi</span>
+                  )}
+                </p>
               </div>
+            </Card>
+          ))}
 
-              <Button
-                type="submit"
-                disabled={loading || !imageFile}
-                className="w-full bg-primary hover:bg-primary/90 text-white h-12"
-              >
-                {loading ? (
-                  <>
-                    <Spinner className="mr-2 h-4 w-4" />
-                    Mengirim...
-                  </>
-                ) : (
-                  'Kirim Sampel Tulisan Tangan'
-                )}
-              </Button>
-            </form>
-          </Card>
-        </div>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-4">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Kembali
+            </Button>
+            <Button
+              type="submit"
+              className="bg-primary hover:bg-primary/90 flex-1"
+              disabled={loading || !isFormValid()}
+            >
+              {loading ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Mengirim...
+                </>
+              ) : (
+                'Kirim Jawaban Tulisan Tangan'
+              )}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   )

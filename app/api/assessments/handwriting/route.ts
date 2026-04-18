@@ -20,7 +20,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { answers, score, timeTaken, level } = await req.json()
+    const formData = await req.formData()
+    const problem1Explanation = formData.get('problem1_explanation') as string
+    const problem2Explanation = formData.get('problem2_explanation') as string
+    const problem1Image = formData.get('problem1_image') as File | null
+    const problem2Image = formData.get('problem2_image') as File | null
 
     const { data: tutor } = await supabase
       .from('tutors')
@@ -39,46 +43,45 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!progress) {
-      return NextResponse.json(
-        { error: 'Curation progress not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Curation progress not found' }, { status: 404 })
     }
 
+    // In production, upload images to Vercel Blob or similar service
+    const problem1ImageUrl = problem1Image
+      ? `https://assets.edustory.id/${tutor.id}/hw1-${Date.now()}.jpg`
+      : null
+    const problem2ImageUrl = problem2Image
+      ? `https://assets.edustory.id/${tutor.id}/hw2-${Date.now()}.jpg`
+      : null
+
     const { data, error } = await supabase
-      .from('academic_assessments')
+      .from('handwriting_assessments')
       .insert({
         tutor_id: tutor.id,
         curation_progress_id: progress.id,
-        answers,
-        score,
-        passed: score >= 70,
+        problem_1_image_url: problem1ImageUrl,
+        problem_1_explanation: problem1Explanation,
+        problem_2_image_url: problem2ImageUrl,
+        problem_2_explanation: problem2Explanation,
         submitted_at: new Date().toISOString(),
-        time_spent_seconds: timeTaken,
-        level_targeted: level ?? null,
+        // overall_score is null until admin reviews the submission
+        overall_score: null,
+        passed: false,
       })
       .select()
       .single()
 
     if (error) throw error
 
-    // Save target grade level on the tutor record so it persists for the full curation cycle
-    if (level) {
-      await supabase
-        .from('tutors')
-        .update({ target_grade_level: level })
-        .eq('id', tutor.id)
-    }
-
     const existingSteps: string[] = progress.completed_steps || []
-    const newSteps = existingSteps.includes('academic')
+    const newSteps = existingSteps.includes('handwriting')
       ? existingSteps
-      : [...existingSteps, 'academic']
+      : [...existingSteps, 'handwriting']
 
     await supabase
       .from('curation_progress')
       .update({
-        current_step: 'microteaching',
+        current_step: 'interview',
         completed_steps: newSteps,
         updated_at: new Date().toISOString()
       })
@@ -86,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error('Error saving academic assessment:', error)
+    console.error('Error saving handwriting assessment:', error)
     return NextResponse.json(
       { error: 'Failed to save assessment' },
       { status: 500 }

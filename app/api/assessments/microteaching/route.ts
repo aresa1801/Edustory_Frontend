@@ -1,10 +1,20 @@
 import { createServerClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+
+    const supabase = getAdminClient()
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -27,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const { data: progress } = await supabase
       .from('curation_progress')
-      .select('id')
+      .select('id, completed_steps')
       .eq('tutor_id', tutor.id)
       .single()
 
@@ -36,8 +46,9 @@ export async function POST(req: NextRequest) {
     }
 
     // In production, upload to Vercel Blob or similar service
-    // For now, store URL placeholder
-    const videoUrl = `https://videos.edustory.id/${tutor.id}/${Date.now()}.mp4`
+    const videoUrl = video
+      ? `https://videos.edustory.id/${tutor.id}/${Date.now()}.mp4`
+      : null
 
     const { data, error } = await supabase
       .from('microteaching_assessments')
@@ -53,11 +64,16 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
 
+    const existingSteps: string[] = progress.completed_steps || []
+    const newSteps = existingSteps.includes('microteaching')
+      ? existingSteps
+      : [...existingSteps, 'microteaching']
+
     await supabase
       .from('curation_progress')
       .update({
         current_step: 'handwriting',
-        completed_steps: ['psychology', 'academic', 'microteaching'],
+        completed_steps: newSteps,
         updated_at: new Date().toISOString()
       })
       .eq('id', progress.id)
