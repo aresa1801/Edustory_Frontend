@@ -10,6 +10,7 @@ import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText } from 'l
 export default function TutorDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [fullName, setFullName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -36,7 +37,15 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           return
         }
 
+        // Fetch full name from users_profile
+        const { data: userProfile } = await supabase
+          .from('users_profile')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+
         setUser(user)
+        setFullName(userProfile?.full_name || user.email)
       } catch (err) {
         console.error('Auth check error:', err)
         router.push('/auth/login')
@@ -149,7 +158,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
             ☰
           </button>
           <div className="text-sm text-muted-foreground">
-            Selamat datang, {user?.email}
+            Selamat datang, {fullName}
           </div>
         </div>
 
