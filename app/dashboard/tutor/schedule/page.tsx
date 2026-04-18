@@ -186,7 +186,7 @@ export default function SchedulePage() {
                         className="text-xs"
                         onClick={() =>
                           window.open(
-                            `https://wa.me/${item.phone!.replace(/\D/g, '')}`,
+                            `https://wa.me/${item.phone?.replace(/\D/g, '')}`,
                             '_blank'
                           )
                         }

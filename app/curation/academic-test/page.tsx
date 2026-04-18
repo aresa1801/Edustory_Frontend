@@ -389,11 +389,6 @@ const LEVELS = [
 function getQuestionsForLevel(level: string): Question[] {
   const forLevel = QUESTION_BANK.filter(q => q.level === level)
   if (forLevel.length === 0) return QUESTION_BANK.slice(0, 10)
-  // Pad with generic SMA questions if fewer than 10
-  if (forLevel.length < 10) {
-    const extras = QUESTION_BANK.filter(q => q.level !== level)
-    return [...forLevel, ...extras].slice(0, 10)
-  }
   return forLevel.slice(0, 10)
 }
 
@@ -520,6 +515,7 @@ export default function AcademicTestPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {LEVELS.map((level) => {
               const count = QUESTION_BANK.filter(q => q.level === level).length
+              const displayCount = Math.min(count, 10)
               const isSD = level.startsWith('SD')
               const isSMP = level.startsWith('SMP')
               const isSMA = level.startsWith('SMA')
@@ -535,7 +531,7 @@ export default function AcademicTestPage() {
                     </span>
                     <div>
                       <h3 className="font-semibold text-foreground">{level}</h3>
-                      <p className="text-xs text-muted-foreground">{count} soal tersedia</p>
+                      <p className="text-xs text-muted-foreground">{displayCount} soal tersedia</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">

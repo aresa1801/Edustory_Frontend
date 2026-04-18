@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -136,9 +137,9 @@ export default function TutorAssessmentStatus() {
       <Alert className="bg-blue-50 border-blue-200">
         <AlertDescription className="text-blue-800">
           Anda belum memulai proses kurasi. Kunjungi halaman{' '}
-          <a href="/curation/progress" className="font-medium underline">
+          <Link href="/curation/progress" className="font-medium underline">
             Status Kurasi
-          </a>{' '}
+          </Link>{' '}
           untuk memulai tahapan verifikasi sebagai pengajar.
         </AlertDescription>
       </Alert>
