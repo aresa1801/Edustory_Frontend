@@ -33,7 +33,8 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
           .single()
 
         if (profileError || !profile || profile.role !== 'student') {
-          router.push(profileError || !profile ? '/login' : `/dashboard/${profile.role}`)
+          const redirectPath = profileError || !profile ? '/login' : `/dashboard/${profile.role}`
+          router.push(redirectPath)
           return
         }
 
