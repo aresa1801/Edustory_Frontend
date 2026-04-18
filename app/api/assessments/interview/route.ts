@@ -97,7 +97,9 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', progress.id)
 
-    // If all 5 stages done and overall interview score passes, assign verified grade levels
+    // If all 5 stages done and interview score passes (≥70), automatically assign
+    // verified_grade_levels so the tutor can start teaching immediately without
+    // waiting for admin review. Admin may still override this later if needed.
     if (allDone && passed) {
       const verifiedLevels = resolveVerifiedLevels(tutor.target_grade_level)
       if (verifiedLevels.length > 0) {

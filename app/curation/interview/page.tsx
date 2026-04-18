@@ -129,12 +129,14 @@ export default function InterviewPage() {
   const [timeRemaining, setTimeRemaining] = useState(40 * 60)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef(Date.now())
+  // Keep a stable ref to handleSubmit so the interval doesn't capture a stale closure
+  const handleSubmitRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
-          handleSubmit()
+          handleSubmitRef.current()
           return 0
         }
         return prev - 1
@@ -200,6 +202,9 @@ export default function InterviewPage() {
       setLoading(false)
     }
   }
+
+  // Keep the ref in sync so the timer always calls the latest version
+  handleSubmitRef.current = handleSubmit
 
   const question = INTERVIEW_QUESTIONS[currentQuestion]
   const currentResponse = responses[question.id] || ''

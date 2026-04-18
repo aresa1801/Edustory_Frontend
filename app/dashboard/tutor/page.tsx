@@ -105,9 +105,10 @@ export default function TutorDashboard() {
   const assessmentComplete = stats.curationDone >= 5
   const isVerified = verifiedLevels.length > 0
 
-  // Find highest verified level index to suggest the next upgrade level
+  // Build a lookup map once for O(1) index access inside the reduce
+  const gradeLevelIndex = new Map(GRADE_LEVEL_ORDER.map((lvl, i) => [lvl, i]))
   const highestIdx = verifiedLevels.reduce((best, lvl) => {
-    const idx = GRADE_LEVEL_ORDER.indexOf(lvl)
+    const idx = gradeLevelIndex.get(lvl) ?? -1
     return idx > best ? idx : best
   }, -1)
   const nextUpgradeLevel =

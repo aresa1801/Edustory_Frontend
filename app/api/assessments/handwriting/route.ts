@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         problem_2_image_url: problem2ImageUrl,
         problem_2_explanation: problem2Explanation,
         submitted_at: new Date().toISOString(),
-        // Overall score pending admin review; default to 75 as submitted placeholder
+        // overall_score is null until admin reviews the submission
         overall_score: null,
         passed: false,
       })
