@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText } from 'l
 
 export default function TutorDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
   const [fullName, setFullName] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -62,6 +63,19 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
     router.push('/auth/login')
   }
 
+  const navItems = [
+    { href: '/dashboard/tutor', icon: LayoutDashboard, label: 'Dasbor', exact: true },
+    { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi', exact: false },
+    { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya', exact: false },
+    { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal', exact: false },
+    { href: '/dashboard/tutor/analytics', icon: BarChart3, label: 'Analitik', exact: false },
+  ]
+
+  const isActive = (href: string, exact: boolean) => {
+    if (exact) return pathname === href
+    return pathname.startsWith(href)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -92,46 +106,21 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-2 p-4 overflow-y-auto">
-          <Link
-            href="/dashboard/tutor"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Dasbor</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/tutor/applications"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <FileText className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Aplikasi</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/tutor/my-students"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <Users className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Siswa Saya</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/tutor/schedule"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <Calendar className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Jadwal</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/tutor/analytics"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <BarChart3 className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Analitik</span>}
-          </Link>
+        <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+          {navItems.map(({ href, icon: Icon, label, exact }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
+                isActive(href, exact)
+                  ? 'bg-primary/15 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
+              }`}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {sidebarOpen && <span>{label}</span>}
+            </Link>
+          ))}
         </nav>
 
         {/* Logout */}
