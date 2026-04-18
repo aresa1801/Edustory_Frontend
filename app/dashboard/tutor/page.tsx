@@ -9,11 +9,20 @@ import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/auth'
 import Link from 'next/link'
-import { Users, Calendar, BarChart3, FileText, BookOpen, ArrowRight } from 'lucide-react'
+import { Users, Calendar, BarChart3, FileText, BookOpen, ArrowRight, GraduationCap } from 'lucide-react'
+
+// Grade level hierarchy from lowest to highest
+const GRADE_LEVEL_ORDER = [
+  'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
+  'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
+  'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
+]
 
 export default function TutorDashboard() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [verifiedLevels, setVerifiedLevels] = useState<string[]>([])
+  const [targetLevel, setTargetLevel] = useState<string | null>(null)
   const [stats, setStats] = useState({
     activeStudents: 0,
     pendingRequests: 0,
@@ -37,12 +46,16 @@ export default function TutorDashboard() {
             id,
             approval_status,
             verified,
+            target_grade_level,
+            verified_grade_levels,
             users_profile:user_id(full_name, email)
           `)
           .eq('user_id', user.id)
           .single()
 
         setProfile(tutorData)
+        setVerifiedLevels(tutorData?.verified_grade_levels || [])
+        setTargetLevel(tutorData?.target_grade_level || null)
 
         if (tutorData?.id) {
           const progressRes = await fetch('/api/assessments/progress')
@@ -65,7 +78,7 @@ export default function TutorDashboard() {
           if (matchData) {
             setStats(prev => ({
               ...prev,
-              activeStudents: matchData.filter(m => ['matched', 'active'].includes(m.status)).length,
+              activeStudents: matchData.filter(m => ['accepted', 'active'].includes(m.status)).length,
               pendingRequests: matchData.filter(m => m.status === 'pending').length,
               completedSessions: matchData.filter(m => m.status === 'completed').length,
             }))
@@ -90,6 +103,17 @@ export default function TutorDashboard() {
   }
 
   const assessmentComplete = stats.curationDone >= 5
+  const isVerified = verifiedLevels.length > 0
+
+  // Find highest verified level index to suggest the next upgrade level
+  const highestIdx = verifiedLevels.reduce((best, lvl) => {
+    const idx = GRADE_LEVEL_ORDER.indexOf(lvl)
+    return idx > best ? idx : best
+  }, -1)
+  const nextUpgradeLevel =
+    highestIdx >= 0 && highestIdx < GRADE_LEVEL_ORDER.length - 1
+      ? GRADE_LEVEL_ORDER[highestIdx + 1]
+      : null
 
   return (
     <div>
@@ -164,7 +188,7 @@ export default function TutorDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Curation Progress */}
         <Card>
           <CardHeader>
@@ -194,51 +218,116 @@ export default function TutorDashboard() {
           </CardContent>
         </Card>
 
-        {/* Quick Links */}
+        {/* Grade Level Verification */}
         <Card>
           <CardHeader>
-            <CardTitle>Akses Cepat</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5" />
+              Kelas yang Diverifikasi
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Link href="/dashboard/tutor/applications">
-              <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Lihat Aplikasi Saya</span>
+          <CardContent>
+            {isVerified ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Anda terverifikasi mengajar kelas-kelas berikut:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {GRADE_LEVEL_ORDER.filter(lvl => verifiedLevels.includes(lvl)).map(lvl => (
+                    <Badge key={lvl} className="bg-green-100 text-green-700 border-green-300">
+                      ✓ {lvl}
+                    </Badge>
+                  ))}
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                {nextUpgradeLevel && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-800 font-medium mb-1">
+                      Ingin mengajar hingga {nextUpgradeLevel}?
+                    </p>
+                    <p className="text-xs text-blue-700 mb-3">
+                      Selesaikan kurasi baru dengan target kelas {nextUpgradeLevel} untuk
+                      mendapatkan verifikasi kelas yang lebih tinggi.
+                    </p>
+                    <Link href="/curation/progress">
+                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                        Mulai Kurasi Upgrade
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
-            </Link>
-            <Link href="/dashboard/tutor/my-students">
-              <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <Users className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Kelola Siswa Saya</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            ) : assessmentComplete ? (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertDescription className="text-yellow-800 text-sm">
+                  Kurasi Anda sedang dalam peninjauan admin. Verifikasi kelas akan diberikan
+                  setelah admin menyetujui hasil kurasi Anda (3–5 hari kerja).
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Selesaikan semua 5 tahap kurasi untuk mendapatkan verifikasi mengajar.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Kelas yang Anda targetkan:{' '}
+                  <span className="font-semibold text-foreground">
+                    {targetLevel ?? '(pilih pada tes kemampuan akademik)'}
+                  </span>
+                </p>
+                <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded border border-blue-200">
+                  💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
+                  semua kelas di bawahnya.
+                </p>
               </div>
-            </Link>
-            <Link href="/dashboard/tutor/schedule">
-              <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Jadwal Mengajar</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
-              </div>
-            </Link>
-            <Link href="/dashboard/tutor/analytics">
-              <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <BarChart3 className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Lihat Analitik</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
-              </div>
-            </Link>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Quick Links */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Akses Cepat</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Link href="/dashboard/tutor/applications">
+            <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+              <div className="flex items-center gap-3">
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Lihat Aplikasi Saya</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+          <Link href="/dashboard/tutor/my-students">
+            <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+              <div className="flex items-center gap-3">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Kelola Siswa Saya</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+          <Link href="/dashboard/tutor/schedule">
+            <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Jadwal Mengajar</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+          <Link href="/dashboard/tutor/analytics">
+            <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Lihat Analitik</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   )
 }
