@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
-import { createClient } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { User, BookOpen, MapPin, Save, Mail, Phone, ShieldCheck, Target, Calendar, Wallet, CheckCircle2, Users } from 'lucide-react'
 
 const GRADE_LEVELS = [
@@ -95,8 +95,8 @@ export default function StudentProfile() {
   const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
 
       if (!user) {
         setError('Anda harus login terlebih dahulu')
@@ -174,8 +174,8 @@ export default function StudentProfile() {
     setSaving(true)
     setError(null)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) throw new Error('Anda harus login terlebih dahulu')
 
       // Update user_profiles
