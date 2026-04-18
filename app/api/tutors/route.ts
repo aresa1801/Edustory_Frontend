@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         rating,
         total_reviews,
         verified,
-        users_profile:user_id(full_name, avatar_url, bio, phone)
+        user_profiles:user_id(name, avatar_url, bio, phone)
       `)
       .eq('approval_status', 'approved')
 

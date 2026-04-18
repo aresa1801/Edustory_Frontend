@@ -27,19 +27,22 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
 
         // Check if user is a student and fetch profile in one query
         const { data: profile, error: profileError } = await supabase
-          .from('users_profile')
-          .select('role, full_name')
+          .from('user_profiles')
+          .select('role, name')
           .eq('id', user.id)
           .single()
 
-        if (profileError || !profile || profile.role !== 'student') {
-          const redirectPath = profileError || !profile ? '/login' : `/dashboard/${profile.role}`
+        if (profileError || !profile || !['student', 'siswa'].includes(profile.role)) {
+          const roleMap: Record<string, string> = { tutor: 'tutor', admin: 'admin' }
+          const redirectPath = profileError || !profile
+            ? '/login'
+            : `/dashboard/${roleMap[profile.role] || 'login'}`
           router.push(redirectPath)
           return
         }
 
         setUser(user)
-        setFullName(profile.full_name || user.email)
+        setFullName(profile.name || user.email)
       } catch (err) {
         console.error('Auth check error:', err)
         router.push('/auth/login')

@@ -36,14 +36,15 @@ export async function registerUser(
   }
 
   // Create user profile
+  const dbRole = role === 'student' ? 'siswa' : role
   const { error: profileError } = await supabase
-    .from('users_profile')
+    .from('user_profiles')
     .insert([
       {
         id: authData.user.id,
         email,
-        full_name: fullName,
-        role,
+        name: fullName,
+        role: dbRole,
       },
     ])
 
@@ -83,7 +84,7 @@ export async function getCurrentUser() {
 export async function getUserProfile(userId: string) {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('users_profile')
+    .from('user_profiles')
     .select('*')
     .eq('id', userId)
     .single()

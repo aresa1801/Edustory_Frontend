@@ -163,7 +163,7 @@ export default function TutorRegistrationForm() {
 
       // Update user profile with phone
       await supabase
-        .from('users_profile')
+        .from('user_profiles')
         .update({ phone: formData.phone })
         .eq('id', user.id)
 

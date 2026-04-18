@@ -45,7 +45,7 @@ export default function StudentBrowseTutors() {
           rating,
           total_reviews,
           verified,
-          users_profile:user_id(full_name, avatar_url, bio, phone)
+          user_profiles:user_id(name, avatar_url, bio, phone)
         `)
         .eq('approval_status', 'approved')
         .order('rating', { ascending: false })
@@ -160,7 +160,7 @@ export default function StudentBrowseTutors() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <CardTitle className="text-lg">
-                      {tutor.users_profile?.full_name}
+                      {tutor.user_profiles?.name}
                     </CardTitle>
                     {tutor.verified && (
                       <Badge variant="outline" className="mt-1 bg-green-50 text-green-700 border-green-200">
@@ -193,8 +193,8 @@ export default function StudentBrowseTutors() {
                   <p className="text-sm text-muted-foreground">Tarif: Rp {tutor.hourly_rate?.toLocaleString()}/jam</p>
                 </div>
 
-                {tutor.users_profile?.bio && (
-                  <p className="text-sm text-foreground line-clamp-2">{tutor.users_profile.bio}</p>
+                {tutor.user_profiles?.bio && (
+                  <p className="text-sm text-foreground line-clamp-2">{tutor.user_profiles.bio}</p>
                 )}
 
                 <Button
@@ -213,7 +213,7 @@ export default function StudentBrowseTutors() {
       <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Pilih {selectedTutor?.users_profile?.full_name}</DialogTitle>
+            <DialogTitle>Pilih {selectedTutor?.user_profiles?.name}</DialogTitle>
             <DialogDescription>
               Lengkapi detail pembelajaran Anda
             </DialogDescription>

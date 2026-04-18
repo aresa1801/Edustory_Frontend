@@ -37,7 +37,7 @@ export default function TutorDashboard() {
             id,
             approval_status,
             verified,
-            users_profile:user_id(full_name, email)
+            user_profiles:user_id(name, email)
           `)
           .eq('user_id', user.id)
           .single()
@@ -98,7 +98,7 @@ export default function TutorDashboard() {
           Dashboard Pengajar
         </h1>
         <p className="text-muted-foreground">
-          Selamat datang, {profile?.users_profile?.full_name || 'Pengajar'}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.
+          Selamat datang, {profile?.user_profiles?.name || 'Pengajar'}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.
         </p>
       </div>
 

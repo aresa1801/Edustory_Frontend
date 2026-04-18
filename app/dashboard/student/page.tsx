@@ -21,8 +21,8 @@ export default function StudentDashboard() {
         if (!user) return
 
         const { data } = await supabase
-          .from('users_profile')
-          .select('full_name, email')
+          .from('user_profiles')
+          .select('name, email')
           .eq('id', user.id)
           .single()
 
@@ -52,7 +52,7 @@ export default function StudentDashboard() {
           Dashboard Siswa
         </h1>
         <p className="text-muted-foreground">
-          Selamat datang, {profile?.full_name || 'Siswa'}! Temukan pengajar terbaik untuk Anda.
+          Selamat datang, {profile?.name || 'Siswa'}! Temukan pengajar terbaik untuk Anda.
         </p>
       </div>
 

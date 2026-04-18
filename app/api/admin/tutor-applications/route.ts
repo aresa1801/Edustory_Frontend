@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const { data: adminCheck } = await supabase
-      .from('users_profile')
+      .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           specializations,
           experience_years,
           qualifications,
-          users_profile:user_id(full_name, email, phone, avatar_url)
+          user_profiles:user_id(name, email, phone, avatar_url)
         )
       `)
       .order('created_at', { ascending: false })
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user is admin
     const { data: adminCheck } = await supabase
-      .from('users_profile')
+      .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
