@@ -45,12 +45,19 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'id' })
 
     if (upsertError) {
+      // Log the original error before falling back to aid debugging
+      console.error('[set-role] Full upsert failed, trying minimal upsert:', upsertError)
+
+      if (!user.email) {
+        return NextResponse.json({ error: 'User email is required' }, { status: 400 })
+      }
+
       // Fall back to minimal upsert (in case some columns don't exist in the schema)
       const { error: minimalUpsertError } = await adminSupabase
         .from('user_profiles')
         .upsert({
           id: user.id,
-          email: user.email || '',
+          email: user.email,
           role: role,
           updated_at: now,
         }, { onConflict: 'id' })
