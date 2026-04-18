@@ -29,27 +29,36 @@ export default function SelectRolePage() {
     console.log('[v0] Role selected:', role)
     setLoading(role)
     try {
-      // Create or update user profile
-      console.log('[v0] Updating user profile with role:', role)
-      const { error } = await supabase
+      console.log('[v0] Saving user profile with role:', role)
+      const now = new Date().toISOString()
+
+      // Try to insert the full profile for first-time users (e.g. Google OAuth).
+      const { error: insertError } = await supabase
         .from('user_profiles')
-        .upsert({
+        .insert({
           id: user.id,
           email: user.email,
           name: user.user_metadata?.full_name || user.email,
           role: role,
           avatar_url: user.user_metadata?.avatar_url,
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         })
-        .eq('id', user.id)
-        .select()
 
-      if (error) {
-        throw error
+      if (insertError && insertError.code === '23505') {
+        // Profile already exists (e.g. email-signup user) — only update the role.
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .update({ role: role, updated_at: now })
+          .eq('id', user.id)
+
+        if (updateError) throw updateError
+      } else if (insertError) {
+        throw insertError
       }
 
       // Redirect based on role
-      console.log('[v0] Role updated, redirecting to dashboard:', role)
+      console.log('[v0] Role saved, redirecting to dashboard:', role)
       router.push(`/dashboard/${role}`)
     } catch (error) {
       console.error('[v0] Error selecting role:', error)

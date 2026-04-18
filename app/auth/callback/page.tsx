@@ -45,19 +45,12 @@ export default function AuthCallback() {
           .single()
 
         if (profileError && profileError.code === 'PGRST116') {
-          // User doesn't exist yet, check if logged in via Google OAuth
-          // If so, redirect to register with pre-filled data
+          // User doesn't exist yet — redirect to role selection regardless of provider.
+          // The select-role page will create the profile (with Google metadata) when the
+          // user picks a role, so no separate register step is needed.
           const provider = session.user.app_metadata?.provider
-          console.log('[v0] User profile not found, provider:', provider)
-          if (provider === 'google') {
-            // Redirect to register page with Google data
-            console.log('[v0] Google user, redirecting to register')
-            router.push('/auth/register')
-          } else {
-            // Email signup, redirect to role selection
-            console.log('[v0] Email signup, redirecting to select-role')
-            router.push('/auth/select-role')
-          }
+          console.log('[v0] User profile not found, provider:', provider, '— redirecting to select-role')
+          router.push('/auth/select-role')
           return
         }
 
