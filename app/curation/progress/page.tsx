@@ -29,67 +29,65 @@ export default function CurationProgressPage() {
         const response = await fetch('/api/assessments/progress')
         const data = await response.json()
 
-        if (data.progress) {
-          const completedSteps = data.progress.completed_steps || []
-          
-          const stepsData: CurationStep[] = [
-            {
-              name: 'Tes Psikologi',
-              completed: completedSteps.includes('psychology'),
-              score: data.psychology?.score,
-              weight: 20,
-              icon: '🧠',
-              href: '/curation/psychology-test'
-            },
-            {
-              name: 'Kemampuan Akademik',
-              completed: completedSteps.includes('academic'),
-              score: data.academic?.score,
-              weight: 30,
-              icon: '📚',
-              href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined
-            },
-            {
-              name: 'Micro Teaching',
-              completed: completedSteps.includes('microteaching'),
-              score: data.microteaching?.score,
-              weight: 25,
-              icon: '🎥',
-              href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined
-            },
-            {
-              name: 'Tulisan Tangan',
-              completed: completedSteps.includes('handwriting'),
-              score: data.handwriting?.score,
-              weight: 15,
-              icon: '✍️',
-              href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined
-            },
-            {
-              name: 'AI Interview',
-              completed: completedSteps.includes('interview'),
-              score: data.interview?.score,
-              weight: 10,
-              icon: '💬',
-              href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined
-            }
-          ]
+        const completedSteps: string[] = data.progress?.completed_steps || []
 
-          setSteps(stepsData)
-
-          // Calculate weighted score
-          let totalScore = 0
-          let totalWeight = 0
-          stepsData.forEach((step) => {
-            if (step.score !== undefined) {
-              totalScore += (step.score * step.weight) / 100
-              totalWeight += step.weight
-            }
-          })
-
-          if (totalWeight > 0) {
-            setOverallScore(Math.round(totalScore))
+        const stepsData: CurationStep[] = [
+          {
+            name: 'Tes Psikologi',
+            completed: completedSteps.includes('psychology'),
+            score: data.psychology?.score,
+            weight: 20,
+            icon: '🧠',
+            href: '/curation/psychology-test'
+          },
+          {
+            name: 'Kemampuan Akademik',
+            completed: completedSteps.includes('academic'),
+            score: data.academic?.score,
+            weight: 30,
+            icon: '📚',
+            href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined
+          },
+          {
+            name: 'Micro Teaching',
+            completed: completedSteps.includes('microteaching'),
+            score: data.microteaching?.overall_score,
+            weight: 25,
+            icon: '🎥',
+            href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined
+          },
+          {
+            name: 'Tulisan Tangan',
+            completed: completedSteps.includes('handwriting'),
+            score: data.handwriting?.overall_score,
+            weight: 15,
+            icon: '✍️',
+            href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined
+          },
+          {
+            name: 'AI Interview',
+            completed: completedSteps.includes('interview'),
+            score: data.interview?.overall_score,
+            weight: 10,
+            icon: '💬',
+            href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined
           }
+        ]
+
+        setSteps(stepsData)
+
+        // Calculate weighted score
+        let totalScore = 0
+        let totalWeight = 0
+        stepsData.forEach((step) => {
+          if (step.score !== undefined) {
+            totalScore += (step.score * step.weight) / 100
+            totalWeight += step.weight
+          }
+        })
+
+        if (totalWeight > 0) {
+          setOverallScore(Math.round(totalScore))
         }
       } catch (error) {
         console.error('Error fetching curation progress:', error)
