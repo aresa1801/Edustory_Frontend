@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+// Map DB role values to dashboard route segments
+const ROLE_TO_DASHBOARD: Record<string, string> = {
+  siswa: 'student',
+  student: 'student',
+  tutor: 'tutor',
+  admin: 'admin',
+}
+
 export default function AuthCallback() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -62,7 +70,14 @@ export default function AuthCallback() {
         if (userProfile) {
           const role = userProfile.role as string
           console.log('[v0] User profile found with role:', role)
-          router.push(`/dashboard/${role}`)
+          // Map DB role values (e.g. 'siswa') back to dashboard route segments
+          const dashboardPath = ROLE_TO_DASHBOARD[role]
+          if (!dashboardPath) {
+            console.warn('[v0] Unknown role value from DB:', role, '— redirecting to select-role')
+            router.push('/auth/select-role')
+          } else {
+            router.push(`/dashboard/${dashboardPath}`)
+          }
         } else {
           console.log('[v0] No role found, redirecting to select-role')
           router.push('/auth/select-role')
