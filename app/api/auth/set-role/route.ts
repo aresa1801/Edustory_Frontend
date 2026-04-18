@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
+    // Map frontend role values to the values accepted by the user_profiles_role_check constraint
+    const dbRole = role === 'student' ? 'siswa' : role
+
     // Use service role key to bypass RLS
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +42,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.user_metadata?.full_name || user.email,
-        role: role,
+        role: dbRole,
         avatar_url: user.user_metadata?.avatar_url || null,
         updated_at: now,
       }, { onConflict: 'id' })
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
         .upsert({
           id: user.id,
           email: user.email,
-          role: role,
+          role: dbRole,
           updated_at: now,
         }, { onConflict: 'id' })
 
