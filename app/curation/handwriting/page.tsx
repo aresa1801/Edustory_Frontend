@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,11 +16,23 @@ const HANDWRITING_PROMPT = `Salin teks berikut dengan tulisan tangan Anda yang j
 export default function HandwritingPage() {
   const router = useRouter()
   const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string>('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  // Derive preview URL from the file — always a blob: URL created by the browser
+  const imagePreviewSrc = useMemo(() => {
+    if (!imageFile) return null
+    const url = URL.createObjectURL(imageFile)
+    try {
+      // Validate the protocol is blob: before using as an image src
+      const parsed = new URL(url)
+      return parsed.protocol === 'blob:' ? url : null
+    } catch {
+      return null
+    }
+  }, [imageFile])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -34,7 +46,6 @@ export default function HandwritingPage() {
         return
       }
       setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
       setError(null)
     }
   }
@@ -147,9 +158,9 @@ export default function HandwritingPage() {
                   className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => document.getElementById('image-input')?.click()}
                 >
-                  {imagePreview && imagePreview.startsWith('blob:') ? (
+                  {imagePreviewSrc ? (
                     <img
-                      src={imagePreview}
+                      src={imagePreviewSrc}
                       alt="Preview tulisan tangan"
                       className="max-h-48 mx-auto rounded-lg object-contain"
                     />
