@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -20,19 +20,6 @@ export default function HandwritingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-
-  // Derive preview URL from the file — always a blob: URL created by the browser
-  const imagePreviewSrc = useMemo(() => {
-    if (!imageFile) return null
-    const url = URL.createObjectURL(imageFile)
-    try {
-      // Validate the protocol is blob: before using as an image src
-      const parsed = new URL(url)
-      return parsed.protocol === 'blob:' ? url : null
-    } catch {
-      return null
-    }
-  }, [imageFile])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -158,12 +145,14 @@ export default function HandwritingPage() {
                   className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => document.getElementById('image-input')?.click()}
                 >
-                  {imagePreviewSrc ? (
-                    <img
-                      src={imagePreviewSrc}
-                      alt="Preview tulisan tangan"
-                      className="max-h-48 mx-auto rounded-lg object-contain"
-                    />
+                  {imageFile ? (
+                    <div className="py-4">
+                      <div className="text-4xl mb-3">🖼️</div>
+                      <p className="text-sm font-medium text-foreground">{imageFile.name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {(imageFile.size / 1024).toFixed(1)} KB — Klik untuk mengganti
+                      </p>
+                    </div>
                   ) : (
                     <>
                       <div className="text-4xl mb-3">📷</div>
@@ -183,11 +172,6 @@ export default function HandwritingPage() {
                   onChange={handleImageChange}
                   className="hidden"
                 />
-                {imageFile && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    File dipilih: {imageFile.name}
-                  </p>
-                )}
               </div>
 
               <div>
