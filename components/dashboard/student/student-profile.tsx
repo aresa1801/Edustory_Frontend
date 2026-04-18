@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/auth'
-import { User, BookOpen, MapPin, Save, Mail, Phone, ShieldCheck, Target, Calendar, Wallet, CheckCircle2 } from 'lucide-react'
+import { User, BookOpen, MapPin, Save, Mail, Phone, ShieldCheck, Target, Calendar, Wallet, CheckCircle2, Users } from 'lucide-react'
 
 const GRADE_LEVELS = [
   'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
@@ -67,6 +67,9 @@ export default function StudentProfile() {
     address: '',
     city: '',
     status: '',
+    parent_name: '',
+    parent_email: '',
+    parent_phone: '',
   })
 
   // Profile completion score (0–100)
@@ -82,6 +85,8 @@ export default function StudentProfile() {
       studentData.preferred_schedule,
       studentData.address.trim(),
       studentData.city,
+      studentData.parent_name.trim(),
+      studentData.parent_phone.trim(),
     ]
     const filled = fields.filter(Boolean).length
     return Math.round((filled / fields.length) * 100)
@@ -117,7 +122,7 @@ export default function StudentProfile() {
 
       const { data: sd, error: sdErr } = await supabase
         .from('students')
-        .select('id, user_id, grade_level, subjects, learning_goals, preferred_schedule, budget_per_month, address, city, status')
+        .select('id, user_id, grade_level, subjects, learning_goals, preferred_schedule, budget_per_month, address, city, status, parent_name, parent_email, parent_phone')
         .eq('user_id', user.id)
         .single()
 
@@ -134,6 +139,9 @@ export default function StudentProfile() {
         address: sd?.address || '',
         city: sd?.city || '',
         status: sd?.status || '',
+        parent_name: sd?.parent_name || '',
+        parent_email: sd?.parent_email || '',
+        parent_phone: sd?.parent_phone || '',
       })
 
       setError(null)
@@ -192,6 +200,9 @@ export default function StudentProfile() {
         budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
         address: studentData.address.trim() || null,
         city: studentData.city || null,
+        parent_name: studentData.parent_name.trim() || null,
+        parent_email: studentData.parent_email.trim() || null,
+        parent_phone: studentData.parent_phone.trim() || null,
       }
 
       if (studentData.id) {
@@ -523,6 +534,54 @@ export default function StudentProfile() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parent / Guardian Info */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <Users className="w-4 h-4 text-orange-600" />
+            </div>
+            Informasi Orang Tua / Wali
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="parentName">Nama Orang Tua / Wali</Label>
+            <Input
+              id="parentName"
+              value={studentData.parent_name}
+              onChange={e => setStudentData(p => ({ ...p, parent_name: e.target.value }))}
+              placeholder="Nama lengkap orang tua / wali"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="parentEmail" className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-muted-foreground" /> Email Orang Tua / Wali
+              </Label>
+              <Input
+                id="parentEmail"
+                type="email"
+                value={studentData.parent_email}
+                onChange={e => setStudentData(p => ({ ...p, parent_email: e.target.value }))}
+                placeholder="email@contoh.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="parentPhone" className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground" /> Telepon Orang Tua / Wali
+              </Label>
+              <Input
+                id="parentPhone"
+                value={studentData.parent_phone}
+                onChange={e => setStudentData(p => ({ ...p, parent_phone: e.target.value }))}
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
