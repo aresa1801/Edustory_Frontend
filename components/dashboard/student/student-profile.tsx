@@ -40,8 +40,8 @@ export default function StudentProfile() {
           learning_goals,
           address,
           status,
-          users_profile:user_id(
-            full_name,
+          user_profiles:user_id(
+            name,
             email,
             phone,
             bio,
@@ -132,7 +132,7 @@ export default function StudentProfile() {
               <Label htmlFor="fullName">Nama Lengkap</Label>
               <Input
                 id="fullName"
-                value={profile.users_profile?.full_name || ''}
+                value={profile.user_profiles?.name || ''}
                 disabled
                 className="mt-1"
               />
@@ -141,7 +141,7 @@ export default function StudentProfile() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                value={profile.users_profile?.email || ''}
+                value={profile.user_profiles?.email || ''}
                 disabled
                 className="mt-1"
               />
@@ -153,7 +153,7 @@ export default function StudentProfile() {
               <Label htmlFor="phone">Nomor Telepon</Label>
               <Input
                 id="phone"
-                value={profile.users_profile?.phone || ''}
+                value={profile.user_profiles?.phone || ''}
                 disabled
                 className="mt-1"
               />

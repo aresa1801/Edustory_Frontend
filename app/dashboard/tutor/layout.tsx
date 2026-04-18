@@ -29,7 +29,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
         // Check if user is a tutor
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, name')
           .eq('id', user.id)
           .single()
 
@@ -38,15 +38,8 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           return
         }
 
-        // Fetch full name from users_profile
-        const { data: userProfile } = await supabase
-          .from('users_profile')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
-
         setUser(user)
-        setFullName(userProfile?.full_name || user.email)
+        setFullName(profile.name || user.email)
       } catch (err) {
         console.error('Auth check error:', err)
         router.push('/auth/login')

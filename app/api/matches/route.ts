@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Get user role
     const { data: userProfile } = await supabase
-      .from('users_profile')
+      .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
           id,
           user_id,
           grade_level,
-          users_profile:user_id(full_name, email, phone, avatar_url)
+          user_profiles:user_id(name, email, phone, avatar_url)
         ),
         tutors:tutor_id(
           id,
@@ -62,11 +62,11 @@ export async function GET(request: NextRequest) {
           specializations,
           hourly_rate,
           rating,
-          users_profile:user_id(full_name, email, phone, avatar_url, bio)
+          user_profiles:user_id(name, email, phone, avatar_url, bio)
         )
       `)
 
-    if (userProfile?.role === 'student') {
+    if (userProfile?.role === 'student' || userProfile?.role === 'siswa') {
       const { data: student } = await supabase
         .from('students')
         .select('id')

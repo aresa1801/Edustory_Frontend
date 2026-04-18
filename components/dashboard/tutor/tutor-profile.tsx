@@ -52,8 +52,8 @@ export default function TutorProfile() {
           total_reviews,
           verified,
           approval_status,
-          users_profile:user_id(
-            full_name,
+          user_profiles:user_id(
+            name,
             email,
             phone,
             bio,
@@ -187,7 +187,7 @@ export default function TutorProfile() {
               <Label htmlFor="fullName">Nama Lengkap</Label>
               <Input
                 id="fullName"
-                value={profile.users_profile?.full_name || ''}
+                value={profile.user_profiles?.name || ''}
                 disabled
                 className="mt-1"
               />
