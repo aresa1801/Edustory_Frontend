@@ -31,7 +31,7 @@ export default function StudentMyMatches() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        setError('Anda harus login terlebih dahulu')
+        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 

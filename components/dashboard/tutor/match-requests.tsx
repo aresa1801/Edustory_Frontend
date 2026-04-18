@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
 
 export default function TutorMatchRequests() {
@@ -28,7 +28,7 @@ export default function TutorMatchRequests() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        setError('Anda harus login terlebih dahulu')
+        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 
@@ -43,7 +43,6 @@ export default function TutorMatchRequests() {
       }
 
       const data = await response.json()
-      // Filter only pending matches
       const pendingMatches = data.filter((m: any) => m.status === 'pending')
       setMatches(pendingMatches)
       setError(null)
@@ -61,7 +60,7 @@ export default function TutorMatchRequests() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        alert('Anda harus login terlebih dahulu')
+        alert('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 
@@ -154,7 +153,7 @@ export default function TutorMatchRequests() {
                 <div>
                   <p className="text-xs text-muted-foreground">Frekuensi yang Diinginkan</p>
                   <p className="text-sm font-medium">
-                    {match.lesson_frequency?.replace('-', ' ').replace(/^./, m => m.toUpperCase())}
+                    {match.lesson_frequency?.replace('-', ' ').replace(/^./, (m: string) => m.toUpperCase())}
                   </p>
                 </div>
                 <div>
@@ -164,6 +163,21 @@ export default function TutorMatchRequests() {
                   </p>
                 </div>
               </div>
+
+              {student?.users_profile?.email && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Email Siswa</p>
+                    <p className="text-sm font-medium">{student.users_profile.email}</p>
+                  </div>
+                  {student?.users_profile?.phone && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Telepon</p>
+                      <p className="text-sm font-medium">{student.users_profile.phone}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {student?.learning_goals && (
                 <div className="pt-2 border-t">
@@ -205,6 +219,50 @@ export default function TutorMatchRequests() {
           </Card>
         )
       })}
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tolak Permintaan Siswa</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menolak permintaan dari{' '}
+              <span className="font-medium">
+                {selectedMatch?.students?.users_profile?.full_name}
+              </span>{' '}
+              untuk mata pelajaran <span className="font-medium">{selectedMatch?.subject}</span>?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setShowConfirmDialog(false)
+                setSelectedMatch(null)
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={confirmingId === selectedMatch?.id}
+              onClick={() => handleConfirmMatch(selectedMatch?.id, 'reject')}
+            >
+              {confirmingId === selectedMatch?.id ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Loading...
+                </>
+              ) : (
+                'Ya, Tolak'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+

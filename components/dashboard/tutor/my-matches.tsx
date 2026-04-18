@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
@@ -31,7 +32,7 @@ export default function TutorMyMatches() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        setError('Anda harus login terlebih dahulu')
+        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 
@@ -46,7 +47,6 @@ export default function TutorMyMatches() {
       }
 
       const data = await response.json()
-      // Filter only confirmed and active matches
       const confirmedMatches = data.filter((m: any) => ['matched', 'active', 'completed'].includes(m.status))
       setMatches(confirmedMatches)
       setError(null)
@@ -110,7 +110,7 @@ export default function TutorMyMatches() {
                 <div>
                   <p className="text-xs text-muted-foreground">Frekuensi Pembelajaran</p>
                   <p className="text-sm font-medium">
-                    {match.lesson_frequency?.replace('-', ' ').replace(/^./, m => m.toUpperCase())}
+                    {match.lesson_frequency?.replace('-', ' ').replace(/^./, (m: string) => m.toUpperCase())}
                   </p>
                 </div>
                 <div>
@@ -124,11 +124,11 @@ export default function TutorMyMatches() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Kontak Siswa</p>
-                  <p className="text-sm font-medium">{student?.users_profile?.phone}</p>
+                  <p className="text-sm font-medium">{student?.users_profile?.phone || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="text-sm font-medium">{student?.users_profile?.email}</p>
+                  <p className="text-xs text-muted-foreground">Email Siswa</p>
+                  <p className="text-sm font-medium">{student?.users_profile?.email || '-'}</p>
                 </div>
               </div>
 
@@ -148,10 +148,25 @@ export default function TutorMyMatches() {
               </div>
 
               {match.status === 'matched' && (
-                <div className="bg-green-50 border border-green-200 rounded p-2">
+                <div className="bg-green-50 border border-green-200 rounded p-3 space-y-2">
                   <p className="text-sm font-medium text-green-700">
                     Pencocokan dikonfirmasi! Hubungi siswa untuk mengatur jadwal pembelajaran.
                   </p>
+                  {student?.users_profile?.phone && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-300 text-green-700 hover:bg-green-100"
+                      onClick={() =>
+                        window.open(
+                          `https://wa.me/${student.users_profile.phone.replace(/\D/g, '')}`,
+                          '_blank'
+                        )
+                      }
+                    >
+                      💬 Hubungi via WhatsApp
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -161,3 +176,4 @@ export default function TutorMyMatches() {
     </div>
   )
 }
+
