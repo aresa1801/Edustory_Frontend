@@ -16,11 +16,13 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser()
-        if (error || !user) {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error || !session) {
           router.push('/auth/login')
           return
         }
+
+        const user = session.user
 
         // Check if user is a student
         const { data: profile, error: profileError } = await supabase

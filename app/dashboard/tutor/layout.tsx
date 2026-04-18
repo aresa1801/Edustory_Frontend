@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText } from 'lucide-react'
 
@@ -16,12 +16,13 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const supabase = createClient()
-        const { data: { user }, error } = await supabase.auth.getUser()
-        if (error || !user) {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error || !session) {
           router.push('/auth/login')
           return
         }
+
+        const user = session.user
 
         // Check if user is a tutor
         const { data: profile, error: profileError } = await supabase
@@ -48,7 +49,6 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
   }, [router])
 
   const handleLogout = async () => {
-    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
