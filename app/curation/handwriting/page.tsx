@@ -147,7 +147,7 @@ export default function HandwritingPage() {
                   className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => document.getElementById('image-input')?.click()}
                 >
-                  {imagePreview ? (
+                  {imagePreview && imagePreview.startsWith('blob:') ? (
                     <img
                       src={imagePreview}
                       alt="Preview tulisan tangan"
