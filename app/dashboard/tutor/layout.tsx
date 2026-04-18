@@ -25,7 +25,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
 
         // Check if user is a tutor
         const { data: profile, error: profileError } = await supabase
-          .from('users_profile')
+          .from('user_profiles')
           .select('role')
           .eq('id', user.id)
           .single()

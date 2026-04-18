@@ -30,31 +30,28 @@ export default function SelectRolePage() {
     setLoading(role)
     try {
       console.log('[v0] Saving user profile with role:', role)
-      const now = new Date().toISOString()
 
-      // Try to insert the full profile for first-time users (e.g. Google OAuth).
-      const { error: insertError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          name: user.user_metadata?.full_name || user.email,
-          role: role,
-          avatar_url: user.user_metadata?.avatar_url,
-          created_at: now,
-          updated_at: now,
-        })
+      // Get current session to retrieve the access token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/auth/login')
+        return
+      }
 
-      if (insertError && insertError.code === '23505') {
-        // Profile already exists (e.g. email-signup user) — only update the role.
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({ role: role, updated_at: now })
-          .eq('id', user.id)
+      // Call the server-side API route which uses the service role key to bypass RLS
+      const response = await fetch('/api/auth/set-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ role }),
+      })
 
-        if (updateError) throw updateError
-      } else if (insertError) {
-        throw insertError
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Terjadi kesalahan saat menyimpan peran')
       }
 
       // Redirect based on role
