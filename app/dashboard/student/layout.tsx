@@ -35,8 +35,8 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
         if (profileError || !profile || !['student', 'siswa'].includes(profile.role)) {
           const roleMap: Record<string, string> = { tutor: 'tutor', admin: 'admin' }
           const redirectPath = profileError || !profile
-            ? '/login'
-            : `/dashboard/${roleMap[profile.role] || 'login'}`
+            ? '/auth/login'
+            : `/dashboard/${roleMap[profile.role] || 'auth/login'}`
           router.push(redirectPath)
           return
         }
