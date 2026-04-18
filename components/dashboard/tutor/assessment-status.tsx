@@ -33,8 +33,17 @@ export default function TutorAssessmentStatus() {
   const fetchProgress = async () => {
     try {
       const response = await fetch('/api/assessments/progress')
-      if (!response.ok) throw new Error('Gagal memuat progress kurasi')
       const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Tutor not registered or no curation progress yet — show empty state
+          setSteps([])
+          setLoading(false)
+          return
+        }
+        throw new Error(data?.error || 'Gagal memuat progress kurasi')
+      }
 
       const completedSteps: string[] = data.progress?.completed_steps || []
 
@@ -118,6 +127,20 @@ export default function TutorAssessmentStatus() {
     return (
       <Alert variant="destructive">
         <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (steps.length === 0) {
+    return (
+      <Alert className="bg-blue-50 border-blue-200">
+        <AlertDescription className="text-blue-800">
+          Anda belum memulai proses kurasi. Kunjungi halaman{' '}
+          <a href="/curation/progress" className="font-medium underline">
+            Status Kurasi
+          </a>{' '}
+          untuk memulai tahapan verifikasi sebagai pengajar.
+        </AlertDescription>
       </Alert>
     )
   }
