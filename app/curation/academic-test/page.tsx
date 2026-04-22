@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -400,17 +400,20 @@ export default function AcademicTestPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(false)
+  const [loadingQuestions, setLoadingQuestions] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(40 * 60)
   const [timerActive, setTimerActive] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState(0)
+
+  const handleSubmitRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     if (!timerActive) return
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          handleSubmit()
+          handleSubmitRef.current()
           return 0
         }
         return prev - 1
@@ -419,13 +422,36 @@ export default function AcademicTestPage() {
     return () => clearInterval(timer)
   }, [timerActive])
 
-  const handleStartTest = (level: string) => {
-    const qs = getQuestionsForLevel(level)
+  const handleStartTest = async (level: string) => {
     setSelectedLevel(level)
-    setQuestions(qs)
+    setLoadingQuestions(true)
     setAnswers({})
     setCurrentQuestion(0)
     setTimeRemaining(40 * 60)
+
+    let qs: Question[] = []
+    try {
+      const res = await fetch('/api/ai/academic-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level, count: 10 }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.questions) && data.questions.length >= 5) {
+          qs = data.questions
+        }
+      }
+    } catch {
+      // fall through to static questions
+    }
+
+    if (qs.length === 0) {
+      qs = getQuestionsForLevel(level)
+    }
+
+    setQuestions(qs)
+    setLoadingQuestions(false)
     setTimerActive(true)
   }
 
@@ -482,6 +508,21 @@ export default function AcademicTestPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Keep the ref in sync so the timer always calls the latest version
+  handleSubmitRef.current = handleSubmit
+
+  // ── Loading questions screen ──────────────────────────────────────────
+  if (loadingQuestions) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
+        <div className="text-center">
+          <Spinner className="h-8 w-8 mx-auto mb-4" />
+          <p className="text-muted-foreground">Mempersiapkan soal {selectedLevel} dengan AI...</p>
+        </div>
+      </div>
+    )
   }
 
   // ── Level selector ──────────────────────────────────────────────────
