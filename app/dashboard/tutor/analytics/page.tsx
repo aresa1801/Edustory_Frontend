@@ -248,7 +248,8 @@ export default function AnalyticsPage() {
                       <div
                         className="h-full bg-amber-400 rounded-full"
                         style={{
-                          width: `${star === Math.round(data.rating) ? Math.min(data.totalReviews * 10, 100) : Math.max(0, 30 - Math.abs(star - data.rating) * 15)}%`,
+                          // Approximate bar width: 100% for the star closest to rating, decreasing for others
+                          width: `${Math.max(0, 100 - Math.abs(star - data.rating) * 35)}%`,
                         }}
                       />
                     </div>

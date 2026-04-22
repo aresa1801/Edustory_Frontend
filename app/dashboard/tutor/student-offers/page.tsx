@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,7 @@ interface StudentOffer {
 }
 
 export default function StudentOffersPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [offers, setOffers] = useState<StudentOffer[]>([])
   const [filteredOffers, setFilteredOffers] = useState<StudentOffer[]>([])
@@ -238,7 +240,7 @@ export default function StudentOffersPage() {
               <Button
                 size="sm"
                 className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
-                onClick={() => (window.location.href = '/curation/progress')}
+                onClick={() => router.push('/curation/progress')}
               >
                 Lanjutkan Kurasi →
               </Button>

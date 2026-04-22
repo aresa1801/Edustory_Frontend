@@ -48,6 +48,8 @@ interface DashboardStats {
   totalReviews: number
 }
 
+const ACTIVE_MATCH_STATUSES = ['accepted', 'active', 'matched'] as const
+
 export default function TutorDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     profileComplete: false,
@@ -157,7 +159,7 @@ export default function TutorDashboard() {
           curationScore,
           curationComplete,
           curationPassed,
-          activeStudents: (matchData || []).filter(m => ['accepted', 'active', 'matched'].includes(m.status)).length,
+          activeStudents: (matchData || []).filter(m => (ACTIVE_MATCH_STATUSES as readonly string[]).includes(m.status)).length,
           pendingRequests: (matchData || []).filter(m => m.status === 'pending').length,
           completedSessions: (matchData || []).filter(m => m.status === 'completed').length,
           rating: tutorData.rating || 0,
@@ -260,8 +262,15 @@ export default function TutorDashboard() {
   const completedCount = steps.filter(s => s.status === 'completed').length
   const overallProgress = Math.round((completedCount / steps.length) * 100)
 
-  const nextStep = steps.find(s => s.status === 'active' && !steps.slice(0, s.step - 1).every(prev => prev.status === 'completed'))
-    ?? steps.find(s => s.status === 'active')
+  // Find the first active step that still has incomplete prerequisites
+  const findNextActiveStep = () => {
+    return steps.find(s => {
+      if (s.status !== 'active') return false
+      const prerequisites = steps.slice(0, s.step - 1)
+      return !prerequisites.every(p => p.status === 'completed')
+    }) ?? steps.find(s => s.status === 'active')
+  }
+  const nextStep = findNextActiveStep()
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

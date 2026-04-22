@@ -93,13 +93,11 @@ export default function TeachingInterestPage() {
   }
 
   const toggleLevel = (level: string) => {
-    setSelectedLevels(prev =>
-      prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
-    )
-    // Remove subjects that are no longer applicable
     const newLevels = selectedLevels.includes(level)
       ? selectedLevels.filter(l => l !== level)
       : [...selectedLevels, level]
+    setSelectedLevels(newLevels)
+    // Remove subjects that are no longer applicable after level change
     const availableSubjects = getSubjectsForLevels(newLevels)
     setSelectedSubjects(prev => prev.filter(s => availableSubjects.includes(s)))
   }
