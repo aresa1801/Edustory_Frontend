@@ -5,13 +5,39 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  LogOut,
+  LayoutDashboard,
+  Users,
+  Calendar,
+  BarChart3,
+  UserCircle,
+  BookOpen,
+  Handshake,
+  ClipboardList,
+  Menu,
+  X,
+  GraduationCap,
+  ChevronRight,
+} from 'lucide-react'
+
+interface NavGroup {
+  label: string
+  items: {
+    href: string
+    icon: React.ElementType
+    label: string
+    exact?: boolean
+    badge?: string
+  }[]
+}
 
 export default function TutorDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<any>(null)
   const [fullName, setFullName] = useState<string>('')
+  const [initials, setInitials] = useState<string>('T')
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -24,13 +50,10 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           return
         }
 
-        const user = session.user
-
-        // Check if user is a tutor
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role, name')
-          .eq('id', user.id)
+          .eq('id', session.user.id)
           .single()
 
         if (profileError || profile?.role !== 'tutor') {
@@ -38,8 +61,16 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           return
         }
 
-        setUser(user)
-        setFullName(profile.name || user.email)
+        const name = profile.name || session.user.email || 'Tutor'
+        setFullName(name)
+        setInitials(
+          name
+            .split(' ')
+            .map((n: string) => n[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()
+        )
       } catch (err) {
         console.error('Auth check error:', err)
         router.push('/auth/login')
@@ -56,98 +87,181 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
     router.push('/auth/login')
   }
 
-  const navItems = [
-    { href: '/dashboard/tutor', icon: LayoutDashboard, label: 'Dasbor', exact: true },
-    { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi', exact: false },
-    { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya', exact: false },
-    { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal', exact: false },
-    { href: '/dashboard/tutor/analytics', icon: BarChart3, label: 'Analitik', exact: false },
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Umum',
+      items: [
+        { href: '/dashboard/tutor', icon: LayoutDashboard, label: 'Beranda', exact: true },
+      ],
+    },
+    {
+      label: 'Pendaftaran',
+      items: [
+        { href: '/dashboard/tutor/profile', icon: UserCircle, label: 'Profil Saya' },
+        { href: '/dashboard/tutor/teaching-interest', icon: BookOpen, label: 'Minat Mengajar' },
+        { href: '/curation/progress', icon: ClipboardList, label: 'Kurasi' },
+      ],
+    },
+    {
+      label: 'Mengajar',
+      items: [
+        { href: '/dashboard/tutor/student-offers', icon: Handshake, label: 'Penawaran Siswa' },
+        { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya' },
+        { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal Mengajar' },
+      ],
+    },
+    {
+      label: 'Performa',
+      items: [
+        { href: '/dashboard/tutor/analytics', icon: BarChart3, label: 'Analitik' },
+      ],
+    },
   ]
 
-  const isActive = (href: string, exact: boolean) => {
+  const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href
     return pathname.startsWith(href)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Memuat...</p>
+          <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 text-sm font-medium">Memuat dashboard...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-slate-50 font-sans">
       {/* Sidebar */}
-      <div
+      <aside
         className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-card border-r border-border/30 transition-all duration-300 flex flex-col`}
+          sidebarOpen ? 'w-64' : 'w-[72px]'
+        } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col shadow-sm z-20`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-center border-b border-border/30">
-          <Link href="/dashboard/tutor" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <span className="text-lg">👨‍🏫</span>
+        <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <GraduationCap className="w-5 h-5 text-white" />
+          </div>
+          {sidebarOpen && (
+            <div>
+              <p className="font-bold text-slate-800 leading-none">EduStory</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Portal Pengajar</p>
             </div>
-            {sidebarOpen && <span className="font-bold text-foreground">EduStory</span>}
-          </Link>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
-          {navItems.map(({ href, icon: Icon, label, exact }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                isActive(href, exact)
-                  ? 'bg-primary/15 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
-              }`}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {sidebarOpen && <span>{label}</span>}
-            </Link>
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+          {navGroups.map(group => (
+            <div key={group.label}>
+              {sidebarOpen && (
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5 px-2">
+                  {group.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map(({ href, icon: Icon, label, exact }) => {
+                  const active = isActive(href, exact)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      title={!sidebarOpen ? label : undefined}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
+                        active
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4.5 h-4.5 flex-shrink-0 ${
+                          active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+                        }`}
+                        size={18}
+                      />
+                      {sidebarOpen && <span className="truncate">{label}</span>}
+                      {sidebarOpen && active && (
+                        <ChevronRight className="ml-auto w-3.5 h-3.5 text-blue-400" />
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-border/30">
-          <Button
-            onClick={handleLogout}
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Keluar</span>}
-          </Button>
+        {/* User & Logout */}
+        <div className="p-3 border-t border-slate-100">
+          {sidebarOpen ? (
+            <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">{fullName}</p>
+                <p className="text-xs text-slate-400">Pengajar</p>
+              </div>
+              <Button
+                onClick={handleLogout}
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="icon"
+              className="w-full text-slate-400 hover:text-red-500 hover:bg-red-50"
+              title="Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="h-16 bg-card border-b border-border/30 flex items-center justify-between px-8">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-muted-foreground hover:text-foreground"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="Toggle sidebar"
           >
-            ☰
+            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-          <div className="text-sm text-muted-foreground">
-            Selamat datang, {fullName}
+
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-semibold text-slate-800">{fullName}</p>
+              <p className="text-xs text-slate-400">Pengajar Aktif</p>
+            </div>
+            <Avatar className="w-8 h-8">
+              <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           </div>
-        </div>
+        </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
           {children}
-        </div>
+        </main>
       </div>
     </div>
   )
