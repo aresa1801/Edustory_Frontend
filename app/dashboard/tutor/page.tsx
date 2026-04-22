@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/auth'
 import Link from 'next/link'
-import { Users, Calendar, BarChart3, FileText, BookOpen, ArrowRight, GraduationCap } from 'lucide-react'
+import { Users, Calendar, BarChart3, FileText, BookOpen, ArrowRight, GraduationCap, Inbox } from 'lucide-react'
 
 // Grade level hierarchy from lowest to highest
 const GRADE_LEVEL_ORDER = [
@@ -291,6 +291,17 @@ export default function TutorDashboard() {
           <CardTitle>Akses Cepat</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <Link href="/dashboard/tutor/student-offers">
+            <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer border border-primary/20 bg-primary/5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Inbox className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-sm font-medium text-primary">Penawaran Siswa</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-primary" />
+            </div>
+          </Link>
           <Link href="/dashboard/tutor/applications">
             <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
               <div className="flex items-center gap-3">

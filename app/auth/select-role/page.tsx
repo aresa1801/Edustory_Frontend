@@ -54,9 +54,13 @@ export default function SelectRolePage() {
         throw new Error(data.error || 'Terjadi kesalahan saat menyimpan peran')
       }
 
-      // Redirect based on role
+      // Redirect based on role - students go to onboarding wizard
       console.log('[v0] Role saved, redirecting to dashboard:', role)
-      router.push(`/dashboard/${role}`)
+      if (role === 'student') {
+        router.push('/dashboard/student/onboarding')
+      } else {
+        router.push(`/dashboard/${role}`)
+      }
     } catch (error) {
       console.error('[v0] Error selecting role:', error)
       alert(error instanceof Error ? error.message : 'Terjadi kesalahan')

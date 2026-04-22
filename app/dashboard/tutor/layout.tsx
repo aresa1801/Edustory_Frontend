@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText } from 'lucide-react'
+import { LogOut, LayoutDashboard, Users, Calendar, BarChart3, FileText, GraduationCap } from 'lucide-react'
 
 export default function TutorDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -58,7 +58,8 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
 
   const navItems = [
     { href: '/dashboard/tutor', icon: LayoutDashboard, label: 'Dasbor', exact: true },
-    { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi', exact: false },
+    { href: '/dashboard/tutor/student-offers', icon: GraduationCap, label: 'Penawaran Siswa', exact: false },
+    { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi Saya', exact: false },
     { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya', exact: false },
     { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal', exact: false },
     { href: '/dashboard/tutor/analytics', icon: BarChart3, label: 'Analitik', exact: false },
