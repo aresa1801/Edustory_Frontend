@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -232,26 +232,73 @@ export default function PsychologyTestPage() {
     return () => { cancelled = true }
   }, [])
 
+  const calculateScore = useCallback((qs: Question[], ans: Record<number, string>) => {
+    let correct = 0
+    qs.forEach((q) => {
+      if (ans[q.id] === q.correctAnswer) correct++
+    })
+    return Math.round((correct / qs.length) * 100)
+  }, [])
+
+  const handleSubmit = useCallback(async (
+    currentAnswers: Record<number, string>,
+    currentQuestions: Question[],
+    elapsed: number,
+  ) => {
+    setLoading(true)
+    const finalScore = calculateScore(currentQuestions, currentAnswers)
+    setScore(finalScore)
+    setSubmitted(true)
+
+    try {
+      const response = await fetch('/api/assessments/psychology', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          answers: currentAnswers,
+          score: finalScore,
+          timeTaken: elapsed,
+        }),
+      })
+
+      if (response.ok) {
+        setTimeout(() => {
+          router.push('/curation/progress')
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('Error submitting psychology test:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [calculateScore, router])
+
   useEffect(() => {
     if (questionsLoading) return
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          handleSubmit()
+          // Use functional updates to capture latest state in the interval callback
+          setAnswers((latestAnswers) => {
+            setQuestions((latestQuestions) => {
+              handleSubmit(latestAnswers, latestQuestions, 30 * 60)
+              return latestQuestions
+            })
+            return latestAnswers
+          })
           return 0
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionsLoading])
+  }, [questionsLoading, handleSubmit])
 
   const handleAnswerChange = (value: string) => {
-    setAnswers({
-      ...answers,
-      [PSYCHOLOGY_QUESTIONS[currentQuestion].id]: value
-    })
+    setAnswers((prev) => ({
+      ...prev,
+      [questions[currentQuestion].id]: value,
+    }))
   }
 
   const handleNext = () => {
@@ -266,43 +313,8 @@ export default function PsychologyTestPage() {
     }
   }
 
-  const calculateScore = () => {
-    let correct = 0
-    questions.forEach((q) => {
-      if (answers[q.id] === q.correctAnswer) {
-        correct++
-      }
-    })
-    return Math.round((correct / questions.length) * 100)
-  }
-
-  const handleSubmit = async () => {
-    setLoading(true)
-    const finalScore = calculateScore()
-    setScore(finalScore)
-    setSubmitted(true)
-
-    try {
-      const response = await fetch('/api/assessments/psychology', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers,
-          score: finalScore,
-          timeTaken: 30 * 60 - timeRemaining
-        })
-      })
-
-      if (response.ok) {
-        setTimeout(() => {
-          router.push('/curation/progress')
-        }, 2000)
-      }
-    } catch (error) {
-      console.error('Error submitting psychology test:', error)
-    } finally {
-      setLoading(false)
-    }
+  const handleSubmitClick = () => {
+    handleSubmit(answers, questions, 30 * 60 - timeRemaining)
   }
 
   if (questionsLoading) {
@@ -408,7 +420,7 @@ export default function PsychologyTestPage() {
 
           {currentQuestion === questions.length - 1 ? (
             <Button
-              onClick={handleSubmit}
+              onClick={handleSubmitClick}
               className="bg-primary hover:bg-primary/90"
               disabled={loading}
             >

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    // Scale to 100 if not all stages are completed
+    // Normalize weighted score based on completed stages
     const weightedTotal =
       appliedWeight > 0
         ? Math.round((totalWeightedScore / appliedWeight) * 100)

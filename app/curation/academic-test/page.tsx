@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -406,19 +406,20 @@ export default function AcademicTestPage() {
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState(0)
 
+  const handleSubmitRef = useRef<() => void>(() => {})
+
   useEffect(() => {
     if (!timerActive) return
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          handleSubmit()
+          handleSubmitRef.current()
           return 0
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerActive])
 
   const handleStartTest = async (level: string) => {
@@ -508,6 +509,9 @@ export default function AcademicTestPage() {
       setLoading(false)
     }
   }
+
+  // Keep the ref in sync so the timer always calls the latest version
+  handleSubmitRef.current = handleSubmit
 
   // ── Loading questions screen ──────────────────────────────────────────
   if (loadingQuestions) {
