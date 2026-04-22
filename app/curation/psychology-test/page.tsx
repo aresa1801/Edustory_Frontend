@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 
+// Static fallback questions — used when AI generation is unavailable
 const PSYCHOLOGY_QUESTIONS = [
   {
     id: 1,
@@ -193,8 +194,12 @@ const PSYCHOLOGY_QUESTIONS = [
   }
 ]
 
+type Question = typeof PSYCHOLOGY_QUESTIONS[0]
+
 export default function PsychologyTestPage() {
   const router = useRouter()
+  const [questions, setQuestions] = useState<Question[]>(PSYCHOLOGY_QUESTIONS)
+  const [questionsLoading, setQuestionsLoading] = useState(true)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(false)
@@ -202,7 +207,33 @@ export default function PsychologyTestPage() {
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState(0)
 
+  // Attempt to load AI-generated questions; fall back to static list on error
   useEffect(() => {
+    let cancelled = false
+    const loadAIQuestions = async () => {
+      try {
+        const res = await fetch('/api/ai/psychology-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: 15 }),
+        })
+        if (!res.ok) throw new Error('AI questions unavailable')
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data.questions) && data.questions.length >= 5) {
+          setQuestions(data.questions)
+        }
+      } catch {
+        // Keep static fallback questions
+      } finally {
+        if (!cancelled) setQuestionsLoading(false)
+      }
+    }
+    loadAIQuestions()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (questionsLoading) return
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
@@ -213,7 +244,8 @@ export default function PsychologyTestPage() {
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionsLoading])
 
   const handleAnswerChange = (value: string) => {
     setAnswers({
@@ -223,7 +255,7 @@ export default function PsychologyTestPage() {
   }
 
   const handleNext = () => {
-    if (currentQuestion < PSYCHOLOGY_QUESTIONS.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1)
     }
   }
@@ -236,12 +268,12 @@ export default function PsychologyTestPage() {
 
   const calculateScore = () => {
     let correct = 0
-    PSYCHOLOGY_QUESTIONS.forEach((q) => {
+    questions.forEach((q) => {
       if (answers[q.id] === q.correctAnswer) {
         correct++
       }
     })
-    return Math.round((correct / PSYCHOLOGY_QUESTIONS.length) * 100)
+    return Math.round((correct / questions.length) * 100)
   }
 
   const handleSubmit = async () => {
@@ -271,6 +303,17 @@ export default function PsychologyTestPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (questionsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
+        <div className="text-center">
+          <Spinner className="h-8 w-8 mx-auto mb-4" />
+          <p className="text-muted-foreground">Mempersiapkan soal dengan AI...</p>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -303,8 +346,8 @@ export default function PsychologyTestPage() {
     )
   }
 
-  const question = PSYCHOLOGY_QUESTIONS[currentQuestion]
-  const progress = ((currentQuestion + 1) / PSYCHOLOGY_QUESTIONS.length) * 100
+  const question = questions[currentQuestion]
+  const progress = ((currentQuestion + 1) / questions.length) * 100
   const minutes = Math.floor(timeRemaining / 60)
   const seconds = timeRemaining % 60
 
@@ -320,7 +363,7 @@ export default function PsychologyTestPage() {
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
-            Pertanyaan {currentQuestion + 1} dari {PSYCHOLOGY_QUESTIONS.length}
+            Pertanyaan {currentQuestion + 1} dari {questions.length}
           </p>
         </div>
 
@@ -363,7 +406,7 @@ export default function PsychologyTestPage() {
             Sebelumnya
           </Button>
 
-          {currentQuestion === PSYCHOLOGY_QUESTIONS.length - 1 ? (
+          {currentQuestion === questions.length - 1 ? (
             <Button
               onClick={handleSubmit}
               className="bg-primary hover:bg-primary/90"

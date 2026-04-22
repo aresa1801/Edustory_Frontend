@@ -116,7 +116,7 @@ function scoreResponse(response: string, question: InterviewQuestion): number {
   return Math.round(wordScore + keywordScore)
 }
 
-type SubmitResult = { score: number; passed: boolean }
+type SubmitResult = { score: number; passed: boolean; strengths?: string[]; improvements?: string[] }
 
 export default function InterviewPage() {
   const router = useRouter()
@@ -177,8 +177,37 @@ export default function InterviewPage() {
     setLoading(true)
     setError(null)
 
-    const overallScore = calculateOverallScore()
     const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000)
+
+    // Attempt AI scoring; fall back to keyword-based scoring on error
+    let overallScore = calculateOverallScore()
+    let strengths: string[] | undefined
+    let improvements: string[] | undefined
+
+    try {
+      const aiRes = await fetch('/api/ai/score-interview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          responses,
+          questions: INTERVIEW_QUESTIONS.map(q => ({
+            id: q.id,
+            category: q.category,
+            question: q.question,
+          })),
+        }),
+      })
+      if (aiRes.ok) {
+        const aiData = await aiRes.json()
+        if (typeof aiData.overallScore === 'number') {
+          overallScore = aiData.overallScore
+          strengths = aiData.strengths
+          improvements = aiData.improvements
+        }
+      }
+    } catch {
+      // Keep keyword-based fallback score
+    }
 
     try {
       const res = await fetch('/api/assessments/interview', {
@@ -192,7 +221,7 @@ export default function InterviewPage() {
         throw new Error(body?.error || 'Gagal menyimpan hasil interview')
       }
 
-      setResult({ score: overallScore, passed: overallScore >= 70 })
+      setResult({ score: overallScore, passed: overallScore >= 70, strengths, improvements })
       setSubmitted(true)
 
       setTimeout(() => router.push('/curation/progress'), 3000)
@@ -241,6 +270,28 @@ export default function InterviewPage() {
                 standar minimum (70). Tim admin akan mengevaluasi aplikasi Anda secara menyeluruh.
               </AlertDescription>
             </Alert>
+          )}
+
+          {result.strengths && result.strengths.length > 0 && (
+            <div className="text-left mb-4">
+              <p className="font-semibold text-green-700 mb-2">✅ Kekuatan Anda:</p>
+              <ul className="space-y-1 text-sm text-green-800">
+                {result.strengths.map((s, i) => (
+                  <li key={i}>• {s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.improvements && result.improvements.length > 0 && (
+            <div className="text-left mb-6">
+              <p className="font-semibold text-amber-700 mb-2">📈 Area Pengembangan:</p>
+              <ul className="space-y-1 text-sm text-amber-800">
+                {result.improvements.map((s, i) => (
+                  <li key={i}>• {s}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <Spinner className="mx-auto" />
