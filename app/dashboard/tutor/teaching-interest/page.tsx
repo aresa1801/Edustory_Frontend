@@ -201,8 +201,8 @@ export default function TeachingInterestPage() {
       )}
 
       {/* Info */}
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-800 text-sm flex items-start gap-2">
+      <Alert className="bg-blue-500/10 border-blue-500/30">
+        <AlertDescription className="text-blue-300 text-sm flex items-start gap-2">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>
             Pilihan Anda akan digunakan untuk mencocokkan Anda dengan siswa yang sesuai setelah kurasi selesai.

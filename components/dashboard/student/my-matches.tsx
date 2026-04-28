@@ -8,11 +8,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Konfirmasi', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  matched: { label: 'Terconfirmasi', color: 'bg-green-50 text-green-700 border-green-200' },
+  pending: { label: 'Menunggu Konfirmasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+  matched: { label: 'Terconfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
   active: { label: 'Aktif', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Selesai', color: 'bg-gray-50 text-gray-700 border-gray-200' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-red-50 text-red-700 border-red-200' },
+  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
 }
 
 export default function StudentMyMatches() {
@@ -156,7 +156,7 @@ export default function StudentMyMatches() {
 
               {match.status === 'matched' && (
                 <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
-                  <p className="text-sm font-medium text-green-700">
+                  <p className="text-sm font-medium text-green-300">
                     🎉 Pengajar telah mengkonfirmasi! Silakan hubungi untuk jadwal pembelajaran
                   </p>
                 </div>

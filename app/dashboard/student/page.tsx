@@ -18,11 +18,11 @@ import {
 import Link from 'next/link'
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending:   { label: 'Menunggu', color: 'bg-yellow-100 text-yellow-700' },
-  matched:   { label: 'Dikonfirmasi', color: 'bg-green-100 text-green-700' },
-  active:    { label: 'Aktif', color: 'bg-blue-100 text-blue-700' },
-  completed: { label: 'Selesai', color: 'bg-gray-100 text-gray-700' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
+  pending:   { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' },
+  matched:   { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border border-green-500/30' },
+  active:    { label: 'Aktif', color: 'bg-blue-500/20 text-blue-300 border border-blue-500/30' },
+  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border border-slate-500/30' },
+  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border border-red-500/30' },
 }
 
 export default function StudentDashboard() {
@@ -104,8 +104,8 @@ export default function StudentDashboard() {
 
         {/* Onboarding reminder */}
         {!onboardingComplete && (
-          <Alert className="mb-6 bg-amber-50 border-amber-200">
-            <AlertDescription className="text-amber-800 flex items-center justify-between flex-wrap gap-2">
+          <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
+            <AlertDescription className="text-amber-300 flex items-center justify-between flex-wrap gap-2">
               <span>⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
               <Link href="/dashboard/student/onboarding">
                 <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
@@ -118,8 +118,8 @@ export default function StudentDashboard() {
 
         {/* New tutor offers notification */}
         {tutorOffers.length > 0 && (
-          <Alert className="mb-6 bg-blue-50 border-blue-200">
-            <AlertDescription className="text-blue-800 flex items-center justify-between flex-wrap gap-2">
+          <Alert className="mb-6 bg-blue-500/10 border-blue-500/30">
+            <AlertDescription className="text-blue-300 flex items-center justify-between flex-wrap gap-2">
               <span>🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
               <Link href="/dashboard/student/tutor-offers">
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -148,8 +148,8 @@ export default function StudentDashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Users className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-5 h-5 text-blue-300" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Pengajar Aktif</p>
@@ -160,8 +160,8 @@ export default function StudentDashboard() {
 
             <Card className="p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-5 h-5 text-yellow-600" />
+                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-5 h-5 text-yellow-300" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Menunggu</p>
@@ -172,8 +172,8 @@ export default function StudentDashboard() {
 
             <Card className="p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-5 h-5 text-green-300" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Sesi Selesai</p>
@@ -184,8 +184,8 @@ export default function StudentDashboard() {
 
             <Card className="p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                  <BookOpen className="w-5 h-5 text-purple-600" />
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="w-5 h-5 text-purple-300" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
@@ -237,7 +237,7 @@ export default function StudentDashboard() {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Status</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      profile.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                      profile.status === 'active' ? 'bg-green-500/20 text-green-300' : 'bg-slate-500/20 text-slate-300'
                     }`}>
                       {profile.status === 'active' ? 'Aktif' : profile.status}
                     </span>
@@ -279,8 +279,8 @@ export default function StudentDashboard() {
                   href="/dashboard/student/tutor-offers"
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                    <Star className="w-4 h-4 text-yellow-600" />
+                  <div className="w-9 h-9 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                    <Star className="w-4 h-4 text-yellow-300" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">Penawaran Tutor</p>
@@ -309,8 +309,8 @@ export default function StudentDashboard() {
                   href="/dashboard/student/schedule"
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-blue-600" />
+                  <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-blue-300" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">Jadwal Belajar</p>
@@ -323,8 +323,8 @@ export default function StudentDashboard() {
                   href="/dashboard/student/analytics"
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-4 h-4 text-green-600" />
+                  <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <BarChart3 className="w-4 h-4 text-green-300" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">Analitik & Nilai</p>
@@ -347,7 +347,7 @@ export default function StudentDashboard() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {matches.slice(0, 4).map(match => {
-                  const statusCfg = STATUS_LABEL[match.status] || { label: match.status, color: 'bg-gray-100 text-gray-700' }
+                  const statusCfg = STATUS_LABEL[match.status] || { label: match.status, color: 'bg-slate-500/20 text-slate-300 border border-slate-500/30' }
                   return (
                     <div
                       key={match.id}

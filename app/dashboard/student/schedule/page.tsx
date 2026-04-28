@@ -9,11 +9,11 @@ import { createClient } from '@/lib/auth'
 import { Calendar, Clock, User, BookOpen, MapPin } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
-  matched: 'bg-green-50 text-green-700 border-green-200',
-  active: 'bg-blue-50 text-blue-700 border-blue-200',
-  pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  completed: 'bg-gray-50 text-gray-600 border-gray-200',
-  cancelled: 'bg-red-50 text-red-700 border-red-200',
+  matched: 'bg-green-500/20 text-green-300 border-green-500/30',
+  active: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  completed: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+  cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -182,15 +182,15 @@ export default function StudentSchedulePage() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Aktif</p>
-          <p className="text-2xl font-bold text-blue-600">{activeSchedule.length}</p>
+          <p className="text-2xl font-bold text-blue-300">{activeSchedule.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Menunggu</p>
-          <p className="text-2xl font-bold text-yellow-600">{pendingSchedule.length}</p>
+          <p className="text-2xl font-bold text-yellow-300">{pendingSchedule.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Selesai</p>
-          <p className="text-2xl font-bold text-green-600">{completedSchedule.length}</p>
+          <p className="text-2xl font-bold text-green-300">{completedSchedule.length}</p>
         </Card>
       </div>
 
@@ -236,7 +236,7 @@ export default function StudentSchedulePage() {
                           </div>
                         )}
                         {item.tutorRating > 0 && (
-                          <div className="flex items-center gap-1 text-sm text-yellow-600">
+                          <div className="flex items-center gap-1 text-sm text-yellow-300">
                             <span>★</span>
                             <span className="font-medium">{item.tutorRating.toFixed(1)}</span>
                           </div>

@@ -14,9 +14,9 @@ import {
 } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  accepted: 'bg-green-50 text-green-700 border-green-200',
-  rejected: 'bg-red-50 text-red-700 border-red-200',
+  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  accepted: 'bg-green-500/20 text-green-300 border-green-500/30',
+  rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -178,11 +178,11 @@ export default function TutorOffersPage() {
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Menunggu Keputusan</p>
-          <p className="text-2xl font-bold text-yellow-600">{pendingOffers.length}</p>
+          <p className="text-2xl font-bold text-yellow-300">{pendingOffers.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Sudah Diputuskan</p>
-          <p className="text-2xl font-bold text-green-600">{decidedOffers.length}</p>
+          <p className="text-2xl font-bold text-green-300">{decidedOffers.length}</p>
         </Card>
       </div>
 
@@ -313,7 +313,7 @@ export default function TutorOffersPage() {
                 <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
-                    className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+                    className="flex-1 border-red-500/30 text-red-300 hover:bg-red-500/10"
                     disabled={actionLoading === selectedOffer.id}
                     onClick={() => handleAction(selectedOffer.id, 'reject')}
                   >
@@ -360,7 +360,7 @@ function TutorOfferCard({
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-foreground">{offer.tutor.name}</h3>
                 {offer.tutor.verified && (
-                  <Badge className="bg-green-100 text-green-700 border border-green-200 text-xs">✓ Verified</Badge>
+                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">✓ Verified</Badge>
                 )}
               </div>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -406,7 +406,7 @@ function TutorOfferCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                className="border-red-500/30 text-red-300 hover:bg-red-500/10"
                 onClick={onReject}
                 disabled={actionLoading}
               >

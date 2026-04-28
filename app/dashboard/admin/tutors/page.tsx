@@ -72,25 +72,25 @@ export default function AdminTutorsPage() {
     switch (status) {
       case 'pending_curation':
         return (
-          <Badge className="bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/30">
+          <Badge className="bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30">
             <Clock className="w-3 h-3 mr-1" /> Menunggu Review
           </Badge>
         )
       case 'approved':
         return (
-          <Badge className="bg-green-500/20 text-green-600 hover:bg-green-500/30">
+          <Badge className="bg-green-500/20 text-green-300 hover:bg-green-500/30">
             <CheckCircle2 className="w-3 h-3 mr-1" /> Disetujui
           </Badge>
         )
       case 'rejected':
         return (
-          <Badge className="bg-red-500/20 text-red-600 hover:bg-red-500/30">
+          <Badge className="bg-red-500/20 text-red-300 hover:bg-red-500/30">
             <XCircle className="w-3 h-3 mr-1" /> Ditolak
           </Badge>
         )
       case 'active':
         return (
-          <Badge className="bg-blue-500/20 text-blue-600 hover:bg-blue-500/30">
+          <Badge className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
             Aktif
           </Badge>
         )
@@ -201,15 +201,15 @@ export default function AdminTutorsPage() {
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Menunggu Review</p>
-          <p className="text-2xl font-bold text-yellow-600">{tutors.filter(t => t.status === 'pending_curation').length}</p>
+          <p className="text-2xl font-bold text-yellow-300">{tutors.filter(t => t.status === 'pending_curation').length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Aktif</p>
-          <p className="text-2xl font-bold text-green-600">{tutors.filter(t => t.status === 'active').length}</p>
+          <p className="text-2xl font-bold text-green-300">{tutors.filter(t => t.status === 'active').length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Ditolak</p>
-          <p className="text-2xl font-bold text-red-600">{tutors.filter(t => t.status === 'rejected').length}</p>
+          <p className="text-2xl font-bold text-red-300">{tutors.filter(t => t.status === 'rejected').length}</p>
         </Card>
       </div>
     </div>

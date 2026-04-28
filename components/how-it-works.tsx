@@ -73,7 +73,7 @@ const HowItWorks = () => {
                   <h3 className="text-xl font-semibold text-foreground mb-2">
                     {step.title}
                   </h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-slate-300">
                     {step.description}
                   </p>
                 </div>
