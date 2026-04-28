@@ -104,8 +104,8 @@ export default function StudentProgressPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pengajar Aktif</p>
@@ -116,8 +116,8 @@ export default function StudentProgressPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-green-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Sesi Selesai</p>
@@ -128,8 +128,8 @@ export default function StudentProgressPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-yellow-600" />
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-yellow-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Menunggu Konfirmasi</p>
@@ -140,8 +140,8 @@ export default function StudentProgressPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-purple-600" />
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-purple-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Pencocokan</p>
@@ -214,11 +214,11 @@ export default function StudentProgressPage() {
             <div className="space-y-3">
               {matches.map(match => {
                 const statusMap: Record<string, { label: string; color: string }> = {
-                  pending: { label: 'Menunggu', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-                  matched: { label: 'Dikonfirmasi', color: 'bg-green-50 text-green-700 border-green-200' },
+                  pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+                  matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
                   active: { label: 'Aktif', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                  completed: { label: 'Selesai', color: 'bg-gray-50 text-gray-700 border-gray-200' },
-                  cancelled: { label: 'Dibatalkan', color: 'bg-red-50 text-red-700 border-red-200' },
+                  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+                  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
                 }
                 const status = statusMap[match.status] || { label: match.status, color: '' }
 

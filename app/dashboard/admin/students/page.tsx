@@ -70,7 +70,7 @@ export default function AdminStudentsPage() {
 
   const getStatusBadge = (status: string) => {
     return status === 'active' ? (
-      <Badge className="bg-green-500/20 text-green-600 hover:bg-green-500/30">
+      <Badge className="bg-green-500/20 text-green-300 hover:bg-green-500/30">
         Aktif
       </Badge>
     ) : (
@@ -180,7 +180,7 @@ export default function AdminStudentsPage() {
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Siswa Aktif</p>
-          <p className="text-2xl font-bold text-green-600">{students.filter(s => s.status === 'active').length}</p>
+          <p className="text-2xl font-bold text-green-300">{students.filter(s => s.status === 'active').length}</p>
         </Card>
       </div>
     </div>

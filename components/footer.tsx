@@ -19,21 +19,21 @@ const Footer = () => {
               <BookOpen className="w-8 h-8" />
               <span>EduStory</span>
             </div>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-slate-300 mb-6">
               Platform pembelajaran privat terpercaya dengan pengajar profesional dan personalized.
             </p>
             {/* Social Media Icons */}
             <div className="flex gap-3">
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-primary hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
                 <Linkedin className="w-5 h-5" />
               </a>
             </div>

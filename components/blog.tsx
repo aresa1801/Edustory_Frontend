@@ -71,7 +71,7 @@ const Blog = () => {
                   <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
                     {post.category}
                   </span>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1 text-sm text-slate-300">
                     <Calendar className="w-4 h-4" />
                     {post.date}
                   </div>
@@ -83,7 +83,7 @@ const Blog = () => {
                 </h3>
 
                 {/* Excerpt */}
-                <p className="text-muted-foreground mb-6 line-clamp-2 flex-grow">
+                <p className="text-slate-300 mb-6 line-clamp-2 flex-grow">
                   {post.excerpt}
                 </p>
 

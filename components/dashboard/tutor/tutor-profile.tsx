@@ -135,7 +135,7 @@ export default function TutorProfile() {
 
       {success && (
         <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-700">{success}</AlertDescription>
+          <AlertDescription className="text-green-300">{success}</AlertDescription>
         </Alert>
       )}
 
@@ -165,12 +165,12 @@ export default function TutorProfile() {
             </p>
           )}
           {profile.approval_status === 'approved' && (
-            <p className="text-sm text-green-700">
+            <p className="text-sm text-green-300">
               Profil Anda telah diverifikasi dan disetujui! Anda sekarang dapat menerima permintaan dari siswa.
             </p>
           )}
           {profile.verified && (
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mt-2">
+            <Badge variant="outline" className="bg-green-50 text-green-300 border-green-200 mt-2">
               ✓ Terverifikasi
             </Badge>
           )}

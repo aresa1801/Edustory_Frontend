@@ -177,7 +177,7 @@ export default function CurationProgressPage() {
                       <Badge className="bg-green-500 hover:bg-green-600 mb-2">
                         Selesai
                       </Badge>
-                      <p className="text-2xl font-bold text-green-600">
+                      <p className="text-2xl font-bold text-green-300">
                         {step.score}
                       </p>
                     </div>

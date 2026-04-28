@@ -220,7 +220,7 @@ export default function StudentOnboardingPage() {
                       {done ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                     </div>
                     <div className="text-center hidden sm:block">
-                      <p className={`text-xs font-semibold ${active ? 'text-primary' : done ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      <p className={`text-xs font-semibold ${active ? 'text-primary' : done ? 'text-green-300' : 'text-muted-foreground'}`}>
                         {s.label}
                       </p>
                       <p className="text-xs text-muted-foreground">{s.description}</p>
@@ -598,7 +598,7 @@ export default function StudentOnboardingPage() {
                     Rp {Math.round(Number(budgetPerMonth) / Number(sessionsPerMonth)).toLocaleString('id-ID')}
                     <span className="text-sm font-normal text-blue-700">/sesi</span>
                   </p>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-300 mt-1">
                     Total Rp {Number(budgetPerMonth).toLocaleString('id-ID')}/bulan × {sessionsPerMonth} pertemuan
                   </p>
                 </div>
@@ -676,11 +676,11 @@ export default function StudentOnboardingPage() {
                   <p className="text-sm font-semibold text-green-800 mb-1 flex items-center gap-1">
                     <CreditCard className="w-4 h-4" /> Instruksi Transfer via {selectedMethod.label}
                   </p>
-                  <p className="text-sm text-green-700">{selectedMethod.account}</p>
+                  <p className="text-sm text-green-300">{selectedMethod.account}</p>
                   <p className="text-lg font-bold text-green-900 mt-2">
                     Rp {depositAmount.toLocaleString('id-ID')}
                   </p>
-                  <p className="text-xs text-green-600 mt-2">
+                  <p className="text-xs text-green-300 mt-2">
                     ✓ Dana disimpan di Escrow Account yang aman. Tutor hanya menerima pembayaran setelah sesi belajar selesai.
                   </p>
                 </div>

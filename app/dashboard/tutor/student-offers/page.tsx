@@ -384,7 +384,7 @@ export default function StudentOffersPage() {
             <Handshake className="w-4 h-4" />
             Permintaan Masuk
             {offers.length > 0 && (
-              <Badge className="ml-1 bg-blue-100 text-blue-700 border-blue-200">{offers.length}</Badge>
+              <Badge className="ml-1 bg-blue-500/20 text-blue-300 border-blue-500/30">{offers.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="browse" className="gap-2">
@@ -433,8 +433,8 @@ export default function StudentOffersPage() {
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            <span className="text-sm font-semibold text-blue-700">
+                          <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                            <span className="text-sm font-semibold text-blue-300">
                               {offer.student.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
@@ -448,7 +448,7 @@ export default function StudentOffersPage() {
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
+                          <Badge className="bg-blue-50 text-blue-300 border-blue-200 gap-1">
                             <BookOpen className="w-3 h-3" />
                             {offer.subject}
                           </Badge>
@@ -562,8 +562,8 @@ export default function StudentOffersPage() {
                     >
                       <CardContent className="p-5">
                         <div className="flex items-start gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-sm font-semibold text-blue-700">
+                          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-semibold text-blue-300">
                               {offer.studentName.charAt(0)}
                             </span>
                           </div>
@@ -579,7 +579,7 @@ export default function StudentOffersPage() {
                             </div>
                           </div>
                           {offer.alreadyApplied && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
                               ✓ Diapply
                             </Badge>
                           )}
