@@ -20,6 +20,7 @@ import {
   X,
   GraduationCap,
   ChevronRight,
+  FileText,
 } from 'lucide-react'
 
 interface NavGroup {
@@ -106,6 +107,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
       label: 'Mengajar',
       items: [
         { href: '/dashboard/tutor/student-offers', icon: Handshake, label: 'Penawaran Siswa' },
+        { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi Saya' },
         { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya' },
         { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal Mengajar' },
       ],
