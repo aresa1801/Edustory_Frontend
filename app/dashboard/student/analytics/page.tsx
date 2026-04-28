@@ -175,9 +175,9 @@ export default function StudentAnalyticsPage() {
   }
 
   const statCards = [
-    { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Sesi Selesai', value: stats.completedSessions, icon: Award, color: 'text-green-600', bg: 'bg-green-100' },
-    { label: 'Tutor Aktif', value: stats.activeTutors, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-300', bg: 'bg-blue-500/20' },
+    { label: 'Sesi Selesai', value: stats.completedSessions, icon: Award, color: 'text-green-300', bg: 'bg-green-500/20' },
+    { label: 'Tutor Aktif', value: stats.activeTutors, icon: Users, color: 'text-purple-300', bg: 'bg-purple-500/20' },
     { label: 'Penyelesaian', value: `${stats.completionRate}%`, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-100' },
   ]
 
@@ -350,7 +350,7 @@ export default function StudentAnalyticsPage() {
                         <p className="text-sm text-muted-foreground mt-1 italic">"{item.existingReview}"</p>
                       )}
                     </div>
-                    <Badge className="bg-green-100 text-green-700 border border-green-200 text-xs">
+                    <Badge className="bg-green-500/20 text-green-700 border border-green-200 text-xs">
                       Sudah Dinilai
                     </Badge>
                   </div>

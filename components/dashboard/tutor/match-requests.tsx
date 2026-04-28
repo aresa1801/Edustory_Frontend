@@ -143,7 +143,7 @@ export default function TutorMatchRequests() {
                     Tingkat: {student?.grade_level}
                   </p>
                 </div>
-                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                <Badge variant="outline" className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
                   ⏳ Menunggu Konfirmasi
                 </Badge>
               </div>

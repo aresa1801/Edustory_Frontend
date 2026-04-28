@@ -198,7 +198,7 @@ export default function TutorAssessmentStatus() {
                   <div className="text-right">
                     <Badge className="bg-green-500 hover:bg-green-600 mb-1">✓ Selesai</Badge>
                     {step.score !== undefined && (
-                      <p className="text-xl font-bold text-green-600">{step.score}</p>
+                      <p className="text-xl font-bold text-green-300">{step.score}</p>
                     )}
                   </div>
                 ) : step.href ? (

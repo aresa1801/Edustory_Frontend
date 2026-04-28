@@ -198,7 +198,7 @@ export default function AdminProgramsPage() {
                 <h3 className="text-lg font-semibold text-foreground">{program.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1">{program.duration_months} bulan</p>
               </div>
-              <Badge className={program.status === 'active' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600'}>
+              <Badge className={program.status === 'active' ? 'bg-green-500/20 text-green-300' : 'bg-slate-500/20 text-slate-300'}>
                 {program.status === 'active' ? 'Aktif' : 'Tidak Aktif'}
               </Badge>
             </div>
@@ -227,7 +227,7 @@ export default function AdminProgramsPage() {
               </button>
               <button
                 onClick={() => handleDeleteProgram(program.id)}
-                className="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-sm font-medium flex items-center justify-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
                 Hapus

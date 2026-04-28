@@ -302,7 +302,7 @@ export default function StudentBrowseTutors() {
                       )}
                       {tutor.verified && (
                         <div className="mt-1">
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs py-0">
+                          <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30 text-xs py-0">
                             ✓ Terverifikasi
                           </Badge>
                         </div>
@@ -490,8 +490,8 @@ export default function StudentBrowseTutors() {
           {/* Step 3: Success */}
           {dialogStep === 3 && (
             <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                <CheckCircle className="w-10 h-10 text-green-600" />
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+                <CheckCircle className="w-10 h-10 text-green-300" />
               </div>
               <div className="space-y-2">
                 <p className="font-medium text-base">Pendaftaran Dikirim!</p>

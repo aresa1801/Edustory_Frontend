@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Menu, X, BookOpen, Phone, Moon, Sun } from 'lucide-react'
+import { Menu, X, BookOpen, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 
@@ -10,19 +10,8 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
-  const [isDark, setIsDark] = useState(true)
-
-  const toggleTheme = () => {
-    const html = document.documentElement
-    const newDarkMode = !isDark
-    setIsDark(newDarkMode)
-    
-    if (newDarkMode) {
-      html.classList.add('dark')
-    } else {
-      html.classList.remove('dark')
-    }
-  }
+  // Theme toggle removed — project is dark-mode only
+  const isDark = true
 
   const toggleMenu = () => setIsOpen(!isOpen)
 
@@ -71,14 +60,6 @@ const Header = () => {
           {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
             <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="text-foreground hover:text-primary transition-colors"
-            >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </Button>
-            <Button
               variant="outline"
               className="border-primary text-primary hover:bg-primary/5"
             >
@@ -95,7 +76,7 @@ const Header = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={toggleMenu}
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+            className="md:hidden p-2 rounded-lg hover:bg-white/10"
             aria-label="Toggle menu"
           >
             {isOpen ? (
@@ -114,7 +95,7 @@ const Header = () => {
                 <a
                   key={item.label}
                   href={item.href}
-                  className="px-4 py-2 text-foreground hover:text-primary hover:bg-gray-50 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 text-foreground hover:text-primary hover:bg-primary/5 rounded-lg font-medium transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   {item.label}

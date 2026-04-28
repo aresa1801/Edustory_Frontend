@@ -28,19 +28,19 @@ const STATUS_CONFIG = {
   pending: {
     label: 'Menunggu Verifikasi',
     icon: Clock,
-    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     iconColor: 'text-amber-500',
   },
   approved: {
     label: 'Disetujui',
     icon: CheckCircle2,
-    color: 'bg-green-50 text-green-700 border-green-200',
+    color: 'bg-green-500/20 text-green-300 border-green-500/30',
     iconColor: 'text-green-500',
   },
   rejected: {
     label: 'Ditolak',
     icon: XCircle,
-    color: 'bg-red-50 text-red-700 border-red-200',
+    color: 'bg-red-500/20 text-red-300 border-red-500/30',
     iconColor: 'text-red-500',
   },
   suspended: {
@@ -187,12 +187,12 @@ export default function ProfilePage() {
           <p className="text-slate-500 text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
         </div>
         {isProfileComplete ? (
-          <Badge className="bg-green-100 text-green-700 border-green-200 gap-1.5 px-3 py-1.5">
+          <Badge className="bg-green-500/20 text-green-300 border-green-500/30 gap-1.5 px-3 py-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
             Profil Lengkap
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 gap-1.5 px-3 py-1.5">
+          <Badge variant="outline" className="text-amber-300 border-amber-200 bg-amber-50 gap-1.5 px-3 py-1.5">
             <Clock className="w-3.5 h-3.5" />
             Belum Lengkap
           </Badge>
@@ -206,7 +206,7 @@ export default function ProfilePage() {
       )}
       {success && (
         <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-700">{success}</AlertDescription>
+          <AlertDescription className="text-green-300">{success}</AlertDescription>
         </Alert>
       )}
 
@@ -354,7 +354,7 @@ export default function ProfilePage() {
               </div>
               <p className="text-xs text-slate-400">
                 Kelola mata pelajaran di halaman{' '}
-                <a href="/dashboard/tutor/teaching-interest" className="text-blue-600 underline">
+                <a href="/dashboard/tutor/teaching-interest" className="text-blue-300 underline">
                   Minat Mengajar
                 </a>
               </p>

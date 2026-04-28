@@ -263,8 +263,8 @@ export default function StudentProfile() {
     : '?'
 
   const completionColor =
-    completionScore >= 80 ? 'text-green-600' :
-    completionScore >= 50 ? 'text-yellow-600' :
+    completionScore >= 80 ? 'text-green-300' :
+    completionScore >= 50 ? 'text-yellow-300' :
     'text-red-500'
 
   return (
@@ -277,7 +277,7 @@ export default function StudentProfile() {
       )}
       {success && (
         <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="flex items-center gap-2 text-green-700">
+          <AlertDescription className="flex items-center gap-2 text-green-300">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {success}
           </AlertDescription>
         </Alert>
@@ -298,7 +298,7 @@ export default function StudentProfile() {
               </p>
               {studentData.status && (
                 <span className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                  studentData.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                  studentData.status === 'active' ? 'bg-green-100 text-green-300' : 'bg-slate-500/20 text-slate-300'
                 }`}>
                   <ShieldCheck className="w-3 h-3" />
                   {studentData.status === 'active' ? 'Akun Aktif' : studentData.status}
@@ -356,8 +356,8 @@ export default function StudentProfile() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-blue-600" />
+                  <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-blue-300" />
                   </div>
                   Informasi Pribadi
                 </CardTitle>
@@ -437,8 +437,8 @@ export default function StudentProfile() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="w-4 h-4 text-purple-600" />
+                  <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-4 h-4 text-purple-300" />
                   </div>
                   Informasi Pembelajaran
                 </CardTitle>
