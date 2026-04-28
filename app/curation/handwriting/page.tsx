@@ -131,7 +131,7 @@ export default function HandwritingPage() {
             <Badge variant="outline" className="text-primary border-primary">
               Tahap 4 dari 5
             </Badge>
-            <Badge className="bg-purple-100 text-purple-700 border-purple-200">✍️ Tulisan Tangan</Badge>
+            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30">✍️ Tulisan Tangan</Badge>
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Tes Tulisan Tangan & Penjelasan
@@ -201,7 +201,7 @@ export default function HandwritingPage() {
                     )}
                   </label>
                   {problems[index].imageFile && (
-                    <p className="text-sm text-green-700 mt-2 font-medium">
+                    <p className="text-sm text-green-300 mt-2 font-medium">
                       ✓ {problems[index].imageFile!.name}
                     </p>
                   )}
@@ -222,7 +222,7 @@ export default function HandwritingPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {problems[index].explanation.length}/50 karakter minimum
                   {problems[index].explanation.length >= 50 && (
-                    <span className="text-green-600 ml-2">✓ Mencukupi</span>
+                    <span className="text-green-300 ml-2">✓ Mencukupi</span>
                   )}
                 </p>
               </div>

@@ -64,7 +64,7 @@ const Features = () => {
                 <h3 className="text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-muted-foreground group-hover:text-foreground transition-colors">
+                <p className="text-slate-300 group-hover:text-foreground transition-colors">
                   {feature.description}
                 </p>
               </div>

@@ -141,10 +141,10 @@ export default function AnalyticsPage() {
   }
 
   const statCards = [
-    { label: 'Total Siswa', value: data.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Siswa Aktif', value: data.activeStudents, icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Sesi Selesai', value: data.completedSessions, icon: CheckCircle, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Menunggu Konfirmasi', value: data.pendingRequests, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Total Siswa', value: data.totalStudents, icon: Users, color: 'text-blue-300', bg: 'bg-blue-500/20' },
+    { label: 'Siswa Aktif', value: data.activeStudents, icon: TrendingUp, color: 'text-green-300', bg: 'bg-green-500/20' },
+    { label: 'Sesi Selesai', value: data.completedSessions, icon: CheckCircle, color: 'text-purple-300', bg: 'bg-purple-500/20' },
+    { label: 'Menunggu Konfirmasi', value: data.pendingRequests, icon: Clock, color: 'text-amber-300', bg: 'bg-amber-500/10' },
   ]
 
   const topSubjects = Object.entries(data.subjects)
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
 
   const satisfactionColor =
     data.satisfactionScore >= 4.5
-      ? 'text-green-600'
+      ? 'text-green-300'
       : data.satisfactionScore >= 3.5
       ? 'text-green-500'
       : data.satisfactionScore >= 2.5
@@ -287,10 +287,10 @@ export default function AnalyticsPage() {
                 variant="outline"
                 className={
                   data.approvalStatus === 'approved'
-                    ? 'bg-green-50 text-green-700 border-green-200 text-xs'
+                    ? 'bg-green-500/20 text-green-300 border-green-200 text-xs'
                     : data.approvalStatus === 'rejected'
-                    ? 'bg-red-50 text-red-700 border-red-200 text-xs'
-                    : 'bg-amber-50 text-amber-700 border-amber-200 text-xs'
+                    ? 'bg-red-500/20 text-red-300 border-red-500/30 text-xs'
+                    : 'bg-amber-500/10 text-amber-700 border-amber-200 text-xs'
                 }
               >
                 {data.approvalStatus === 'approved'
@@ -304,7 +304,7 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between py-2 border-b border-slate-100">
               <span className="text-sm text-slate-600">Verifikasi</span>
               {data.verified ? (
-                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">✓ Terverifikasi</Badge>
+                <Badge className="bg-blue-500/20 text-blue-700 border-blue-200 text-xs">✓ Terverifikasi</Badge>
               ) : (
                 <Badge variant="outline" className="text-slate-400 text-xs">Belum</Badge>
               )}
@@ -323,7 +323,7 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-green-500 rounded-full transition-all"
+                    className="h-full bg-green-500/200 rounded-full transition-all"
                     style={{ width: `${completionRate}%` }}
                   />
                 </div>
@@ -332,7 +332,7 @@ export default function AnalyticsPage() {
 
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-600">Skor Kurasi</span>
-              <span className="text-sm font-semibold text-blue-600">Lihat di halaman Kurasi</span>
+              <span className="text-sm font-semibold text-blue-300">Lihat di halaman Kurasi</span>
             </div>
           </CardContent>
         </Card>
@@ -363,7 +363,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-blue-500 rounded-full"
+                          className="h-full bg-blue-500/200 rounded-full"
                           style={{ width: `${percent}%` }}
                         />
                       </div>

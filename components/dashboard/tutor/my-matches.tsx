@@ -9,11 +9,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  matched: { label: '✓ Dikonfirmasi', color: 'bg-green-50 text-green-700 border-green-200' },
+  pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+  matched: { label: '✓ Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
   active: { label: 'Aktif Mengajar', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Selesai', color: 'bg-gray-50 text-gray-700 border-gray-200' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-red-50 text-red-700 border-red-200' },
+  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
 }
 
 export default function TutorMyMatches() {
@@ -149,14 +149,14 @@ export default function TutorMyMatches() {
 
               {match.status === 'matched' && (
                 <div className="bg-green-50 border border-green-200 rounded p-3 space-y-2">
-                  <p className="text-sm font-medium text-green-700">
+                  <p className="text-sm font-medium text-green-300">
                     Pencocokan dikonfirmasi! Hubungi siswa untuk mengatur jadwal pembelajaran.
                   </p>
                   {student?.users_profile?.phone && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-green-300 text-green-700 hover:bg-green-100"
+                      className="border-green-300 text-green-300 hover:bg-green-100"
                       onClick={() =>
                         window.open(
                           `https://wa.me/${student.users_profile.phone.replace(/\D/g, '')}`,

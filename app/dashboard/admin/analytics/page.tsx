@@ -89,22 +89,22 @@ export default function AdminAnalyticsPage() {
       label: 'Total Pengguna',
       value: data.totalUsers,
       icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-100',
+      color: 'text-blue-300',
+      bg: 'bg-blue-500/20',
     },
     {
       label: 'Total Siswa',
       value: data.totalStudents,
       icon: BookOpen,
-      color: 'text-green-600',
-      bg: 'bg-green-100',
+      color: 'text-green-300',
+      bg: 'bg-green-500/20',
     },
     {
       label: 'Total Tutor',
       value: data.totalTutors,
       icon: TrendingUp,
-      color: 'text-purple-600',
-      bg: 'bg-purple-100',
+      color: 'text-purple-300',
+      bg: 'bg-purple-500/20',
     },
     {
       label: 'Total Pencocokan',
@@ -148,11 +148,11 @@ export default function AdminAnalyticsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Tutor Disetujui</span>
-              <span className="text-sm font-bold text-green-600">{data.activeTutors}</span>
+              <span className="text-sm font-bold text-green-300">{data.activeTutors}</span>
             </div>
             <div className="flex items-center justify-between py-3 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Tutor Menunggu Verifikasi</span>
-              <span className="text-sm font-bold text-yellow-600">{data.pendingTutors}</span>
+              <span className="text-sm font-bold text-yellow-300">{data.pendingTutors}</span>
             </div>
             <div className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">Total Tutor</span>
@@ -168,11 +168,11 @@ export default function AdminAnalyticsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Pencocokan Aktif</span>
-              <span className="text-sm font-bold text-blue-600">{data.activeMatches}</span>
+              <span className="text-sm font-bold text-blue-300">{data.activeMatches}</span>
             </div>
             <div className="flex items-center justify-between py-3 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Pencocokan Selesai</span>
-              <span className="text-sm font-bold text-green-600">{data.completedMatches}</span>
+              <span className="text-sm font-bold text-green-300">{data.completedMatches}</span>
             </div>
             <div className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">Total Pencocokan</span>
