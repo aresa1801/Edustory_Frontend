@@ -41,7 +41,7 @@ function StarRating({ value, max = 5 }: { value: number; max?: number }) {
         <Star
           key={i}
           className={`w-4 h-4 ${
-            i < Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'
+            i < Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground'
           }`}
         />
       ))}
@@ -176,14 +176,14 @@ export default function AnalyticsPage() {
       ? 'text-amber-500'
       : data.satisfactionScore > 0
       ? 'text-red-500'
-      : 'text-slate-400'
+      : 'text-muted-foreground'
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Analitik Performa</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-foreground">Analitik Performa</h1>
+        <p className="text-muted-foreground text-sm mt-1">
           Pantau statistik dan skor kepuasan siswa terhadap pengajaran Anda
         </p>
       </div>
@@ -197,8 +197,8 @@ export default function AnalyticsPage() {
                 <Icon className={`w-5 h-5 ${color}`} />
               </div>
               <div>
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-2xl font-bold text-foreground">{value}</p>
               </div>
             </CardContent>
           </Card>
@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
         {/* Satisfaction Score Card */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Award className="w-4 h-4" />
               Skor Kepuasan Siswa
             </CardTitle>
@@ -223,7 +223,7 @@ export default function AnalyticsPage() {
                   <div>
                     <p className={`text-4xl font-bold ${satisfactionColor}`}>
                       {data.satisfactionScore.toFixed(1)}
-                      <span className="text-lg text-slate-400">/5</span>
+                      <span className="text-lg text-muted-foreground">/5</span>
                     </p>
                     <p className={`text-sm font-semibold ${satisfactionColor}`}>{satisfactionLabel}</p>
                   </div>
@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
                 {/* Stars */}
                 <div className="flex items-center gap-3">
                   <StarRating value={data.rating} />
-                  <span className="text-sm text-slate-500">
+                  <span className="text-sm text-muted-foreground">
                     dari {data.totalReviews} ulasan siswa
                   </span>
                 </div>
@@ -240,7 +240,7 @@ export default function AnalyticsPage() {
                 {/* Score breakdown bars */}
                 {[5, 4, 3, 2, 1].map(star => (
                   <div key={star} className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-xs text-slate-500 w-12">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground w-12">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                       {star}
                     </div>
@@ -256,15 +256,15 @@ export default function AnalyticsPage() {
                   </div>
                 ))}
 
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   * Skor ini merupakan rata-rata penilaian kepuasan dari seluruh siswa yang pernah Anda ajar.
                 </p>
               </div>
             ) : (
               <div className="py-8 text-center">
-                <Star className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm font-medium text-slate-700">Belum Ada Penilaian</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <Star className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">Belum Ada Penilaian</p>
+                <p className="text-xs text-muted-foreground mt-1">
                   Skor kepuasan akan muncul setelah siswa memberikan ulasan kepada Anda.
                 </p>
               </div>
@@ -275,14 +275,14 @@ export default function AnalyticsPage() {
         {/* Performance Overview */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               Ringkasan Performa
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Status Aplikasi</span>
+              <span className="text-sm text-muted-foreground">Status Aplikasi</span>
               <Badge
                 variant="outline"
                 className={
@@ -302,24 +302,24 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Verifikasi</span>
+              <span className="text-sm text-muted-foreground">Verifikasi</span>
               {data.verified ? (
                 <Badge className="bg-blue-500/20 text-blue-700 border-blue-200 text-xs">✓ Terverifikasi</Badge>
               ) : (
-                <Badge variant="outline" className="text-slate-400 text-xs">Belum</Badge>
+                <Badge variant="outline" className="text-muted-foreground text-xs">Belum</Badge>
               )}
             </div>
 
             <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Pengalaman Mengajar</span>
-              <span className="text-sm font-semibold text-slate-800">{data.experienceYears} tahun</span>
+              <span className="text-sm text-muted-foreground">Pengalaman Mengajar</span>
+              <span className="text-sm font-semibold text-foreground">{data.experienceYears} tahun</span>
             </div>
 
             {data.totalStudents > 0 && (
               <div className="py-2 border-b border-slate-100">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-slate-600">Tingkat Penyelesaian Sesi</span>
-                  <span className="text-sm font-semibold text-slate-800">{completionRate}%</span>
+                  <span className="text-sm text-muted-foreground">Tingkat Penyelesaian Sesi</span>
+                  <span className="text-sm font-semibold text-foreground">{completionRate}%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -331,7 +331,7 @@ export default function AnalyticsPage() {
             )}
 
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-slate-600">Skor Kurasi</span>
+              <span className="text-sm text-muted-foreground">Skor Kurasi</span>
               <span className="text-sm font-semibold text-blue-300">Lihat di halaman Kurasi</span>
             </div>
           </CardContent>
@@ -340,14 +340,14 @@ export default function AnalyticsPage() {
         {/* Subjects */}
         <Card className="border shadow-sm lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               Distribusi Mata Pelajaran yang Diajarkan
             </CardTitle>
           </CardHeader>
           <CardContent>
             {topSubjects.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 Belum ada data mata pelajaran. Data akan muncul setelah ada sesi mengajar.
               </p>
             ) : (
@@ -358,8 +358,8 @@ export default function AnalyticsPage() {
                   return (
                     <div key={subject} className="space-y-1.5">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">{subject}</span>
-                        <span className="text-slate-500">{count} sesi</span>
+                        <span className="font-medium text-foreground">{subject}</span>
+                        <span className="text-muted-foreground">{count} sesi</span>
                       </div>
                       <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div

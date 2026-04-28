@@ -45,9 +45,9 @@ const STATUS_CONFIG = {
   },
   suspended: {
     label: 'Ditangguhkan',
-    color: 'bg-slate-50 text-slate-600 border-slate-200',
+    color: 'bg-slate-50 text-muted-foreground border-slate-200',
     icon: XCircle,
-    iconColor: 'text-slate-400',
+    iconColor: 'text-muted-foreground',
   },
 }
 
@@ -183,8 +183,8 @@ export default function ProfilePage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Profil Saya</h1>
-          <p className="text-slate-500 text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
+          <h1 className="text-2xl font-bold text-foreground">Profil Saya</h1>
+          <p className="text-muted-foreground text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
         </div>
         {isProfileComplete ? (
           <Badge className="bg-green-500/20 text-green-300 border-green-500/30 gap-1.5 px-3 py-1.5">
@@ -213,7 +213,7 @@ export default function ProfilePage() {
       {/* Verification Status */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Status Akun
           </CardTitle>
@@ -223,12 +223,12 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3">
               <StatusIcon className={`w-5 h-5 ${statusCfg.iconColor}`} />
               <div>
-                <p className="text-sm font-semibold text-slate-800">{statusCfg.label}</p>
+                <p className="text-sm font-semibold text-foreground">{statusCfg.label}</p>
                 {approvalStatus === 'pending' && (
-                  <p className="text-xs text-slate-500">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
+                  <p className="text-xs text-muted-foreground">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
                 )}
                 {approvalStatus === 'approved' && (
-                  <p className="text-xs text-slate-500">Anda dapat menerima permintaan siswa</p>
+                  <p className="text-xs text-muted-foreground">Anda dapat menerima permintaan siswa</p>
                 )}
               </div>
             </div>
@@ -244,7 +244,7 @@ export default function ProfilePage() {
       {/* Personal Info */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Informasi Pribadi
           </CardTitle>
@@ -252,7 +252,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Nama Lengkap</Label>
               <Input
                 value={form.name}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -260,15 +260,15 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email
               </Label>
-              <Input value={form.email} disabled className="bg-slate-50 text-slate-500" />
+              <Input value={form.email} disabled className="bg-slate-50 text-muted-foreground" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <Phone className="w-3 h-3" /> Nomor WhatsApp
             </Label>
             <Input
@@ -279,7 +279,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600">Bio Singkat</Label>
+            <Label className="text-xs font-medium text-muted-foreground">Bio Singkat</Label>
             <Textarea
               value={form.bio}
               onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
@@ -294,7 +294,7 @@ export default function ProfilePage() {
       {/* Professional Info */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Informasi Profesional
           </CardTitle>
@@ -302,7 +302,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Briefcase className="w-3 h-3" /> Pengalaman Mengajar (Tahun)
               </Label>
               <Input
@@ -315,7 +315,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Banknote className="w-3 h-3" /> Tarif Per Jam (Rp)
               </Label>
               <Input
@@ -330,7 +330,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <BookOpen className="w-3 h-3" /> Kualifikasi & Sertifikasi
             </Label>
             <Textarea
@@ -344,7 +344,7 @@ export default function ProfilePage() {
 
           {form.specializations.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Mata Pelajaran yang Diajarkan</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Mata Pelajaran yang Diajarkan</Label>
               <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 {form.specializations.map((s: string) => (
                   <Badge key={s} variant="secondary" className="text-xs">
@@ -352,7 +352,7 @@ export default function ProfilePage() {
                   </Badge>
                 ))}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Kelola mata pelajaran di halaman{' '}
                 <a href="/dashboard/tutor/teaching-interest" className="text-blue-300 underline">
                   Minat Mengajar

@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
   matched: 'bg-green-500/20 text-green-300 border-green-500/30',
   active: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  completed: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+  completed: 'bg-slate-500/20 text-muted-foreground border-slate-500/30',
 }
 
 const STATUS_LABELS: Record<string, string> = {

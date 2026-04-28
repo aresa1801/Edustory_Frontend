@@ -130,7 +130,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 text-sm font-medium">Memuat dashboard...</p>
+          <p className="text-muted-foreground text-sm font-medium">Memuat dashboard...</p>
         </div>
       </div>
     )
@@ -151,8 +151,8 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           </div>
           {sidebarOpen && (
             <div>
-              <p className="font-bold text-slate-800 leading-none">EduStory</p>
-              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Portal Pengajar</p>
+              <p className="font-bold text-foreground leading-none">EduStory</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider">Portal Pengajar</p>
             </div>
           )}
         </div>
@@ -162,7 +162,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           {navGroups.map(group => (
             <div key={group.label}>
               {sidebarOpen && (
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5 px-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-2">
                   {group.label}
                 </p>
               )}
@@ -177,12 +177,12 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
                         active
                           ? 'bg-blue-50 text-blue-300'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          : 'text-muted-foreground hover:bg-slate-50 hover:text-slate-900'
                       }`}
                     >
                       <Icon
                         className={`w-4.5 h-4.5 flex-shrink-0 ${
-                          active ? 'text-blue-300' : 'text-slate-400 group-hover:text-slate-600'
+                          active ? 'text-blue-300' : 'text-muted-foreground group-hover:text-slate-600'
                         }`}
                         size={18}
                       />
@@ -208,14 +208,14 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{fullName}</p>
-                <p className="text-xs text-slate-400">Pengajar</p>
+                <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
+                <p className="text-xs text-muted-foreground">Pengajar</p>
               </div>
               <Button
                 onClick={handleLogout}
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 text-slate-400 hover:text-red-300 hover:bg-red-500/10"
+                className="w-8 h-8 text-muted-foreground hover:text-red-300 hover:bg-red-500/10"
                 title="Keluar"
               >
                 <LogOut className="w-4 h-4" />
@@ -226,7 +226,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-full text-slate-400 hover:text-red-300 hover:bg-red-500/10"
+              className="w-full text-muted-foreground hover:text-red-300 hover:bg-red-500/10"
               title="Keluar"
             >
               <LogOut className="w-4 h-4" />
@@ -241,7 +241,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-700 hover:bg-slate-100 transition-colors"
             aria-label="Toggle sidebar"
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -249,8 +249,8 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
 
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-800">{fullName}</p>
-              <p className="text-xs text-slate-400">Pengajar Aktif</p>
+              <p className="text-sm font-semibold text-foreground">{fullName}</p>
+              <p className="text-xs text-muted-foreground">Pengajar Aktif</p>
             </div>
             <Avatar className="w-8 h-8">
               <AvatarFallback className="bg-blue-100 text-blue-300 text-xs font-semibold">

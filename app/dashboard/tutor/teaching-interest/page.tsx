@@ -169,8 +169,8 @@ export default function TeachingInterestPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Minat Mengajar</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-foreground">Minat Mengajar</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             Pilih kelas dan mata pelajaran yang ingin Anda ajarkan
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function TeachingInterestPage() {
             Sudah Diisi
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-slate-500 border-slate-200 px-3 py-1.5">
+          <Badge variant="outline" className="text-muted-foreground border-slate-200 px-3 py-1.5">
             Belum Diisi
           </Badge>
         )}
@@ -214,10 +214,10 @@ export default function TeachingInterestPage() {
       {/* Grade Levels */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Tingkat Kelas yang Ingin Diajarkan
-            <span className="text-slate-400 font-normal">({selectedLevels.length} dipilih)</span>
+            <span className="text-muted-foreground font-normal">({selectedLevels.length} dipilih)</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -228,7 +228,7 @@ export default function TeachingInterestPage() {
             return (
               <div key={group.label}>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{group.label}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{group.label}</p>
                   <button
                     onClick={() => toggleAllInGroup(group.label, group.levels)}
                     className="text-xs text-blue-600 hover:underline"
@@ -246,7 +246,7 @@ export default function TeachingInterestPage() {
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                           selected
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                            : 'bg-white text-muted-foreground border-slate-200 hover:border-blue-300 hover:text-blue-600'
                         }`}
                       >
                         {selected && <span className="mr-1">✓</span>}
@@ -264,15 +264,15 @@ export default function TeachingInterestPage() {
       {/* Subjects */}
       <Card className={`border shadow-sm transition-opacity ${selectedLevels.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Mata Pelajaran yang Ingin Diajarkan
-            <span className="text-slate-400 font-normal">({selectedSubjects.length} dipilih)</span>
+            <span className="text-muted-foreground font-normal">({selectedSubjects.length} dipilih)</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {selectedLevels.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">
+            <p className="text-sm text-muted-foreground text-center py-4">
               Pilih kelas terlebih dahulu untuk melihat mata pelajaran yang tersedia
             </p>
           ) : (
@@ -287,7 +287,7 @@ export default function TeachingInterestPage() {
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                         selected
                           ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-green-300 hover:text-green-600'
+                          : 'bg-white text-muted-foreground border-slate-200 hover:border-green-300 hover:text-green-600'
                       }`}
                     >
                       {selected && <span className="mr-1">✓</span>}
@@ -303,10 +303,10 @@ export default function TeachingInterestPage() {
                 >
                   Pilih Semua
                 </button>
-                <span className="text-slate-300 text-xs">|</span>
+                <span className="text-muted-foreground text-xs">|</span>
                 <button
                   onClick={() => setSelectedSubjects([])}
-                  className="text-xs text-slate-500 hover:underline"
+                  className="text-xs text-muted-foreground hover:underline"
                 >
                   Hapus Semua
                 </button>

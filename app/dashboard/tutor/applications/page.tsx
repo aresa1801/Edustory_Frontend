@@ -17,7 +17,7 @@ const STATUS_CONFIG = {
   pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
   approved: { label: 'Disetujui', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
   rejected: { label: 'Ditolak', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+  suspended: { label: 'Ditangguhkan', color: 'bg-slate-500/20 text-muted-foreground border-slate-500/30' },
 }
 
 export default function ApplicationsPage() {

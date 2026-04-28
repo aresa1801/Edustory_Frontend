@@ -345,9 +345,9 @@ export default function StudentOffersPage() {
   if (!curationPassed) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Lock className="w-16 h-16 text-slate-300 mb-4" />
-        <h2 className="text-xl font-semibold text-slate-700 mb-2">Kurasi Belum Lulus</h2>
-        <p className="text-slate-500 mb-6 max-w-md">
+        <Lock className="w-16 h-16 text-muted-foreground mb-4" />
+        <h2 className="text-xl font-semibold text-foreground mb-2">Kurasi Belum Lulus</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">
           Anda perlu menyelesaikan kurasi dengan skor minimal 80 sebelum dapat mengakses penawaran siswa.
           Skor Anda saat ini: <span className="font-semibold">{curationScore}/100</span>
         </p>
@@ -366,8 +366,8 @@ export default function StudentOffersPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Penawaran Siswa</h1>
-        <p className="text-slate-500 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">Penawaran Siswa</h1>
+        <p className="text-muted-foreground mt-1">
           Kelola permintaan siswa dan cari siswa yang cocok dengan bidang Anda.
         </p>
       </div>
@@ -398,7 +398,7 @@ export default function StudentOffersPage() {
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Cari siswa atau mata pelajaran..."
                 className="pl-9"
@@ -408,7 +408,7 @@ export default function StudentOffersPage() {
             </div>
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <Filter className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                <Filter className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Semua Mapel" />
               </SelectTrigger>
               <SelectContent>
@@ -421,7 +421,7 @@ export default function StudentOffersPage() {
           </div>
 
           {filteredOffers.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-muted-foreground">
               <Handshake className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Tidak ada permintaan masuk</p>
             </div>
@@ -438,7 +438,7 @@ export default function StudentOffersPage() {
                               {offer.student.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
-                          <span className="font-medium text-slate-900">{offer.student.name}</span>
+                          <span className="font-medium text-foreground">{offer.student.name}</span>
                           {offer.student.grade_level && (
                             <Badge variant="secondary" className="text-[11px]">
                               <GraduationCap className="w-3 h-3 mr-1" />
@@ -462,8 +462,8 @@ export default function StudentOffersPage() {
 
                         {offer.student.learning_goals && (
                           <div className="mt-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                            <p className="text-xs text-slate-500 mb-0.5">Tujuan Belajar Siswa</p>
-                            <p className="text-sm text-slate-700 line-clamp-2">
+                            <p className="text-xs text-muted-foreground mb-0.5">Tujuan Belajar Siswa</p>
+                            <p className="text-sm text-foreground line-clamp-2">
                               {offer.student.learning_goals}
                             </p>
                           </div>
@@ -512,8 +512,8 @@ export default function StudentOffersPage() {
         <TabsContent value="browse" className="space-y-4">
           {!tutorData?.verified ? (
             <div className="text-center py-12">
-              <Lock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500">Fitur ini memerlukan verifikasi admin.</p>
+              <Lock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Fitur ini memerlukan verifikasi admin.</p>
             </div>
           ) : (
             <>
@@ -545,7 +545,7 @@ export default function StudentOffersPage() {
               </div>
 
               {filteredBrowse.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-muted-foreground">
                   <Search className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>Tidak ada siswa yang cocok dengan filter Anda</p>
                 </div>
@@ -568,13 +568,13 @@ export default function StudentOffersPage() {
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-slate-900 truncate">{offer.studentName}</p>
+                            <p className="font-semibold text-foreground truncate">{offer.studentName}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <Badge variant="secondary" className="text-[10px]">
                                 {offer.gradeLevel}
                               </Badge>
                               {offer.studentCity && (
-                                <span className="text-xs text-slate-400">{offer.studentCity}</span>
+                                <span className="text-xs text-muted-foreground">{offer.studentCity}</span>
                               )}
                             </div>
                           </div>
@@ -587,31 +587,31 @@ export default function StudentOffersPage() {
 
                         <div className="flex flex-wrap gap-1.5 mb-3">
                           {offer.subjects.slice(0, 3).map(subj => (
-                            <Badge key={subj} className="bg-slate-100 text-slate-700 text-[10px]">
+                            <Badge key={subj} className="bg-slate-100 text-foreground text-[10px]">
                               {subj}
                             </Badge>
                           ))}
                           {offer.subjects.length > 3 && (
-                            <Badge className="bg-slate-100 text-slate-500 text-[10px]">
+                            <Badge className="bg-slate-100 text-muted-foreground text-[10px]">
                               +{offer.subjects.length - 3}
                             </Badge>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-4">
+                        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-4">
                           <div className="flex items-center gap-1">
-                            <Wallet className="w-3 h-3 text-slate-400" />
+                            <Wallet className="w-3 h-3 text-muted-foreground" />
                             <span>Rp {offer.budget.toLocaleString()}/bln</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400" />
+                            <Calendar className="w-3 h-3 text-muted-foreground" />
                             <span>{offer.sessionsPerMonth}x/bln</span>
                           </div>
                         </div>
 
                         {offer.learningGoals && (
                           <div className="p-2 bg-slate-50 rounded border border-slate-100 mb-4">
-                            <p className="text-[11px] text-slate-500 line-clamp-2">{offer.learningGoals}</p>
+                            <p className="text-[11px] text-muted-foreground line-clamp-2">{offer.learningGoals}</p>
                           </div>
                         )}
 
@@ -651,9 +651,9 @@ export default function StudentOffersPage() {
             <DialogTitle>Tolak Permintaan Siswa</DialogTitle>
             <DialogDescription>
               Apakah Anda yakin ingin menolak permintaan dari{' '}
-              <span className="font-medium text-slate-900">{selectedOffer?.student.name}</span>{' '}
+              <span className="font-medium text-foreground">{selectedOffer?.student.name}</span>{' '}
               untuk mata pelajaran{' '}
-              <span className="font-medium text-slate-900">{selectedOffer?.subject}</span>?
+              <span className="font-medium text-foreground">{selectedOffer?.subject}</span>?
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 mt-2">
@@ -681,7 +681,7 @@ export default function StudentOffersPage() {
             <DialogTitle>Kirim Penawaran</DialogTitle>
             <DialogDescription>
               Pilih mata pelajaran yang ingin Anda ajarkan kepada{' '}
-              <span className="font-semibold text-slate-900">{selectedBrowseOffer?.studentName}</span>.
+              <span className="font-semibold text-foreground">{selectedBrowseOffer?.studentName}</span>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
