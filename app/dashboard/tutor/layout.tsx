@@ -20,6 +20,7 @@ import {
   X,
   GraduationCap,
   ChevronRight,
+  FileText,
 } from 'lucide-react'
 
 interface NavGroup {
@@ -106,6 +107,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
       label: 'Mengajar',
       items: [
         { href: '/dashboard/tutor/student-offers', icon: Handshake, label: 'Penawaran Siswa' },
+        { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi Saya' },
         { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya' },
         { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal Mengajar' },
       ],
@@ -174,13 +176,13 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
                       title={!sidebarOpen ? label : undefined}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
                         active
-                          ? 'bg-blue-50 text-blue-700'
+                          ? 'bg-blue-50 text-blue-300'
                           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                       }`}
                     >
                       <Icon
                         className={`w-4.5 h-4.5 flex-shrink-0 ${
-                          active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+                          active ? 'text-blue-300' : 'text-slate-400 group-hover:text-slate-600'
                         }`}
                         size={18}
                       />
@@ -201,7 +203,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           {sidebarOpen ? (
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               <Avatar className="w-8 h-8 flex-shrink-0">
-                <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
+                <AvatarFallback className="bg-blue-100 text-blue-300 text-xs font-semibold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
@@ -213,7 +215,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
                 onClick={handleLogout}
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                className="w-8 h-8 text-slate-400 hover:text-red-300 hover:bg-red-500/10"
                 title="Keluar"
               >
                 <LogOut className="w-4 h-4" />
@@ -224,7 +226,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-full text-slate-400 hover:text-red-500 hover:bg-red-50"
+              className="w-full text-slate-400 hover:text-red-300 hover:bg-red-500/10"
               title="Keluar"
             >
               <LogOut className="w-4 h-4" />
@@ -251,7 +253,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
               <p className="text-xs text-slate-400">Pengajar Aktif</p>
             </div>
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
+              <AvatarFallback className="bg-blue-100 text-blue-300 text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>

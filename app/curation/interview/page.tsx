@@ -274,7 +274,7 @@ export default function InterviewPage() {
 
           {result.strengths && result.strengths.length > 0 && (
             <div className="text-left mb-4">
-              <p className="font-semibold text-green-700 mb-2">✅ Kekuatan Anda:</p>
+              <p className="font-semibold text-green-300 mb-2">✅ Kekuatan Anda:</p>
               <ul className="space-y-1 text-sm text-green-800">
                 {result.strengths.map((s, i) => (
                   <li key={i}>• {s}</li>
@@ -286,7 +286,7 @@ export default function InterviewPage() {
           {result.improvements && result.improvements.length > 0 && (
             <div className="text-left mb-6">
               <p className="font-semibold text-amber-700 mb-2">📈 Area Pengembangan:</p>
-              <ul className="space-y-1 text-sm text-amber-800">
+              <ul className="space-y-1 text-sm text-amber-300">
                 {result.improvements.map((s, i) => (
                   <li key={i}>• {s}</li>
                 ))}
@@ -313,7 +313,7 @@ export default function InterviewPage() {
               <Badge variant="outline" className="text-primary border-primary">
                 Tahap 5 dari 5
               </Badge>
-              <Badge className="bg-blue-100 text-blue-700 border-blue-200">💬 AI Interview</Badge>
+              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">💬 AI Interview</Badge>
             </div>
             <div
               className={`text-2xl font-bold font-mono ${
@@ -368,7 +368,7 @@ export default function InterviewPage() {
                 </span>
               )}
               {wordCount >= question.minWords && (
-                <span className="text-green-600 ml-2">✓</span>
+                <span className="text-green-300 ml-2">✓</span>
               )}
             </p>
           </div>
@@ -393,7 +393,7 @@ export default function InterviewPage() {
                   idx === currentQuestion
                     ? 'bg-primary text-white border-primary'
                     : (responses[q.id] || '').trim().length > 0
-                    ? 'bg-green-100 text-green-700 border-green-400'
+                    ? 'bg-green-100 text-green-300 border-green-400'
                     : 'bg-background text-muted-foreground border-border hover:border-primary/50'
                 }`}
               >

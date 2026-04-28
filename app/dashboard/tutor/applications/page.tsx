@@ -14,10 +14,10 @@ import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  approved: { label: 'Disetujui', color: 'bg-green-50 text-green-700 border-green-200' },
-  rejected: { label: 'Ditolak', color: 'bg-red-50 text-red-700 border-red-200' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-gray-50 text-gray-600 border-gray-200' },
+  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+  approved: { label: 'Disetujui', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
+  rejected: { label: 'Ditolak', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+  suspended: { label: 'Ditangguhkan', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
 }
 
 export default function ApplicationsPage() {

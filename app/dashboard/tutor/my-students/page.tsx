@@ -71,8 +71,8 @@ export default function MyStudentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Siswa Aktif</p>
@@ -83,8 +83,8 @@ export default function MyStudentsPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-yellow-600" />
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-yellow-300" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Permintaan Baru</p>
