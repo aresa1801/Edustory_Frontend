@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 
 // Map DB role values to dashboard route segments
 const ROLE_TO_DASHBOARD: Record<string, string> = {
@@ -20,7 +20,13 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Handle implicit flow: access_token + refresh_token passed as query params
+        // Use the SSR-aware browser client so the session is persisted in cookies,
+        // which is required by the dashboard layouts that also use createClient().
+        const supabase = createClient()
+
+        // Handle implicit flow: access_token + refresh_token may be passed as query
+        // params (older Supabase redirect) or in the URL hash.  For PKCE flow the
+        // SSR client's getSession() will automatically exchange the code param.
         const searchParams = new URLSearchParams(window.location.search)
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
@@ -28,7 +34,7 @@ export default function AuthCallback() {
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Get the current session
+        // Get the current session (also handles PKCE code exchange automatically)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         console.log('[v0] Auth Callback - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
 
