@@ -264,7 +264,7 @@ export default function StudentPaymentPage() {
           amount: Math.round(parsed),
           paymentMethod: selectedMethod,
           qrisDynamicString: selectedMethod === 'qris' ? qrisString : undefined,
-          transactionRef: `TRX-${Date.now()}`,
+          transactionRef: `TRX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         }),
       })
       const json = await res.json()

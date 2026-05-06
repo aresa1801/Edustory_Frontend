@@ -359,7 +359,7 @@ export default function AdminDashboard() {
             className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
           >
             <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-              <BarChart3 className="w-4 h-4 text-purple-600" />
+              <CreditCard className="w-4 h-4 text-purple-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm text-slate-800">Pengaturan Pembayaran</p>
