@@ -9,6 +9,32 @@ function getAdminClient() {
   )
 }
 
+async function uploadImageToStorage(
+  supabase: ReturnType<typeof createAdminClient>,
+  file: File,
+  tutorId: string,
+  slot: string
+): Promise<string | null> {
+  if (!file || file.size === 0) return null
+  const fileExt = file.name.split('.').pop() || 'jpg'
+  const filePath = `handwriting/${tutorId}/${slot}-${Date.now()}.${fileExt}`
+  const arrayBuffer = await file.arrayBuffer()
+  const { error: uploadError } = await supabase.storage
+    .from('curation-uploads')
+    .upload(filePath, arrayBuffer, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+    })
+  if (uploadError) {
+    console.error(`Image upload error (${slot}):`, uploadError)
+    return null
+  }
+  const { data: publicUrlData } = supabase.storage
+    .from('curation-uploads')
+    .getPublicUrl(filePath)
+  return publicUrlData.publicUrl
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authClient = await createServerClient()
@@ -46,13 +72,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Curation progress not found' }, { status: 404 })
     }
 
-    // In production, upload images to Vercel Blob or similar service
-    const problem1ImageUrl = problem1Image
-      ? `https://assets.edustory.id/${tutor.id}/hw1-${Date.now()}.jpg`
-      : null
-    const problem2ImageUrl = problem2Image
-      ? `https://assets.edustory.id/${tutor.id}/hw2-${Date.now()}.jpg`
-      : null
+    // Upload images to Supabase Storage
+    const [problem1ImageUrl, problem2ImageUrl] = await Promise.all([
+      problem1Image ? uploadImageToStorage(supabase, problem1Image, tutor.id, 'hw1') : Promise.resolve(null),
+      problem2Image ? uploadImageToStorage(supabase, problem2Image, tutor.id, 'hw2') : Promise.resolve(null),
+    ])
+
+    if (problem1Image && !problem1ImageUrl) {
+      return NextResponse.json({ error: 'Gagal mengunggah gambar soal 1' }, { status: 500 })
+    }
+    if (problem2Image && !problem2ImageUrl) {
+      return NextResponse.json({ error: 'Gagal mengunggah gambar soal 2' }, { status: 500 })
+    }
 
     const { data, error } = await supabase
       .from('handwriting_assessments')

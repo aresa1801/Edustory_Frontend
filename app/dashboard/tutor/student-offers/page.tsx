@@ -148,9 +148,9 @@ export default function StudentOffersPage() {
       if (!tutorDataResult) return
 
       // === Tab 1: Incoming requests from students ===
-      const { data: session } = await supabase.auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
       const matchRes = await fetch('/api/matches', {
-        headers: { Authorization: `Bearer ${session?.session?.access_token}` },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       })
       const allMatches = matchRes.ok ? await matchRes.json() : []
       const pendingOffers = allMatches.filter((m: any) => m.status === 'pending')

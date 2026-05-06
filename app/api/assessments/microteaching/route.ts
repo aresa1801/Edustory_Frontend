@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData()
     const topic = formData.get('topic') as string
-    const video = formData.get('video') as File
+    const video = formData.get('video') as File | null
     const explanation = formData.get('explanation') as string
 
     const { data: tutor } = await supabase
@@ -45,10 +45,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Curation progress not found' }, { status: 404 })
     }
 
-    // In production, upload to Vercel Blob or similar service
-    const videoUrl = video
-      ? `https://videos.edustory.id/${tutor.id}/${Date.now()}.mp4`
-      : null
+    // Upload video to Supabase Storage
+    let videoUrl: string | null = null
+    if (video && video.size > 0) {
+      const fileExt = video.name.split('.').pop() || 'mp4'
+      const filePath = `microteaching/${tutor.id}/${Date.now()}.${fileExt}`
+      const arrayBuffer = await video.arrayBuffer()
+      const { error: uploadError } = await supabase.storage
+        .from('curation-uploads')
+        .upload(filePath, arrayBuffer, {
+          contentType: video.type || 'video/mp4',
+          upsert: false,
+        })
+      if (uploadError) {
+        console.error('Video upload error:', uploadError)
+        return NextResponse.json({ error: 'Gagal mengunggah video' }, { status: 500 })
+      }
+      const { data: publicUrlData } = supabase.storage
+        .from('curation-uploads')
+        .getPublicUrl(filePath)
+      videoUrl = publicUrlData.publicUrl
+    }
 
     const { data, error } = await supabase
       .from('microteaching_assessments')
@@ -57,6 +74,7 @@ export async function POST(req: NextRequest) {
         curation_progress_id: progress.id,
         topic_selected: topic,
         video_url: videoUrl,
+        explanation,
         submitted_at: new Date().toISOString()
       })
       .select()
