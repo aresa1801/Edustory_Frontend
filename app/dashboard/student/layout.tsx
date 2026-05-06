@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LogOut, LayoutDashboard, Search, BookMarked, BarChart3, Calendar, GraduationCap, Users } from 'lucide-react'
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
@@ -145,8 +146,11 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
           >
             ☰
           </button>
-          <div className="text-sm text-muted-foreground">
-            Selamat datang, {fullName}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <div className="text-sm text-muted-foreground">
+              Selamat datang, {fullName}
+            </div>
           </div>
         </div>
 
