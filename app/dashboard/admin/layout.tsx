@@ -1,14 +1,39 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { LogOut, LayoutDashboard, Users, GraduationCap, DollarSign, BarChart3 } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  LogOut,
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  DollarSign,
+  BarChart3,
+  ShieldCheck,
+  ChevronRight,
+  Menu,
+  X,
+} from 'lucide-react'
+
+const ADMIN_EMAIL = 'storyaunty.evi@gmail.com'
+
+interface NavGroup {
+  label: string
+  items: {
+    href: string
+    icon: React.ElementType
+    label: string
+    exact?: boolean
+  }[]
+}
 
 export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -23,8 +48,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
           return
         }
 
-        // Check if user is admin
-        if (user.email !== 'storyaunty.evi@gmail.com') {
+        if (user.email !== ADMIN_EMAIL) {
           router.push('/dashboard/student')
           return
         }
@@ -47,110 +71,184 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     router.push('/auth/login')
   }
 
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Umum',
+      items: [
+        { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Beranda', exact: true },
+      ],
+    },
+    {
+      label: 'Manajemen',
+      items: [
+        { href: '/dashboard/admin/tutors', icon: Users, label: 'Daftar Tutor' },
+        { href: '/dashboard/admin/students', icon: GraduationCap, label: 'Daftar Siswa' },
+      ],
+    },
+    {
+      label: 'Platform',
+      items: [
+        { href: '/dashboard/admin/programs', icon: DollarSign, label: 'Program & Harga' },
+        { href: '/dashboard/admin/analytics', icon: BarChart3, label: 'Analitik' },
+      ],
+    },
+  ]
+
+  const isActive = (href: string, exact?: boolean) => {
+    if (exact) return pathname === href
+    return pathname.startsWith(href)
+  }
+
+  const initials = user?.email
+    ? user.email
+        .split('@')[0]
+        .split(/[._]+/)
+        .filter((part: string) => part.length > 0)
+        .map((part: string) => part[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase() || 'AD'
+    : 'AD'
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Memuat...</p>
+          <div className="w-12 h-12 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 text-sm font-medium">Memuat dashboard admin...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-slate-50 font-sans">
       {/* Sidebar */}
-      <div
+      <aside
         className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-card border-r border-border/30 transition-all duration-300 flex flex-col`}
+          sidebarOpen ? 'w-64' : 'w-[72px]'
+        } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col shadow-sm z-20`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-center border-b border-border/30">
-          <Link href="/dashboard/admin" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <span className="text-lg">⚙️</span>
+        <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3">
+          <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center flex-shrink-0">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          {sidebarOpen && (
+            <div>
+              <p className="font-bold text-slate-800 leading-none">EduStory</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Portal Admin</p>
             </div>
-            {sidebarOpen && <span className="font-bold text-foreground">Admin</span>}
-          </Link>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-2 p-4 overflow-y-auto">
-          <Link
-            href="/dashboard/admin"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Dasbor</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/admin/tutors"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <Users className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Daftar Tutor</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/admin/students"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <GraduationCap className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Daftar Siswa</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/admin/programs"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <DollarSign className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Program Harga</span>}
-          </Link>
-
-          <Link
-            href="/dashboard/admin/analytics"
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <BarChart3 className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Analitik</span>}
-          </Link>
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+          {navGroups.map(group => (
+            <div key={group.label}>
+              {sidebarOpen && (
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5 px-2">
+                  {group.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map(({ href, icon: Icon, label, exact }) => {
+                  const active = isActive(href, exact)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      title={!sidebarOpen ? label : undefined}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
+                        active
+                          ? 'bg-purple-50 text-purple-700'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon
+                        className={`flex-shrink-0 ${
+                          active ? 'text-purple-600' : 'text-slate-400 group-hover:text-slate-600'
+                        }`}
+                        size={18}
+                      />
+                      {sidebarOpen && <span className="truncate">{label}</span>}
+                      {sidebarOpen && active && (
+                        <ChevronRight className="ml-auto w-3.5 h-3.5 text-purple-400" />
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-border/30">
-          <Button
-            onClick={handleLogout}
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Keluar</span>}
-          </Button>
+        {/* User & Logout */}
+        <div className="p-3 border-t border-slate-100">
+          {sidebarOpen ? (
+            <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarFallback className="bg-purple-100 text-purple-700 text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">Administrator</p>
+                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              </div>
+              <Button
+                onClick={handleLogout}
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-slate-400 hover:text-red-500 hover:bg-red-500/10"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="icon"
+              className="w-full text-slate-400 hover:text-red-500 hover:bg-red-500/10"
+              title="Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="h-16 bg-card border-b border-border/30 flex items-center justify-between px-8">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-muted-foreground hover:text-foreground"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="Toggle sidebar"
           >
-            ☰
+            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-          <div className="text-sm text-muted-foreground">
-            Admin: {user?.email}
+
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-semibold text-slate-800">Administrator</p>
+              <p className="text-xs text-slate-400">Akses Penuh</p>
+            </div>
+            <Avatar className="w-8 h-8">
+              <AvatarFallback className="bg-purple-100 text-purple-700 text-xs font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           </div>
-        </div>
+        </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
           {children}
-        </div>
+        </main>
       </div>
     </div>
   )
