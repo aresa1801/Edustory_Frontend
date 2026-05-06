@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   CreditCard,
+  Settings,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
@@ -92,6 +93,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       items: [
         { href: '/dashboard/admin/programs', icon: DollarSign, label: 'Program & Harga' },
         { href: '/dashboard/admin/payments', icon: CreditCard, label: 'Laporan Pembayaran' },
+        { href: '/dashboard/admin/settings', icon: Settings, label: 'Pengaturan Pembayaran' },
         { href: '/dashboard/admin/analytics', icon: BarChart3, label: 'Analitik' },
       ],
     },
