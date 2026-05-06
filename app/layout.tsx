@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProvider } from '@/components/app-provider'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="id" className="dark">
+    <html lang="id" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -44,11 +45,13 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <AppProvider>
-          <div>
-            {children}
-          </div>
-        </AppProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AppProvider>
+            <div>
+              {children}
+            </div>
+          </AppProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

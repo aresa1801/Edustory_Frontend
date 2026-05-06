@@ -4,44 +4,44 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Dark mode as default for modern aesthetic */
+  /* Light theme (default) */
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-poppins: 'Poppins', system-ui, sans-serif;
-  --background: #0A0E27;
-  --foreground: #E8EEF1;
-  --card: #1A1F3A;
-  --card-foreground: #E8EEF1;
-  --popover: #1A1F3A;
-  --popover-foreground: #E8EEF1;
-  --primary: #00D4FF;
-  --primary-foreground: #0A0E27;
-  --secondary: #7CB342;
-  --secondary-foreground: #0A0E27;
-  --muted: #546E7A;
-  --muted-foreground: #B8C5D6;
-  --accent: #F9A825;
-  --accent-foreground: #0A0E27;
-  --destructive: #FF5252;
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --card: #F8FAFC;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #7C3AED;
+  --primary-foreground: #FFFFFF;
+  --secondary: #16A34A;
+  --secondary-foreground: #FFFFFF;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #F59E0B;
+  --accent-foreground: #0F172A;
+  --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
-  --border: #2A3F5F;
-  --input: #1A1F3A;
-  --ring: #00D4FF;
-  --success: #43A047;
-  --warning: #FFB300;
-  --chart-1: #00D4FF;
-  --chart-2: #7CB342;
-  --chart-3: #F9A825;
-  --chart-4: #43A047;
-  --chart-5: #546E7A;
+  --border: #E2E8F0;
+  --input: #F1F5F9;
+  --ring: #7C3AED;
+  --success: #16A34A;
+  --warning: #D97706;
+  --chart-1: #7C3AED;
+  --chart-2: #16A34A;
+  --chart-3: #F59E0B;
+  --chart-4: #2563EB;
+  --chart-5: #64748B;
   --radius: 0.75rem;
-  --sidebar: #1A1F3A;
-  --sidebar-foreground: #E8EEF1;
-  --sidebar-primary: #00D4FF;
-  --sidebar-primary-foreground: #0A0E27;
-  --sidebar-accent: #F9A825;
-  --sidebar-accent-foreground: #0A0E27;
-  --sidebar-border: #2A3F5F;
-  --sidebar-ring: #00D4FF;
+  --sidebar: #F8FAFC;
+  --sidebar-foreground: #0F172A;
+  --sidebar-primary: #7C3AED;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F59E0B;
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #7C3AED;
 }
 
 .dark {
