@@ -17,6 +17,12 @@ export default function DashboardRouter() {
       return
     }
 
+    // Admin khusus email storyaunty.evi@gmail.com
+    if (user.email === 'storyaunty.evi@gmail.com') {
+      router.push('/dashboard/admin')
+      return
+    }
+
     // Route berdasarkan role user
     switch (userRole) {
       case 'student':
@@ -29,7 +35,7 @@ export default function DashboardRouter() {
         router.push('/dashboard/admin')
         break
       default:
-        router.push('/auth/login')
+        router.push('/dashboard/student')
     }
   }, [user, userRole, loading, router])
 
