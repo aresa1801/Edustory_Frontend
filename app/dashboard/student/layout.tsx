@@ -60,9 +60,13 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
   }, [router])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('Sign out failed:', error)
+    }
+    window.location.replace('/auth/login')
   }
 
   const navItems = [
