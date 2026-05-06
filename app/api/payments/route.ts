@@ -70,11 +70,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { matchId, tutorId, amount, paymentMethod } = await request.json()
+    const { matchId, tutorId, amount, paymentMethod, transactionRef, qrisDynamicString } =
+      await request.json()
+
+    const VALID_METHODS = [
+      'qris',
+      'gopay', 'ovo', 'dana', 'shopeepay', 'linkaja',
+      'bca', 'bni', 'bri', 'mandiri', 'permata', 'cimb',
+    ]
 
     if (!tutorId || !amount || !paymentMethod) {
       return NextResponse.json(
         { error: 'tutorId, amount, and paymentMethod are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!VALID_METHODS.includes(paymentMethod)) {
+      return NextResponse.json(
+        { error: `paymentMethod must be one of: ${VALID_METHODS.join(', ')}` },
         { status: 400 }
       )
     }
@@ -99,6 +113,8 @@ export async function POST(request: NextRequest) {
           amount,
           payment_method: paymentMethod,
           payment_status: 'pending',
+          transaction_ref: transactionRef || null,
+          qris_dynamic_string: paymentMethod === 'qris' ? (qrisDynamicString || null) : null,
         },
       ])
       .select()

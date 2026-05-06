@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { LogOut, LayoutDashboard, Search, BookMarked, BarChart3, Calendar, GraduationCap, Users } from 'lucide-react'
+import { LogOut, LayoutDashboard, Search, BookMarked, BarChart3, Calendar, GraduationCap, Users, CreditCard } from 'lucide-react'
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -67,6 +67,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
     { href: '/dashboard/student/tutor-offers', icon: Users, label: 'Penawaran Tutor', exact: false },
     { href: '/dashboard/student/my-tutors', icon: BookMarked, label: 'Pengajar Saya', exact: false },
     { href: '/dashboard/student/schedule', icon: Calendar, label: 'Jadwal Belajar', exact: false },
+    { href: '/dashboard/student/payment', icon: CreditCard, label: 'Pembayaran', exact: false },
     { href: '/dashboard/student/analytics', icon: BarChart3, label: 'Analitik & Nilai', exact: false },
     { href: '/dashboard/student/progress', icon: GraduationCap, label: 'Progres', exact: false },
   ]
