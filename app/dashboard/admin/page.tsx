@@ -128,29 +128,29 @@ export default function AdminDashboard() {
       label: 'Total Pengguna',
       value: stats?.totalUsers ?? 0,
       icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
     },
     {
       label: 'Total Siswa',
       value: stats?.totalStudents ?? 0,
       icon: GraduationCap,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-50 dark:bg-green-900/20',
     },
     {
       label: 'Total Tutor',
       value: stats?.totalTutors ?? 0,
       icon: BookOpen,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'text-purple-600 dark:text-purple-400',
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
     },
     {
       label: 'Total Pencocokan',
       value: stats?.totalMatches ?? 0,
       icon: Handshake,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
+      color: 'text-orange-600 dark:text-orange-400',
+      bg: 'bg-orange-50 dark:bg-orange-900/20',
     },
   ]
 
@@ -158,19 +158,19 @@ export default function AdminDashboard() {
     switch (status) {
       case 'pending':
         return (
-          <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50">
+          <Badge className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/30">
             <Clock className="w-3 h-3 mr-1" /> Menunggu
           </Badge>
         )
       case 'approved':
         return (
-          <Badge className="bg-green-50 text-green-700 border-green-200 hover:bg-green-50">
+          <Badge className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-900/30">
             <CheckCircle2 className="w-3 h-3 mr-1" /> Disetujui
           </Badge>
         )
       case 'rejected':
         return (
-          <Badge className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50">
+          <Badge className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30">
             <XCircle className="w-3 h-3 mr-1" /> Ditolak
           </Badge>
         )
@@ -183,8 +183,8 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 mb-1">Dashboard Admin</h1>
-        <p className="text-slate-500 text-sm">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-gray-100 mb-1">Dashboard Admin</h1>
+        <p className="text-slate-500 dark:text-gray-400 text-sm">
           Kelola platform EduStory — tutor, siswa, program, dan analitik.
         </p>
       </div>
@@ -192,14 +192,14 @@ export default function AdminDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} className="p-5 border-slate-200">
+          <Card key={label} className="p-5 border-slate-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
                 <Icon className={`w-5 h-5 ${color}`} />
               </div>
               <div>
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className="text-2xl font-bold text-slate-800">{value}</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">{label}</p>
+                <p className="text-2xl font-bold text-slate-800 dark:text-gray-100">{value}</p>
               </div>
             </div>
           </Card>
@@ -208,34 +208,34 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tutor Status */}
-        <Card className="border-slate-200">
+        <Card className="border-slate-200 dark:border-gray-700">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-slate-800">Status Tutor</CardTitle>
+            <CardTitle className="text-base text-slate-800 dark:text-gray-100">Status Tutor</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+            <div className="flex items-center justify-between py-2.5 border-b border-slate-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                <span className="text-sm text-slate-600">Menunggu Verifikasi</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Menunggu Verifikasi</span>
               </div>
-              <span className="text-sm font-bold text-yellow-600">{stats?.pendingTutors}</span>
+              <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{stats?.pendingTutors}</span>
             </div>
-            <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+            <div className="flex items-center justify-between py-2.5 border-b border-slate-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-sm text-slate-600">Disetujui</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Disetujui</span>
               </div>
-              <span className="text-sm font-bold text-green-600">{stats?.approvedTutors}</span>
+              <span className="text-sm font-bold text-green-600 dark:text-green-400">{stats?.approvedTutors}</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="text-sm text-slate-600">Ditolak</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Ditolak</span>
               </div>
-              <span className="text-sm font-bold text-red-600">{stats?.rejectedTutors}</span>
+              <span className="text-sm font-bold text-red-600 dark:text-red-400">{stats?.rejectedTutors}</span>
             </div>
             <Link href="/dashboard/admin/tutors">
-              <Button variant="outline" size="sm" className="w-full mt-2 text-purple-600 border-purple-200 hover:bg-purple-50">
+              <Button variant="outline" size="sm" className="w-full mt-2 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-900/20">
                 Kelola Tutor <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
@@ -243,34 +243,34 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Match Status */}
-        <Card className="border-slate-200">
+        <Card className="border-slate-200 dark:border-gray-700">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-slate-800">Status Pencocokan</CardTitle>
+            <CardTitle className="text-base text-slate-800 dark:text-gray-100">Status Pencocokan</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+            <div className="flex items-center justify-between py-2.5 border-b border-slate-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-sm text-slate-600">Aktif</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Aktif</span>
               </div>
-              <span className="text-sm font-bold text-blue-600">{stats?.activeMatches}</span>
+              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{stats?.activeMatches}</span>
             </div>
-            <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+            <div className="flex items-center justify-between py-2.5 border-b border-slate-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-sm text-slate-600">Selesai</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Selesai</span>
               </div>
-              <span className="text-sm font-bold text-green-600">{stats?.completedMatches}</span>
+              <span className="text-sm font-bold text-green-600 dark:text-green-400">{stats?.completedMatches}</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-slate-400" />
-                <span className="text-sm text-slate-600">Total</span>
+                <span className="text-sm text-slate-600 dark:text-gray-300">Total</span>
               </div>
-              <span className="text-sm font-bold text-slate-700">{stats?.totalMatches}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-gray-200">{stats?.totalMatches}</span>
             </div>
             <Link href="/dashboard/admin/analytics">
-              <Button variant="outline" size="sm" className="w-full mt-2 text-purple-600 border-purple-200 hover:bg-purple-50">
+              <Button variant="outline" size="sm" className="w-full mt-2 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-900/20">
                 Lihat Analitik <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
@@ -279,104 +279,104 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-gray-700">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base text-slate-800">Aksi Cepat</CardTitle>
+          <CardTitle className="text-base text-slate-800 dark:text-gray-100">Aksi Cepat</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Link
             href="/dashboard/admin/tutors"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-              <Users className="w-4 h-4 text-purple-600" />
+            <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+              <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Daftar Tutor</p>
-              <p className="text-xs text-slate-500">Verifikasi &amp; kelola</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Daftar Tutor</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">Verifikasi &amp; kelola</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
 
           <Link
             href="/dashboard/admin/students"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-green-300 hover:bg-green-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-4 h-4 text-green-600" />
+            <div className="w-9 h-9 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-4 h-4 text-green-600 dark:text-green-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Daftar Siswa</p>
-              <p className="text-xs text-slate-500">Kelola siswa aktif</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Daftar Siswa</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">Kelola siswa aktif</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
 
           <Link
             href="/dashboard/admin/programs"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-orange-300 hover:bg-orange-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-              <DollarSign className="w-4 h-4 text-orange-600" />
+            <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-4 h-4 text-orange-600 dark:text-orange-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Program & Harga</p>
-              <p className="text-xs text-slate-500">{stats?.totalPrograms} program aktif</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Program & Harga</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">{stats?.totalPrograms} program aktif</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
 
           <Link
             href="/dashboard/admin/analytics"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
+            <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+              <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Analitik</p>
-              <p className="text-xs text-slate-500">Statistik platform</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Analitik</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">Statistik platform</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
 
           <Link
             href="/dashboard/admin/payments"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-green-300 hover:bg-green-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
-              <CreditCard className="w-4 h-4 text-green-600" />
+            <div className="w-9 h-9 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+              <CreditCard className="w-4 h-4 text-green-600 dark:text-green-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Laporan Pembayaran</p>
-              <p className="text-xs text-slate-500">QRIS, E-Money, Bank</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Laporan Pembayaran</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">QRIS, E-Money, Bank</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
 
           <Link
             href="/dashboard/admin/settings"
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
           >
-            <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-              <CreditCard className="w-4 h-4 text-purple-600" />
+            <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+              <CreditCard className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-slate-800">Pengaturan Pembayaran</p>
-              <p className="text-xs text-slate-500">QRIS, E-Money, API Key</p>
+              <p className="font-medium text-sm text-slate-800 dark:text-gray-100">Pengaturan Pembayaran</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">QRIS, E-Money, API Key</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-400 dark:text-gray-500" />
           </Link>
         </CardContent>
       </Card>
 
       {/* Recent Tutors */}
       {recentTutors.length > 0 && (
-        <Card className="border-slate-200">
+        <Card className="border-slate-200 dark:border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base text-slate-800">Tutor Terbaru</CardTitle>
+            <CardTitle className="text-base text-slate-800 dark:text-gray-100">Tutor Terbaru</CardTitle>
             <Link href="/dashboard/admin/tutors">
-              <Button variant="ghost" size="sm" className="text-xs text-purple-600 hover:text-purple-700">
+              <Button variant="ghost" size="sm" className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300">
                 Lihat semua
               </Button>
             </Link>
@@ -385,22 +385,22 @@ export default function AdminDashboard() {
             {recentTutors.map(tutor => (
               <div
                 key={tutor.id}
-                className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors"
+                className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-purple-700">
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
                       {tutor.name[0]?.toUpperCase() || '?'}
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-sm text-slate-800 truncate">{tutor.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{tutor.email}</p>
+                    <p className="font-medium text-sm text-slate-800 dark:text-gray-100 truncate">{tutor.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{tutor.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                   {getStatusBadge(tutor.status)}
-                  <span className="text-xs text-slate-400 hidden sm:block">
+                  <span className="text-xs text-slate-400 dark:text-gray-500 hidden sm:block">
                     {new Date(tutor.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                   </span>
                 </div>
