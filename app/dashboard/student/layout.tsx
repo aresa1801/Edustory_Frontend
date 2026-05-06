@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LogOut, LayoutDashboard, Search, BookMarked, BarChart3, Calendar, GraduationCap, Users, CreditCard } from 'lucide-react'
@@ -19,6 +19,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error || !session) {
           router.push('/auth/login')
@@ -38,7 +39,9 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
           const roleMap: Record<string, string> = { tutor: 'tutor', admin: 'admin' }
           const redirectPath = profileError || !profile
             ? '/auth/login'
-            : `/dashboard/${roleMap[profile.role] || 'auth/login'}`
+            : roleMap[profile.role]
+              ? `/dashboard/${roleMap[profile.role]}`
+              : '/auth/login'
           router.push(redirectPath)
           return
         }
@@ -57,6 +60,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
   }, [router])
 
   const handleLogout = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth/login')
   }

@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -46,6 +46,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error || !session) {
           router.push('/auth/login')
@@ -59,7 +60,13 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
           .single()
 
         if (profileError || profile?.role !== 'tutor') {
-          router.push(`/dashboard/${profile?.role || 'login'}`)
+          const roleMap: Record<string, string> = { siswa: 'student', student: 'student', admin: 'admin' }
+          const redirectPath = profileError || !profile
+            ? '/auth/login'
+            : roleMap[profile.role]
+              ? `/dashboard/${roleMap[profile.role]}`
+              : '/auth/login'
+          router.push(redirectPath)
           return
         }
 
@@ -85,6 +92,7 @@ export default function TutorDashboardLayout({ children }: { children: ReactNode
   }, [router])
 
   const handleLogout = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
