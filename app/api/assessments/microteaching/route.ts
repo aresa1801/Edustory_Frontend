@@ -2,6 +2,14 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+const ALLOWED_VIDEO_TYPES: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/x-msvideo': 'avi',
+}
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024 // 150 MB
+
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData()
     const topic = formData.get('topic') as string
-    const video = formData.get('video') as File
+    const video = formData.get('video') as File | null
     const explanation = formData.get('explanation') as string
 
     const { data: tutor } = await supabase
@@ -45,10 +53,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Curation progress not found' }, { status: 404 })
     }
 
-    // In production, upload to Vercel Blob or similar service
-    const videoUrl = video
-      ? `https://videos.edustory.id/${tutor.id}/${Date.now()}.mp4`
-      : null
+    // Upload video to Supabase Storage
+    let videoUrl: string | null = null
+    if (video && video.size > 0) {
+      // Validate MIME type
+      const fileExt = ALLOWED_VIDEO_TYPES[video.type]
+      if (!fileExt) {
+        return NextResponse.json(
+          { error: 'Tipe file tidak didukung. Gunakan MP4, WebM, MOV, atau AVI.' },
+          { status: 400 }
+        )
+      }
+      // Validate size
+      if (video.size > MAX_VIDEO_SIZE) {
+        return NextResponse.json(
+          { error: 'Ukuran video terlalu besar. Maksimum 150 MB.' },
+          { status: 400 }
+        )
+      }
+      const filePath = `microteaching/${tutor.id}/${Date.now()}.${fileExt}`
+      const arrayBuffer = await video.arrayBuffer()
+      const { error: uploadError } = await supabase.storage
+        .from('curation-uploads')
+        .upload(filePath, arrayBuffer, {
+          contentType: video.type,
+          upsert: false,
+        })
+      if (uploadError) {
+        console.error('Video upload error:', uploadError)
+        return NextResponse.json({ error: 'Gagal mengunggah video' }, { status: 500 })
+      }
+      const { data: publicUrlData } = supabase.storage
+        .from('curation-uploads')
+        .getPublicUrl(filePath)
+      videoUrl = publicUrlData.publicUrl
+    }
 
     const { data, error } = await supabase
       .from('microteaching_assessments')
@@ -57,6 +96,7 @@ export async function POST(req: NextRequest) {
         curation_progress_id: progress.id,
         topic_selected: topic,
         video_url: videoUrl,
+        explanation,
         submitted_at: new Date().toISOString()
       })
       .select()
