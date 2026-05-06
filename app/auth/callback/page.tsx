@@ -59,11 +59,43 @@ export default function AuthCallback() {
           .single()
 
         if (profileError && profileError.code === 'PGRST116') {
-          // User doesn't exist yet — redirect to role selection regardless of provider.
-          // The select-role page will create the profile (with Google metadata) when the
-          // user picks a role, so no separate register step is needed.
+          // User doesn't exist yet.
           const provider = session.user.app_metadata?.provider
-          console.log('[v0] User profile not found, provider:', provider, '— redirecting to select-role')
+          console.log('[v0] User profile not found, provider:', provider)
+
+          // If the user arrived here from the homepage registration popup they will
+          // have stored their chosen role in localStorage before the OAuth redirect.
+          const pendingRole = typeof window !== 'undefined'
+            ? localStorage.getItem('pendingRole')
+            : null
+
+          if (pendingRole === 'student' || pendingRole === 'tutor') {
+            console.log('[v0] pendingRole found:', pendingRole, '— creating profile and redirecting to dashboard')
+            localStorage.removeItem('pendingRole')
+
+            // Create the profile with the pre-selected role
+            const setRoleRes = await fetch('/api/auth/set-role', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ role: pendingRole }),
+            })
+
+            if (setRoleRes.ok) {
+              if (pendingRole === 'student') {
+                router.push('/dashboard/student/onboarding')
+              } else {
+                router.push('/dashboard/tutor')
+              }
+              return
+            }
+            console.warn('[v0] set-role API failed, falling back to select-role')
+          }
+
+          // No pending role (or API failed) — let the user pick their role manually
+          console.log('[v0] Redirecting to select-role')
           router.push('/auth/select-role')
           return
         }

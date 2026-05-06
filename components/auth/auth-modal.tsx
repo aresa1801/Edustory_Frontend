@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
+import { supabase } from '@/lib/supabase-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +21,7 @@ interface AuthModalProps {
 
 export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps) {
   const { signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [role, setRole] = useState<UserRole>('student')
   const [loading, setLoading] = useState(false)
@@ -29,6 +32,18 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     confirmPassword: '',
   })
 
+  const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
+    student: '/dashboard/student/onboarding',
+    tutor: '/dashboard/tutor',
+  }
+
+  const DB_ROLE_TO_DASHBOARD: Record<string, string> = {
+    siswa: '/dashboard/student',
+    student: '/dashboard/student',
+    tutor: '/dashboard/tutor',
+    admin: '/dashboard/admin',
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -37,13 +52,51 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     try {
       if (mode === 'signin') {
         await signIn(formData.email, formData.password)
+        // After sign-in, check profile for role and redirect to the correct dashboard
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single()
+          if (profile?.role) {
+            const path = DB_ROLE_TO_DASHBOARD[profile.role]
+            if (path) {
+              onSuccess?.()
+              router.push(path)
+              return
+            }
+          }
+        }
+        onSuccess?.()
       } else {
         if (formData.password !== formData.confirmPassword) {
           throw new Error('Password tidak cocok')
         }
         await signUp(formData.email, formData.password, role)
+
+        // After signup, create the user profile with the selected role and redirect
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          const setRoleRes = await fetch('/api/auth/set-role', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ role }),
+          })
+          if (!setRoleRes.ok) {
+            throw new Error('Gagal menyimpan peran. Silakan coba lagi.')
+          }
+          onSuccess?.()
+          router.push(ROLE_TO_DASHBOARD[role])
+        } else {
+          // Email confirmation may be required; close dialog
+          onSuccess?.()
+        }
       }
-      onSuccess?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
@@ -56,6 +109,10 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     setLoading(true)
 
     try {
+      // Store the selected role so the OAuth callback can apply it automatically
+      if (mode === 'signup') {
+        localStorage.setItem('pendingRole', role)
+      }
       await signInWithGoogle()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal masuk dengan Google')
