@@ -99,6 +99,7 @@ export default function AdminDashboard() {
           id: t.id,
           name: t.user_profiles?.name || 'Unknown',
           email: t.user_profiles?.email || '',
+          // approval_status is set by the curation flow; fall back to status for legacy rows
           status: t.approval_status || t.status || 'pending',
           created_at: t.created_at,
         }))

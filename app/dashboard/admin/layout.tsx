@@ -102,11 +102,12 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
   const initials = user?.email
     ? user.email
         .split('@')[0]
-        .split(/[._]/)
+        .split(/[._]+/)
+        .filter((part: string) => part.length > 0)
         .map((part: string) => part[0])
         .slice(0, 2)
         .join('')
-        .toUpperCase()
+        .toUpperCase() || 'AD'
     : 'AD'
 
   if (loading) {

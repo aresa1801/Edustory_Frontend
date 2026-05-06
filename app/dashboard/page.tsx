@@ -35,7 +35,7 @@ export default function DashboardRouter() {
         router.push('/dashboard/admin')
         break
       default:
-        router.push('/dashboard/student')
+        router.push('/auth/login')
     }
   }, [user, userRole, loading, router])
 
