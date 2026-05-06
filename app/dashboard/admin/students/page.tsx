@@ -85,9 +85,9 @@ export default function AdminStudentsPage() {
   }, [filterStatus])
 
   const filteredStudents = students.filter((student) =>
-    student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.phone?.includes(searchTerm)
+    (student.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.phone || '').includes(searchTerm)
   )
 
   const getStatusBadge = (status: string) => {

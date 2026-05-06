@@ -2,6 +2,14 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
+
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,13 +24,15 @@ async function uploadImageToStorage(
   slot: string
 ): Promise<string | null> {
   if (!file || file.size === 0) return null
-  const fileExt = file.name.split('.').pop() || 'jpg'
+  // Validate MIME type
+  const fileExt = ALLOWED_IMAGE_TYPES[file.type]
+  if (!fileExt) return null
   const filePath = `handwriting/${tutorId}/${slot}-${Date.now()}.${fileExt}`
   const arrayBuffer = await file.arrayBuffer()
   const { error: uploadError } = await supabase.storage
     .from('curation-uploads')
     .upload(filePath, arrayBuffer, {
-      contentType: file.type || 'image/jpeg',
+      contentType: file.type,
       upsert: false,
     })
   if (uploadError) {
@@ -72,16 +82,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Curation progress not found' }, { status: 404 })
     }
 
+    // Validate image types and sizes before upload
+    for (const [img, label] of [[problem1Image, 'soal 1'], [problem2Image, 'soal 2']] as const) {
+      if (img && img.size > 0) {
+        if (!ALLOWED_IMAGE_TYPES[img.type]) {
+          return NextResponse.json(
+            { error: `Tipe file ${label} tidak didukung. Gunakan JPG, PNG, atau WebP.` },
+            { status: 400 }
+          )
+        }
+        if (img.size > MAX_IMAGE_SIZE) {
+          return NextResponse.json(
+            { error: `Ukuran gambar ${label} terlalu besar. Maksimum 10 MB.` },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Upload images to Supabase Storage
     const [problem1ImageUrl, problem2ImageUrl] = await Promise.all([
       problem1Image ? uploadImageToStorage(supabase, problem1Image, tutor.id, 'hw1') : Promise.resolve(null),
       problem2Image ? uploadImageToStorage(supabase, problem2Image, tutor.id, 'hw2') : Promise.resolve(null),
     ])
 
-    if (problem1Image && !problem1ImageUrl) {
+    if (problem1Image && problem1Image.size > 0 && !problem1ImageUrl) {
       return NextResponse.json({ error: 'Gagal mengunggah gambar soal 1' }, { status: 500 })
     }
-    if (problem2Image && !problem2ImageUrl) {
+    if (problem2Image && problem2Image.size > 0 && !problem2ImageUrl) {
       return NextResponse.json({ error: 'Gagal mengunggah gambar soal 2' }, { status: 500 })
     }
 

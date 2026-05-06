@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, tutor_id, problem_1_image_url, problem_1_explanation,
         problem_2_image_url, problem_2_explanation, overall_score, passed, submitted_at,
-        tutors:tutor_id(id, user_id, user_profiles:user_id(name, email))
+        tutors:tutor_id(id, user_id, user_profiles:user_id(full_name, email))
       `)
       .order('submitted_at', { ascending: false })
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       .from('microteaching_assessments')
       .select(`
         id, tutor_id, topic_selected, video_url, explanation, overall_score, passed, submitted_at,
-        tutors:tutor_id(id, user_id, user_profiles:user_id(name, email))
+        tutors:tutor_id(id, user_id, user_profiles:user_id(full_name, email))
       `)
       .order('submitted_at', { ascending: false })
 

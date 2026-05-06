@@ -2,6 +2,14 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+const ALLOWED_VIDEO_TYPES: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/x-msvideo': 'avi',
+}
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024 // 150 MB
+
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,13 +56,27 @@ export async function POST(req: NextRequest) {
     // Upload video to Supabase Storage
     let videoUrl: string | null = null
     if (video && video.size > 0) {
-      const fileExt = video.name.split('.').pop() || 'mp4'
+      // Validate MIME type
+      const fileExt = ALLOWED_VIDEO_TYPES[video.type]
+      if (!fileExt) {
+        return NextResponse.json(
+          { error: 'Tipe file tidak didukung. Gunakan MP4, WebM, MOV, atau AVI.' },
+          { status: 400 }
+        )
+      }
+      // Validate size
+      if (video.size > MAX_VIDEO_SIZE) {
+        return NextResponse.json(
+          { error: 'Ukuran video terlalu besar. Maksimum 150 MB.' },
+          { status: 400 }
+        )
+      }
       const filePath = `microteaching/${tutor.id}/${Date.now()}.${fileExt}`
       const arrayBuffer = await video.arrayBuffer()
       const { error: uploadError } = await supabase.storage
         .from('curation-uploads')
         .upload(filePath, arrayBuffer, {
-          contentType: video.type || 'video/mp4',
+          contentType: video.type,
           upsert: false,
         })
       if (uploadError) {
