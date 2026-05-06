@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   XCircle,
   TrendingUp,
+  CreditCard,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -335,6 +336,20 @@ export default function AdminDashboard() {
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm text-slate-800">Analitik</p>
               <p className="text-xs text-slate-500">Statistik platform</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+          </Link>
+
+          <Link
+            href="/dashboard/admin/payments"
+            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-green-300 hover:bg-green-50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+              <CreditCard className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm text-slate-800">Laporan Pembayaran</p>
+              <p className="text-xs text-slate-500">QRIS, E-Money, Bank</p>
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400" />
           </Link>
