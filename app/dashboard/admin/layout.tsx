@@ -75,7 +75,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     } catch (error) {
       console.error('Sign out failed:', error)
     }
-    window.location.replace('/auth/login')
+    window.location.replace('/')
   }
 
   const navGroups: NavGroup[] = [

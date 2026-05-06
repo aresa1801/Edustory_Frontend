@@ -66,7 +66,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
     } catch (error) {
       console.error('Sign out failed:', error)
     }
-    window.location.replace('/auth/login')
+    window.location.replace('/')
   }
 
   const navItems = [
