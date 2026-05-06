@@ -63,7 +63,8 @@ function buildTlv(tag: string, value: string): string {
  * @returns           The dynamic QRIS string ready for QR code rendering
  */
 export function convertToDynamic(staticQris: string, amount: number): string {
-  // Strip trailing CRC field (last 8 chars: "6304XXXX") before processing
+  // Strip the 4-char CRC checksum value from the end (tag "63" + length "04" remain,
+  // but parseTlv stops 4 chars before its input's end, so "6304" is never processed).
   const withoutCrc = staticQris.slice(0, -4)
   const fields = parseTlv(withoutCrc)
 

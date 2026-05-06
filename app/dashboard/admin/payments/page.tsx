@@ -197,7 +197,7 @@ export default function AdminPaymentsPage() {
             </div>
             <div>
               <p className="text-xs text-slate-500">Total Lunas</p>
-              <p className="text-lg font-bold text-slate-800">Rp {stats.totalAmount.toLocaleString('id-ID')}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-foreground">Rp {stats.totalAmount.toLocaleString('id-ID')}</p>
             </div>
           </div>
         </Card>
@@ -230,7 +230,7 @@ export default function AdminPaymentsPage() {
             </div>
             <div>
               <p className="text-xs text-slate-500">Total Transaksi</p>
-              <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-foreground">{stats.total}</p>
             </div>
           </div>
         </Card>
