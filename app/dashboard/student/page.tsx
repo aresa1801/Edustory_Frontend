@@ -41,7 +41,7 @@ export default function StudentDashboard() {
 
         const [{ data: up }, { data: sd }] = await Promise.all([
           supabase.from('user_profiles').select('name, email').eq('id', user.id).single(),
-          supabase.from('students').select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete').eq('user_id', user.id).single(),
+          supabase.from('students').select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete').eq('user_id', user.id).maybeSingle(),
         ])
 
         setProfile({ ...up, ...sd })

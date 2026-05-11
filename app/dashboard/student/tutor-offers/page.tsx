@@ -116,7 +116,9 @@ export default function TutorOffersPage() {
 
       setOffers(formatted)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat penawaran tutor')
+      console.error('Failed to load tutor offers:', err)
+      // Show empty state instead of blocking the page with an error
+      setOffers([])
     } finally {
       setLoading(false)
     }
@@ -226,7 +228,7 @@ export default function TutorOffersPage() {
         </div>
       )}
 
-      {offers.length === 0 && !error && (
+      {offers.length === 0 && (
         <Card>
           <CardContent className="py-16 text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">

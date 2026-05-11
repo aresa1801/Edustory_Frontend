@@ -138,6 +138,7 @@ export default function StudentOnboardingPage() {
     const { error: upErr } = await supabase.from('user_profiles').update({
       name: siswaData.name.trim(),
       phone: siswaData.phone.trim() || null,
+      phone_number: siswaData.phone.trim() || null,
       gender: siswaData.gender || null,
       bio: siswaData.bio.trim() || null,
     }).eq('id', userId)
@@ -301,8 +302,8 @@ export default function StudentOnboardingPage() {
                       <Select value={siswaData.gender} onValueChange={v => setSiswaData(p => ({ ...p, gender: v }))}>
                         <SelectTrigger><SelectValue placeholder="Pilih jenis kelamin" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="male">Laki-laki</SelectItem>
-                          <SelectItem value="female">Perempuan</SelectItem>
+                          <SelectItem value="laki-laki">Laki-laki</SelectItem>
+                          <SelectItem value="perempuan">Perempuan</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
