@@ -112,7 +112,7 @@ export default function StudentProfile() {
 
       const { data: up, error: upErr } = await supabase
         .from('user_profiles')
-        .select('name, email, phone, phone_number, bio, gender')
+        .select('name, email, phone, bio, gender')
         .eq('id', user.id)
         .single()
 
@@ -122,7 +122,7 @@ export default function StudentProfile() {
         name: up?.name || '',
         // Always use the auth email as the authoritative source
         email: user.email || up?.email || '',
-        phone: up?.phone || up?.phone_number || '',
+        phone: up?.phone || '',
         bio: up?.bio || '',
         gender: up?.gender || '',
       })
@@ -197,7 +197,6 @@ export default function StudentProfile() {
         .update({
           name: userProfile.name.trim(),
           phone: userProfile.phone.trim(),
-          phone_number: userProfile.phone.trim(),
           bio: userProfile.bio.trim(),
           gender: userProfile.gender || null,
         })

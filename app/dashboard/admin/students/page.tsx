@@ -15,16 +15,15 @@ import { Search, Users, User, Phone, MapPin, BookOpen, Calendar, GraduationCap, 
 interface Student {
   id: string
   user_id: string
-  full_name: string
+  name: string
   email: string
-  phone: string
-  education_level: string
-  subjects_interested: string[]
-  location: string
+  phone?: string
+  grade_level?: string
+  subjects?: string[]
+  city?: string
   status: 'active' | 'inactive'
   created_at: string
   // extended fields shown in detail
-  grade_level?: string
   learning_goals?: string
   preferred_schedule?: string
   sessions_per_month?: number
@@ -55,7 +54,7 @@ export default function AdminStudentsPage() {
           .from('students')
           .select(`
             *,
-            user:users_profile(email, full_name)
+            user:user_profiles(email, name)
           `)
 
         if (filterStatus !== 'all') {
@@ -70,7 +69,7 @@ export default function AdminStudentsPage() {
         const mappedStudents = data?.map((student: any) => ({
           ...student,
           email: student.user?.email || '',
-          full_name: student.full_name || student.user?.full_name || 'Unknown',
+          name: student.name || student.user?.name || 'Unknown',
         })) || []
 
         setStudents(mappedStudents)
@@ -86,7 +85,7 @@ export default function AdminStudentsPage() {
 
   const filteredStudents = students.filter((student) =>
     (student.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (student.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.phone || '').includes(searchTerm)
   )
 
@@ -156,21 +155,21 @@ export default function AdminStudentsPage() {
             <tbody className="divide-y divide-border/30">
               {filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-primary/5 transition-colors">
-                  <td className="px-6 py-4 text-sm text-foreground">{student.full_name}</td>
+                  <td className="px-6 py-4 text-sm text-foreground">{student.name}</td>
                   <td className="px-6 py-4 text-sm text-muted-foreground">{student.email}</td>
                   <td className="px-6 py-4 text-sm text-foreground">{student.phone}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{student.education_level}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{student.location}</td>
+                  <td className="px-6 py-4 text-sm text-foreground">{student.grade_level}</td>
+                  <td className="px-6 py-4 text-sm text-foreground">{student.city}</td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-1 flex-wrap">
-                      {student.subjects_interested?.slice(0, 2).map((subject, idx) => (
+                      {student.subjects?.slice(0, 2).map((subject, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
                           {subject}
                         </Badge>
                       ))}
-                      {student.subjects_interested?.length > 2 && (
+                      {student.subjects?.length > 2 && (
                         <Badge variant="outline" className="text-xs">
-                          +{student.subjects_interested.length - 2}
+                          +{student.subjects.length - 2}
                         </Badge>
                       )}
                     </div>
@@ -228,7 +227,7 @@ export default function AdminStudentsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-muted-foreground text-xs">Nama Lengkap</p>
-                    <p className="font-medium">{selectedStudent.full_name}</p>
+                    <p className="font-medium">{selectedStudent.name}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Status</p>
@@ -254,10 +253,10 @@ export default function AdminStudentsPage() {
                       <p className="font-medium">{selectedStudent.birth_date}</p>
                     </div>
                   )}
-                  {selectedStudent.location && (
+                  {selectedStudent.city && (
                     <div>
                       <p className="text-muted-foreground text-xs flex items-center gap-1"><MapPin className="w-3 h-3" /> Lokasi</p>
-                      <p className="font-medium">{selectedStudent.location}</p>
+                      <p className="font-medium">{selectedStudent.city}</p>
                     </div>
                   )}
                   {selectedStudent.bio && (
@@ -270,7 +269,7 @@ export default function AdminStudentsPage() {
               </div>
 
               {/* School */}
-              {(selectedStudent.school_name || selectedStudent.education_level) && (
+              {(selectedStudent.school_name || selectedStudent.grade_level) && (
                 <div className="rounded-lg border border-border/30 p-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <GraduationCap className="w-4 h-4" /> Data Sekolah
@@ -296,7 +295,7 @@ export default function AdminStudentsPage() {
                     )}
                     <div>
                       <p className="text-muted-foreground text-xs">Tingkat Pendidikan</p>
-                      <p className="font-medium">{selectedStudent.education_level || selectedStudent.grade_level || '—'}</p>
+                      <p className="font-medium">{selectedStudent.grade_level || '—'}</p>
                     </div>
                   </div>
                 </div>
@@ -311,7 +310,7 @@ export default function AdminStudentsPage() {
                   <div className="col-span-2">
                     <p className="text-muted-foreground text-xs">Mata Pelajaran</p>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedStudent.subjects_interested?.map((s, i) => (
+                      {selectedStudent.subjects?.map((s, i) => (
                         <Badge key={i} variant="outline" className="text-xs">{s}</Badge>
                       )) || <span>—</span>}
                     </div>

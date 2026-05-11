@@ -61,8 +61,8 @@ export default function TutorRegistrationForm() {
     }))
   }
 
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, agreeTerms: e.target.checked }))
+  const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
+    setFormData(prev => ({ ...prev, agreeTerms: checked === true }))
   }
 
   const validateStep1 = () => {
