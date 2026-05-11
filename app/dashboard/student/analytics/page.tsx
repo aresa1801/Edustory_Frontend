@@ -105,7 +105,8 @@ export default function StudentAnalyticsPage() {
       setTutorRatings(ratings)
     } catch (err) {
       console.error('Failed to load analytics:', err)
-      // Don't block UI — just show zeroed stats
+      // Show zeroed stats with error notice rather than blocking the page
+      setError('Gagal memuat data analitik. Data mungkin tidak lengkap.')
     } finally {
       setLoading(false)
     }
@@ -192,7 +193,11 @@ export default function StudentAnalyticsPage() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {error && (
+        <Alert className="mb-6 bg-amber-50 border-amber-200">
+          <AlertDescription className="text-amber-700 text-sm">{error}</AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="p-5">

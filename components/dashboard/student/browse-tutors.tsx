@@ -285,8 +285,9 @@ export default function StudentBrowseTutors() {
           <CardContent className="py-12 text-center space-y-3">
             <User className="w-12 h-12 text-muted-foreground mx-auto" />
             <p className="text-muted-foreground">
-              {error ? 'Belum ada tutor tersedia saat ini' : 'Tidak ada pengajar yang sesuai filter Anda'}
+              {error ? 'Belum ada tutor tersedia. Coba lagi nanti.' : 'Tidak ada pengajar yang sesuai filter Anda'}
             </p>
+            {error && <Button variant="outline" size="sm" onClick={fetchTutors}>Coba Lagi</Button>}
             {!error && <Button variant="outline" size="sm" onClick={resetFilters}>Reset Filter</Button>}
           </CardContent>
         </Card>

@@ -115,10 +115,12 @@ export default function TutorOffersPage() {
       }))
 
       setOffers(formatted)
+      setError(null)
     } catch (err) {
       console.error('Failed to load tutor offers:', err)
       // Show empty state instead of blocking the page with an error
       setOffers([])
+      setError('Gagal memuat penawaran. Coba muat ulang halaman.')
     } finally {
       setLoading(false)
     }

@@ -12,8 +12,9 @@ ALTER TABLE user_profiles
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. user_profiles: widen gender constraint to also accept 'male'/'female'
---    in addition to 'laki-laki'/'perempuan' (onboarding form uses English values)
---    We drop the old constraint and add a new wider one.
+--    The onboarding form now writes 'laki-laki'/'perempuan', but existing rows
+--    may still contain 'male'/'female' from before this fix. Both are accepted
+--    so as not to break backward compatibility with any stored data.
 -- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE user_profiles
   DROP CONSTRAINT IF EXISTS user_profiles_gender_check;
@@ -79,8 +80,10 @@ ALTER TABLE matches
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. matches: drop the UNIQUE(student_id, tutor_id) constraint
---    so a student can have multiple matches with the same tutor
---    (e.g., different subjects, after re-matching)
+--    A student may legitimately have multiple matches with the same tutor
+--    (e.g., different subjects, or re-matching after completion/cancellation).
+--    Application-level logic should prevent duplicate *active* matches for the
+--    same student+tutor+subject combination.
 -- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE matches
   DROP CONSTRAINT IF EXISTS matches_student_id_tutor_id_key;
