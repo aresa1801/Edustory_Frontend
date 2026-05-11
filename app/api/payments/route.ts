@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { matchId, tutorId, amount, paymentMethod, transactionRef, qrisDynamicString } =
+    const { matchId, tutorId, amount, paymentMethod, transactionRef, qrisDynamicString, isOnboardingDeposit } =
       await request.json()
 
     const VALID_METHODS = [
@@ -79,9 +79,16 @@ export async function POST(request: NextRequest) {
       'bca', 'bni', 'bri', 'mandiri', 'permata', 'cimb',
     ]
 
-    if (!tutorId || !amount || !paymentMethod) {
+    if (!amount || !paymentMethod) {
       return NextResponse.json(
-        { error: 'tutorId, amount, and paymentMethod are required' },
+        { error: 'amount and paymentMethod are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!isOnboardingDeposit && !tutorId) {
+      return NextResponse.json(
+        { error: 'tutorId is required for session payments' },
         { status: 400 }
       )
     }
@@ -108,11 +115,13 @@ export async function POST(request: NextRequest) {
       .insert([
         {
           student_id: student.id,
-          tutor_id: tutorId,
+          tutor_id: tutorId || null,
           match_id: matchId || null,
           amount,
           payment_method: paymentMethod,
-          payment_status: 'pending',
+          payment_status: isOnboardingDeposit ? 'paid' : 'pending',
+          payment_type: isOnboardingDeposit ? 'onboarding_deposit' : 'session',
+          paid_at: isOnboardingDeposit ? new Date().toISOString() : null,
           transaction_ref: transactionRef || null,
           qris_dynamic_string: paymentMethod === 'qris' ? (qrisDynamicString || null) : null,
         },
