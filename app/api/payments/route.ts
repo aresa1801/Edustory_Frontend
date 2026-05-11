@@ -107,35 +107,69 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Student not found. Complete step 1-3 of onboarding first.' }, { status: 404 })
     }
 
-    const { data, error } = await supabase
+    // Full payload including columns added in migration 008/009
+    const fullPayload = {
+      student_id: student.id,
+      tutor_id: tutorId || null,
+      match_id: matchId || null,
+      amount,
+      payment_method: paymentMethod,
+      payment_status: isOnboardingDeposit ? 'paid' : 'pending',
+      payment_type: isOnboardingDeposit ? 'onboarding_deposit' : 'session',
+      paid_at: isOnboardingDeposit ? new Date().toISOString() : null,
+      transaction_ref: transactionRef || null,
+      qris_dynamic_string: paymentMethod === 'qris' ? (qrisDynamicString || null) : null,
+    }
+
+    let { data, error } = await supabase
       .from('payment_deposits')
-      .insert([
-        {
-          student_id: student.id,
-          tutor_id: tutorId || null,
-          match_id: matchId || null,
-          amount,
-          payment_method: paymentMethod,
-          payment_status: isOnboardingDeposit ? 'paid' : 'pending',
-          payment_type: isOnboardingDeposit ? 'onboarding_deposit' : 'session',
-          paid_at: isOnboardingDeposit ? new Date().toISOString() : null,
-          transaction_ref: transactionRef || null,
-          qris_dynamic_string: paymentMethod === 'qris' ? (qrisDynamicString || null) : null,
-        },
-      ])
+      .insert([fullPayload])
       .select()
 
     if (error) {
       // Table may not exist yet; return a graceful response
       if (error.code === '42P01') {
         return NextResponse.json(
-          { warning: 'payment_deposits table not yet created. Run migration 003.' },
+          { warning: 'payment_deposits table not yet created. Run migration 009 in Supabase SQL Editor.' },
           { status: 200 }
         )
       }
+
+      // Migration 008/009 not applied: payment_type or qris_dynamic_string column missing.
+      // Retry with a minimal payload omitting those columns so the deposit can still be saved.
+      if (error.code === '42703') {
+        console.warn('payment_deposits schema mismatch', { code: error.code, message: error.message, hint: 'Run migration 009 in Supabase SQL Editor.' })
+        const { payment_type, qris_dynamic_string, ...minimalPayload } = fullPayload
+        const retryResult = await supabase
+          .from('payment_deposits')
+          .insert([minimalPayload])
+          .select()
+
+        if (retryResult.error) {
+          // tutor_id NOT NULL constraint – migration 008/009 must be run
+          if (retryResult.error.code === '23502') {
+            return NextResponse.json(
+              { error: 'Migrasi database diperlukan untuk menyimpan deposit onboarding. Jalankan script migration 009 di Supabase SQL Editor.' },
+              { status: 500 }
+            )
+          }
+          throw retryResult.error
+        }
+
+        return NextResponse.json(retryResult.data?.[0] ?? {}, { status: 201 })
+      }
+
+      // Migration 008/009 not applied: tutor_id has a NOT NULL constraint
+      if (error.code === '23502') {
+        return NextResponse.json(
+          { error: 'Migrasi database diperlukan untuk menyimpan deposit onboarding. Jalankan script migration 009 di Supabase SQL Editor.' },
+          { status: 500 }
+        )
+      }
+
       throw error
     }
 

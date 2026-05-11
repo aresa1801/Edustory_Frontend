@@ -153,6 +153,7 @@ export default function StudentOnboardingPage() {
       preferred_schedule: schedule || null,
       budget_per_month: budgetPerMonth ? Number(budgetPerMonth) : null,
       sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
+      birth_date: siswaData.birth_date || null,
       school_name: sekolahData.school_name.trim() || null,
       school_type: sekolahData.school_type || null,
       school_city: sekolahData.school_city.trim() || null,
