@@ -80,8 +80,8 @@ export default function StudentRegistrationForm() {
     }))
   }
 
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, agreeTerms: e.target.checked }))
+  const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
+    setFormData(prev => ({ ...prev, agreeTerms: checked === true }))
   }
 
   const validateStep1 = () => {
@@ -162,7 +162,7 @@ export default function StudentRegistrationForm() {
         .update({ phone: formData.phone })
         .eq('id', user.id)
 
-      router.push('/login')
+      router.push('/auth/login')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan saat mendaftar')
     } finally {
