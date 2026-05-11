@@ -800,7 +800,7 @@ DROP POLICY IF EXISTS "Admins can write payment_config"       ON payment_config;
 -- User terautentikasi bisa baca config yang tidak rahasia
 CREATE POLICY "Authenticated can read payment_config" ON payment_config
   FOR SELECT USING (
-    auth.role() = 'authenticated'
+    auth.uid() IS NOT NULL
     AND (
       is_secret = FALSE
       OR public.is_admin()
