@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -99,6 +99,7 @@ export default function StudentOnboardingPage() {
 
   useEffect(() => {
     const init = async () => {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login'); return }
       setUserId(user.id)
@@ -135,10 +136,10 @@ export default function StudentOnboardingPage() {
 
   const saveProfile = async () => {
     if (!userId) return
+    const supabase = createClient()
     const { error: upErr } = await supabase.from('user_profiles').update({
       name: siswaData.name.trim(),
       phone: siswaData.phone.trim() || null,
-      phone_number: siswaData.phone.trim() || null,
       gender: siswaData.gender || null,
       bio: siswaData.bio.trim() || null,
     }).eq('id', userId)
@@ -172,7 +173,11 @@ export default function StudentOnboardingPage() {
       setSaving(true)
       try {
         await saveProfile()
-        router.push('/dashboard/student?onboarded=1')
+        const params = new URLSearchParams()
+        params.set('from', 'onboarding')
+        params.set('amount', String(depositAmount))
+        params.set('method', selectedPayment)
+        router.push(`/dashboard/student/payment?${params.toString()}`)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Gagal menyimpan data')
       } finally {

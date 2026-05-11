@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -184,14 +184,19 @@ function AccountInfo({ config, method }: { config: PaymentConfig; method: string
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
-export default function StudentPaymentPage() {
+function StudentPaymentContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromOnboarding = searchParams.get('from') === 'onboarding'
+  const onboardingAmount = searchParams.get('amount') || ''
+  const onboardingMethod = searchParams.get('method') || ''
+
   const [token, setToken] = useState<string | null>(null)
   const [config, setConfig] = useState<PaymentConfig>({})
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedMethod, setSelectedMethod] = useState<string>('qris')
-  const [amount, setAmount] = useState<string>('')
+  const [selectedMethod, setSelectedMethod] = useState<string>(onboardingMethod || 'qris')
+  const [amount, setAmount] = useState<string>(onboardingAmount)
   const [matchId, setMatchId] = useState<string>('')
   const [tutorId, setTutorId] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
@@ -250,7 +255,7 @@ export default function StudentPaymentPage() {
     setSubmitError(null)
     const parsed = parseFloat(amount)
     if (!parsed || parsed <= 0) { setSubmitError('Masukkan nominal yang valid'); return }
-    if (!tutorId.trim()) { setSubmitError('ID tutor wajib diisi'); return }
+    if (!fromOnboarding && !tutorId.trim()) { setSubmitError('ID tutor wajib diisi'); return }
     if (!token) return
 
     setSubmitting(true)
@@ -259,18 +264,24 @@ export default function StudentPaymentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          tutorId,
+          tutorId: fromOnboarding ? undefined : tutorId,
           matchId: matchId || undefined,
           amount: Math.round(parsed),
           paymentMethod: selectedMethod,
           qrisDynamicString: selectedMethod === 'qris' ? qrisString : undefined,
           transactionRef: `TRX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          isOnboardingDeposit: fromOnboarding,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Gagal merekam pembayaran')
       setSubmitted(true)
-      // Reload history
+      if (fromOnboarding) {
+        // Payment mocked as paid — go straight to tutor offers
+        router.push('/dashboard/student/tutor-offers')
+        return
+      }
+      // Reload history for regular payments
       const supabase = createClient()
       const { data } = await supabase
         .from('payment_deposits')
@@ -290,163 +301,290 @@ export default function StudentPaymentPage() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-foreground mb-1">Pembayaran</h1>
-        <p className="text-muted-foreground text-sm">Bayar sesi belajar via QRIS atau E-Money / Bank.</p>
+        <h1 className="text-2xl font-bold text-foreground mb-1">
+          {fromOnboarding ? 'Deposit Sesi Belajar' : 'Pembayaran'}
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          {fromOnboarding
+            ? 'Konfirmasi deposit untuk memulai sesi belajar Anda. Dana disimpan di Escrow EduStory dan hanya dicairkan setelah sesi selesai.'
+            : 'Bayar sesi belajar via QRIS atau E-Money / Bank.'}
+        </p>
       </div>
 
-      {/* Payment form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Buat Pembayaran Baru</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Amount */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Nominal (Rp)</label>
-            <input
-              type="number"
-              min={1000}
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              placeholder="Contoh: 150000"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          {/* Tutor ID */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">ID Tutor</label>
-            <input
-              type="text"
-              value={tutorId}
-              onChange={e => setTutorId(e.target.value)}
-              placeholder="UUID tutor"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          {/* Match ID (optional) */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">ID Pencocokan <span className="text-muted-foreground font-normal">(opsional)</span></label>
-            <input
-              type="text"
-              value={matchId}
-              onChange={e => setMatchId(e.target.value)}
-              placeholder="UUID match (jika ada)"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          {/* Method selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Metode Pembayaran</label>
-
-            {/* QRIS */}
-            <button
-              onClick={() => setSelectedMethod('qris')}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
-                selectedMethod === 'qris'
-                  ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <QrCode className="w-5 h-5 flex-shrink-0" />
-              <div>
-                <p className="font-medium text-sm">QRIS</p>
-                <p className="text-xs text-muted-foreground">GoPay, OVO, DANA, ShopeePay, dll</p>
-              </div>
-            </button>
-
-            {/* E-Money */}
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">E-Money / Dompet Digital</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {EMONEY_METHODS.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedMethod(m.id)}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
-                    selectedMethod === m.id
-                      ? 'border-primary bg-primary/5 text-primary font-medium'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <span>{m.emoji}</span> {m.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Bank Transfer */}
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">Transfer Bank</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {BANK_METHODS.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedMethod(m.id)}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
-                    selectedMethod === m.id
-                      ? 'border-primary bg-primary/5 text-primary font-medium'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <Building2 className="w-4 h-4 flex-shrink-0" /> {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Payment detail based on method */}
-          {parseFloat(amount) > 0 && (
-            <div className="border border-border rounded-xl p-4 bg-muted/20">
-              <p className="text-sm font-medium mb-3">
-                Detail Pembayaran —{' '}
-                <span className="text-primary">
-                  Rp {Number(parseFloat(amount) || 0).toLocaleString('id-ID')}
-                </span>
+      {/* Onboarding deposit form */}
+      {fromOnboarding && (
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              💰 Konfirmasi Deposit Onboarding
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Amount (read-only) */}
+            <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+              <p className="text-xs text-muted-foreground mb-1">Total Deposit</p>
+              <p className="text-2xl font-bold text-primary">
+                Rp {Number(parseFloat(amount) || 0).toLocaleString('id-ID')}
               </p>
-              {selectedMethod === 'qris' ? (
-                qrisString ? (
-                  <div className="space-y-3">
-                    <div className="flex flex-col items-center gap-3">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
-                        alt="QRIS"
-                        className="w-52 h-52 rounded-lg border"
-                      />
-                      <p className="text-xs text-muted-foreground">Scan dengan aplikasi e-wallet / m-banking manapun</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex justify-center py-4"><Spinner /></div>
-                )
-              ) : (
-                <AccountInfo config={config} method={selectedMethod} />
-              )}
             </div>
-          )}
 
-          {submitError && (
-            <Alert variant="destructive">
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          )}
+            {/* Method selector (pre-filled but editable) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Metode Pembayaran</label>
 
-          {submitted && (
-            <Alert className="bg-green-50 border-green-200">
-              <AlertDescription className="text-green-700">
-                ✅ Pembayaran berhasil dicatat! Admin akan memverifikasi dalam 1×24 jam.
-              </AlertDescription>
-            </Alert>
-          )}
+              <button
+                onClick={() => setSelectedMethod('qris')}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                  selectedMethod === 'qris'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border hover:border-primary/40'
+                }`}
+              >
+                <QrCode className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">QRIS</p>
+                  <p className="text-xs text-muted-foreground">GoPay, OVO, DANA, ShopeePay, dll</p>
+                </div>
+              </button>
 
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !parseFloat(amount) || !tutorId.trim()}
-            className="w-full"
-          >
-            {submitting ? <><Spinner className="w-4 h-4 mr-2" /> Memproses...</> : 'Konfirmasi Pembayaran'}
-          </Button>
-        </CardContent>
-      </Card>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">E-Money / Dompet Digital</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {EMONEY_METHODS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedMethod(m.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
+                      selectedMethod === m.id
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <span>{m.emoji}</span> {m.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">Transfer Bank</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {BANK_METHODS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedMethod(m.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
+                      selectedMethod === m.id
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 flex-shrink-0" /> {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment detail */}
+            {parseFloat(amount) > 0 && (
+              <div className="border border-border rounded-xl p-4 bg-muted/20">
+                <p className="text-sm font-medium mb-3">
+                  Detail Pembayaran —{' '}
+                  <span className="text-primary">
+                    Rp {Number(parseFloat(amount) || 0).toLocaleString('id-ID')}
+                  </span>
+                </p>
+                {selectedMethod === 'qris' ? (
+                  qrisString ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-col items-center gap-3">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
+                          alt="QRIS"
+                          className="w-52 h-52 rounded-lg border"
+                        />
+                        <p className="text-xs text-muted-foreground">Scan dengan aplikasi e-wallet / m-banking manapun</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center py-4"><Spinner /></div>
+                  )
+                ) : (
+                  <AccountInfo config={config} method={selectedMethod} />
+                )}
+              </div>
+            )}
+
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !parseFloat(amount)}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              {submitting ? <><Spinner className="w-4 h-4 mr-2" /> Memproses...</> : '✅ Konfirmasi & Selesaikan Deposit'}
+            </Button>
+
+            <p className="text-xs text-center text-muted-foreground">
+              Setelah konfirmasi, Anda akan diarahkan ke halaman Penawaran Tutor untuk mulai belajar.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Regular payment form */}
+      {!fromOnboarding && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Buat Pembayaran Baru</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Amount */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Nominal (Rp)</label>
+              <input
+                type="number"
+                min={1000}
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="Contoh: 150000"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Tutor ID */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">ID Tutor</label>
+              <input
+                type="text"
+                value={tutorId}
+                onChange={e => setTutorId(e.target.value)}
+                placeholder="UUID tutor"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Match ID (optional) */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">ID Pencocokan <span className="text-muted-foreground font-normal">(opsional)</span></label>
+              <input
+                type="text"
+                value={matchId}
+                onChange={e => setMatchId(e.target.value)}
+                placeholder="UUID match (jika ada)"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Method selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Metode Pembayaran</label>
+
+              <button
+                onClick={() => setSelectedMethod('qris')}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                  selectedMethod === 'qris'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border hover:border-primary/40'
+                }`}
+              >
+                <QrCode className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">QRIS</p>
+                  <p className="text-xs text-muted-foreground">GoPay, OVO, DANA, ShopeePay, dll</p>
+                </div>
+              </button>
+
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">E-Money / Dompet Digital</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {EMONEY_METHODS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedMethod(m.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
+                      selectedMethod === m.id
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <span>{m.emoji}</span> {m.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">Transfer Bank</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {BANK_METHODS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedMethod(m.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
+                      selectedMethod === m.id
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 flex-shrink-0" /> {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment detail based on method */}
+            {parseFloat(amount) > 0 && (
+              <div className="border border-border rounded-xl p-4 bg-muted/20">
+                <p className="text-sm font-medium mb-3">
+                  Detail Pembayaran —{' '}
+                  <span className="text-primary">
+                    Rp {Number(parseFloat(amount) || 0).toLocaleString('id-ID')}
+                  </span>
+                </p>
+                {selectedMethod === 'qris' ? (
+                  qrisString ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-col items-center gap-3">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
+                          alt="QRIS"
+                          className="w-52 h-52 rounded-lg border"
+                        />
+                        <p className="text-xs text-muted-foreground">Scan dengan aplikasi e-wallet / m-banking manapun</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center py-4"><Spinner /></div>
+                  )
+                ) : (
+                  <AccountInfo config={config} method={selectedMethod} />
+                )}
+              </div>
+            )}
+
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
+
+            {submitted && (
+              <Alert className="bg-green-50 border-green-200">
+                <AlertDescription className="text-green-700">
+                  ✅ Pembayaran berhasil dicatat! Admin akan memverifikasi dalam 1×24 jam.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !parseFloat(amount) || !tutorId.trim()}
+              className="w-full"
+            >
+              {submitting ? <><Spinner className="w-4 h-4 mr-2" /> Memproses...</> : 'Konfirmasi Pembayaran'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payment history */}
       {payments.length > 0 && (
@@ -476,5 +614,13 @@ export default function StudentPaymentPage() {
         </Card>
       )}
     </div>
+  )
+}
+
+export default function StudentPaymentPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>}>
+      <StudentPaymentContent />
+    </Suspense>
   )
 }
