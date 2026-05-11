@@ -169,22 +169,57 @@ export default function StudentOnboardingPage() {
 
   const handleNext = async () => {
     if (!validateStep()) return
-    if (step === 4) {
+
+    // Save profile data when moving from step 3 to step 4
+    if (step === 3) {
       setSaving(true)
       try {
         await saveProfile()
-        const params = new URLSearchParams()
-        params.set('from', 'onboarding')
-        params.set('amount', String(depositAmount))
-        params.set('method', selectedPayment)
-        router.push(`/dashboard/student/payment?${params.toString()}`)
+        setStep(s => s + 1)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Gagal menyimpan data')
+        setError(err instanceof Error ? err.message : 'Gagal menyimpan data profil')
       } finally {
         setSaving(false)
       }
       return
     }
+
+    // Submit payment on step 4
+    if (step === 4) {
+      setSaving(true)
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) throw new Error('Sesi tidak ditemukan, silakan login ulang')
+
+        const res = await fetch('/api/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            amount: depositAmount,
+            paymentMethod: selectedPayment,
+            isOnboardingDeposit: true,
+            transactionRef: transferProof.trim() || null,
+          }),
+        })
+
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error(json.error || 'Gagal menyimpan data pembayaran')
+        }
+
+        router.push('/dashboard/student')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal menyimpan data pembayaran')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     setStep(s => s + 1)
   }
 
