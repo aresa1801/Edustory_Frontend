@@ -48,17 +48,19 @@ export default function StudentAnalyticsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: studentData } = await supabase
+      const { data: studentData, error: studentErr } = await supabase
         .from('students')
         .select('id, subjects')
         .eq('user_id', user.id)
         .single()
 
+      // PGRST116 = no rows returned; treat as new student with no data
+      if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
       if (!studentData) return
 
       setSubjects(studentData.subjects || [])
 
-      const { data: matches } = await supabase
+      const { data: matches, error: matchErr } = await supabase
         .from('matches')
         .select(`
           id,
@@ -72,6 +74,8 @@ export default function StudentAnalyticsPage() {
         `)
         .eq('student_id', studentData.id)
         .order('created_at', { ascending: false })
+
+      if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
 
       const allMatches = matches || []
       const completed = allMatches.filter((m: any) => m.status === 'completed')
@@ -100,7 +104,9 @@ export default function StudentAnalyticsPage() {
 
       setTutorRatings(ratings)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat data analitik')
+      console.error('Failed to load analytics:', err)
+      // Show zeroed stats with error notice rather than blocking the page
+      setError('Gagal memuat data analitik. Data mungkin tidak lengkap.')
     } finally {
       setLoading(false)
     }
@@ -166,13 +172,7 @@ export default function StudentAnalyticsPage() {
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
+  // error is kept in state but we no longer block rendering with it
 
   const statCards = [
     { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-300', bg: 'bg-blue-500/20' },
@@ -193,7 +193,11 @@ export default function StudentAnalyticsPage() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {error && (
+        <Alert className="mb-6 bg-amber-50 border-amber-200">
+          <AlertDescription className="text-amber-700 text-sm">{error}</AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="p-5">

@@ -73,7 +73,12 @@ export async function GET(request: NextRequest) {
         .eq('user_id', user.id)
         .single()
 
-      query = query.eq('student_id', student?.id)
+      if (!student) {
+        // Student profile not yet created (onboarding incomplete)
+        return NextResponse.json([])
+      }
+
+      query = query.eq('student_id', student.id)
     } else if (userProfile?.role === 'tutor') {
       const { data: tutor } = await supabase
         .from('tutors')

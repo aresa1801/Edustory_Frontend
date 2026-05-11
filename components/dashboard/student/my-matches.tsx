@@ -42,14 +42,19 @@ export default function StudentMyMatches() {
       })
 
       if (!response.ok) {
-        throw new Error('Gagal memuat pencocokan')
+        // Show empty state instead of crashing
+        setMatches([])
+        return
       }
 
       const data = await response.json()
       setMatches(data || [])
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat pencocokan')
+      console.error('Failed to load matches:', err)
+      // Show empty state instead of error when no data yet
+      setMatches([])
+      setError(null)
     } finally {
       setLoading(false)
     }

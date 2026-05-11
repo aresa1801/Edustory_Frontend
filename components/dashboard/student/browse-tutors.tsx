@@ -95,6 +95,9 @@ export default function StudentBrowseTutors() {
       setTutors(filtered)
       setError(null)
     } catch (err) {
+      console.error('Failed to load tutors:', err)
+      // Show empty state instead of crashing; actual error shown subtly
+      setTutors([])
       setError(err instanceof Error ? err.message : 'Gagal memuat pengajar')
     } finally {
       setLoading(false)
@@ -275,14 +278,17 @@ export default function StudentBrowseTutors() {
         </Alert>
       )}
 
-      <p className="text-sm text-muted-foreground">{tutors.length} pengajar ditemukan</p>
+      {!error && <p className="text-sm text-muted-foreground">{tutors.length} pengajar ditemukan</p>}
 
       {tutors.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center space-y-3">
             <User className="w-12 h-12 text-muted-foreground mx-auto" />
-            <p className="text-muted-foreground">Tidak ada pengajar yang sesuai filter Anda</p>
-            <Button variant="outline" size="sm" onClick={resetFilters}>Reset Filter</Button>
+            <p className="text-muted-foreground">
+              {error ? 'Belum ada tutor tersedia. Coba lagi nanti.' : 'Tidak ada pengajar yang sesuai filter Anda'}
+            </p>
+            {error && <Button variant="outline" size="sm" onClick={fetchTutors}>Coba Lagi</Button>}
+            {!error && <Button variant="outline" size="sm" onClick={resetFilters}>Reset Filter</Button>}
           </CardContent>
         </Card>
       ) : (

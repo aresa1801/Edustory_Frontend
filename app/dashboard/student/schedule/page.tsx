@@ -56,11 +56,14 @@ export default function StudentSchedulePage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data: studentData } = await supabase
+        const { data: studentData, error: studentErr } = await supabase
           .from('students')
           .select('id, grade_level, preferred_schedule, sessions_per_month, budget_per_month')
           .eq('user_id', user.id)
           .single()
+
+        // PGRST116 = no rows returned; treat as new student with no schedule
+        if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
 
         setStudentProfile(studentData)
 
@@ -82,7 +85,7 @@ export default function StudentSchedulePage() {
             .in('status', ['matched', 'active', 'pending', 'completed'])
             .order('start_date', { ascending: true })
 
-          if (matchErr) throw matchErr
+          if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
 
           const items: ScheduleItem[] = (matches || []).map((m: any) => ({
             id: m.id,
@@ -98,7 +101,8 @@ export default function StudentSchedulePage() {
           setSchedule(items)
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Gagal memuat jadwal')
+        console.error('Failed to load schedule:', err)
+        // Show empty state instead of error page
       } finally {
         setLoading(false)
       }
@@ -115,13 +119,7 @@ export default function StudentSchedulePage() {
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
+  // error is retained in state but we render empty state instead
 
   const activeSchedule = schedule.filter(s => ['matched', 'active'].includes(s.status))
   const pendingSchedule = schedule.filter(s => s.status === 'pending')
