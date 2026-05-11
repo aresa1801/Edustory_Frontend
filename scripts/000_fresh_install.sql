@@ -22,21 +22,6 @@ BEGIN
 END;
 $$;
 
--- Fungsi untuk mengecek apakah user yang login adalah admin
--- SECURITY DEFINER agar tidak terjadi rekursi RLS
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  );
-$$;
-
 -- ============================================================
 -- BAGIAN 2 – TABEL INTI
 -- ============================================================
@@ -61,6 +46,22 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Fungsi untuk mengecek apakah user yang login adalah admin
+-- SECURITY DEFINER agar tidak terjadi rekursi RLS
+-- (didefinisikan setelah user_profiles agar validasi tabel berhasil)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
 
 -- ----------------------------------------------------------
 -- 2.2  students
