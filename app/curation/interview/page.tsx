@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -10,430 +10,551 @@ import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 
-interface InterviewQuestion {
-  id: number
-  category: string
-  question: string
-  keywords: string[]
-  minWords: number
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ConversationMessage {
+  role: 'assistant' | 'user'
+  content: string
 }
 
-const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
-  {
-    id: 1,
-    category: 'Motivasi Mengajar',
-    question:
-      'Ceritakan mengapa Anda memilih menjadi tutor dan apa yang membuat Anda bersemangat dalam mengajar?',
-    keywords: ['siswa', 'belajar', 'mengajar', 'ilmu', 'motivasi', 'passion', 'pendidikan'],
-    minWords: 50,
-  },
-  {
-    id: 2,
-    category: 'Strategi Pembelajaran',
-    question:
-      'Bagaimana cara Anda menjelaskan konsep yang sulit kepada siswa yang mengalami kesulitan memahami materi?',
-    keywords: ['analogi', 'contoh', 'visual', 'langkah', 'sabar', 'sederhana', 'cara lain'],
-    minWords: 60,
-  },
-  {
-    id: 3,
-    category: 'Manajemen Kelas',
-    question:
-      'Apa yang Anda lakukan ketika siswa tampak bosan atau tidak termotivasi selama sesi pembelajaran?',
-    keywords: ['interaktif', 'variasi', 'permainan', 'istirahat', 'motivasi', 'tanya', 'cerita'],
-    minWords: 50,
-  },
-  {
-    id: 4,
-    category: 'Penanganan Masalah',
-    question:
-      'Bagaimana Anda menangani situasi di mana seorang siswa merasa minder karena nilai akademiknya rendah?',
-    keywords: ['empati', 'dorongan', 'positif', 'progress', 'kecil', 'percaya', 'usaha'],
-    minWords: 60,
-  },
-  {
-    id: 5,
-    category: 'Persiapan Mengajar',
-    question:
-      'Jelaskan bagaimana proses persiapan Anda sebelum sesi mengajar berlangsung.',
-    keywords: ['materi', 'RPP', 'silabus', 'latihan', 'soal', 'contoh', 'media', 'rencana'],
-    minWords: 50,
-  },
-  {
-    id: 6,
-    category: 'Evaluasi Pembelajaran',
-    question:
-      'Bagaimana Anda mengetahui bahwa siswa benar-benar memahami materi yang telah diajarkan?',
-    keywords: ['evaluasi', 'tes', 'pertanyaan', 'diskusi', 'latihan', 'feedback', 'ulang'],
-    minWords: 50,
-  },
-  {
-    id: 7,
-    category: 'Komunikasi dengan Orang Tua',
-    question:
-      'Bagaimana Anda berkomunikasi dengan orang tua siswa mengenai perkembangan akademik anak mereka?',
-    keywords: ['laporan', 'update', 'progress', 'komunikasi', 'transparan', 'jelas', 'rutin'],
-    minWords: 50,
-  },
-  {
-    id: 8,
-    category: 'Pengembangan Diri',
-    question:
-      'Apa yang Anda lakukan untuk terus meningkatkan kemampuan mengajar dan pengetahuan akademik Anda?',
-    keywords: ['belajar', 'kursus', 'buku', 'seminar', 'refleksi', 'feedback', 'pelatihan'],
-    minWords: 50,
-  },
-  {
-    id: 9,
-    category: 'Etika Profesional',
-    question:
-      'Bagaimana sikap Anda jika siswa bertanya tentang topik yang di luar pengetahuan atau kompetensi Anda?',
-    keywords: ['jujur', 'tidak tahu', 'cari', 'referensi', 'sumber', 'bersama', 'transparan'],
-    minWords: 40,
-  },
-  {
-    id: 10,
-    category: 'Visi sebagai Tutor',
-    question:
-      'Apa tujuan jangka panjang Anda sebagai seorang tutor dan dampak apa yang ingin Anda berikan kepada siswa-siswa Anda?',
-    keywords: ['tujuan', 'dampak', 'masa depan', 'potensi', 'karakter', 'mandiri', 'prestasi'],
-    minWords: 60,
-  },
-]
-
-function scoreResponse(response: string, question: InterviewQuestion): number {
-  if (!response || response.trim().length === 0) return 0
-
-  const words = response.trim().split(/\s+/).length
-  const wordScore = Math.min(40, (words / question.minWords) * 40)
-
-  const lowerResponse = response.toLowerCase()
-  const matchedKeywords = question.keywords.filter(kw =>
-    lowerResponse.includes(kw.toLowerCase())
-  )
-  const keywordScore = Math.min(60, (matchedKeywords.length / question.keywords.length) * 60)
-
-  return Math.round(wordScore + keywordScore)
+interface DimensionScore {
+  score: number
+  justification: string
+  quote: string
 }
 
-type SubmitResult = { score: number; passed: boolean; strengths?: string[]; improvements?: string[] }
+interface InterviewResult {
+  overallScore: number
+  passed: boolean
+  recommendation: string
+  summary: string
+  dimensions: Record<string, DimensionScore>
+}
+
+type Phase = 'loading' | 'chatting' | 'completing' | 'result'
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MAX_EXCHANGES = 7
+const INTERVIEW_DURATION_SECONDS = 15 * 60 // 15 minutes
+
+const DIMENSION_LABELS: Record<string, string> = {
+  komunikasi_kejelasan:       '🗣️ Komunikasi & Kejelasan',
+  empati_kesabaran:           '❤️ Empati & Kesabaran',
+  kemampuan_menyederhanakan:  '💡 Kemampuan Menyederhanakan',
+  penguasaan_materi:          '📚 Penguasaan Materi',
+  kesesuaian_tutor:           '🎯 Kesesuaian sebagai Tutor',
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function formatTimeRemainingString(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
 export default function InterviewPage() {
   const router = useRouter()
-  const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [responses, setResponses] = useState<Record<number, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [result, setResult] = useState<SubmitResult | null>(null)
+
+  // Phase control
+  const [phase, setPhase] = useState<Phase>('loading')
+
+  // Chat state — kept on client and sent with every request (stateless server)
+  const [messages, setMessages] = useState<ConversationMessage[]>([])
+  const [exchangeCount, setExchangeCount] = useState(0)
+  const [uncoveredDimensions, setUncoveredDimensions] = useState<string[]>([])
+  const [followUpUsed, setFollowUpUsed] = useState(false)
+  const [dontKnowStreak, setDontKnowStreak] = useState(0)
+  const [candidateName, setCandidateName] = useState('Kandidat')
+
+  // UI state
+  const [inputValue, setInputValue] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState(INTERVIEW_DURATION_SECONDS)
+  const [result, setResult] = useState<InterviewResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [timeRemaining, setTimeRemaining] = useState(40 * 60)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Refs to avoid stale-closure issues in timer callbacks
+  const messagesRef = useRef<ConversationMessage[]>([])
+  const candidateNameRef = useRef('Kandidat')
   const startTimeRef = useRef(Date.now())
-  // Keep a stable ref to handleSubmit so the interval doesn't capture a stale closure
-  const handleSubmitRef = useRef<() => void>(() => {})
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const interviewCompleteRef = useRef(false)
+  const completeInterviewCallbackRef = useRef<() => void>(() => {})
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Keep refs in sync with state
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  useEffect(() => { candidateNameRef.current = candidateName }, [candidateName])
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isSending])
+
+  // ---------------------------------------------------------------------------
+  // Complete interview: generate assessment + save
+  // ---------------------------------------------------------------------------
+
+  const completeInterview = useCallback(
+    async (finalMessages: ConversationMessage[], name: string) => {
+      if (interviewCompleteRef.current) return
+      interviewCompleteRef.current = true
+
+      if (timerRef.current) clearInterval(timerRef.current)
+      setPhase('completing')
+
+      const timeSpentSeconds = Math.round((Date.now() - startTimeRef.current) / 1000)
+
+      try {
+        const res = await fetch('/api/ai/interview/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: finalMessages,
+            candidateName: name,
+            timeSpentSeconds,
+          }),
+        })
+
+        if (!res.ok) {
+          const body = await res.json()
+          throw new Error(body?.error || 'Gagal menyelesaikan interview')
+        }
+
+        const data = await res.json()
+        setResult({
+          overallScore:   data.overallScore,
+          passed:         data.passed,
+          recommendation: data.recommendation,
+          summary:        data.summary,
+          dimensions:     data.dimensions,
+        })
+        setPhase('result')
+        setTimeout(() => router.push('/curation/progress'), 8000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+        setPhase('chatting')
+        interviewCompleteRef.current = false
+      }
+    },
+    [router]
+  )
+
+  // Keep callback ref current so the timer can call the latest version
+  useEffect(() => {
+    completeInterviewCallbackRef.current = () =>
+      completeInterview(messagesRef.current, candidateNameRef.current)
+  })
+
+  // ---------------------------------------------------------------------------
+  // Initialise: fetch opening message from AI
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    timerRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-          handleSubmitRef.current()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+    const startInterview = async () => {
+      try {
+        const res = await fetch('/api/ai/interview/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+
+        if (!res.ok) throw new Error('Gagal memulai interview')
+
+        const data = await res.json()
+        const name: string = data.candidateName || 'Kandidat'
+        const opening: ConversationMessage = { role: 'assistant', content: data.openingMessage }
+
+        setCandidateName(name)
+        setMessages([opening])
+        setUncoveredDimensions(data.uncoveredDimensions ?? [])
+        setExchangeCount(0)
+        setPhase('chatting')
+
+        // Start countdown timer
+        timerRef.current = setInterval(() => {
+          setTimeRemaining((prev) => {
+            if (prev <= 1) {
+              completeInterviewCallbackRef.current()
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal memulai interview')
+      }
+    }
+
+    startInterview()
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleResponseChange = (value: string) => {
-    const qId = INTERVIEW_QUESTIONS[currentQuestion].id
-    setResponses(prev => ({ ...prev, [qId]: value }))
-  }
+  // ---------------------------------------------------------------------------
+  // Send a candidate message
+  // ---------------------------------------------------------------------------
 
-  const handleNext = () => {
-    if (currentQuestion < INTERVIEW_QUESTIONS.length - 1) {
-      setCurrentQuestion(prev => prev + 1)
-    }
-  }
+  const sendMessage = async () => {
+    if (!inputValue.trim() || isSending || phase !== 'chatting') return
 
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1)
-    }
-  }
-
-  const calculateOverallScore = () => {
-    let total = 0
-    INTERVIEW_QUESTIONS.forEach(q => {
-      total += scoreResponse(responses[q.id] || '', q)
-    })
-    return Math.round(total / INTERVIEW_QUESTIONS.length)
-  }
-
-  const handleSubmit = async () => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    setLoading(true)
+    const userAnswer = inputValue.trim()
+    setInputValue('')
+    setIsSending(true)
     setError(null)
 
-    const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000)
+    const lastAiraMessage =
+      [...messages].reverse().find((m) => m.role === 'assistant')?.content || ''
 
-    // Attempt AI scoring; fall back to keyword-based scoring on error
-    let overallScore = calculateOverallScore()
-    let strengths: string[] | undefined
-    let improvements: string[] | undefined
+    const userMsg: ConversationMessage = { role: 'user', content: userAnswer }
+    const messagesWithUser: ConversationMessage[] = [...messages, userMsg]
+    setMessages(messagesWithUser)
 
     try {
-      const aiRes = await fetch('/api/ai/score-interview', {
+      const res = await fetch('/api/ai/interview/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          responses,
-          questions: INTERVIEW_QUESTIONS.map(q => ({
-            id: q.id,
-            category: q.category,
-            question: q.question,
-          })),
+          messages,
+          exchangeCount,
+          uncoveredDimensions,
+          followUpUsed,
+          dontKnowStreak,
+          lastAiraMessage,
+          candidateName,
+          answer: userAnswer,
+          timeRemaining: formatTimeRemainingString(timeRemaining),
         }),
-      })
-      if (aiRes.ok) {
-        const aiData = await aiRes.json()
-        if (typeof aiData.overallScore === 'number') {
-          overallScore = aiData.overallScore
-          strengths = aiData.strengths
-          improvements = aiData.improvements
-        }
-      }
-    } catch {
-      // Keep keyword-based fallback score
-    }
-
-    try {
-      const res = await fetch('/api/assessments/interview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responses, overallScore, timeTaken }),
       })
 
       if (!res.ok) {
         const body = await res.json()
-        throw new Error(body?.error || 'Gagal menyimpan hasil interview')
+        throw new Error(body?.error || 'Gagal memproses pesan')
       }
 
-      setResult({ score: overallScore, passed: overallScore >= 70, strengths, improvements })
-      setSubmitted(true)
+      const data = await res.json()
+      const airaMsg: ConversationMessage = {
+        role: 'assistant',
+        content: data.interviewerResponse,
+      }
+      const finalMessages: ConversationMessage[] = [...messagesWithUser, airaMsg]
 
-      setTimeout(() => router.push('/curation/progress'), 3000)
+      setMessages(finalMessages)
+      setExchangeCount(data.exchangeCount)
+      setUncoveredDimensions(data.uncoveredDimensions)
+      setFollowUpUsed(data.followUpUsed)
+      setDontKnowStreak(data.dontKnowStreak)
+
+      if (data.interviewComplete) {
+        await completeInterview(finalMessages, candidateName)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+      // Roll back the optimistically added user message
+      setMessages(messages)
     } finally {
-      setLoading(false)
+      setIsSending(false)
     }
   }
 
-  // Keep the ref in sync so the timer always calls the latest version
-  handleSubmitRef.current = handleSubmit
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
 
-  const question = INTERVIEW_QUESTIONS[currentQuestion]
-  const currentResponse = responses[question.id] || ''
-  const wordCount = currentResponse.trim() ? currentResponse.trim().split(/\s+/).length : 0
-  const answeredCount = INTERVIEW_QUESTIONS.filter(q => (responses[q.id] || '').trim().length > 0).length
-  const overallProgress = ((currentQuestion + 1) / INTERVIEW_QUESTIONS.length) * 100
-  const minutes = Math.floor(timeRemaining / 60)
-  const seconds = timeRemaining % 60
+  const exchangeProgress = Math.min(100, (exchangeCount / MAX_EXCHANGES) * 100)
 
-  if (submitted && result) {
+  // ---------------------------------------------------------------------------
+  // Render: loading
+  // ---------------------------------------------------------------------------
+
+  if (phase === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-2xl p-8 text-center">
-          <div className="text-6xl mb-4">💬</div>
-          <h2 className="text-3xl font-bold mb-2">AI Interview Selesai!</h2>
-          <p className="text-muted-foreground mb-8">
-            Anda telah menyelesaikan semua tahapan kurasi.
-          </p>
-          <div className="text-7xl font-bold text-primary mb-4">{result.score}</div>
-          <p className="text-xl text-muted-foreground mb-8">Skor Interview Anda dari 100</p>
-
-          {result.passed ? (
-            <Alert className="bg-green-50 border-green-200 mb-6">
-              <AlertDescription className="text-green-800">
-                🎉 <strong>Selamat!</strong> Anda telah menyelesaikan semua 5 tahap kurasi dengan
-                skor yang memenuhi syarat. Tim kami akan meninjau dan mengumumkan hasilnya dalam
-                3-5 hari kerja.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert className="bg-yellow-50 border-yellow-200 mb-6">
-              <AlertDescription className="text-yellow-800">
-                Anda telah menyelesaikan semua tahapan kurasi. Skor interview belum memenuhi
-                standar minimum (70). Tim admin akan mengevaluasi aplikasi Anda secara menyeluruh.
-              </AlertDescription>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+        <div className="text-center">
+          <Spinner className="h-10 w-10 mx-auto mb-4" />
+          <p className="text-lg font-medium mb-1">Mempersiapkan AI Interviewer...</p>
+          <p className="text-sm text-muted-foreground">Mohon tunggu sebentar</p>
+          {error && (
+            <Alert variant="destructive" className="mt-4 max-w-sm">
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
-          {result.strengths && result.strengths.length > 0 && (
-            <div className="text-left mb-4">
-              <p className="font-semibold text-green-300 mb-2">✅ Kekuatan Anda:</p>
-              <ul className="space-y-1 text-sm text-green-800">
-                {result.strengths.map((s, i) => (
-                  <li key={i}>• {s}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {result.improvements && result.improvements.length > 0 && (
-            <div className="text-left mb-6">
-              <p className="font-semibold text-amber-700 mb-2">📈 Area Pengembangan:</p>
-              <ul className="space-y-1 text-sm text-amber-300">
-                {result.improvements.map((s, i) => (
-                  <li key={i}>• {s}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <Spinner className="mx-auto" />
-          <p className="text-sm text-muted-foreground mt-2">
-            Mengalihkan ke halaman progress...
-          </p>
-        </Card>
+        </div>
       </div>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="text-primary border-primary">
-                Tahap 5 dari 5
-              </Badge>
-              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">💬 AI Interview</Badge>
-            </div>
-            <div
-              className={`text-2xl font-bold font-mono ${
-                timeRemaining < 300 ? 'text-red-600 animate-pulse' : 'text-primary'
-              }`}
-            >
-              {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
-          </div>
+  // ---------------------------------------------------------------------------
+  // Render: generating assessment
+  // ---------------------------------------------------------------------------
 
-          <h1 className="text-3xl font-bold text-foreground mb-2">AI Interview Tutor</h1>
-          <p className="text-muted-foreground">
-            Jawab 10 pertanyaan wawancara untuk mengevaluasi kesiapan Anda sebagai tutor.
-            Jawab dengan jelas, jujur, dan komprehensif.
+  if (phase === 'completing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+        <div className="text-center">
+          <Spinner className="h-10 w-10 mx-auto mb-4" />
+          <p className="text-lg font-semibold mb-1">Menganalisis Wawancara...</p>
+          <p className="text-sm text-muted-foreground">
+            AI sedang menyusun penilaian Anda berdasarkan percakapan tadi
           </p>
         </div>
+      </div>
+    )
+  }
 
-        {/* Progress */}
-        <div className="mb-6">
-          <div className="flex justify-between text-sm text-muted-foreground mb-2">
-            <span>Pertanyaan {currentQuestion + 1} dari {INTERVIEW_QUESTIONS.length}</span>
-            <span>{answeredCount}/{INTERVIEW_QUESTIONS.length} sudah dijawab</span>
-          </div>
-          <Progress value={overallProgress} className="h-2" />
-        </div>
+  // ---------------------------------------------------------------------------
+  // Render: result card
+  // ---------------------------------------------------------------------------
 
-        {/* Question Card */}
-        <Card className="p-8 mb-6">
-          <div className="mb-4">
-            <span className="inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold">
-              {question.category}
-            </span>
-          </div>
+  if (phase === 'result' && result) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Score summary */}
+          <Card className="p-8 text-center">
+            <div className="text-6xl mb-4">💬</div>
+            <h2 className="text-3xl font-bold mb-2">AI Interview Selesai!</h2>
+            <p className="text-muted-foreground mb-6">
+              Anda telah menyelesaikan tahap wawancara kurasi tutor.
+            </p>
 
-          <h2 className="text-xl font-semibold text-foreground mb-6 leading-relaxed">
-            {question.question}
-          </h2>
+            <div className="text-7xl font-bold text-primary mb-2">{result.overallScore}</div>
+            <p className="text-xl text-muted-foreground mb-4">Skor Interview dari 100</p>
 
-          <Textarea
-            value={currentResponse}
-            onChange={e => handleResponseChange(e.target.value)}
-            placeholder="Ketik jawaban Anda di sini..."
-            className="min-h-48 text-base"
-          />
+            <Badge
+              className={
+                result.passed
+                  ? 'bg-green-500 hover:bg-green-600 text-white mb-4'
+                  : 'bg-yellow-500 hover:bg-yellow-600 text-white mb-4'
+              }
+            >
+              {result.recommendation}
+            </Badge>
 
-          <div className="flex justify-between items-center mt-2">
+            {result.passed ? (
+              <Alert className="bg-green-50 border-green-200 mb-4">
+                <AlertDescription className="text-green-800">
+                  🎉 <strong>Selamat!</strong> Anda telah menyelesaikan semua tahapan kurasi.
+                  Tim kami akan meninjau dan mengumumkan hasilnya dalam 3-5 hari kerja.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert className="bg-yellow-50 border-yellow-200 mb-4">
+                <AlertDescription className="text-yellow-800">
+                  Anda telah menyelesaikan semua tahapan kurasi. Tim admin akan mengevaluasi
+                  aplikasi Anda secara menyeluruh.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <p className="text-sm text-muted-foreground text-left">{result.summary}</p>
+          </Card>
+
+          {/* Dimension breakdown */}
+          <Card className="p-6">
+            <h3 className="font-semibold text-lg mb-4">Penilaian per Dimensi</h3>
+            <div className="space-y-4">
+              {Object.entries(result.dimensions).map(([key, dim]) => (
+                <div key={key}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium">
+                      {DIMENSION_LABELS[key] || key}
+                    </span>
+                    <span className="text-sm font-bold">{dim.score}/10</span>
+                  </div>
+                  <Progress value={dim.score * 10} className="h-2 mb-1" />
+                  <p className="text-xs text-muted-foreground">{dim.justification}</p>
+                  {dim.quote && dim.quote !== '—' && (
+                    <p className="text-xs text-muted-foreground italic mt-0.5">
+                      &ldquo;{dim.quote}&rdquo;
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="text-center">
+            <Spinner className="mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              {wordCount} kata
-              {wordCount < question.minWords && (
-                <span className="text-amber-600 ml-2">
-                  (direkomendasikan ≥ {question.minWords} kata)
-                </span>
-              )}
-              {wordCount >= question.minWords && (
-                <span className="text-green-300 ml-2">✓</span>
-              )}
+              Mengalihkan ke halaman progress...
             </p>
           </div>
-        </Card>
+        </div>
+      </div>
+    )
+  }
 
-        {/* Navigation */}
-        <div className="flex justify-between gap-4 mb-8">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
-          >
-            ← Sebelumnya
-          </Button>
+  // ---------------------------------------------------------------------------
+  // Render: chat interface
+  // ---------------------------------------------------------------------------
 
-          <div className="flex gap-2 flex-wrap justify-center">
-            {INTERVIEW_QUESTIONS.map((q, idx) => (
-              <button
-                key={q.id}
-                onClick={() => setCurrentQuestion(idx)}
-                className={`w-9 h-9 rounded-full text-sm font-bold transition-all border-2 ${
-                  idx === currentQuestion
-                    ? 'bg-primary text-white border-primary'
-                    : (responses[q.id] || '').trim().length > 0
-                    ? 'bg-green-100 text-green-300 border-green-400'
-                    : 'bg-background text-muted-foreground border-border hover:border-primary/50'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex flex-col">
+      {/* Sticky header */}
+      <div className="bg-background/95 backdrop-blur border-b px-4 py-3 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className="text-primary border-primary text-xs">
+                Tahap 5 dari 5
+              </Badge>
+              <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30 text-xs">
+                💬 AI Interview
+              </Badge>
+            </div>
+            <div
+              className={`text-xl font-bold font-mono ${
+                timeRemaining < 180 ? 'text-red-600 animate-pulse' : 'text-primary'
+              }`}
+            >
+              {formatTime(timeRemaining)}
+            </div>
           </div>
 
-          {currentQuestion < INTERVIEW_QUESTIONS.length - 1 ? (
-            <Button onClick={handleNext} className="bg-primary hover:bg-primary/90">
-              Selanjutnya →
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              className="bg-green-600 hover:bg-green-700"
-              disabled={loading}
-            >
-              {loading ? <Spinner className="mr-2 h-4 w-4" /> : null}
-              Selesaikan Interview
-            </Button>
-          )}
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+            <span>Pertukaran {exchangeCount} / {MAX_EXCHANGES}</span>
+            <span>{MAX_EXCHANGES - exchangeCount} pertukaran tersisa</span>
+          </div>
+          <Progress value={exchangeProgress} className="h-1.5" />
         </div>
+      </div>
 
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {/* Chat message list */}
+      <div className="flex-1 overflow-y-auto py-6 px-4">
+        <div className="max-w-3xl mx-auto space-y-4">
 
-        {/* Info */}
-        <Alert className="bg-blue-50 border-blue-200">
-          <AlertDescription className="text-blue-800">
-            <ul className="space-y-1 text-sm">
-              <li>💡 Tidak ada jawaban yang benar atau salah — evaluasi berdasarkan kualitas dan kedalaman jawaban Anda.</li>
-              <li>⏰ Waktu tersisa ditampilkan di kanan atas. Interview akan otomatis terkirim saat waktu habis.</li>
-              <li>🔢 Anda dapat berpindah antar pertanyaan menggunakan tombol nomor di atas.</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
+          {/* Info banner shown before first user message */}
+          {messages.length <= 1 && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertDescription className="text-blue-800 text-sm">
+                <ul className="space-y-1">
+                  <li>💡 Ini adalah wawancara percakapan — jawab secara natural seperti berbicara langsung.</li>
+                  <li>📝 Tekan <strong>Enter</strong> untuk mengirim, <strong>Shift+Enter</strong> untuk baris baru.</li>
+                  <li>⏰ Wawancara otomatis berakhir ketika waktu habis atau setelah {MAX_EXCHANGES} pertukaran.</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex items-end gap-2 ${
+                msg.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              {msg.role === 'assistant' && (
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-base flex-shrink-0">
+                  🤖
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-br-sm'
+                    : 'bg-background border shadow-sm rounded-bl-sm'
+                }`}
+              >
+                {msg.content}
+              </div>
+              {msg.role === 'user' && (
+                <div className="w-8 h-8 rounded-full bg-secondary/30 flex items-center justify-center text-base flex-shrink-0">
+                  👤
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing indicator */}
+          {isSending && (
+            <div className="flex items-end gap-2 justify-start">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-base flex-shrink-0">
+                🤖
+              </div>
+              <div className="bg-background border shadow-sm rounded-2xl rounded-bl-sm px-4 py-3">
+                <div className="flex gap-1 items-center h-4">
+                  <div
+                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    style={{ animationDelay: '0ms' }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    style={{ animationDelay: '150ms' }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    style={{ animationDelay: '300ms' }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="px-4 pb-2">
+          <div className="max-w-3xl mx-auto">
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      )}
+
+      {/* Input area */}
+      <div className="bg-background/95 backdrop-blur border-t px-4 py-3">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex gap-2">
+            <Textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ketik jawaban Anda di sini... (Enter untuk kirim)"
+              className="flex-1 min-h-[60px] max-h-[150px] resize-none text-sm"
+              disabled={isSending}
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={!inputValue.trim() || isSending}
+              className="bg-primary hover:bg-primary/90 self-end h-12 px-5"
+              aria-label="Kirim"
+            >
+              {isSending ? <Spinner className="h-4 w-4" /> : '↑'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            💡 Jawab dengan jujur dan detail — semakin spesifik, semakin baik penilaian Anda.
+          </p>
+        </div>
       </div>
     </div>
   )
