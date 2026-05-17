@@ -1,3 +1,6 @@
+// Admin email (single source of truth — used by auth flow and dashboard guards)
+export const ADMIN_EMAIL = 'storyaunty.evi@gmail.com'
+
 // Contact Information Constants
 export const CONTACT_INFO = {
   phone: '+6282113113063',
