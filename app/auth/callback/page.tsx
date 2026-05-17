@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
+import { ADMIN_EMAIL } from '@/lib/constants'
 
 // Map DB role values to dashboard route segments
 const ROLE_TO_DASHBOARD: Record<string, string> = {
@@ -45,7 +46,7 @@ export default function AuthCallback() {
         }
 
         // Check if user is admin
-        if (session.user.email === 'storyaunty.evi@gmail.com') {
+        if (session.user.email === ADMIN_EMAIL) {
           console.log('[v0] Admin detected, redirecting to admin dashboard')
           router.push('/dashboard/admin')
           return

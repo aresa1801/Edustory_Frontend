@@ -1,173 +1,48 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { createClient } from '@/lib/auth'
-import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { LogOut, LayoutDashboard, Search, BookMarked, BarChart3, Calendar, GraduationCap, Users, CreditCard } from 'lucide-react'
+import { ReactNode } from 'react'
+import {
+  LayoutDashboard, Search, Users, BookMarked,
+  Calendar, CreditCard, BarChart3, GraduationCap,
+} from 'lucide-react'
+import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Umum',
+    items: [
+      { href: '/dashboard/student', icon: LayoutDashboard, label: 'Dasbor', exact: true },
+    ],
+  },
+  {
+    label: 'Pengajar',
+    items: [
+      { href: '/dashboard/student/find-tutors', icon: Search, label: 'Cari Pengajar' },
+      { href: '/dashboard/student/tutor-offers', icon: Users, label: 'Penawaran Tutor' },
+      { href: '/dashboard/student/my-tutors', icon: BookMarked, label: 'Pengajar Saya' },
+    ],
+  },
+  {
+    label: 'Belajar',
+    items: [
+      { href: '/dashboard/student/schedule', icon: Calendar, label: 'Jadwal Belajar' },
+      { href: '/dashboard/student/payment', icon: CreditCard, label: 'Pembayaran' },
+      { href: '/dashboard/student/analytics', icon: BarChart3, label: 'Analitik & Nilai' },
+      { href: '/dashboard/student/progress', icon: GraduationCap, label: 'Progres' },
+    ],
+  },
+]
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [user, setUser] = useState<any>(null)
-  const [fullName, setFullName] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (error || !session) {
-          router.push('/auth/login')
-          return
-        }
-
-        const user = session.user
-
-        // Check if user is a student and fetch profile in one query
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role, name')
-          .eq('id', user.id)
-          .single()
-
-        if (profileError || !profile || !['student', 'siswa'].includes(profile.role)) {
-          const roleMap: Record<string, string> = { tutor: 'tutor', admin: 'admin' }
-          const redirectPath = profileError || !profile
-            ? '/auth/login'
-            : roleMap[profile.role]
-              ? `/dashboard/${roleMap[profile.role]}`
-              : '/auth/login'
-          router.push(redirectPath)
-          return
-        }
-
-        setUser(user)
-        setFullName(profile.name || user.email)
-      } catch (err) {
-        console.error('Auth check error:', err)
-        router.push('/auth/login')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    checkAuth()
-  }, [router])
-
-  const handleLogout = async () => {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error('Sign out failed:', error)
-    }
-    window.location.replace('/')
-  }
-
-  const navItems = [
-    { href: '/dashboard/student', icon: LayoutDashboard, label: 'Dasbor', exact: true },
-    { href: '/dashboard/student/find-tutors', icon: Search, label: 'Cari Pengajar', exact: false },
-    { href: '/dashboard/student/tutor-offers', icon: Users, label: 'Penawaran Tutor', exact: false },
-    { href: '/dashboard/student/my-tutors', icon: BookMarked, label: 'Pengajar Saya', exact: false },
-    { href: '/dashboard/student/schedule', icon: Calendar, label: 'Jadwal Belajar', exact: false },
-    { href: '/dashboard/student/payment', icon: CreditCard, label: 'Pembayaran', exact: false },
-    { href: '/dashboard/student/analytics', icon: BarChart3, label: 'Analitik & Nilai', exact: false },
-    { href: '/dashboard/student/progress', icon: GraduationCap, label: 'Progres', exact: false },
-  ]
-
-  const isActive = (href: string, exact: boolean) => {
-    if (exact) return pathname === href
-    return pathname.startsWith(href)
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Memuat...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-card border-r border-border/30 transition-all duration-300 flex flex-col`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-center border-b border-border/30">
-          <Link href="/dashboard/student" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <span className="text-lg">📚</span>
-            </div>
-            {sidebarOpen && <span className="font-bold text-foreground">EduStory</span>}
-          </Link>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
-          {navItems.map(({ href, icon: Icon, label, exact }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                isActive(href, exact)
-                  ? 'bg-primary/15 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
-              }`}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {sidebarOpen && <span>{label}</span>}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Logout */}
-        <div className="p-4 border-t border-border/30">
-          <Button
-            onClick={handleLogout}
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Keluar</span>}
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <div className="h-16 bg-card border-b border-border/30 flex items-center justify-between px-8">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            ☰
-          </button>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <div className="text-sm text-muted-foreground">
-              Selamat datang, {fullName}
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          {children}
-        </div>
-      </div>
-    </div>
+    <SharedDashboardLayout
+      navGroups={navGroups}
+      allowedRoles={['student']}
+      accentColor="blue"
+      portalLabel="Portal Siswa"
+      logoIcon={GraduationCap}
+    >
+      {children}
+    </SharedDashboardLayout>
   )
 }
