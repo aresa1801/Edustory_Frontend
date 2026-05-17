@@ -251,7 +251,7 @@ export default function PsychologyTestPage() {
     setSubmitted(true)
 
     try {
-      const response = await fetch('/api/assessments/psychology', {
+      await fetch('/api/assessments/psychology', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -260,18 +260,12 @@ export default function PsychologyTestPage() {
           timeTaken: elapsed,
         }),
       })
-
-      if (response.ok) {
-        setTimeout(() => {
-          router.push('/curation/progress')
-        }, 2000)
-      }
     } catch (error) {
       console.error('Error submitting psychology test:', error)
     } finally {
       setLoading(false)
     }
-  }, [calculateScore, router])
+  }, [calculateScore])
 
   useEffect(() => {
     if (questionsLoading) return
@@ -352,7 +346,26 @@ export default function PsychologyTestPage() {
               </Alert>
             )}
           </div>
-          {loading && <Spinner className="mx-auto" />}
+          {loading ? (
+            <Spinner className="mx-auto" />
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {score >= 70 ? (
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={() => router.push('/curation/academic-test')}
+                >
+                  Lanjut ke Kemampuan Akademik →
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                onClick={() => router.push('/curation/progress')}
+              >
+                Lihat Progres
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
     )
