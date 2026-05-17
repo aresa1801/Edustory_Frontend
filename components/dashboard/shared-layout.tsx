@@ -7,7 +7,7 @@ import { useAuth, AppRole } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { LogOut, Menu, X, ChevronRight } from 'lucide-react'
+import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
 
 export interface NavItem {
   href: string
@@ -84,6 +84,7 @@ export default function SharedDashboardLayout({
   const pathname = usePathname()
   const { user, userRole, userName, loading, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
 
   const colors = ACCENT[accentColor]
 
@@ -126,6 +127,11 @@ export default function SharedDashboardLayout({
 
   const roleLabel = userRole ? ROLE_LABEL[userRole] : ''
 
+  // Flat list of all nav items for mobile
+  const flatNavItems = navGroups.flatMap(g => g.items)
+  // First 3 items go in the bottom bar; the rest are accessible via the drawer
+  const mobileBottomItems = flatNavItems.slice(0, 3)
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950">
@@ -144,11 +150,11 @@ export default function SharedDashboardLayout({
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-gray-950 font-sans">
-      {/* Sidebar */}
+      {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────────── */}
       <aside
-        className={`${
+        className={`hidden md:flex ${
           sidebarOpen ? 'w-64' : 'w-[72px]'
-        } bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 transition-all duration-300 flex flex-col shadow-sm z-20`}
+        } bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 transition-all duration-300 flex-col shadow-sm z-20`}
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-gray-800 gap-3">
@@ -247,13 +253,127 @@ export default function SharedDashboardLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ── Mobile Drawer Backdrop ───────────────────────────────────────────── */}
+      {mobileDrawerOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Mobile Slide-in Drawer ───────────────────────────────────────────── */}
+      <aside
+        className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 flex flex-col shadow-xl z-50 md:hidden transition-transform duration-300 ease-in-out ${
+          mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        aria-label="Mobile navigation"
+      >
+        {/* Drawer Header */}
+        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100 dark:border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl ${colors.logo} flex items-center justify-center flex-shrink-0`}>
+              <LogoIcon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 dark:text-gray-100 leading-none">EduStory</p>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wider">
+                {portalLabel}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMobileDrawerOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Tutup menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Drawer Navigation */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+          {navGroups.map(group => (
+            <div key={group.label}>
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 px-2">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map(({ href, icon: Icon, label, exact }) => {
+                  const active = isActive(href, exact)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileDrawerOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-sm font-medium group ${
+                        active
+                          ? colors.active
+                          : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
+                      }`}
+                    >
+                      <Icon
+                        className={`flex-shrink-0 ${
+                          active
+                            ? colors.activeIcon
+                            : 'text-slate-400 dark:text-gray-500 group-hover:text-slate-600 dark:group-hover:text-gray-300'
+                        }`}
+                        size={20}
+                      />
+                      <span className="truncate">{label}</span>
+                      {active && (
+                        <ChevronRight className={`ml-auto w-3.5 h-3.5 ${colors.chevron}`} />
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Drawer User & Logout */}
+        <div className="p-3 border-t border-slate-100 dark:border-gray-800">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+            <Avatar className="w-9 h-9 flex-shrink-0">
+              <AvatarFallback className={`${colors.avatar} text-sm font-semibold`}>
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">
+                {userName || user?.email}
+              </p>
+              <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+            </div>
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+              title="Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-14 bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
+        <header className="h-14 bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
+          {/* Mobile: open drawer | Desktop: collapse sidebar */}
+          <button
+            onClick={() => setMobileDrawerOpen(true)}
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Buka menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle sidebar"
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -275,10 +395,46 @@ export default function SharedDashboardLayout({
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+        {/* Page Content — extra bottom padding on mobile for the bottom nav */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8">
           {children}
         </main>
+
+        {/* ── Mobile Bottom Navigation Bar ───────────────────────────────────── */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-slate-200 dark:border-gray-700 z-30 safe-bottom">
+          <div className="flex items-stretch">
+            {mobileBottomItems.map(({ href, icon: Icon, label, exact }) => {
+              const active = isActive(href, exact)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] transition-colors ${
+                    active
+                      ? colors.active
+                      : 'text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <Icon
+                    size={22}
+                    className={active ? colors.activeIcon : 'text-slate-400 dark:text-gray-500'}
+                  />
+                  <span className="text-[10px] font-medium leading-none">{label}</span>
+                </Link>
+              )
+            })}
+
+            {/* "More" button opens the full drawer */}
+            <button
+              onClick={() => setMobileDrawerOpen(true)}
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition-colors"
+              aria-label="Lainnya"
+            >
+              <MoreHorizontal size={22} className="text-slate-400 dark:text-gray-500" />
+              <span className="text-[10px] font-medium leading-none">Lainnya</span>
+            </button>
+          </div>
+        </nav>
       </div>
     </div>
   )
