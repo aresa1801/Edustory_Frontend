@@ -191,21 +191,23 @@ export default function StudentProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Anda harus login terlebih dahulu')
 
-      // Update user_profiles
+      // Upsert user_profiles (handles both insert and update)
       const { error: upErr } = await supabase
         .from('user_profiles')
-        .update({
+        .upsert({
+          id: user.id,
+          email: user.email || userProfile.email,
           name: userProfile.name.trim(),
-          phone: userProfile.phone.trim(),
-          bio: userProfile.bio.trim(),
+          phone: userProfile.phone.trim() || null,
+          bio: userProfile.bio.trim() || null,
           gender: userProfile.gender || null,
         })
-        .eq('id', user.id)
 
       if (upErr) throw upErr
 
-      // Upsert students table (update if exists, insert if not)
+      // Upsert students table (insert if new, update if exists – keyed on user_id)
       const studentPayload = {
+        user_id: user.id,
         grade_level: studentData.grade_level || null,
         subjects: studentData.subjects,
         learning_goals: studentData.learning_goals.trim() || null,
@@ -224,20 +226,14 @@ export default function StudentProfile() {
         school_address: studentData.school_address.trim() || null,
       }
 
-      if (studentData.id) {
-        const { error: sdErr } = await supabase
-          .from('students')
-          .update(studentPayload)
-          .eq('id', studentData.id)
-        if (sdErr) throw sdErr
-      } else {
-        const { data: newSd, error: sdErr } = await supabase
-          .from('students')
-          .insert({ user_id: user.id, ...studentPayload })
-          .select('id')
-          .single()
-        if (sdErr) throw sdErr
-        if (newSd) setStudentData(prev => ({ ...prev, id: newSd.id }))
+      const { data: savedSd, error: sdErr } = await supabase
+        .from('students')
+        .upsert(studentPayload, { onConflict: 'user_id' })
+        .select('id')
+        .single()
+      if (sdErr) throw sdErr
+      if (savedSd && !studentData.id) {
+        setStudentData(prev => ({ ...prev, id: savedSd.id }))
       }
 
       setSuccess('Profil berhasil disimpan!')
