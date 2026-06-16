@@ -1,18 +1,20 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase } from './supabase-client'
-import { ADMIN_EMAIL } from './constants'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { User } from '@supabase/supabase-js'
+import { createClient } from '@/lib/auth'
+import { Session } from '@supabase/supabase-js'
 
-export type AppRole = 'student' | 'tutor' | 'admin'
+const ADMIN_EMAIL = 'admin@edustory.com' // Sesuaikan dengan email admin Anda
+
+type AppRole = 'student' | 'tutor' | 'admin' | null
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
-  loading: boolean
-  userRole: AppRole | null
+  session: any
+  userRole: AppRole
   userName: string | null
+  loading: boolean
   signUp: (email: string, password: string, role: 'student' | 'tutor') => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
@@ -29,6 +31,7 @@ const DB_ROLE_MAP: Record<string, AppRole> = {
   admin: 'admin',
 }
 
+// Perbaikan untuk fetchUserProfile function (line 46-66)
 async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | null; name: string | null }> {
   // Admin is identified by email — no DB lookup needed
   if (currentUser.email === ADMIN_EMAIL) {
@@ -39,20 +42,34 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
   }
 
   try {
-    const { data: profile } = await supabase
+    const supabase = createClient()
+    
+    // Add timeout to prevent hanging
+    const profilePromise = supabase
       .from('user_profiles')
       .select('role, name')
       .eq('id', currentUser.id)
       .single()
 
-    if (profile) {
-      return {
-        role: DB_ROLE_MAP[profile.role as string] ?? null,
-        name: profile.name || currentUser.email || null,
+    const timeoutPromise = new Promise<null>((_, reject) => {
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+    })
+
+    const result = await Promise.race([profilePromise, timeoutPromise])
+    
+    // Type guard untuk memeriksa hasil
+    if (result && 'data' in result) {
+      const profile = result.data
+      if (profile) {
+        return {
+          role: DB_ROLE_MAP[profile.role as string] ?? null,
+          name: profile.name || currentUser.email || null,
+        }
       }
     }
-  } catch {
-    // Silently fall back to metadata when DB is unreachable or profile not yet created
+  } catch (error) {
+    console.warn('Error fetching profile, falling back to metadata:', error)
+    // Fall back to metadata when DB is unreachable or profile not yet created
   }
 
   // Fallback: read from JWT user_metadata (set during sign-up)
@@ -63,14 +80,16 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<Session | null>(null)  // Pastikan type Session
   const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState<AppRole | null>(null)
+  const [userRole, setUserRole] = useState<AppRole>(null)
   const [userName, setUserName] = useState<string | null>(null)
 
   useEffect(() => {
+    const supabase = createClient()
+    
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession()
@@ -97,20 +116,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentSession?.user ?? null)
 
         if (currentSession?.user) {
-          const { role, name } = await fetchUserProfile(currentSession.user)
-          setUserRole(role)
-          setUserName(name)
+          try {
+            const { role, name } = await fetchUserProfile(currentSession.user)
+            setUserRole(role)
+            setUserName(name)
+          } catch (error) {
+            console.error('Error updating user profile:', error)
+            setUserRole(null)
+            setUserName(null)
+          }
         } else {
           setUserRole(null)
           setUserName(null)
         }
+        
+        // Ensure loading is false after auth state change
+        setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -120,11 +151,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
   const signInWithGoogle = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -133,14 +166,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, session, loading, userRole, userName, signUp, signIn, signInWithGoogle, signOut }}
-    >
+    <AuthContext.Provider value={{ user, session, userRole, userName, loading, signUp, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   )
@@ -149,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within AuthProvider')
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }
