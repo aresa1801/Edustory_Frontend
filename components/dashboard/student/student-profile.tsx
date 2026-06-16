@@ -179,71 +179,91 @@ export default function StudentProfile() {
   }
 
   const handleSave = async () => {
-    if (!userProfile.name.trim()) {
-      setError('Nama lengkap tidak boleh kosong')
-      return
-    }
-
-    setSaving(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Anda harus login terlebih dahulu')
-
-      // Upsert user_profiles (handles both insert and update)
-      const { error: upErr } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: user.id,
-          email: user.email || userProfile.email,
-          name: userProfile.name.trim(),
-          phone: userProfile.phone.trim() || null,
-          bio: userProfile.bio.trim() || null,
-          gender: userProfile.gender || null,
-        })
-
-      if (upErr) throw upErr
-
-      // Upsert students table (insert if new, update if exists – keyed on user_id)
-      const studentPayload = {
-        user_id: user.id,
-        grade_level: studentData.grade_level || null,
-        subjects: studentData.subjects,
-        learning_goals: studentData.learning_goals.trim() || null,
-        preferred_schedule: studentData.preferred_schedule || null,
-        budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
-        sessions_per_month: studentData.sessions_per_month ? Number(studentData.sessions_per_month) : null,
-        address: studentData.address.trim() || null,
-        city: studentData.city || null,
-        parent_name: studentData.parent_name.trim() || null,
-        parent_email: studentData.parent_email.trim() || null,
-        parent_phone: studentData.parent_phone.trim() || null,
-        parent_relation: studentData.parent_relation || null,
-        school_name: studentData.school_name.trim() || null,
-        school_type: studentData.school_type || null,
-        school_city: studentData.school_city.trim() || null,
-        school_address: studentData.school_address.trim() || null,
-      }
-
-      const { data: savedSd, error: sdErr } = await supabase
-        .from('students')
-        .upsert(studentPayload, { onConflict: 'user_id' })
-        .select('id')
-        .single()
-      if (sdErr) throw sdErr
-      if (savedSd && !studentData.id) {
-        setStudentData(prev => ({ ...prev, id: savedSd.id }))
-      }
-
-      setSuccess('Profil berhasil disimpan!')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
-    } finally {
-      setSaving(false)
-    }
+  if (!userProfile.name.trim()) {
+    setError('Nama lengkap tidak boleh kosong')
+    return
   }
+
+  setSaving(true)
+  setError(null)
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Anda harus login terlebih dahulu')
+
+    // Step 1: Upsert user_profiles
+    const { error: upErr } = await supabase
+      .from('user_profiles')
+      .upsert({
+        id: user.id,
+        email: user.email || userProfile.email,
+        name: userProfile.name.trim(),
+        phone: userProfile.phone.trim() || null,
+        bio: userProfile.bio.trim() || null,
+        gender: userProfile.gender || null,
+        role: 'siswa', // Pastikan role ter-set
+      }, {
+        onConflict: 'id' // Explicit onConflict
+      })
+
+    if (upErr) {
+      console.error('Error saving user_profiles:', upErr)
+      throw upErr
+    }
+
+    // Step 2: Upsert students table
+    const studentPayload = {
+      user_id: user.id,
+      grade_level: studentData.grade_level || null,
+      subjects: studentData.subjects || [],
+      learning_goals: studentData.learning_goals.trim() || null,
+      preferred_schedule: studentData.preferred_schedule || null,
+      budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
+      sessions_per_month: studentData.sessions_per_month ? Number(studentData.sessions_per_month) : null,
+      address: studentData.address.trim() || null,
+      city: studentData.city || null,
+      parent_name: studentData.parent_name.trim() || null,
+      parent_email: studentData.parent_email.trim() || null,
+      parent_phone: studentData.parent_phone.trim() || null,
+      parent_relation: studentData.parent_relation || null,
+      school_name: studentData.school_name.trim() || null,
+      school_type: studentData.school_type || null,
+      school_city: studentData.school_city.trim() || null,
+      school_address: studentData.school_address.trim() || null,
+      onboarding_complete: true, // Set ini menjadi true
+      status: studentData.status || 'active', // Pastikan status ter-set
+    }
+
+    console.log('Saving student data:', studentPayload)
+
+    const { data: savedSd, error: sdErr } = await supabase
+      .from('students')
+      .upsert(studentPayload, { 
+        onConflict: 'user_id' 
+      })
+      .select()
+      .single()
+      
+    if (sdErr) {
+      console.error('Error saving students:', sdErr)
+      throw sdErr
+    }
+
+    console.log('Student saved successfully:', savedSd)
+    
+    if (savedSd && !studentData.id) {
+      setStudentData(prev => ({ ...prev, id: savedSd.id }))
+    }
+
+    setSuccess('Profil berhasil disimpan!')
+    setTimeout(() => setSuccess(null), 3000)
+  } catch (err) {
+    console.error('Save error:', err)
+    setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
+  } finally {
+    setSaving(false)
+  }
+}
 
   if (loading) {
     return (
