@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/auth'
@@ -14,6 +14,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  // Cek apakah user sudah login
+  useEffect(() => {
+    const checkIfLoggedIn = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        // User sudah login, langsung ke dashboard
+        router.replace('/dashboard')
+        return
+      }
+      
+      setCheckingAuth(false)
+    }
+    
+    checkIfLoggedIn()
+  }, [router])
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
@@ -29,7 +48,6 @@ export default function LoginPage() {
       if (error) throw error
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in with Google')
-    } finally {
       setLoading(false)
     }
   }
@@ -45,12 +63,25 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
-      router.push('/auth/callback')
+      
+      // ✅ PERBAIKAN: Langsung ke dashboard, BUKAN /auth/callback
+      router.replace('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
-    } finally {
       setLoading(false)
     }
+  }
+
+  // Tampilkan loading saat mengecek auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Memeriksa sesi...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
