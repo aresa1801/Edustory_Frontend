@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Mail, Lock, User, Chrome } from 'lucide-react'
@@ -21,6 +21,7 @@ export default function RegisterPage() {
   // Fetch user data from session on mount
   useEffect(() => {
     const initializeForm = async () => {
+      const supabase = createClient()
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         console.log('[v0] Register page - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
@@ -55,6 +56,7 @@ export default function RegisterPage() {
   }, [router])
 
   const handleGoogleSignUp = async () => {
+    const supabase = createClient()
     setLoading(true)
     setError(null)
     try {
@@ -101,6 +103,7 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
+    const supabase = createClient()
     try {
       // For Google OAuth, user is already authenticated
       // Just create the user profile

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { BookOpen, Users } from 'lucide-react'
 
@@ -12,6 +12,7 @@ export default function SelectRolePage() {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
+    const supabase = createClient()
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -28,6 +29,7 @@ export default function SelectRolePage() {
 
     console.log('[v0] Role selected:', role)
     setLoading(role)
+    const supabase = createClient()
     try {
       console.log('[v0] Saving user profile with role:', role)
 
@@ -86,7 +88,7 @@ export default function SelectRolePage() {
             disabled={loading === 'student'}
             className="bg-card rounded-2xl border border-border/50 p-8 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 disabled:opacity-50"
           >
-            <div className="text-6xl mb-4">👨‍🎓</div>
+            <div className="text-6xl mb-4">👨‍</div>
             <h2 className="text-2xl font-bold text-foreground mb-3">Menjadi Siswa</h2>
             <p className="text-muted-foreground mb-8">
               Temukan pengajar terbaik dan tingkatkan prestasi akademik Anda dengan bimbingan profesional
