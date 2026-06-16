@@ -9,71 +9,97 @@ import { BookOpen, Users } from 'lucide-react'
 export default function SelectRolePage() {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
+  const [checking, setChecking] = useState(true)
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    const getUser = async () => {
+    const checkUserAndRole = async () => {
+      const supabase = createClient()
+      
+      // 1. Cek apakah user sudah login
       const { data: { user } } = await supabase.auth.getUser()
+      
       if (!user) {
-        router.push('/auth/login')
-      } else {
-        setUser(user)
+        // Belum login, redirect ke login
+        router.replace('/auth/login')
+        return
       }
+      
+      setUser(user)
+      
+      // 2. Cek apakah user sudah punya role di database
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      if (profile?.role) {
+        // Sudah punya role, langsung redirect ke dashboard
+        const dashboardPath = profile.role === 'siswa' 
+          ? '/dashboard/student' 
+          : profile.role === 'tutor'
+          ? '/dashboard/tutor'
+          : '/dashboard/admin'
+        
+        router.replace(dashboardPath)
+        return
+      }
+      
+      // Belum punya role, tampilkan halaman select role
+      setChecking(false)
     }
-    getUser()
+    
+    checkUserAndRole()
   }, [router])
 
   const handleRoleSelection = async (role: 'student' | 'tutor') => {
     if (!user) return
 
-    console.log('[v0] Role selected:', role)
     setLoading(role)
     const supabase = createClient()
+    
     try {
-      console.log('[v0] Saving user profile with role:', role)
+      // Map frontend role to database role
+      const dbRole = role === 'student' ? 'siswa' : 'tutor'
+      
+      // Update user_profiles dengan role
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ role: dbRole })
+        .eq('id', user.id)
+      
+      if (error) throw error
 
-      // Get current session to retrieve the access token
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/auth/login')
-        return
-      }
-
-      // Call the server-side API route which uses the service role key to bypass RLS
-      const response = await fetch('/api/auth/set-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ role }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Terjadi kesalahan saat menyimpan peran')
-      }
-
-      // Redirect based on role - students go to onboarding wizard
-      console.log('[v0] Role saved, redirecting to dashboard:', role)
-      if (role === 'student') {
-        router.push('/dashboard/student/onboarding')
-      } else {
-        router.push(`/dashboard/${role}`)
-      }
+      // Redirect ke dashboard sesuai role
+      const dashboardPath = role === 'student' 
+        ? '/dashboard/student' 
+        : '/dashboard/tutor'
+      
+      router.replace(dashboardPath)
     } catch (error) {
-      console.error('[v0] Error selecting role:', error)
+      console.error('Error selecting role:', error)
       alert(error instanceof Error ? error.message : 'Terjadi kesalahan')
     } finally {
       setLoading(null)
     }
   }
 
+  // Show loading while checking
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Memeriksa sesi Anda...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5 p-4">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-4xl">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-foreground mb-3">Pilih Peran Anda</h1>
           <p className="text-lg text-muted-foreground">
@@ -88,7 +114,7 @@ export default function SelectRolePage() {
             disabled={loading === 'student'}
             className="bg-card rounded-2xl border border-border/50 p-8 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 disabled:opacity-50"
           >
-            <div className="text-6xl mb-4">👨‍</div>
+            <div className="text-6xl mb-4">👨‍🎓</div>
             <h2 className="text-2xl font-bold text-foreground mb-3">Menjadi Siswa</h2>
             <p className="text-muted-foreground mb-8">
               Temukan pengajar terbaik dan tingkatkan prestasi akademik Anda dengan bimbingan profesional
@@ -123,12 +149,12 @@ export default function SelectRolePage() {
 
         {/* Back to login link */}
         <div className="text-center mt-8">
-          <a
-            href="/auth/login"
+          <button
+            onClick={() => router.push('/')}
             className="text-muted-foreground hover:text-primary transition-colors text-sm"
           >
-            Kembali ke login
-          </a>
+            Kembali ke lobby
+          </button>
         </div>
       </div>
     </div>

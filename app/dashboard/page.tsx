@@ -2,62 +2,66 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
-import { Spinner } from '@/components/ui/spinner'
+import { createClient } from '@/lib/auth'
 
-export default function DashboardRouter() {
+export default function HomePage() {
   const router = useRouter()
-  const { user, userRole, loading } = useAuth()
-  const [isRedirecting, setIsRedirecting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Jangan lakukan apa-apa jika masih loading atau sedang redirecting
-    if (loading || isRedirecting) return
-
-    // Jika tidak ada user, redirect ke login
-    if (!user) {
-      router.replace('/auth/login')
-      return
-    }
-
-    // Jika user ada tapi role belum tersedia, tunggu sebentar
-    if (!userRole) {
-      // Tunggu maksimal 3 detik untuk role tersedia
-      const timeout = setTimeout(() => {
-        if (!userRole) {
-          // Jika setelah 3 detik role masih null, anggap sebagai student
-          // atau redirect ke halaman select-role
-          router.replace('/auth/select-role')
-        }
-      }, 3000)
+    const checkAuthAndRedirect = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
       
-      return () => clearTimeout(timeout)
+      if (session) {
+        // User sudah login, cek role
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (profile?.role) {
+          // Sudah punya role, redirect ke dashboard
+          const dashboardPath = profile.role === 'siswa' 
+            ? '/dashboard/student' 
+            : profile.role === 'tutor'
+            ? '/dashboard/tutor'
+            : '/dashboard/admin'
+          
+          router.replace(dashboardPath)
+          return
+        } else {
+          // Belum punya role, redirect ke select role
+          router.replace('/auth/select-role')
+          return
+        }
+      }
+      
+      setIsLoading(false)
     }
 
-    // Redirect berdasarkan role
-    setIsRedirecting(true)
-    switch (userRole) {
-      case 'admin':
-        router.replace('/dashboard/admin')
-        break
-      case 'tutor':
-        router.replace('/dashboard/tutor')
-        break
-      case 'student':
-        router.replace('/dashboard/student')
-        break
-      default:
-        // Role tidak dikenali, kembali ke login
-        router.replace('/auth/login')
-    }
-  }, [user, userRole, loading, router, isRedirecting])
+    checkAuthAndRedirect()
+  }, [router])
 
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <Spinner className="h-8 w-8 mx-auto mb-4" />
-        <p className="text-muted-foreground">Memuat dashboard Anda...</p>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
+    )
+  }
+
+  // Landing page content untuk user yang belum login
+  return (
+    <div className="min-h-screen">
+      {/* ... konten landing page Anda ... */}
+      <button 
+        onClick={() => router.push('/auth/login')}
+        className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+      >
+        Mulai Belajar
+      </button>
     </div>
   )
 }
