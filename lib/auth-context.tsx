@@ -1,6 +1,8 @@
+'use client'
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase-client'  // ✅ Import instance langsung
+import { createClient } from '@/lib/auth'  // ✅ Import dari auth.ts
 
 const ADMIN_EMAIL = 'admin@edustory.com'
 
@@ -29,7 +31,7 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
   }
 
   try {
-    // ✅ Langsung pakai supabase yang sudah di-import
+    const supabase = createClient()  // ✅ Create instance di sini
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role, name')
@@ -76,10 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true
+    const supabase = createClient()  // ✅ Create instance di sini
 
     const initializeAuth = async () => {
       try {
-        // ✅ Langsung pakai supabase
         const { data: { session: currentSession } } = await supabase.auth.getSession()
         
         if (isMounted) {
@@ -134,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -143,11 +146,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
   const signInWithGoogle = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -156,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
