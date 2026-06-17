@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
 import Header from '@/components/header'
@@ -19,37 +19,57 @@ import WhatsAppButton from '@/components/whatsapp-button'
 
 export default function Home() {
   const router = useRouter()
+  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
     const checkAuth = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session) {
-        // User sudah login, cek apakah sudah punya role
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session) {
+          // User sudah login, cek role
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle()
 
-        if (profile?.role) {
-          // Sudah punya role, langsung ke dashboard
-          const dashboardPath = profile.role === 'siswa' 
-            ? '/dashboard/student' 
-            : profile.role === 'tutor'
-            ? '/dashboard/tutor'
-            : '/dashboard/admin'
-          
-          router.replace(dashboardPath)
+          if (profile?.role) {
+            // Sudah punya role, langsung ke dashboard
+            const dashboardPath = profile.role === 'siswa' 
+              ? '/dashboard/student' 
+              : profile.role === 'tutor'
+              ? '/dashboard/tutor'
+              : profile.role === 'admin'
+              ? '/dashboard/admin'
+              : null
+            
+            if (dashboardPath) {
+              router.replace(dashboardPath)
+              return
+            }
+          }
+          // Jika belum punya role, biarkan di landing page
         }
-        // Jika belum punya role, biarkan di landing page dulu
-        // Nanti kalau klik tombol "Dashboard" baru redirect ke select-role
+      } catch (err) {
+        console.error('Auth check error:', err)
+      } finally {
+        setIsChecking(false)
       }
     }
 
     checkAuth()
   }, [router])
+
+  // Tampilkan loading saat mengecek auth
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full">

@@ -1,93 +1,74 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
 
 export default function DashboardRouter() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    let isMounted = true
-    let retryCount = 0
-    const maxRetries = 3
-
     const checkAuthAndRedirect = async () => {
-      while (retryCount < maxRetries && isMounted) {
-        try {
-          const supabase = createClient()
-          
-          // Tunggu sebentar untuk memastikan session siap
-          await new Promise(resolve => setTimeout(resolve, 100))
-          
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-          
-          if (!isMounted) return
-          
-          // Jika tidak ada session
-          if (!session) {
-            console.log('No session found, redirecting to login')
-            router.replace('/auth/login')
-            return
-          }
-          
-          console.log('Session found for user:', session.user.email)
-          
-          // Cek profile dengan retry
-          const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-
-          if (!isMounted) return
-
-          if (profileError) {
-            console.warn('Profile fetch error:', profileError.message)
-            retryCount++
-            await new Promise(resolve => setTimeout(resolve, 500 * retryCount))
-            continue
-          }
-
-          if (!profile?.role) {
-            console.log('No role found, redirecting to select-role')
-            router.replace('/auth/select-role')
-            return
-          }
-
-          console.log('Profile found with role:', profile.role)
-          
-          // Map role ke dashboard path
-          const roleMap: Record<string, string> = {
-            'siswa': '/dashboard/student',
-            'tutor': '/dashboard/tutor',
-            'admin': '/dashboard/admin'
-          }
-          
-          const dashboardPath = roleMap[profile.role] || '/auth/select-role'
-          router.replace(dashboardPath)
+      try {
+        const supabase = createClient()
+        
+        // 1. Cek session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          console.log('No session, redirecting to login')
+          router.replace('/auth/login')
           return
-          
-        } catch (err) {
-          console.error(`Attempt ${retryCount + 1} failed:`, err)
-          retryCount++
-          await new Promise(resolve => setTimeout(resolve, 500 * retryCount))
         }
-      }
-      
-      // Jika semua retry gagal
-      if (isMounted) {
-        console.error('All authentication attempts failed')
+        
+        console.log('Session found for:', session.user.email)
+        
+        // 2. Cek profile dan role
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle() // Gunakan maybeSingle agar tidak error jika tidak ada data
+
+        if (profileError) {
+          console.error('Profile error:', profileError)
+          router.replace('/auth/login')
+          return
+        }
+
+        // 3. Jika belum punya role, ke select-role
+        if (!profile?.role) {
+          console.log('No role found, redirecting to select-role')
+          router.replace('/auth/select-role')
+          return
+        }
+
+        console.log('Role found:', profile.role)
+        
+        // 4. Map role ke dashboard path
+        const roleMap: Record<string, string> = {
+          'siswa': '/dashboard/student',
+          'tutor': '/dashboard/tutor',
+          'admin': '/dashboard/admin'
+        }
+        
+        const dashboardPath = roleMap[profile.role]
+        
+        if (dashboardPath) {
+          console.log('Redirecting to:', dashboardPath)
+          router.replace(dashboardPath)
+        } else {
+          console.warn('Unknown role:', profile.role)
+          router.replace('/auth/select-role')
+        }
+        
+      } catch (err) {
+        console.error('Unexpected error:', err)
         router.replace('/auth/login')
       }
     }
 
     checkAuthAndRedirect()
-
-    return () => {
-      isMounted = false
-    }
   }, [router])
 
   return (
