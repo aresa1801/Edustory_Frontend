@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   CreditCard,
   Settings,
+  Database,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
 
@@ -33,6 +34,7 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/admin/programs', icon: DollarSign, label: 'Program & Harga' },
       { href: '/dashboard/admin/payments', icon: CreditCard, label: 'Laporan Pembayaran' },
       { href: '/dashboard/admin/settings', icon: Settings, label: 'Pengaturan Pembayaran' },
+      { href: '/dashboard/admin/sql-editor', icon: Database, label: 'SQL Editor' },
       { href: '/dashboard/admin/analytics', icon: BarChart3, label: 'Analitik' },
     ],
   },
