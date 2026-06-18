@@ -235,9 +235,9 @@ export default function SQLEditorPage() {
           <CardTitle className="text-sm">Tips Penggunaan</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground space-y-2">
-          <p>• <strong>SELECT queries:</strong> Gunakan LIMIT untuk membatasi hasil besar</p>
-          <p>• <strong>INSERT/UPDATE/DELETE:</strong> Gunakan WHERE clause untuk spesifisitas</p>
-          <p>• <strong>Transactions:</strong> Tidak didukung, setiap query dijalankan terpisah</p>
+          <p>• <strong>SELECT queries:</strong> Sepenuhnya didukung. Gunakan LIMIT untuk membatasi hasil besar</p>
+          <p>• <strong>INSERT/UPDATE/DELETE:</strong> Tidak didukung. Gunakan Supabase dashboard untuk operasi ini</p>
+          <p>• <strong>Dangerous operations:</strong> DROP, TRUNCATE, ALTER SYSTEM, CREATE EXTENSION tidak diizinkan</p>
           <p>• <strong>Case sensitivity:</strong> Query SQL tidak case-sensitive untuk keywords, tapi case-sensitive untuk data</p>
         </CardContent>
       </Card>

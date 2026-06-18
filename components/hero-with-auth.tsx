@@ -26,7 +26,7 @@ const HeroWithAuth = () => {
   const dashboardPath = userRole ? `/dashboard/${userRole}` : '/dashboard'
   
   // User is authenticated AND has a valid profile
-  const isValidUser = user && profileExists && userRole
+  const hasAuthenticatedProfile = user && profileExists && userRole
 
   return (
     <>
@@ -79,7 +79,7 @@ const HeroWithAuth = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                {isValidUser ? (
+                {hasAuthenticatedProfile ? (
                   <Link href={dashboardPath}>
                     <Button className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2">
                       Buka Dashboard

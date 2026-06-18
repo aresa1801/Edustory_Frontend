@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState<string | null>(null)
   const [profileExists, setProfileExists] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
-  const profileFetchInProgress = useRef<boolean>(false)
+  const isProfileFetchInProgress = useRef<boolean>(false)
   const lastFetchedUserId = useRef<string | null>(null)
 
   useEffect(() => {
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null)
 
         if (currentSession?.user) {
-          profileFetchInProgress.current = true
+          isProfileFetchInProgress.current = true
           lastFetchedUserId.current = currentSession.user.id
           
           const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserName(name)
             setProfileExists(exists)
           }
-          profileFetchInProgress.current = false
+          isProfileFetchInProgress.current = false
         }
       } catch (error) {
         setInitError(error instanceof Error ? error.message : 'Unknown error')
@@ -143,8 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (currentSession?.user) {
             // Only fetch if we're not already fetching for a different user
-            if (!profileFetchInProgress.current && lastFetchedUserId.current !== currentSession.user.id) {
-              profileFetchInProgress.current = true
+            if (!isProfileFetchInProgress.current && lastFetchedUserId.current !== currentSession.user.id) {
+              isProfileFetchInProgress.current = true
               lastFetchedUserId.current = currentSession.user.id
               
               try {
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               } catch {
                 // Profile update failed silently — state stays as-is
               } finally {
-                profileFetchInProgress.current = false
+                isProfileFetchInProgress.current = false
               }
             }
           } else {

@@ -59,29 +59,24 @@ export async function POST(request: NextRequest) {
 
     // Sanitize the query — block dangerous operations
     const upperQuery = query.toUpperCase().trim()
+    
+    // Block dangerous patterns with regex to handle whitespace and comments
     const dangerousPatterns = [
-      'DROP DATABASE',
-      'DROP SCHEMA',
-      'ALTER SYSTEM',
-      'CREATE EXTENSION',
-      'COPY TO PROGRAM',
+      /\bDROP\s+DATABASE\b/i,
+      /\bDROP\s+SCHEMA\b/i,
+      /\bTRUNCATE\b/i,
+      /\bALTER\s+SYSTEM\b/i,
+      /\bCREATE\s+EXTENSION\b/i,
+      /\bCOPY\s+.*\s+TO\s+PROGRAM\b/i,
     ]
 
     for (const pattern of dangerousPatterns) {
-      if (upperQuery.includes(pattern)) {
+      if (pattern.test(upperQuery)) {
         return NextResponse.json(
-          { error: `This operation is not allowed for safety reasons: ${pattern}` },
+          { error: 'This operation is not allowed for safety reasons' },
           { status: 403 }
         )
       }
-    }
-
-    // TRUNCATE should also be blocked unless specifically allowed
-    if (upperQuery.startsWith('TRUNCATE')) {
-      return NextResponse.json(
-        { error: 'TRUNCATE operations are not allowed for safety reasons' },
-        { status: 403 }
-      )
     }
 
     // Use the service role client to execute the query directly
@@ -92,21 +87,27 @@ export async function POST(request: NextRequest) {
     )
 
     // Execute the query using raw SQL
+    // Note: This currently requires an 'execute_sql' RPC function in Supabase
+    // If the function doesn't exist, you need to create it manually in your Supabase dashboard
     const startTime = Date.now()
     
-    // For SELECT queries, use regular query API
-    // For other queries, we need to use the sql function if available
+    // For SELECT queries, use the RPC function
+    // For other queries, return an error message guiding users to the Supabase dashboard
     let data: any[] = []
     let error: any = null
     
     const upperTrimmedQuery = query.trim().toUpperCase()
     if (upperTrimmedQuery.startsWith('SELECT')) {
-      // For SELECT, we can use the generic query approach
+      // For SELECT, try to use the execute_sql RPC function
+      // If this function doesn't exist in your Supabase, you need to create it:
+      // 1. Go to your Supabase dashboard
+      // 2. Navigate to SQL Editor
+      // 3. Create a function: CREATE OR REPLACE FUNCTION execute_sql(sql text) RETURNS TABLE AS $$ ... $$
       const { data: queryData, error: queryError } = await (serviceSupabase as any).rpc('execute_sql', {
         sql: query.trim(),
       }).catch(() => {
-        // If execute_sql RPC doesn't exist, try a different approach
-        return { data: null, error: { message: 'SQL execution not available. Please use Supabase dashboard.' } }
+        // If execute_sql RPC doesn't exist, return an error message
+        return { data: null, error: { message: 'SQL execution function not available. Please create the execute_sql RPC function in your Supabase dashboard.' } }
       })
       
       if (queryError) {
@@ -115,9 +116,9 @@ export async function POST(request: NextRequest) {
         data = queryData || []
       }
     } else {
-      // For non-SELECT queries, log a warning
+      // For non-SELECT queries, guide users to use the Supabase dashboard
       data = []
-      error = { message: 'Only SELECT queries are currently supported via this editor. Please use the Supabase dashboard for INSERT, UPDATE, DELETE operations.' }
+      error = { message: 'Only SELECT queries are supported via this editor. For INSERT, UPDATE, DELETE, or DDL operations, please use the Supabase SQL Editor.' }
     }
 
     const endTime = Date.now()
