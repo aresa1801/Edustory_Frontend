@@ -46,7 +46,7 @@ export function toAppRole(dbRole: string | null | undefined): AppRole {
  * Converts a frontend AppRole to the database role value.
  */
 export function toDbRole(appRole: 'student' | 'tutor' | 'admin'): string {
-  return APP_ROLE_TO_DB_ROLE[appRole] ?? appRole
+  return APP_ROLE_TO_DB_ROLE[appRole]
 }
 
 /**

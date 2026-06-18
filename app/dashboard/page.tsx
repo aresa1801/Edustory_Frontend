@@ -29,15 +29,17 @@ export default function DashboardRouter() {
       return
     }
 
+    // No role yet — send to role selection
+    if (!userRole) {
+      router.replace('/auth/select-role')
+      return
+    }
+
     // User has a role — go to their dashboard
     const dashboardPath = getDashboardPath(userRole)
     if (dashboardPath) {
       router.replace(dashboardPath)
-      return
     }
-
-    // No role yet — send to role selection
-    router.replace('/auth/select-role')
   }, [loading, user, userRole, router])
 
   return (
