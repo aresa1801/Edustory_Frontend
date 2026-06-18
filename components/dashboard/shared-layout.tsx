@@ -82,7 +82,7 @@ export default function SharedDashboardLayout({
 }: SharedDashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, userRole, userName, loading, signOut } = useAuth()
+  const { user, userRole, userName, loading, profileExists, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
 
@@ -96,6 +96,12 @@ export default function SharedDashboardLayout({
       return
     }
 
+    // User exists but profile was deleted — redirect to login
+    if (!profileExists) {
+      router.push('/auth/login')
+      return
+    }
+
     if (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
       // Redirect to the correct dashboard for this role
       const roleRedirectMap: Record<AppRole, string> = {
@@ -105,7 +111,7 @@ export default function SharedDashboardLayout({
       }
       router.push(roleRedirectMap[userRole] ?? redirectPath)
     }
-  }, [loading, user, userRole, allowedRoles, redirectPath, router])
+  }, [loading, user, userRole, profileExists, allowedRoles, redirectPath, router])
 
   const handleLogout = async () => {
     try {
@@ -144,7 +150,7 @@ export default function SharedDashboardLayout({
   }
 
   // Still waiting for redirect to fire — render nothing
-  if (!user || (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole))) {
+  if (!user || !profileExists || (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole))) {
     return null
   }
 

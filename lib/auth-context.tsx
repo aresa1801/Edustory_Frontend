@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { AppRole, toAppRole, isAdminEmail } from '@/lib/auth/role-utils'
@@ -13,6 +13,7 @@ interface AuthContextType {
   userRole: AppRole
   userName: string | null
   loading: boolean
+  profileExists: boolean
   signUp: (email: string, password: string, role: 'student' | 'tutor') => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
@@ -22,15 +23,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 /**
- * Fetches the user's role and name from the database profile, falling back to
- * user_metadata when the profile doesn't exist yet.
+ * Fetches the user's role and name from the database profile.
+ * Returns null for role if profile doesn't exist and no metadata role available.
  */
-async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole; name: string | null }> {
+async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole; name: string | null; profileExists: boolean }> {
   // Admin shortcut — no DB lookup needed
   if (isAdminEmail(currentUser.email)) {
     return {
       role: 'admin',
       name: currentUser.user_metadata?.full_name || 'Administrator',
+      profileExists: true,
     }
   }
 
@@ -44,23 +46,35 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole; nam
 
     if (error) {
       console.error('[Auth] Profile fetch error:', error)
+      return {
+        role: null,
+        name: currentUser.email || null,
+        profileExists: false,
+      }
     }
 
     if (profile) {
       return {
         role: toAppRole(profile.role as string),
         name: profile.name || currentUser.email || null,
+        profileExists: true,
       }
     }
+    
+    // Profile doesn't exist in DB
+    console.warn('[Auth] User profile not found in database')
+    return {
+      role: null,
+      name: currentUser.email || null,
+      profileExists: false,
+    }
   } catch (error) {
-    console.warn('[Auth] Profile fetch failed, using metadata:', error)
-  }
-
-  // Fallback to user_metadata
-  const metaRole = currentUser.user_metadata?.role as string | undefined
-  return {
-    role: toAppRole(metaRole),
-    name: currentUser.user_metadata?.full_name || currentUser.email || null,
+    console.warn('[Auth] Profile fetch failed:', error)
+    return {
+      role: null,
+      name: currentUser.email || null,
+      profileExists: false,
+    }
   }
 }
 
@@ -70,7 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<AppRole>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [profileExists, setProfileExists] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
+  const isProfileFetchInProgress = useRef<boolean>(false)
+  const lastFetchedUserId = useRef<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -97,11 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null)
 
         if (currentSession?.user) {
-          const { role, name } = await fetchUserProfile(currentSession.user)
-          if (isMounted) {
+          isProfileFetchInProgress.current = true
+          lastFetchedUserId.current = currentSession.user.id
+          
+          const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
+          if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
             setUserRole(role)
             setUserName(name)
+            setProfileExists(exists)
           }
+          isProfileFetchInProgress.current = false
         }
       } catch (error) {
         setInitError(error instanceof Error ? error.message : 'Unknown error')
@@ -120,16 +142,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(currentSession?.user ?? null)
 
           if (currentSession?.user) {
-            try {
-              const { role, name } = await fetchUserProfile(currentSession.user)
-              setUserRole(role)
-              setUserName(name)
-            } catch {
-              // Profile update failed silently — state stays as-is
+            // Only fetch if we're not already fetching for a different user
+            if (!isProfileFetchInProgress.current && lastFetchedUserId.current !== currentSession.user.id) {
+              isProfileFetchInProgress.current = true
+              lastFetchedUserId.current = currentSession.user.id
+              
+              try {
+                const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
+                if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
+                  setUserRole(role)
+                  setUserName(name)
+                  setProfileExists(exists)
+                }
+              } catch {
+                // Profile update failed silently — state stays as-is
+              } finally {
+                isProfileFetchInProgress.current = false
+              }
             }
           } else {
             setUserRole(null)
             setUserName(null)
+            setProfileExists(false)
+            lastFetchedUserId.current = null
           }
           
           setLoading(false)
@@ -190,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, userName, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, userRole, userName, loading, profileExists, signUp, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   )
