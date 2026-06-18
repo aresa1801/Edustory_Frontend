@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { supabase } from '@/lib/supabase-client'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,13 +37,6 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     tutor: '/dashboard/tutor',
   }
 
-  const DB_ROLE_TO_DASHBOARD: Record<string, string> = {
-    siswa: '/dashboard/student',
-    student: '/dashboard/student',
-    tutor: '/dashboard/tutor',
-    admin: '/dashboard/admin',
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -52,31 +45,17 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     try {
       if (mode === 'signin') {
         await signIn(formData.email, formData.password)
-        // After sign-in, check profile for role and redirect to the correct dashboard
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-          if (profile?.role) {
-            const path = DB_ROLE_TO_DASHBOARD[profile.role]
-            if (path) {
-              onSuccess?.()
-              router.push(path)
-              return
-            }
-          }
-        }
+        // Setelah login, redirect ke /dashboard yang akan handle routing otomatis
         onSuccess?.()
+        router.push('/dashboard')
       } else {
         if (formData.password !== formData.confirmPassword) {
           throw new Error('Password tidak cocok')
         }
         await signUp(formData.email, formData.password, role)
 
-        // After signup, create the user profile with the selected role and redirect
+        // Setelah signup, simpan role dan redirect
+        const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
           const setRoleRes = await fetch('/api/auth/set-role', {
