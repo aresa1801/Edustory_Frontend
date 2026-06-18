@@ -34,15 +34,16 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     const supabase = createClient()
     console.log('[Auth] Fetching user profile for:', currentUser.id)
     
+    // ✅ GANTI .single() dengan .maybeSingle() agar tidak error jika tidak ada data
     const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('role, name')
       .eq('id', currentUser.id)
-      .single()
+      .maybeSingle()  // ← PERUBAHAN PENTING
 
     if (error) {
       console.error('[Auth] Profile fetch error:', error)
-      throw error
+      // Jangan throw error, fallback ke metadata
     }
 
     if (profile) {
@@ -63,6 +64,7 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     console.warn('[Auth] Profile fetch failed, using metadata:', error)
   }
 
+  // Fallback ke metadata
   const metaRole = currentUser.user_metadata?.role as string | undefined
   const roleMap: Record<string, AppRole> = {
     siswa: 'student',
@@ -87,8 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true
-    let retryCount = 0
-    const maxRetries = 3
 
     const initializeAuth = async () => {
       console.log('[Auth] Initializing auth context...')
@@ -101,59 +101,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      while (retryCount < maxRetries && isMounted) {
-        try {
-          console.log(`[Auth] Attempt ${retryCount + 1}/${maxRetries}`)
-          const supabase = createClient()
-          
-          // Add timeout to prevent hanging
-          const sessionPromise = supabase.auth.getSession()
-          const timeoutPromise = new Promise<null>((_, reject) => {
-            setTimeout(() => reject(new Error('Session timeout')), 5000)
-          })
-          
-          const { data: { session: currentSession }, error: sessionError } = await Promise.race([
-            sessionPromise,
-            timeoutPromise
-          ]) as { data: { session: Session | null }, error: any }
-          
-          if (!isMounted) return
-          
-          if (sessionError) {
-            console.error('[Auth] Session error:', sessionError)
-            throw sessionError
-          }
-          
-          console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
+      try {
+        console.log('[Auth] Getting session...')
+        const supabase = createClient()
+        
+        // ✅ HAPUS TIMEOUT - langsung getSession tanpa Promise.race
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (!isMounted) return
+        
+        if (sessionError) {
+          console.error('[Auth] Session error:', sessionError)
+          setInitError(sessionError.message)
+          return
+        }
+        
+        console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
 
-          if (currentSession?.user) {
-            console.log('[Auth] Fetching user profile...')
-            const { role, name } = await fetchUserProfile(currentSession.user)
-            if (isMounted) {
-              setUserRole(role)
-              setUserName(name)
-              console.log('[Auth] User role:', role)
-            }
-          }
-          
-          break // Success
-        } catch (error) {
-          console.error(`[Auth] Attempt ${retryCount + 1} failed:`, error)
-          retryCount++
-          if (retryCount >= maxRetries) {
-            console.error('[Auth] Max retries reached')
-            setInitError('Failed to initialize authentication')
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
+        if (currentSession?.user) {
+          console.log('[Auth] Fetching user profile...')
+          const { role, name } = await fetchUserProfile(currentSession.user)
+          if (isMounted) {
+            setUserRole(role)
+            setUserName(name)
+            console.log('[Auth] User role:', role)
           }
         }
-      }
-      
-      if (isMounted) {
-        console.log('[Auth] Initialization complete')
-        setLoading(false)
+        
+      } catch (error) {
+        console.error('[Auth] Initialization error:', error)
+        setInitError(error instanceof Error ? error.message : 'Unknown error')
+      } finally {
+        // ✅ PASTIKAN loading selalu di-set ke false
+        if (isMounted) {
+          console.log('[Auth] Initialization complete')
+          setLoading(false)
+        }
       }
     }
 
