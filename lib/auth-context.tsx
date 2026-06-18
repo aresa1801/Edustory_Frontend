@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { createClient } from '@/lib/auth'  // ✅ Import dari auth.ts
+import { createClient } from '@/lib/auth'
 
 const ADMIN_EMAIL = 'admin@edustory.com'
 
@@ -31,14 +31,22 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
   }
 
   try {
-    const supabase = createClient()  // ✅ Create instance di sini
-    const { data: profile } = await supabase
+    const supabase = createClient()
+    console.log('[Auth] Fetching user profile for:', currentUser.id)
+    
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('role, name')
       .eq('id', currentUser.id)
       .single()
 
+    if (error) {
+      console.error('[Auth] Profile fetch error:', error)
+      throw error
+    }
+
     if (profile) {
+      console.log('[Auth] Profile found:', profile)
       const roleMap: Record<string, AppRole> = {
         siswa: 'student',
         student: 'student',
@@ -52,7 +60,7 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
       }
     }
   } catch (error) {
-    console.warn('Profile fetch error, using metadata:', error)
+    console.warn('[Auth] Profile fetch failed, using metadata:', error)
   }
 
   const metaRole = currentUser.user_metadata?.role as string | undefined
@@ -75,38 +83,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<AppRole>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [initError, setInitError] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
-    const supabase = createClient()  // ✅ Create instance di sini
+    let retryCount = 0
+    const maxRetries = 3
 
     const initializeAuth = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        
-        if (isMounted) {
+      console.log('[Auth] Initializing auth context...')
+      
+      // Check env variables
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        console.error('[Auth] Missing Supabase environment variables!')
+        setInitError('Missing Supabase configuration')
+        if (isMounted) setLoading(false)
+        return
+      }
+
+      while (retryCount < maxRetries && isMounted) {
+        try {
+          console.log(`[Auth] Attempt ${retryCount + 1}/${maxRetries}`)
+          const supabase = createClient()
+          
+          // Add timeout to prevent hanging
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise<null>((_, reject) => {
+            setTimeout(() => reject(new Error('Session timeout')), 5000)
+          })
+          
+          const { data: { session: currentSession }, error: sessionError } = await Promise.race([
+            sessionPromise,
+            timeoutPromise
+          ]) as { data: { session: Session | null }, error: any }
+          
+          if (!isMounted) return
+          
+          if (sessionError) {
+            console.error('[Auth] Session error:', sessionError)
+            throw sessionError
+          }
+          
+          console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
           setSession(currentSession)
           setUser(currentSession?.user ?? null)
 
           if (currentSession?.user) {
+            console.log('[Auth] Fetching user profile...')
             const { role, name } = await fetchUserProfile(currentSession.user)
-            setUserRole(role)
-            setUserName(name)
+            if (isMounted) {
+              setUserRole(role)
+              setUserName(name)
+              console.log('[Auth] User role:', role)
+            }
+          }
+          
+          break // Success
+        } catch (error) {
+          console.error(`[Auth] Attempt ${retryCount + 1} failed:`, error)
+          retryCount++
+          if (retryCount >= maxRetries) {
+            console.error('[Auth] Max retries reached')
+            setInitError('Failed to initialize authentication')
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
           }
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+      }
+      
+      if (isMounted) {
+        console.log('[Auth] Initialization complete')
+        setLoading(false)
       }
     }
 
     initializeAuth()
 
+    const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event: string, currentSession: Session | null) => {
+        console.log('[Auth] Auth state changed:', _event)
         if (isMounted) {
           setSession(currentSession)
           setUser(currentSession?.user ?? null)
@@ -117,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUserRole(role)
               setUserName(name)
             } catch (error) {
-              console.error('Profile update error:', error)
+              console.error('[Auth] Profile update error:', error)
             }
           } else {
             setUserRole(null)
@@ -130,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     return () => {
+      console.log('[Auth] Cleaning up auth context')
       isMounted = false
       subscription.unsubscribe()
     }
@@ -164,6 +221,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
     const { error } = await supabase.auth.signOut()
     if (error) throw error
+  }
+
+  // Show error state
+  if (initError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-6">
+          <h2 className="text-xl font-bold text-red-500 mb-2">Authentication Error</h2>
+          <p className="text-muted-foreground mb-4">{initError}</p>
+          <p className="text-sm text-muted-foreground">
+            Check Vercel environment variables
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
