@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
+import { toAppRole, toDbRole, getDashboardPath } from '@/lib/auth/role-utils'
 import { Button } from '@/components/ui/button'
-import { BookOpen, Users } from 'lucide-react'
 
 export default function SelectRolePage() {
   const router = useRouter()
@@ -16,37 +16,31 @@ export default function SelectRolePage() {
     const checkUserAndRole = async () => {
       const supabase = createClient()
       
-      // 1. Cek apakah user sudah login
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        // Belum login, redirect ke login
         router.replace('/auth/login')
         return
       }
       
       setUser(user)
       
-      // 2. Cek apakah user sudah punya role di database
+      // Check if user already has a role
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('role')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
       
       if (profile?.role) {
-        // Sudah punya role, langsung redirect ke dashboard
-        const dashboardPath = profile.role === 'siswa' 
-          ? '/dashboard/student' 
-          : profile.role === 'tutor'
-          ? '/dashboard/tutor'
-          : '/dashboard/admin'
-        
-        router.replace(dashboardPath)
-        return
+        const appRole = toAppRole(profile.role as string)
+        const dashboardPath = getDashboardPath(appRole)
+        if (dashboardPath) {
+          router.replace(dashboardPath)
+          return
+        }
       }
       
-      // Belum punya role, tampilkan halaman select role
       setChecking(false)
     }
     
@@ -60,10 +54,8 @@ export default function SelectRolePage() {
     const supabase = createClient()
     
     try {
-      // Map frontend role to database role
-      const dbRole = role === 'student' ? 'siswa' : 'tutor'
+      const dbRole = toDbRole(role)
       
-      // Update user_profiles dengan role
       const { error } = await supabase
         .from('user_profiles')
         .update({ role: dbRole })
@@ -71,12 +63,8 @@ export default function SelectRolePage() {
       
       if (error) throw error
 
-      // Redirect ke dashboard sesuai role
-      const dashboardPath = role === 'student' 
-        ? '/dashboard/student' 
-        : '/dashboard/tutor'
-      
-      router.replace(dashboardPath)
+      const dashboardPath = getDashboardPath(role)
+      router.replace(dashboardPath ?? '/dashboard')
     } catch (error) {
       console.error('Error selecting role:', error)
       alert(error instanceof Error ? error.message : 'Terjadi kesalahan')

@@ -1,11 +1,9 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
+import { toDbRole } from '@/lib/auth/role-utils'
 
-export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
+// Re-export the canonical browser client so existing imports from '@/lib/auth'
+// continue to work without changes.
+export const createClient = createSupabaseClient
 
 export async function registerUser(
   email: string,
@@ -15,7 +13,6 @@ export async function registerUser(
 ) {
   const supabase = createClient()
 
-  // Sign up the user
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -35,8 +32,7 @@ export async function registerUser(
     throw new Error('Failed to create user')
   }
 
-  // Create user profile
-  const dbRole = role === 'student' ? 'siswa' : role
+  const dbRole = toDbRole(role)
   const { error: profileError } = await supabase
     .from('user_profiles')
     .insert([
@@ -77,7 +73,7 @@ export async function logoutUser() {
 
 export async function getCurrentUser() {
   const supabase = createClient()
-  const { data, error } = await supabase.auth.getUser()
+  const { data } = await supabase.auth.getUser()
   return data?.user
 }
 

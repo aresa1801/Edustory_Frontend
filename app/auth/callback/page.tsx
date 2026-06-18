@@ -3,15 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
-import { ADMIN_EMAIL } from '@/lib/constants'
-
-// Map DB role values to dashboard route segments
-const ROLE_TO_DASHBOARD: Record<string, string> = {
-  siswa: 'student',
-  student: 'student',
-  tutor: 'tutor',
-  admin: 'admin',
-}
+import { isAdminEmail, toAppRole, getDashboardPath } from '@/lib/auth/role-utils'
 
 export default function AuthCallback() {
   const router = useRouter()
@@ -21,13 +13,9 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Use the SSR-aware browser client so the session is persisted in cookies,
-        // which is required by the dashboard layouts that also use createClient().
         const supabase = createClient()
 
-        // Handle implicit flow: access_token + refresh_token may be passed as query
-        // params (older Supabase redirect) or in the URL hash.  For PKCE flow the
-        // SSR client's getSession() will automatically exchange the code param.
+        // Handle implicit flow tokens passed as query params
         const searchParams = new URLSearchParams(window.location.search)
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
@@ -35,94 +23,68 @@ export default function AuthCallback() {
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Get the current session (also handles PKCE code exchange automatically)
+        // Get or exchange session (PKCE handled automatically)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[v0] Auth Callback - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
 
         if (sessionError || !session) {
-          console.log('[v0] No session found, redirecting to login')
           router.push('/auth/login')
           return
         }
 
-        // Check if user is admin
-        if (session.user.email === ADMIN_EMAIL) {
-          console.log('[v0] Admin detected, redirecting to admin dashboard')
+        // Admin bypass — skip role selection entirely
+        if (isAdminEmail(session.user.email)) {
           router.push('/dashboard/admin')
           return
         }
 
-        // Check if user has a role in the database
+        // Check existing profile
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
           .eq('id', session.user.id)
-          .single()
-
-        if (profileError && profileError.code === 'PGRST116') {
-          // User doesn't exist yet.
-          const provider = session.user.app_metadata?.provider
-          console.log('[v0] User profile not found, provider:', provider)
-
-          // If the user arrived here from the homepage registration popup they will
-          // have stored their chosen role in localStorage before the OAuth redirect.
-          const pendingRole = typeof window !== 'undefined'
-            ? localStorage.getItem('pendingRole')
-            : null
-
-          if (pendingRole === 'student' || pendingRole === 'tutor') {
-            console.log('[v0] pendingRole found:', pendingRole, '— creating profile and redirecting to dashboard')
-            localStorage.removeItem('pendingRole')
-
-            // Create the profile with the pre-selected role
-            const setRoleRes = await fetch('/api/auth/set-role', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ role: pendingRole }),
-            })
-
-            if (setRoleRes.ok) {
-              if (pendingRole === 'student') {
-                router.push('/dashboard/student/onboarding')
-              } else {
-                router.push('/dashboard/tutor')
-              }
-              return
-            }
-            console.warn('[v0] set-role API failed, falling back to select-role')
-          }
-
-          // No pending role (or API failed) — let the user pick their role manually
-          console.log('[v0] Redirecting to select-role')
-          router.push('/auth/select-role')
-          return
-        }
+          .maybeSingle()
 
         if (profileError && profileError.code !== 'PGRST116') {
           throw profileError
         }
 
-        // Redirect to appropriate dashboard based on role
-        if (userProfile) {
-          const role = userProfile.role as string
-          console.log('[v0] User profile found with role:', role)
-          // Map DB role values (e.g. 'siswa') back to dashboard route segments
-          const dashboardPath = ROLE_TO_DASHBOARD[role]
-          if (!dashboardPath) {
-            console.warn('[v0] Unknown role value from DB:', role, '— redirecting to select-role')
-            router.push('/auth/select-role')
-          } else {
-            router.push(`/dashboard/${dashboardPath}`)
-          }
-        } else {
-          console.log('[v0] No role found, redirecting to select-role')
-          router.push('/auth/select-role')
+        // User already has a role — redirect to their dashboard
+        if (userProfile?.role) {
+          const appRole = toAppRole(userProfile.role as string)
+          const dashboardPath = getDashboardPath(appRole)
+          router.push(dashboardPath ?? '/auth/select-role')
+          return
         }
+
+        // New user — check for a pending role from localStorage (set before OAuth redirect)
+        const pendingRole = typeof window !== 'undefined'
+          ? localStorage.getItem('pendingRole')
+          : null
+
+        if (pendingRole === 'student' || pendingRole === 'tutor') {
+          localStorage.removeItem('pendingRole')
+
+          const setRoleRes = await fetch('/api/auth/set-role', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ role: pendingRole }),
+          })
+
+          if (setRoleRes.ok) {
+            const dashboardPath = getDashboardPath(pendingRole)
+            router.push(dashboardPath ?? '/dashboard')
+            return
+          }
+          // API failed — fall through to select-role
+        }
+
+        // No role yet — let user pick
+        router.push('/auth/select-role')
       } catch (err) {
-        console.error('[v0] Callback error:', err)
+        console.error('[AuthCallback] Error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
       } finally {
         setLoading(false)

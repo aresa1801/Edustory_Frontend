@@ -2,74 +2,45 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
+import { getDashboardPath, isAdminEmail } from '@/lib/auth/role-utils'
 
+/**
+ * Dashboard index route — checks authentication and role, then redirects
+ * to the appropriate sub-dashboard. The middleware already guards this route
+ * for unauthenticated users, so we only need to handle role resolution here.
+ */
 export default function DashboardRouter() {
   const router = useRouter()
+  const { user, userRole, loading } = useAuth()
 
   useEffect(() => {
-    const checkAuthAndRedirect = async () => {
-      try {
-        const supabase = createClient()
-        
-        // 1. Cek session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError || !session) {
-          console.log('No session, redirecting to login')
-          router.replace('/auth/login')
-          return
-        }
-        
-        console.log('Session found for:', session.user.email)
-        
-        // 2. Cek profile dan role
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle() // Gunakan maybeSingle agar tidak error jika tidak ada data
+    if (loading) return
 
-        if (profileError) {
-          console.error('Profile error:', profileError)
-          router.replace('/auth/login')
-          return
-        }
-
-        // 3. Jika belum punya role, ke select-role
-        if (!profile?.role) {
-          console.log('No role found, redirecting to select-role')
-          router.replace('/auth/select-role')
-          return
-        }
-
-        console.log('Role found:', profile.role)
-        
-        // 4. Map role ke dashboard path
-        const roleMap: Record<string, string> = {
-          'siswa': '/dashboard/student',
-          'tutor': '/dashboard/tutor',
-          'admin': '/dashboard/admin'
-        }
-        
-        const dashboardPath = roleMap[profile.role]
-        
-        if (dashboardPath) {
-          console.log('Redirecting to:', dashboardPath)
-          router.replace(dashboardPath)
-        } else {
-          console.warn('Unknown role:', profile.role)
-          router.replace('/auth/select-role')
-        }
-        
-      } catch (err) {
-        console.error('Unexpected error:', err)
-        router.replace('/auth/login')
-      }
+    // No user — middleware should catch this, but just in case:
+    if (!user) {
+      router.replace('/auth/login')
+      return
     }
 
-    checkAuthAndRedirect()
-  }, [router])
+    // Admin bypass — skip role check
+    if (isAdminEmail(user.email)) {
+      router.replace('/dashboard/admin')
+      return
+    }
+
+    // No role yet — send to role selection
+    if (!userRole) {
+      router.replace('/auth/select-role')
+      return
+    }
+
+    // User has a role — go to their dashboard
+    const dashboardPath = getDashboardPath(userRole)
+    if (dashboardPath) {
+      router.replace(dashboardPath)
+    }
+  }, [loading, user, userRole, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center">
