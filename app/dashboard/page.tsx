@@ -12,13 +12,20 @@ import { getDashboardPath, isAdminEmail } from '@/lib/auth/role-utils'
  */
 export default function DashboardRouter() {
   const router = useRouter()
-  const { user, userRole, loading } = useAuth()
+  const { user, userRole, loading, profileExists } = useAuth()
 
   useEffect(() => {
     if (loading) return
 
     // No user — middleware should catch this, but just in case:
     if (!user) {
+      router.replace('/auth/login')
+      return
+    }
+
+    // User exists but profile doesn't (deleted or never created) — send to login
+    if (!profileExists) {
+      console.warn('[Dashboard] User profile not found, redirecting to login')
       router.replace('/auth/login')
       return
     }
@@ -40,7 +47,7 @@ export default function DashboardRouter() {
     if (dashboardPath) {
       router.replace(dashboardPath)
     }
-  }, [loading, user, userRole, router])
+  }, [loading, user, userRole, profileExists, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center">
