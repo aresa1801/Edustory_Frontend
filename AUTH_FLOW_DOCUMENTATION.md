@@ -4,7 +4,7 @@
 
 ### For Regular Users (Student/Tutor)
 
-#### Flow A: Registration via Homepage Popup (Daftar Sekarang)
+#### Flow A: Registration via Homepage Popup (Daftar Sekarang) - WITH EMAIL VERIFICATION
 
 The homepage popup (`AuthModal`) lets users pick a role **before** authenticating.
 
@@ -16,11 +16,16 @@ The homepage popup (`AuthModal`) lets users pick a role **before** authenticatin
 5. Callback reads `pendingRole` from `localStorage`, clears it, calls `/api/auth/set-role`
 6. **Redirect to `/dashboard/student/onboarding`** (student) or **`/dashboard/tutor`** (tutor) ✓
 
-##### A2 — Register with Email/Password
+##### A2 — Register with Email/Password + OTP Verification (NEW!)
 1. User opens popup, selects role, fills email/password, clicks **Daftar**
-2. Supabase creates the auth user; if a session is immediately available:
-3. `/api/auth/set-role` is called to create `user_profiles` with the selected role
-4. **Redirect to `/dashboard/student/onboarding`** (student) or **`/dashboard/tutor`** (tutor) ✓
+2. Supabase creates the auth user and sends a 6-digit OTP code to the user's email
+3. User is shown the OTP verification screen
+4. User enters the 6-digit code from their email
+5. `/api/auth/verify-otp` verifies the code and creates the session
+6. `/api/auth/set-role` is called to create `user_profiles` with the selected role
+7. **Redirect to `/dashboard/student/onboarding`** (student) or **`/dashboard/tutor`** (tutor) ✓
+
+**Note**: Email verification codes are sent from `program.struck30@gmail.com` (requires Supabase SMTP configuration - see EMAIL_VERIFICATION_SETUP.md)
 
 ---
 
@@ -63,11 +68,15 @@ pendingRole in localStorage? ──YES──> set-role API → /dashboard/{role}
 ```
 
 ```
-Homepage Popup — Daftar (Email/Password)
+Homepage Popup — Daftar (Email/Password + OTP)
     ↓
-signUp() → session available?
-    ├─YES──> set-role API → /dashboard/{role} ✓
-    └─NO───> close dialog (email confirmation pending)
+signUp() → OTP sent to email
+    ↓
+User enters OTP → verify-otp API
+    ↓
+OTP valid? ──YES──> set-role API → /dashboard/{role} ✓
+    ↓ NO
+Show error, allow resend OTP
 ```
 
 ---
@@ -82,7 +91,14 @@ signUp() → session available?
 
 ### Homepage Auth Popup
 - `/components/auth/auth-modal.tsx` — Registration/login modal with role selector;
-                                      stores `pendingRole` before Google OAuth redirect
+                                      stores `pendingRole` before Google OAuth redirect;
+                                      includes OTP verification screen
+
+### API Routes
+- `/app/api/auth/set-role/route.ts`    — Creates user profile with role
+- `/app/api/auth/callback/route.ts`    — OAuth callback handler
+- `/app/api/auth/verify-otp/route.ts`  — Verifies OTP code (NEW!)
+- `/app/api/auth/resend-otp/route.ts`  — Resends OTP code (NEW!)
 
 ### Dashboard Files
 - `/app/dashboard/student/page.tsx` — Student dashboard
@@ -117,10 +133,15 @@ Check the browser console to verify flow progression.
 1. **Admin users** are identified by email: `storyaunty.evi@gmail.com`
 2. **Homepage popup** users pre-select their role — `pendingRole` is stored in `localStorage`
    before the Google OAuth redirect and cleared immediately after use.
-3. **Fallback**: if `pendingRole` is missing (e.g. direct `/auth/login` flow) the user is sent
+3. **Email Verification**: Registration with email/password now requires OTP verification.
+   The OTP is sent from `program.struck30@gmail.com` (see EMAIL_VERIFICATION_SETUP.md for configuration).
+4. **Fallback**: if `pendingRole` is missing (e.g. direct `/auth/login` flow) the user is sent
    to `/auth/select-role` to pick their role manually.
-4. **Profile creation** happens via the `/api/auth/set-role` API route which uses the service
+5. **Profile creation** happens via the `/api/auth/set-role` API route which uses the service
    role key to bypass RLS. It upserts the record including name, email, and avatar.
-5. **Role** is stored in the `user_profiles` table as `siswa` (student) or `tutor`.
-6. All redirects use `router.push()` for client-side navigation.
+6. **Role** is stored in the `user_profiles` table as `siswa` (student) or `tutor`.
+7. All redirects use `router.push()` for client-side navigation.
+8. **OTP codes** expire after 60 minutes and are 6 digits long.
+9. Users can resend OTP codes if they don't receive them.
+
 
