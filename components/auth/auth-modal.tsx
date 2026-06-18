@@ -10,13 +10,15 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { Mail, ArrowLeft } from 'lucide-react'
 
-type AuthMode = 'signin' | 'signup'
+type AuthMode = 'signin' | 'signup' | 'verify-email'
 type UserRole = 'student' | 'tutor'
 
 interface AuthModalProps {
   onSuccess?: () => void
-  initialMode?: AuthMode
+  initialMode?: 'signin' | 'signup'
 }
 
 export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps) {
@@ -26,6 +28,8 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
   const [role, setRole] = useState<UserRole>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [otpValue, setOtpValue] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,9 +41,94 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     tutor: '/dashboard/tutor',
   }
 
+  const handleVerifyOTP = async () => {
+    if (otpValue.length !== 6) {
+      setError('Masukkan kode 6 digit')
+      return
+    }
+
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          token: otpValue,
+          type: 'signup',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Verifikasi gagal')
+      }
+
+      // After verification, set role
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        const setRoleRes = await fetch('/api/auth/set-role', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `******
+          },
+          body: JSON.stringify({ role }),
+        })
+        
+        if (!setRoleRes.ok) {
+          throw new Error('Gagal menyimpan peran. Silakan coba lagi.')
+        }
+        
+        onSuccess?.()
+        router.push(ROLE_TO_DASHBOARD[role])
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendOTP = async () => {
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          type: 'signup',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Gagal mengirim ulang kode')
+      }
+
+      setSuccess('Kode verifikasi telah dikirim ulang ke email Anda')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
     setLoading(true)
 
     try {
@@ -48,33 +137,17 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         // Setelah login, redirect ke /dashboard yang akan handle routing otomatis
         onSuccess?.()
         router.push('/dashboard')
-      } else {
+      } else if (mode === 'signup') {
         if (formData.password !== formData.confirmPassword) {
           throw new Error('Password tidak cocok')
         }
+        
+        // Sign up - this will trigger email with OTP
         await signUp(formData.email, formData.password, role)
-
-        // Setelah signup, simpan role dan redirect
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          const setRoleRes = await fetch('/api/auth/set-role', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ role }),
-          })
-          if (!setRoleRes.ok) {
-            throw new Error('Gagal menyimpan peran. Silakan coba lagi.')
-          }
-          onSuccess?.()
-          router.push(ROLE_TO_DASHBOARD[role])
-        } else {
-          // Email confirmation may be required; close dialog
-          onSuccess?.()
-        }
+        
+        // Switch to verification mode
+        setMode('verify-email')
+        setSuccess('Kode verifikasi telah dikirim ke email Anda. Silakan periksa inbox Anda.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
@@ -107,13 +180,116 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     )
   }
 
+  // Email Verification Screen
+  if (mode === 'verify-email') {
+    return (
+      <div className="w-full max-w-md mx-auto space-y-6">
+        <div className="text-center space-y-2">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mail className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold">Verifikasi Email Anda</h2>
+          <p className="text-muted-foreground">
+            Kami telah mengirim kode verifikasi 6 digit ke
+            <br />
+            <span className="font-medium text-foreground">{formData.email}</span>
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              {success}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="otp">Kode Verifikasi</Label>
+            <div className="flex justify-center">
+              <InputOTP
+                maxLength={6}
+                value={otpValue}
+                onChange={setOtpValue}
+                disabled={loading}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleVerifyOTP}
+            className="w-full bg-primary hover:bg-primary/90"
+            disabled={loading || otpValue.length !== 6}
+          >
+            {loading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Memverifikasi...
+              </>
+            ) : (
+              'Verifikasi'
+            )}
+          </Button>
+
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Tidak menerima kode?{' '}
+              <button
+                type="button"
+                onClick={handleResendOTP}
+                disabled={loading}
+                className="text-primary hover:underline font-medium disabled:opacity-50"
+              >
+                Kirim ulang
+              </button>
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signup')
+                setError(null)
+                setSuccess(null)
+                setOtpValue('')
+              }}
+              disabled={loading}
+              className="text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 w-full disabled:opacity-50"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Kembali ke pendaftaran
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Login/Signup Screen
   return (
     <div className="w-full max-w-md mx-auto">
       <Tabs
-        value={mode}
+        value={mode === 'signin' ? 'signin' : 'signup'}
         onValueChange={(value) => {
-          setMode(value as AuthMode)
+          setMode(value as 'signin' | 'signup')
           setError(null)
+          setSuccess(null)
         }}
         className="w-full"
       >
@@ -125,6 +301,14 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert className="mb-4 border-green-500 bg-green-50 dark:bg-green-950">
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              {success}
+            </AlertDescription>
           </Alert>
         )}
 
