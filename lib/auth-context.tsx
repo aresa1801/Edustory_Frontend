@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { AppRole, toAppRole, isAdminEmail } from '@/lib/auth/role-utils'
@@ -23,8 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 /**
- * Fetches the user's role and name from the database profile, falling back to
- * user_metadata when the profile doesn't exist yet.
+ * Fetches the user's role and name from the database profile.
  * Returns null for role if profile doesn't exist and no metadata role available.
  */
 async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole; name: string | null; profileExists: boolean }> {
@@ -87,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState<string | null>(null)
   const [profileExists, setProfileExists] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
+  const profileFetchInProgress = useRef<boolean>(false)
+  const lastFetchedUserId = useRef<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -113,12 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null)
 
         if (currentSession?.user) {
+          profileFetchInProgress.current = true
+          lastFetchedUserId.current = currentSession.user.id
+          
           const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
-          if (isMounted) {
+          if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
             setUserRole(role)
             setUserName(name)
             setProfileExists(exists)
           }
+          profileFetchInProgress.current = false
         }
       } catch (error) {
         setInitError(error instanceof Error ? error.message : 'Unknown error')
@@ -137,18 +142,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(currentSession?.user ?? null)
 
           if (currentSession?.user) {
-            try {
-              const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
-              setUserRole(role)
-              setUserName(name)
-              setProfileExists(exists)
-            } catch {
-              // Profile update failed silently — state stays as-is
+            // Only fetch if we're not already fetching for a different user
+            if (lastFetchedUserId.current !== currentSession.user.id) {
+              profileFetchInProgress.current = true
+              lastFetchedUserId.current = currentSession.user.id
+              
+              try {
+                const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
+                if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
+                  setUserRole(role)
+                  setUserName(name)
+                  setProfileExists(exists)
+                }
+              } catch {
+                // Profile update failed silently — state stays as-is
+              } finally {
+                profileFetchInProgress.current = false
+              }
             }
           } else {
             setUserRole(null)
             setUserName(null)
             setProfileExists(false)
+            lastFetchedUserId.current = null
           }
           
           setLoading(false)
