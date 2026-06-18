@@ -17,11 +17,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Resend OTP
     const { error } = await supabase.auth.resend({
-      type: type as 'signup' | 'email',
+      type: type as 'signup' | 'email_change',
       email,
     })
 

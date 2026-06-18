@@ -77,7 +77,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `******
+            'Authorization': `****** ${session.access_token}`,
           },
           body: JSON.stringify({ role }),
         })
