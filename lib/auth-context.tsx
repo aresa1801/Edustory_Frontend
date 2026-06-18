@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (currentSession?.user) {
             // Only fetch if we're not already fetching for a different user
-            if (lastFetchedUserId.current !== currentSession.user.id) {
+            if (!profileFetchInProgress.current && lastFetchedUserId.current !== currentSession.user.id) {
               profileFetchInProgress.current = true
               lastFetchedUserId.current = currentSession.user.id
               

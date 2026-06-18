@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle, Play, Copy, CheckCircle2 } from 'lucide-react'
-import { createClient } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/client'
 
 interface ExecutionResult {
   success: boolean
@@ -46,7 +46,6 @@ export default function SQLEditorPage() {
         return
       }
 
-      const startTime = performance.now()
       const response = await fetch('/api/admin/sql-execute', {
         method: 'POST',
         headers: {
@@ -56,7 +55,6 @@ export default function SQLEditorPage() {
       })
 
       const json = await response.json()
-      const endTime = performance.now()
 
       if (!response.ok) {
         setResults({
@@ -68,7 +66,7 @@ export default function SQLEditorPage() {
           success: true,
           data: json.data || [],
           rowCount: json.rowCount,
-          executionTime: Math.round((endTime - startTime) * 100) / 100,
+          executionTime: json.executionTime,
         })
       }
     } catch (error) {
@@ -147,7 +145,7 @@ export default function SQLEditorPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base">Hasil Eksekusi</CardTitle>
-                {results.executionTime && (
+                {results.executionTime !== undefined && (
                   <CardDescription>
                     Waktu eksekusi: {results.executionTime}ms
                     {results.rowCount !== undefined && ` • ${results.rowCount} baris`}

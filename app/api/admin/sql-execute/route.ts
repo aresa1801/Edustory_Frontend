@@ -1,9 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { isAdminEmail } from '@/lib/auth/role-utils'
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure SUPABASE_SERVICE_ROLE_KEY is configured
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Server configuration error: SQL execution not available' },
+        { status: 500 }
+      )
+    }
+
     // Get the user's session
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -31,9 +40,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user is admin
-    const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'storyaunty.evi@gmail.com'
-    if (user.email !== ADMIN_EMAIL) {
+    // Check if user is admin using the utility function
+    if (!isAdminEmail(user.email)) {
       return NextResponse.json(
         { error: 'Only admins can execute SQL queries' },
         { status: 403 }
@@ -49,15 +57,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Sanitize the query to prevent certain dangerous operations
+    // Sanitize the query — block dangerous operations
     const upperQuery = query.toUpperCase().trim()
-    if (
-      upperQuery.includes('DROP DATABASE') ||
-      upperQuery.includes('DROP SCHEMA') ||
-      upperQuery.includes('TRUNCATE') && upperQuery.includes('CASCADE')
-    ) {
+    const dangerousPatterns = [
+      'DROP DATABASE',
+      'DROP SCHEMA',
+      'ALTER SYSTEM',
+      'CREATE EXTENSION',
+      'COPY TO PROGRAM',
+    ]
+
+    for (const pattern of dangerousPatterns) {
+      if (upperQuery.includes(pattern)) {
+        return NextResponse.json(
+          { error: `This operation is not allowed for safety reasons: ${pattern}` },
+          { status: 403 }
+        )
+      }
+    }
+
+    // TRUNCATE should also be blocked unless specifically allowed
+    if (upperQuery.startsWith('TRUNCATE')) {
       return NextResponse.json(
-        { error: 'This operation is not allowed for safety reasons' },
+        { error: 'TRUNCATE operations are not allowed for safety reasons' },
         { status: 403 }
       )
     }
@@ -69,11 +91,34 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Execute the query using the raw SQL API
+    // Execute the query using raw SQL
     const startTime = Date.now()
-    const { data, error } = await (serviceSupabase as any).rpc('execute_sql_query', {
-      query: query.trim(),
-    })
+    
+    // For SELECT queries, use regular query API
+    // For other queries, we need to use the sql function if available
+    let data: any[] = []
+    let error: any = null
+    
+    const upperTrimmedQuery = query.trim().toUpperCase()
+    if (upperTrimmedQuery.startsWith('SELECT')) {
+      // For SELECT, we can use the generic query approach
+      const { data: queryData, error: queryError } = await (serviceSupabase as any).rpc('execute_sql', {
+        sql: query.trim(),
+      }).catch(() => {
+        // If execute_sql RPC doesn't exist, try a different approach
+        return { data: null, error: { message: 'SQL execution not available. Please use Supabase dashboard.' } }
+      })
+      
+      if (queryError) {
+        error = queryError
+      } else {
+        data = queryData || []
+      }
+    } else {
+      // For non-SELECT queries, log a warning
+      data = []
+      error = { message: 'Only SELECT queries are currently supported via this editor. Please use the Supabase dashboard for INSERT, UPDATE, DELETE operations.' }
+    }
 
     const endTime = Date.now()
 
