@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { toDbRole } from '@/lib/auth/role-utils'
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the access token from the Authorization header
     const authHeader = request.headers.get('Authorization')
     const accessToken = authHeader?.replace('Bearer ', '')
 
@@ -17,8 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Map frontend role values to the values accepted by the user_profiles_role_check constraint
-    const dbRole = role === 'student' ? 'siswa' : role
+    const dbRole = toDbRole(role)
 
     // Use service role key to bypass RLS
     const adminSupabase = createClient(
@@ -48,14 +47,13 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'id' })
 
     if (upsertError) {
-      // Log the original error before falling back to aid debugging
       console.error('[set-role] Full upsert failed, trying minimal upsert:', upsertError)
 
       if (!user.email) {
         return NextResponse.json({ error: 'User email is required' }, { status: 400 })
       }
 
-      // Fall back to minimal upsert (in case some columns don't exist in the schema)
+      // Fall back to minimal upsert
       const { error: minimalUpsertError } = await adminSupabase
         .from('user_profiles')
         .upsert({
