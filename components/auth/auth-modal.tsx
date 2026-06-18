@@ -28,7 +28,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
   const [role, setRole] = useState<UserRole>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [otpValue, setOtpValue] = useState('')
   const [formData, setFormData] = useState({
     email: '',
@@ -43,12 +43,12 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
 
   const handleVerifyOTP = async () => {
     if (otpValue.length !== 6) {
-      setError('Masukkan kode 6 digit')
+      setError('Kode verifikasi harus 6 digit')
       return
     }
 
     setError(null)
-    setSuccess(null)
+    setSuccessMessage(null)
     setLoading(true)
 
     try {
@@ -98,7 +98,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
 
   const handleResendOTP = async () => {
     setError(null)
-    setSuccess(null)
+    setSuccessMessage(null)
     setLoading(true)
 
     try {
@@ -117,7 +117,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         throw new Error(data.error || 'Gagal mengirim ulang kode')
       }
 
-      setSuccess('Kode verifikasi telah dikirim ulang ke email Anda')
+      setSuccessMessage('Kode verifikasi telah dikirim ulang ke email Anda')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
@@ -128,7 +128,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setSuccess(null)
+    setSuccessMessage(null)
     setLoading(true)
 
     try {
@@ -147,7 +147,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         
         // Switch to verification mode
         setMode('verify-email')
-        setSuccess('Kode verifikasi telah dikirim ke email Anda. Silakan periksa inbox Anda.')
+        setSuccessMessage('Kode verifikasi telah dikirim ke email Anda. Silakan periksa inbox Anda.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
@@ -204,10 +204,10 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
           </Alert>
         )}
 
-        {success && (
+        {successMessage && (
           <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
             <AlertDescription className="text-green-700 dark:text-green-300">
-              {success}
+              {successMessage}
             </AlertDescription>
           </Alert>
         )}
@@ -266,7 +266,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
               onClick={() => {
                 setMode('signup')
                 setError(null)
-                setSuccess(null)
+                setSuccessMessage(null)
                 setOtpValue('')
               }}
               disabled={loading}
@@ -289,7 +289,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         onValueChange={(value) => {
           setMode(value as 'signin' | 'signup')
           setError(null)
-          setSuccess(null)
+          setSuccessMessage(null)
         }}
         className="w-full"
       >
@@ -304,10 +304,10 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
           </Alert>
         )}
 
-        {success && (
+        {successMessage && (
           <Alert className="mb-4 border-green-500 bg-green-50 dark:bg-green-950">
             <AlertDescription className="text-green-700 dark:text-green-300">
-              {success}
+              {successMessage}
             </AlertDescription>
           </Alert>
         )}
