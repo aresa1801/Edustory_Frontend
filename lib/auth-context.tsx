@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { AppRole, toAppRole, isAdminEmail } from '@/lib/auth/role-utils'
@@ -18,6 +18,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -89,6 +90,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isProfileFetchInProgress = useRef<boolean>(false)
   const lastFetchedUserId = useRef<string | null>(null)
 
+  const clearAuthState = useCallback(() => {
+    setUser(null)
+    setSession(null)
+    setUserRole(null)
+    setUserName(null)
+    setProfileExists(false)
+    lastFetchedUserId.current = null
+  }, [])
+
+  const loadProfile = useCallback(async (currentUser: User) => {
+    if (isProfileFetchInProgress.current && lastFetchedUserId.current === currentUser.id) {
+      return
+    }
+    isProfileFetchInProgress.current = true
+    lastFetchedUserId.current = currentUser.id
+    
+    try {
+      const { role, name, profileExists: exists } = await fetchUserProfile(currentUser)
+      if (lastFetchedUserId.current === currentUser.id) {
+        setUserRole(role)
+        setUserName(name)
+        setProfileExists(exists)
+      }
+    } catch {
+      // Profile update failed silently
+    } finally {
+      isProfileFetchInProgress.current = false
+    }
+  }, [])
+
   useEffect(() => {
     let isMounted = true
 
@@ -101,32 +132,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const supabase = createClient()
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+        
+        // Use getUser() instead of getSession() to validate against the server
+        // This ensures deleted users are detected immediately
+        const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser()
         
         if (!isMounted) return
         
-        if (sessionError) {
-          setInitError(sessionError.message)
+        if (userError || !validatedUser) {
+          // No valid user - clear everything including any stale session
+          if (userError?.status === 401 || userError?.message?.includes('invalid')) {
+            // User was deleted or token is invalid - sign out to clear stale cookies
+            await supabase.auth.signOut()
+          }
+          clearAuthState()
+          setLoading(false)
           return
         }
+
+        // User is valid, get the session
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
         
         setSession(currentSession)
-        setUser(currentSession?.user ?? null)
+        setUser(validatedUser)
 
-        if (currentSession?.user) {
-          isProfileFetchInProgress.current = true
-          lastFetchedUserId.current = currentSession.user.id
-          
-          const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
-          if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
-            setUserRole(role)
-            setUserName(name)
-            setProfileExists(exists)
-          }
-          isProfileFetchInProgress.current = false
+        if (validatedUser) {
+          await loadProfile(validatedUser)
         }
       } catch (error) {
-        setInitError(error instanceof Error ? error.message : 'Unknown error')
+        if (isMounted) {
+          setInitError(error instanceof Error ? error.message : 'Unknown error')
+        }
       } finally {
         if (isMounted) setLoading(false)
       }
@@ -136,39 +172,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: string, currentSession: Session | null) => {
-        if (isMounted) {
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
+      async (event: string, currentSession: Session | null) => {
+        if (!isMounted) return
 
-          if (currentSession?.user) {
-            // Only fetch if we're not already fetching for a different user
-            if (!isProfileFetchInProgress.current && lastFetchedUserId.current !== currentSession.user.id) {
-              isProfileFetchInProgress.current = true
-              lastFetchedUserId.current = currentSession.user.id
-              
-              try {
-                const { role, name, profileExists: exists } = await fetchUserProfile(currentSession.user)
-                if (isMounted && lastFetchedUserId.current === currentSession.user.id) {
-                  setUserRole(role)
-                  setUserName(name)
-                  setProfileExists(exists)
-                }
-              } catch {
-                // Profile update failed silently — state stays as-is
-              } finally {
-                isProfileFetchInProgress.current = false
-              }
-            }
-          } else {
-            setUserRole(null)
-            setUserName(null)
-            setProfileExists(false)
-            lastFetchedUserId.current = null
-          }
-          
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+          clearAuthState()
           setLoading(false)
+          return
         }
+
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
+
+        if (currentSession?.user) {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await loadProfile(currentSession.user)
+          }
+        } else {
+          clearAuthState()
+        }
+        
+        setLoading(false)
       }
     )
 
@@ -176,7 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [clearAuthState, loadProfile])
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return
+    lastFetchedUserId.current = null // Force re-fetch
+    await loadProfile(user)
+  }, [user, loadProfile])
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
@@ -214,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     const supabase = createClient()
+    clearAuthState()
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
@@ -234,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, userName, loading, profileExists, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, userRole, userName, loading, profileExists, signUp, signIn, signInWithGoogle, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )
