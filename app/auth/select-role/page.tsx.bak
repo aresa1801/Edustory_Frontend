@@ -70,7 +70,7 @@ export default function SelectRolePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `******
         },
         body: JSON.stringify({ role }),
       })
