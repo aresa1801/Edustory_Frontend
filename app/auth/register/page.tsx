@@ -66,6 +66,7 @@ export default function RegisterPage() {
       if (error) throw error
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal mendaftar dengan Google')
+      // Only reset loading on error; on success the page navigates away
       setLoading(false)
     }
   }
