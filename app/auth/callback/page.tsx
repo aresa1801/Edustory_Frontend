@@ -87,7 +87,7 @@ export default function AuthCallback() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `******
+              'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ role: pendingRole }),
           })
