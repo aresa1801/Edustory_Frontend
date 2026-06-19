@@ -56,12 +56,31 @@ export default function SelectRolePage() {
     try {
       const dbRole = toDbRole(role)
       
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ role: dbRole })
-        .eq('id', user.id)
+      // Get session for authorization
+      const { data: { session } } = await supabase.auth.getSession()
       
-      if (error) throw error
+      if (!session) {
+        throw new Error('No active session')
+      }
+
+      console.log('[SelectRole] Creating/updating profile with role:', role)
+
+      // Use the set-role API endpoint for proper profile creation
+      const setRoleRes = await fetch('/api/auth/set-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `******
+        },
+        body: JSON.stringify({ role }),
+      })
+
+      if (!setRoleRes.ok) {
+        const errorData = await setRoleRes.json()
+        throw new Error(errorData.error || 'Failed to set role')
+      }
+
+      console.log('[SelectRole] Profile created successfully')
 
       const dashboardPath = getDashboardPath(role)
       router.replace(dashboardPath ?? '/dashboard')

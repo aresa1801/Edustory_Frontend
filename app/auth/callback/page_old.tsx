@@ -27,24 +27,12 @@ export default function AuthCallback() {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
         if (sessionError || !session) {
-          console.log('[AuthCallback] No session, redirecting to login')
           router.push('/auth/login')
-          return
-        }
-
-        console.log('[AuthCallback] Session found:', session.user.email)
-
-        // Check if email is confirmed (important for email/password signups)
-        if (session.user.email && !session.user.email_confirmed_at) {
-          console.log('[AuthCallback] Email not confirmed yet')
-          setError('Silakan verifikasi email Anda terlebih dahulu. Periksa inbox Anda untuk kode verifikasi.')
-          setLoading(false)
           return
         }
 
         // Admin bypass — skip role selection entirely
         if (isAdminEmail(session.user.email)) {
-          console.log('[AuthCallback] Admin user detected')
           router.push('/dashboard/admin')
           return
         }
@@ -60,11 +48,8 @@ export default function AuthCallback() {
           throw profileError
         }
 
-        console.log('[AuthCallback] Profile check:', userProfile)
-
         // User already has a role — redirect to their dashboard
         if (userProfile?.role) {
-          console.log('[AuthCallback] User has role:', userProfile.role)
           const appRole = toAppRole(userProfile.role as string)
           const dashboardPath = getDashboardPath(appRole)
           router.push(dashboardPath ?? '/auth/select-role')
@@ -76,36 +61,27 @@ export default function AuthCallback() {
           ? localStorage.getItem('pendingRole')
           : null
 
-        console.log('[AuthCallback] Pending role:', pendingRole)
-
         if (pendingRole === 'student' || pendingRole === 'tutor') {
           localStorage.removeItem('pendingRole')
-
-          console.log('[AuthCallback] Creating profile with pending role:', pendingRole)
 
           const setRoleRes = await fetch('/api/auth/set-role', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `******
+              'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ role: pendingRole }),
           })
 
           if (setRoleRes.ok) {
-            console.log('[AuthCallback] Profile created successfully')
             const dashboardPath = getDashboardPath(pendingRole)
             router.push(dashboardPath ?? '/dashboard')
             return
-          } else {
-            const errorData = await setRoleRes.json()
-            console.error('[AuthCallback] Failed to create profile:', errorData)
           }
           // API failed — fall through to select-role
         }
 
         // No role yet — let user pick
-        console.log('[AuthCallback] No role found, redirecting to select-role')
         router.push('/auth/select-role')
       } catch (err) {
         console.error('[AuthCallback] Error:', err)

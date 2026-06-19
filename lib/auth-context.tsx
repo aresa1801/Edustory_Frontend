@@ -180,12 +180,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { role } },
+      options: { 
+        data: { role },
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      },
     })
     if (error) throw error
+    
+    // Store the pending role in localStorage for callback
+    if (data.user && !data.session) {
+      // Email confirmation is required - user needs to verify
+      localStorage.setItem('pendingRole', role)
+    }
   }
 
   const signIn = async (email: string, password: string) => {
