@@ -215,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: { 
         data: { role },
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: `${window.location.origin}/api/auth/callback`
       },
     })
     if (error) throw error
@@ -237,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
     })
     if (error) throw error
   }

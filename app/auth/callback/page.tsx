@@ -20,22 +20,7 @@ export default function AuthCallback() {
       try {
         const supabase = createClient()
 
-        // Handle PKCE code exchange from URL search params
-        const url = new URL(window.location.href)
-        const code = url.searchParams.get('code')
-
-        if (code) {
-          console.log('[AuthCallback] Exchanging code for session')
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) {
-            console.error('[AuthCallback] Code exchange failed:', exchangeError)
-            setError('Autentikasi gagal. Silakan coba lagi.')
-            setLoading(false)
-            return
-          }
-        }
-
-        // Handle implicit flow tokens from hash fragment
+        // Handle implicit flow tokens from hash fragment (fallback)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const access_token = hashParams.get('access_token')
         const refresh_token = hashParams.get('refresh_token')
@@ -44,7 +29,7 @@ export default function AuthCallback() {
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Validate the user server-side (not just cached session)
+        // Validate the user (session should already be set by the server-side route handler)
         const { data: { user }, error: userError } = await supabase.auth.getUser()
 
         if (userError || !user) {
@@ -70,7 +55,7 @@ export default function AuthCallback() {
           return
         }
 
-        // Check existing profile
+        // Check existing profile in user_profiles table
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
@@ -110,7 +95,7 @@ export default function AuthCallback() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
+                'Authorization': 'Bearer ' + session.access_token,
               },
               body: JSON.stringify({ role: pendingRole }),
             })

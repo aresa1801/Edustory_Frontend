@@ -11,7 +11,7 @@ import { CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
 const HeroWithAuth = () => {
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup')
-  const { user, userRole, profileExists } = useAuth()
+  const { user, userRole } = useAuth()
 
   const handleDaftarSekarang = () => {
     setAuthMode('signup')
@@ -25,8 +25,9 @@ const HeroWithAuth = () => {
 
   const dashboardPath = userRole ? `/dashboard/${userRole}` : '/dashboard'
   
-  // User is authenticated AND has a valid profile
-  const hasAuthenticatedProfile = user && profileExists && userRole
+  // User is authenticated — show dashboard button if they have a role,
+  // or show select-role link if they don't have a profile yet
+  const isAuthenticated = !!user
 
   return (
     <>
@@ -79,10 +80,10 @@ const HeroWithAuth = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                {hasAuthenticatedProfile ? (
-                  <Link href={dashboardPath}>
+                {isAuthenticated ? (
+                  <Link href={userRole ? dashboardPath : '/auth/select-role'}>
                     <Button className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2">
-                      Buka Dashboard
+                      {userRole ? 'Buka Dashboard' : 'Pilih Peran'}
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
