@@ -12,7 +12,7 @@ const Header = () => {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
-  const { user, userRole } = useAuth()
+  const { user, userRole, loading } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -79,7 +79,7 @@ const Header = () => {
 
           {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
+            {loading ? null : user ? (
               <Link href={dashboardPath}>
                 <Button className="bg-primary hover:bg-primary/90 text-white gap-2">
                   <LayoutDashboard className="w-4 h-4" />
@@ -132,7 +132,7 @@ const Header = () => {
                 </a>
               ))}
               <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
-                {user ? (
+                {loading ? null : user ? (
                   <Link href={dashboardPath} onClick={() => setIsOpen(false)}>
                     <Button className="w-full bg-primary hover:bg-primary/90 text-white">
                       Dashboard

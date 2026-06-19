@@ -78,8 +78,16 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
       
       console.log('[AuthModal] Using role:', finalRole, '(pending:', pendingRole, ', selected:', role, ')')
 
-      // After verification, set role
+      // After verification, set the session in browser client
       const supabase = createClient()
+      
+      if (data.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
@@ -89,7 +97,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `****** ${session.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ role: finalRole }),
         })
@@ -107,7 +115,10 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         onSuccess?.()
         router.push(ROLE_TO_DASHBOARD[finalRole])
       } else {
-        throw new Error('Tidak ada sesi aktif setelah verifikasi')
+        // No session - redirect to select-role page
+        localStorage.removeItem('pendingRole')
+        onSuccess?.()
+        router.push('/auth/select-role')
       }
     } catch (err) {
       console.error('[AuthModal] OTP verification error:', err)

@@ -16,14 +16,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
-  // Cek apakah user sudah login
+  // Check if user is already logged in
   useEffect(() => {
     const checkIfLoggedIn = async () => {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
       
-      if (session) {
-        // User sudah login, langsung ke dashboard
+      if (user) {
+        // User already logged in, redirect to dashboard
         router.replace('/dashboard')
         return
       }
@@ -47,7 +47,7 @@ export default function LoginPage() {
       })
       if (error) throw error
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in with Google')
+      setError(err instanceof Error ? err.message : 'Gagal masuk dengan Google')
       setLoading(false)
     }
   }
@@ -64,15 +64,15 @@ export default function LoginPage() {
       })
       if (error) throw error
       
-      // ✅ PERBAIKAN: Langsung ke dashboard, BUKAN /auth/callback
+      // Redirect to dashboard which handles role-based routing
       router.replace('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in')
+      setError(err instanceof Error ? err.message : 'Gagal masuk')
       setLoading(false)
     }
   }
 
-  // Tampilkan loading saat mengecek auth
+  // Show loading while checking auth
   if (checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">

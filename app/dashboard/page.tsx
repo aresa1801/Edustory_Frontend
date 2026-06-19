@@ -23,16 +23,16 @@ export default function DashboardRouter() {
       return
     }
 
-    // User exists but profile doesn't (deleted or never created) — send to login
-    if (!profileExists) {
-      console.warn('[Dashboard] User profile not found, redirecting to login')
-      router.replace('/auth/login')
-      return
-    }
-
     // Admin bypass — skip role check
     if (isAdminEmail(user.email)) {
       router.replace('/dashboard/admin')
+      return
+    }
+
+    // User exists but profile doesn't (new Google user or deleted profile) — send to select-role
+    if (!profileExists) {
+      console.warn('[Dashboard] User profile not found, redirecting to select-role')
+      router.replace('/auth/select-role')
       return
     }
 

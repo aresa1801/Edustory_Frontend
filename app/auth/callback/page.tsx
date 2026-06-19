@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
 import { isAdminEmail, toAppRole, getDashboardPath } from '@/lib/auth/role-utils'
@@ -9,33 +9,54 @@ export default function AuthCallback() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const hasRun = useRef(false)
 
   useEffect(() => {
+    // Prevent double execution in React StrictMode
+    if (hasRun.current) return
+    hasRun.current = true
+
     const handleCallback = async () => {
       try {
         const supabase = createClient()
 
-        // Handle implicit flow tokens passed as query params
-        const searchParams = new URLSearchParams(window.location.search)
-        const access_token = searchParams.get('access_token')
-        const refresh_token = searchParams.get('refresh_token')
+        // Handle PKCE code exchange from URL search params
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+
+        if (code) {
+          console.log('[AuthCallback] Exchanging code for session')
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeError) {
+            console.error('[AuthCallback] Code exchange failed:', exchangeError)
+            setError('Autentikasi gagal. Silakan coba lagi.')
+            setLoading(false)
+            return
+          }
+        }
+
+        // Handle implicit flow tokens from hash fragment
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const access_token = hashParams.get('access_token')
+        const refresh_token = hashParams.get('refresh_token')
         if (access_token && refresh_token) {
+          console.log('[AuthCallback] Setting session from hash tokens')
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Get or exchange session (PKCE handled automatically)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        // Validate the user server-side (not just cached session)
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-        if (sessionError || !session) {
-          console.log('[AuthCallback] No session, redirecting to login')
-          router.push('/auth/login')
+        if (userError || !user) {
+          console.log('[AuthCallback] No valid user, redirecting to login')
+          router.replace('/auth/login')
           return
         }
 
-        console.log('[AuthCallback] Session found:', session.user.email)
+        console.log('[AuthCallback] User validated:', user.email)
 
         // Check if email is confirmed (important for email/password signups)
-        if (session.user.email && !session.user.email_confirmed_at) {
+        if (user.email && !user.email_confirmed_at) {
           console.log('[AuthCallback] Email not confirmed yet')
           setError('Silakan verifikasi email Anda terlebih dahulu. Periksa inbox Anda untuk kode verifikasi.')
           setLoading(false)
@@ -43,9 +64,9 @@ export default function AuthCallback() {
         }
 
         // Admin bypass — skip role selection entirely
-        if (isAdminEmail(session.user.email)) {
+        if (isAdminEmail(user.email)) {
           console.log('[AuthCallback] Admin user detected')
-          router.push('/dashboard/admin')
+          router.replace('/dashboard/admin')
           return
         }
 
@@ -53,7 +74,7 @@ export default function AuthCallback() {
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .maybeSingle()
 
         if (profileError && profileError.code !== 'PGRST116') {
@@ -67,14 +88,12 @@ export default function AuthCallback() {
           console.log('[AuthCallback] User has role:', userProfile.role)
           const appRole = toAppRole(userProfile.role as string)
           const dashboardPath = getDashboardPath(appRole)
-          router.push(dashboardPath ?? '/auth/select-role')
+          router.replace(dashboardPath ?? '/auth/select-role')
           return
         }
 
         // New user — check for a pending role from localStorage (set before OAuth redirect)
-        const pendingRole = typeof window !== 'undefined'
-          ? localStorage.getItem('pendingRole')
-          : null
+        const pendingRole = localStorage.getItem('pendingRole')
 
         console.log('[AuthCallback] Pending role:', pendingRole)
 
@@ -83,30 +102,35 @@ export default function AuthCallback() {
 
           console.log('[AuthCallback] Creating profile with pending role:', pendingRole)
 
-          const setRoleRes = await fetch('/api/auth/set-role', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ role: pendingRole }),
-          })
+          // Get current session for auth header
+          const { data: { session } } = await supabase.auth.getSession()
 
-          if (setRoleRes.ok) {
-            console.log('[AuthCallback] Profile created successfully')
-            const dashboardPath = getDashboardPath(pendingRole)
-            router.push(dashboardPath ?? '/dashboard')
-            return
-          } else {
-            const errorData = await setRoleRes.json()
-            console.error('[AuthCallback] Failed to create profile:', errorData)
+          if (session) {
+            const setRoleRes = await fetch('/api/auth/set-role', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ role: pendingRole }),
+            })
+
+            if (setRoleRes.ok) {
+              console.log('[AuthCallback] Profile created successfully')
+              const dashboardPath = getDashboardPath(pendingRole)
+              router.replace(dashboardPath ?? '/dashboard')
+              return
+            } else {
+              const errorData = await setRoleRes.json()
+              console.error('[AuthCallback] Failed to create profile:', errorData)
+            }
           }
           // API failed — fall through to select-role
         }
 
         // No role yet — let user pick
         console.log('[AuthCallback] No role found, redirecting to select-role')
-        router.push('/auth/select-role')
+        router.replace('/auth/select-role')
       } catch (err) {
         console.error('[AuthCallback] Error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
