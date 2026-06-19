@@ -52,6 +52,8 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
     setLoading(true)
 
     try {
+      console.log('[AuthModal] Verifying OTP for email:', formData.email)
+
       const response = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,28 +70,47 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
         throw new Error(data.error || 'Verifikasi gagal')
       }
 
+      console.log('[AuthModal] OTP verified successfully')
+
+      // After verification, get the pending role from localStorage
+      const pendingRole = localStorage.getItem('pendingRole') as 'student' | 'tutor' | null
+      const finalRole = pendingRole || role
+      
+      console.log('[AuthModal] Using role:', finalRole, '(pending:', pendingRole, ', selected:', role, ')')
+
       // After verification, set role
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
+        console.log('[AuthModal] Session found, setting role')
+
         const setRoleRes = await fetch('/api/auth/set-role', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `****** ${session.access_token}`,
           },
-          body: JSON.stringify({ role }),
+          body: JSON.stringify({ role: finalRole }),
         })
         
         if (!setRoleRes.ok) {
-          throw new Error('Gagal menyimpan peran. Silakan coba lagi.')
+          const errorData = await setRoleRes.json()
+          throw new Error(errorData.error || 'Gagal menyimpan peran. Silakan coba lagi.')
         }
         
+        console.log('[AuthModal] Role set successfully, redirecting to dashboard')
+        
+        // Clear pending role
+        localStorage.removeItem('pendingRole')
+        
         onSuccess?.()
-        router.push(ROLE_TO_DASHBOARD[role])
+        router.push(ROLE_TO_DASHBOARD[finalRole])
+      } else {
+        throw new Error('Tidak ada sesi aktif setelah verifikasi')
       }
     } catch (err) {
+      console.error('[AuthModal] OTP verification error:', err)
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setLoading(false)
@@ -142,15 +163,25 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
           throw new Error('Password tidak cocok')
         }
         
+        console.log('[AuthModal] Starting signup with role:', role)
+        
+        // Store role in localStorage before signup
+        localStorage.setItem('pendingRole', role)
+        
         // Sign up - this will trigger email with OTP
         await signUp(formData.email, formData.password, role)
         
         // Switch to verification mode
         setMode('verify-email')
-        setSuccessMessage('Kode verifikasi telah dikirim ke email Anda. Silakan periksa inbox Anda.')
+        setSuccessMessage('Kode verifikasi telah dikirim ke email Anda. Silakan periksa inbox Anda (juga folder spam jika tidak ditemukan).')
       }
     } catch (err) {
+      console.error('[AuthModal] Submit error:', err)
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+      // Clear pending role on error
+      if (mode === 'signup') {
+        localStorage.removeItem('pendingRole')
+      }
     } finally {
       setLoading(false)
     }
