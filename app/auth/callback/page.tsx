@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/auth'
 import { ADMIN_EMAIL } from '@/lib/constants'
 
@@ -14,19 +13,22 @@ const ROLE_TO_DASHBOARD: Record<string, string> = {
 }
 
 export default function AuthCallback() {
-  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
+  const hasProcessed = useRef(false) // ✅ PAKAI REF, BUKAN STATE
 
   useEffect(() => {
-    // Prevent multiple executions
-    if (isProcessing) return
-    setIsProcessing(true)
+    // Prevent multiple executions dengan ref
+    if (hasProcessed.current) {
+      console.log('[Callback] Already processed, skipping...')
+      return
+    }
+    
+    hasProcessed.current = true
+    console.log('[Callback] 🚀 Starting callback processing...')
 
     const handleCallback = async () => {
       try {
-        console.log('[Callback]  Starting callback processing...')
         const supabase = createClient()
 
         // Handle implicit flow: access_token + refresh_token
@@ -116,15 +118,14 @@ export default function AuthCallback() {
           sessionStorage.clear()
         } catch (e) {
           console.error('[Callback] Failed to clear session:', e)
+        } finally {
+          setLoading(false)
         }
-      } finally {
-        setLoading(false)
-        setIsProcessing(false)
       }
     }
 
     handleCallback()
-  }, [isProcessing])
+  }, []) // ✅ EMPTY DEPENDENCY ARRAY - hanya run sekali
 
   if (loading) {
     return (
