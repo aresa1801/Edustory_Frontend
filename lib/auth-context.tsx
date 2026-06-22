@@ -244,10 +244,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           
-          // Re-validate untuk semua event
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          // JANGAN re-validate untuk SIGNED_IN - biarkan initial load handle
+          // Hanya re-validate untuk TOKEN_REFRESHED atau USER_UPDATED
+          if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             console.log('[Auth] 🔄 Re-validating...')
             await initializeAuth()
+          }
+          
+          // Untuk SIGNED_IN, cukup update state tanpa re-fetch
+          if (event === 'SIGNED_IN' && currentSession) {
+            console.log('[Auth] ✅ SIGNED_IN - Update state')
+            setSession(currentSession)
+            if (currentSession.user) {
+              setUser(currentSession.user)
+              
+              // Fetch profile
+              try {
+                const { role, name } = await fetchUserProfile(currentSession.user)
+                
+                if (!role && currentSession.user.email !== ADMIN_EMAIL) {
+                  setIsFirstTimeUser(true)
+                  setUserRole(null)
+                  setUserName(name || currentSession.user.email || null)
+                } else {
+                  setIsFirstTimeUser(false)
+                  setUserRole(role)
+                  setUserName(name || currentSession.user.email || null)
+                }
+              } catch (profileError) {
+                console.error('[Auth] Profile fetch error:', profileError)
+                setIsFirstTimeUser(true)
+                setUserName(currentSession.user.user_metadata?.full_name || currentSession.user.email || null)
+              }
+            }
+            setLoading(false)
           }
         } finally {
           isProcessingAuthChange.current = false
