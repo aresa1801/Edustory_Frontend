@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/auth'
 
@@ -25,55 +25,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Helper function untuk fetch profile user
-async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | null; name: string | null }> {
-  // Cek admin email
-  if (currentUser.email === ADMIN_EMAIL) {
-    return {
-      role: 'admin',
-      name: currentUser.user_metadata?.full_name || 'Administrator',
-    }
-  }
-
-  try {
-    const supabase = createClient()
-    console.log('[Auth] Fetching user profile for:', currentUser.id)
-    
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('role, name')
-      .eq('id', currentUser.id)
-      .maybeSingle()
-
-    if (error) {
-      console.error('[Auth] Profile fetch error:', error)
-      throw error
-    }
-
-    if (profile) {
-      console.log('[Auth] Profile found:', profile)
-      const roleMap: Record<string, AppRole> = {
-        siswa: 'student',
-        student: 'student',
-        tutor: 'tutor',
-        admin: 'admin',
-      }
-      
-      return {
-        role: roleMap[profile.role as string] ?? null,
-        name: profile.name || currentUser.email || null,
-      }
-    }
-    
-    // Profile tidak ada
-    return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
-    
-  } catch (error) {
-    console.error('[Auth] Profile fetch failed:', error)
-    throw error
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -82,45 +33,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState<string | null>(null)
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
-  
-  // Ref untuk prevent infinite loop di onAuthStateChange
-  const isProcessingAuthChange = useRef(false)
 
-  // Fungsi untuk clear semua storage
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
-      const keysToRemove: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
-          keysToRemove.push(key)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+          localStorage.removeItem(key)
         }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key))
-      console.log('[Auth] Cleared storage keys:', keysToRemove)
+      })
     }
   }, [])
 
-  // Fungsi untuk set user sebagai "tamu" (belum login)
-  const setAsGuest = useCallback(() => {
-    setUser(null)
-    setSession(null)
-    setUserRole(null)
-    setUserName(null)
-    setIsFirstTimeUser(false)
-    setLoading(false)
-  }, [])
+  // Fungsi untuk validasi user ke database
+  const validateUserInDatabase = async (userId: string, userEmail: string) => {
+    console.log('[Auth] 🔍 Validasi user ke database:', userEmail)
+    
+    const supabase = createClient()
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role, name')
+      .eq('id', userId)
+      .maybeSingle()
+
+    // Cek apakah user ada di database
+    if (!profile?.role && userEmail !== ADMIN_EMAIL) {
+      console.log('[Auth] ❌ User TIDAK ADA di database atau tidak punya role')
+      return { valid: false, profile: null }
+    }
+
+    console.log('[Auth] ✅ User valid di database:', profile)
+    return { valid: true, profile }
+  }
 
   useEffect(() => {
     let isMounted = true
-    let initTimeout: NodeJS.Timeout | null = null
 
     const initializeAuth = async () => {
-      console.log('[Auth] 🛡️ Satpam mulai cek ke database gedung (Supabase)...')
+      console.log('[Auth] 🛡️ Mulai validasi auth...')
       
-      // Cek environment variables
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.error('[Auth] Missing Supabase environment variables!')
         setInitError('Missing Supabase configuration')
         if (isMounted) setLoading(false)
         return
@@ -128,243 +79,122 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const supabase = createClient()
-        console.log('[Auth] 📞 Tanya ke Supabase: "Apakah orang ini masih terdaftar?"')
         
-        // ✅ LANGKAH 1: Validasi ke SERVER dengan getUser() (bukan dari cache)
-        const { data: { user: serverUser }, error: userError } = await supabase.auth.getUser()
+        // LANGKAH 1: Validasi session ke server
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (!isMounted) return
         
-        // ✅ LANGKAH 2: Jika user tidak valid/deleted → Clear & anggap tamu
-        if (userError || !serverUser) {
-          console.log('[Auth] 🚫 Supabase bilang: User tidak terdaftar/invalid')
-          console.log('[Auth] 🧹 Clear session & cookies...')
-          
-          // Clear cookies via signOut
+        if (sessionError || !session || !session.user) {
+          console.log('[Auth] ❌ Session tidak valid:', sessionError?.message)
           await supabase.auth.signOut({ scope: 'global' })
           clearSupabaseStorage()
-          
           if (isMounted) {
-            setAsGuest()
-            console.log('[Auth] ✅ Selesai. User dianggap tamu (belum login)')
+            setUser(null)
+            setSession(null)
+            setLoading(false)
           }
           return
         }
-        
-        console.log('[Auth] ✅ Supabase konfirmasi: User terdaftar →', serverUser.email)
-        
-        // ✅ LANGKAH 3: Get session untuk access token
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        
-        if (isMounted) {
-          setSession(currentSession)
-          setUser(serverUser)
+
+        console.log('[Auth] 📧 Session user:', session.user.email)
+
+        // LANGKAH 2: Validasi user ada di database
+        const validation = await validateUserInDatabase(
+          session.user.id, 
+          session.user.email || ''
+        )
+
+        if (!isMounted) return
+
+        if (!validation.valid) {
+          console.log('[Auth] 🚫 User tidak valid di database - CLEAR SESSION')
+          await supabase.auth.signOut({ scope: 'global' })
+          clearSupabaseStorage()
+          if (isMounted) {
+            setUser(null)
+            setSession(null)
+            setUserRole(null)
+            setUserName(null)
+            setIsFirstTimeUser(false)
+            setLoading(false)
+          }
+          return
         }
 
-        // ✅ LANGKAH 4: Setup timeout untuk prevent infinite loading
-        initTimeout = setTimeout(() => {
-          if (isMounted && loading) {
-            console.warn('[Auth] ⏱️ Profile fetch timeout (>3s), marking as first-time user...')
-            setIsFirstTimeUser(true)
-            setLoading(false)
-          }
-        }, 3000) // Kurangi jadi 3 detik
-        
-        // ✅ LANGKAH 5: Cek apakah user sudah punya role di database
-        try {
-          const { role, name } = await fetchUserProfile(serverUser)
-          
-          if (!isMounted) return
-          
-          // Clear timeout
-          if (initTimeout) {
-            clearTimeout(initTimeout)
-            initTimeout = null
-          }
-          
-          // ✅ LANGKAH 6: Tentukan status user
-          if (!role && !serverUser.email?.includes(ADMIN_EMAIL)) {
-            // User baru, belum pilih role
-            console.log('[Auth] 🆕 User baru, belum pilih role → First time user')
-            setIsFirstTimeUser(true)
-            setUserRole(null)
-            setUserName(name)
-          } else {
-            // User existing, sudah punya role
-            console.log('[Auth] ✅ User existing, role:', role)
-            setIsFirstTimeUser(false)
-            setUserRole(role)
-            setUserName(name)
-          }
-          
-          if (isMounted) {
-            setLoading(false)
-            console.log('[Auth] 🏁 Selesai cek auth')
-          }
-          
-        } catch (profileError) {
-          console.error('[Auth] ⚠️ Profile fetch error:', profileError)
-          
-          if (!isMounted) return
-          
-          // Clear timeout
-          if (initTimeout) {
-            clearTimeout(initTimeout)
-            initTimeout = null
-          }
-          
-          // Jika fetch profile gagal, anggap first-time user
-          console.log('[Auth] ⚠️ Profile fetch failed, treating as first-time user')
-          setIsFirstTimeUser(true)
-          setUserName(serverUser.user_metadata?.full_name || serverUser.email || null)
-          
-          if (isMounted) {
-            setLoading(false)
-          }
+        // LANGKAH 3: User valid, set state
+        const profile = validation.profile
+        const roleMap: Record<string, AppRole> = {
+          siswa: 'student',
+          student: 'student',
+          tutor: 'tutor',
+          admin: 'admin',
         }
-        
+        const mappedRole = profile ? roleMap[profile.role as string] || null : null
+
+        console.log('[Auth] ✅ User valid, role:', mappedRole)
+
+        if (isMounted) {
+          setUser(session.user)
+          setSession(session)
+          setUserRole(mappedRole)
+          setUserName(profile?.name || session.user.user_metadata?.full_name || session.user.email || null)
+          setIsFirstTimeUser(!mappedRole && session.user.email !== ADMIN_EMAIL)
+          setLoading(false)
+        }
+
       } catch (error) {
         console.error('[Auth] ❌ Initialization error:', error)
-        setInitError(error instanceof Error ? error.message : 'Unknown error')
         
-        // Clear session on error
         try {
           const supabase = createClient()
           await supabase.auth.signOut({ scope: 'global' })
           clearSupabaseStorage()
         } catch (e) {
-          console.error('[Auth] Failed to clear session:', e)
+          console.error('[Auth] Failed to clear:', e)
         }
         
         if (isMounted) {
-          setAsGuest()
-        }
-      } finally {
-        // Clear timeout jika ada
-        if (initTimeout) {
-          clearTimeout(initTimeout)
-          initTimeout = null
+          setUser(null)
+          setSession(null)
+          setLoading(false)
         }
       }
     }
 
     initializeAuth()
 
-    // ✅ Listen untuk perubahan auth state (login/logout)
-    // Listen untuk perubahan auth state (login/logout)
+    // Listen auth changes
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[Auth] 📡 Auth state changed:', event, currentSession?.user?.email)
-        
-        // Prevent infinite loop
-        if (isProcessingAuthChange.current) {
-          console.log('[Auth] ⏸️ Already processing auth change, skip')
+        console.log('[Auth] 📡 Event:', event)
+
+        if (!isMounted) return
+
+        if (event === 'SIGNED_OUT') {
+          setUser(null)
+          setSession(null)
+          setUserRole(null)
+          setUserName(null)
+          setIsFirstTimeUser(false)
+          setLoading(false)
           return
         }
-        
-        isProcessingAuthChange.current = true
-        
-        try {
-          if (!isMounted) return
-          
-          if (event === 'SIGNED_OUT') {
-            console.log('[Auth] 🚪 User signed out')
-            setAsGuest()
-            return
-          }
-          
-          // ✅ LANGKAH PENTING: Jangan trust event, VALIDASI LANGSUNG KE SERVER
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            console.log('[Auth] 🔄 Event:', event, '- Validating with server...')
-            
-            // PAKAI getUser() untuk validasi KE SERVER
-            const { data: { user: validatedUser }, error: validateError } = await supabase.auth.getUser()
-            
-            if (!isMounted) return
-            
-            // ✅ JIKA USER TIDAK VALID - LANGSUNG CLEAR
-            if (validateError || !validatedUser) {
-              console.log('[Auth] 🚫 getUser() return error/null - User TIDAK VALID!')
-              console.log('[Auth] 🧹 Clearing session immediately...')
-              
-              // LANGSUNG CLEAR
-              await supabase.auth.signOut({ scope: 'global' })
-              clearSupabaseStorage()
-              setAsGuest()
-              
-              return
-            }
-            
-            // ✅ User valid, cek apakah ada di database
-            const { data: profile } = await supabase
-              .from('user_profiles')
-              .select('role, name')
-              .eq('id', validatedUser.id)
-              .maybeSingle()
-            
-            if (!isMounted) return
-            
-            // ✅ JIKA USER TIDAK ADA DI DATABASE - CLEAR JUGA
-            if (!profile?.role && validatedUser.email !== ADMIN_EMAIL) {
-              console.log('[Auth] ⚠️ User ada di auth tapi TIDAK ADA di database')
-              console.log('[Auth] 🧹 Clearing session...')
-              
-              await supabase.auth.signOut({ scope: 'global' })
-              clearSupabaseStorage()
-              setAsGuest()
-              
-              return
-            }
-            
-            // User valid dan ada di database
-            console.log('[Auth] ✅ User valid dan terdaftar:', validatedUser.email)
-            setSession(currentSession)
-            setUser(validatedUser)
-            
-            const roleMap: Record<string, AppRole> = {
-              siswa: 'student',
-              student: 'student',
-              tutor: 'tutor',
-              admin: 'admin',
-            }
-            const mappedRole = roleMap[profile?.role as string] || null
-            
-            setIsFirstTimeUser(false)
-            setUserRole(mappedRole)
-            setUserName(profile?.name || validatedUser.user_metadata?.full_name || validatedUser.email || null)
-            setLoading(false)
-          }
-          
-        } catch (error) {
-          console.error('[Auth] Auth state change error:', error)
-          
-          // Error juga langsung clear
-          try {
-            await supabase.auth.signOut({ scope: 'global' })
-            clearSupabaseStorage()
-          } catch (e) {
-            console.error('[Auth] Failed to clear on error:', e)
-          }
-          
-          if (isMounted) {
-            setAsGuest()
-          }
-        } finally {
-          isProcessingAuthChange.current = false
+
+        // Re-validate untuk semua event selain SIGNED_OUT
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          console.log('[Auth] 🔄 Re-validating...')
+          await initializeAuth()
         }
       }
     )
 
     return () => {
-      console.log('[Auth] 🧹 Cleanup auth context')
       isMounted = false
-      if (initTimeout) {
-        clearTimeout(initTimeout)
-      }
       subscription.unsubscribe()
     }
-  }, [clearSupabaseStorage, setAsGuest])
+  }, [clearSupabaseStorage])
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
@@ -384,8 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const supabase = createClient()
-    
-    // Clear storage sebelum login baru
     clearSupabaseStorage()
     
     const { error } = await supabase.auth.signInWithOAuth({
@@ -394,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/auth/select-role`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'select_account', // Paksa pilih akun
+          prompt: 'select_account',
         },
       },
     })
@@ -408,19 +236,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const forceSignOut = async () => {
-    console.log('[Auth] 🚨 FORCE SIGN OUT INITIATED...')
-    
     try {
       const supabase = createClient()
-      
-      // Sign out dari Supabase dengan scope global
       await supabase.auth.signOut({ scope: 'global' })
-      console.log('[Auth] ✅ Supabase signOut completed')
-      
-      // Clear semua storage
       clearSupabaseStorage()
       
-      // Clear semua state
       setUser(null)
       setSession(null)
       setUserRole(null)
@@ -428,41 +248,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirstTimeUser(false)
       setLoading(false)
       
-      console.log('[Auth] ✅ All state cleared')
-      
-      // Clear browser cache
-      if (typeof window !== 'undefined') {
-        if ('caches' in window) {
-          try {
-            const names = await caches.keys()
-            await Promise.all(names.map(name => caches.delete(name)))
-            console.log('[Auth] ✅ Browser cache cleared')
-          } catch (e) {
-            console.error('[Auth] Failed to clear browser cache:', e)
-          }
-        }
-        
-        // Force reload
-        setTimeout(() => {
-          window.location.href = '/?cleared=' + Date.now()
-        }, 100)
-      }
-      
+      window.location.href = '/?cleared=' + Date.now()
     } catch (error) {
       console.error('[Auth] Force sign out error:', error)
-      
-      // Fallback: clear everything anyway
       clearSupabaseStorage()
-      setUser(null)
-      setSession(null)
-      setUserRole(null)
-      setUserName(null)
-      setIsFirstTimeUser(false)
-      setLoading(false)
-      
-      if (typeof window !== 'undefined') {
-        window.location.href = '/?error_cleared=' + Date.now()
-      }
+      window.location.href = '/?error_cleared=' + Date.now()
     }
   }
 
@@ -470,7 +260,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsFirstTimeUser(false)
   }
 
-  // Error UI
   if (initError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -478,13 +267,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           <h2 className="text-xl font-bold text-red-500 mb-2">Authentication Error</h2>
           <p className="text-muted-foreground mb-4">{initError}</p>
           <button
-            onClick={() => {
-              clearSupabaseStorage()
-              window.location.reload()
-            }}
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
           >
-            Clear Cache & Reload
+            Reload
           </button>
         </div>
       </div>
@@ -493,18 +279,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
-      session, 
-      userRole, 
-      userName, 
-      loading, 
-      isFirstTimeUser,
-      signUp, 
-      signIn, 
-      signInWithGoogle, 
-      signOut,
-      forceSignOut,
-      clearFirstTimeUserFlag,
+      user, session, userRole, userName, loading, isFirstTimeUser,
+      signUp, signIn, signInWithGoogle, signOut, forceSignOut, clearFirstTimeUserFlag,
     }}>
       {children}
     </AuthContext.Provider>
