@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
+import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTriangle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
@@ -26,6 +26,7 @@ const Header = () => {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
+  const [showEmergency, setShowEmergency] = useState(false)
   
   const { user, userRole, loading, forceSignOut } = useAuth()
 
@@ -74,6 +75,28 @@ const Header = () => {
       // Force reload even if error
       window.location.href = '/'
     }
+  }
+
+  const handleEmergencyClear = async () => {
+    console.log('[Header] Emergency clear initiated...')
+    
+    // Clear ALL storage
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Clear cache browser
+    if ('caches' in window) {
+      try {
+        const names = await caches.keys()
+        await Promise.all(names.map(name => caches.delete(name)))
+        console.log('[Header] Browser cache cleared')
+      } catch (e) {
+        console.error('[Header] Failed to clear browser cache:', e)
+      }
+    }
+    
+    // Force reload dengan timestamp
+    window.location.href = '/?emergency_clear=' + Date.now()
   }
 
   const menuItems = [
@@ -143,6 +166,26 @@ const Header = () => {
                 >
                   <LogOut className="w-4 h-4" />
                 </Button>
+                <Button
+                  onClick={() => setShowEmergency(!showEmergency)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                  title="Emergency Clear Cache"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                </Button>
+                {showEmergency && (
+                  <Button
+                    onClick={handleEmergencyClear}
+                    variant="destructive"
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Emergency Clear
+                  </Button>
+                )}
               </>
             ) : (
               // User belum login
@@ -215,6 +258,15 @@ const Header = () => {
                     >
                       <LogOut className="w-4 h-4 mr-2" />
                       Logout
+                    </Button>
+                    <Button
+                      onClick={handleEmergencyClear}
+                      variant="destructive"
+                      size="sm"
+                      className="w-full gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Emergency Clear Cache
                     </Button>
                   </>
                 ) : (

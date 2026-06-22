@@ -21,13 +21,9 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Use the SSR-aware browser client so the session is persisted in cookies,
-        // which is required by the dashboard layouts that also use createClient().
         const supabase = createClient()
 
-        // Handle implicit flow: access_token + refresh_token may be passed as query
-        // params (older Supabase redirect) or in the URL hash.  For PKCE flow the
-        // SSR client's getSession() will automatically exchange the code param.
+        // Handle implicit flow: access_token + refresh_token
         const searchParams = new URLSearchParams(window.location.search)
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
@@ -35,19 +31,33 @@ export default function AuthCallback() {
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Get the current session (also handles PKCE code exchange automatically)
+        // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[v0] Auth Callback - Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
+        console.log('[Callback] Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
 
         if (sessionError || !session) {
-          console.log('[v0] No session found, redirecting to login')
+          console.log('[Callback] No session found, redirecting to login')
           router.push('/auth/login')
+          return
+        }
+
+        // VALIDASI: Cek apakah user masih valid di database
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !currentUser) {
+          console.warn('[Callback] User not valid, clearing session...')
+          await supabase.auth.signOut({ scope: 'global' })
+          // Clear localStorage
+          localStorage.clear()
+          sessionStorage.clear()
+          // Redirect ke home
+          router.push('/?session_invalid=1')
           return
         }
 
         // Check if user is admin
         if (session.user.email === ADMIN_EMAIL) {
-          console.log('[v0] Admin detected, redirecting to admin dashboard')
+          console.log('[Callback] Admin detected, redirecting to admin dashboard')
           router.push('/dashboard/admin')
           return
         }
@@ -57,21 +67,23 @@ export default function AuthCallback() {
           .from('user_profiles')
           .select('role')
           .eq('id', session.user.id)
-          .single()
+          .maybeSingle()
 
-        if (profileError && profileError.code === 'PGRST116') {
-          // User doesn't exist yet.
+        if (profileError) {
+          console.error('[Callback] Profile error:', profileError)
+        }
+
+        if (!userProfile || !userProfile.role) {
+          // User doesn't have profile yet - check pending role
           const provider = session.user.app_metadata?.provider
-          console.log('[v0] User profile not found, provider:', provider)
+          console.log('[Callback] User profile not found, provider:', provider)
 
-          // If the user arrived here from the homepage registration popup they will
-          // have stored their chosen role in localStorage before the OAuth redirect.
           const pendingRole = typeof window !== 'undefined'
             ? localStorage.getItem('pendingRole')
             : null
 
           if (pendingRole === 'student' || pendingRole === 'tutor') {
-            console.log('[v0] pendingRole found:', pendingRole, '— creating profile and redirecting to dashboard')
+            console.log('[Callback] pendingRole found:', pendingRole, '— creating profile')
             localStorage.removeItem('pendingRole')
 
             // Create the profile with the pre-selected role
@@ -92,38 +104,40 @@ export default function AuthCallback() {
               }
               return
             }
-            console.warn('[v0] set-role API failed, falling back to select-role')
+            console.warn('[Callback] set-role API failed, falling back to select-role')
           }
 
-          // No pending role (or API failed) — let the user pick their role manually
-          console.log('[v0] Redirecting to select-role')
+          // No pending role - let the user pick their role manually
+          console.log('[Callback] Redirecting to select-role')
           router.push('/auth/select-role')
           return
         }
 
-        if (profileError && profileError.code !== 'PGRST116') {
-          throw profileError
-        }
-
         // Redirect to appropriate dashboard based on role
-        if (userProfile) {
-          const role = userProfile.role as string
-          console.log('[v0] User profile found with role:', role)
-          // Map DB role values (e.g. 'siswa') back to dashboard route segments
-          const dashboardPath = ROLE_TO_DASHBOARD[role]
-          if (!dashboardPath) {
-            console.warn('[v0] Unknown role value from DB:', role, '— redirecting to select-role')
-            router.push('/auth/select-role')
-          } else {
-            router.push(`/dashboard/${dashboardPath}`)
-          }
-        } else {
-          console.log('[v0] No role found, redirecting to select-role')
+        const role = userProfile.role as string
+        console.log('[Callback] User profile found with role:', role)
+        const dashboardPath = ROLE_TO_DASHBOARD[role]
+        
+        if (!dashboardPath) {
+          console.warn('[Callback] Unknown role value from DB:', role, '— redirecting to select-role')
           router.push('/auth/select-role')
+        } else {
+          router.push(`/dashboard/${dashboardPath}`)
         }
+        
       } catch (err) {
-        console.error('[v0] Callback error:', err)
+        console.error('[Callback] Error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
+        
+        // Clear session on error
+        try {
+          const supabase = createClient()
+          await supabase.auth.signOut({ scope: 'global' })
+          localStorage.clear()
+          sessionStorage.clear()
+        } catch (e) {
+          console.error('[Callback] Failed to clear session:', e)
+        }
       } finally {
         setLoading(false)
       }
@@ -150,12 +164,16 @@ export default function AuthCallback() {
         <div className="bg-card rounded-2xl border border-border/50 p-8 max-w-md w-full text-center">
           <h1 className="text-xl font-semibold text-foreground mb-2">Terjadi Kesalahan</h1>
           <p className="text-muted-foreground mb-6">{error}</p>
-          <a
-            href="/auth/login"
+          <button
+            onClick={() => {
+              localStorage.clear()
+              sessionStorage.clear()
+              window.location.href = '/?error_cleared=1'
+            }}
             className="inline-block px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors"
           >
-            Kembali ke Login
-          </a>
+            Clear Cache & Kembali
+          </button>
         </div>
       </div>
     )

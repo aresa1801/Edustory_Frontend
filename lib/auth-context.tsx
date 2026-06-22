@@ -89,18 +89,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
 
-  // Function to clear all Supabase storage
+  // Function to clear ALL storage - lebih agresif
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
       const keysToRemove: string[] = []
+      
+      // Collect all keys to remove
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
-          keysToRemove.push(key)
+        if (key) {
+          // Hapus semua key yang berhubungan dengan auth/supabase
+          if (
+            key.startsWith('sb-') || 
+            key.includes('supabase') || 
+            key.includes('auth') ||
+            key.includes('session') ||
+            key.includes('user')
+          ) {
+            keysToRemove.push(key)
+          }
         }
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key))
-      console.log('[Auth] Cleared storage keys:', keysToRemove)
+      
+      // Remove all collected keys
+      keysToRemove.forEach(key => {
+        try {
+          localStorage.removeItem(key)
+          console.log('[Auth] Removed key:', key)
+        } catch (e) {
+          console.error('[Auth] Failed to remove key:', key, e)
+        }
+      })
+      
+      // Clear sessionStorage juga
+      try {
+        sessionStorage.clear()
+        console.log('[Auth] SessionStorage cleared')
+      } catch (e) {
+        console.error('[Auth] Failed to clear sessionStorage:', e)
+      }
+      
+      console.log('[Auth] Total keys removed:', keysToRemove.length)
     }
   }, [])
 
@@ -308,19 +337,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
-  // Force sign out - clear everything
+  // Force sign out - SUPER AGGRESSIVE
   const forceSignOut = async () => {
-    console.log('[Auth] Force sign out initiated...')
+    console.log('[Auth] FORCE SIGN OUT INITIATED...')
+    
     try {
       const supabase = createClient()
       
-      // Sign out from Supabase dengan scope global
+      // 1. Sign out dari Supabase dengan scope global
       await supabase.auth.signOut({ scope: 'global' })
+      console.log('[Auth] Supabase signOut completed')
       
-      // Clear local storage secara agresif
+      // 2. Clear semua storage
       clearSupabaseStorage()
       
-      // Clear state
+      // 3. Clear semua state IMMEDIATELY
       setUser(null)
       setSession(null)
       setUserRole(null)
@@ -328,15 +359,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirstTimeUser(false)
       setLoading(false)
       
-      console.log('[Auth] Force sign out completed')
+      console.log('[Auth] All state cleared')
       
-      // Force reload to ensure clean state
+      // 4. FORCE HARD RELOAD - bukan cuma redirect
       if (typeof window !== 'undefined') {
-        window.location.href = '/'
+        // Clear cache browser
+        if ('caches' in window) {
+          await caches.keys().then(names => {
+            names.forEach(name => caches.delete(name))
+          })
+        }
+        
+        // Force reload dengan timestamp untuk bypass cache
+        setTimeout(() => {
+          window.location.href = '/?cleared=' + Date.now()
+        }, 100)
       }
+      
     } catch (error) {
       console.error('[Auth] Force sign out error:', error)
-      // Even if error, clear everything
+      
+      // Bahkan jika error, tetap clear semuanya
       clearSupabaseStorage()
       setUser(null)
       setSession(null)
@@ -345,8 +388,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirstTimeUser(false)
       setLoading(false)
       
+      // Force reload
       if (typeof window !== 'undefined') {
-        window.location.href = '/'
+        window.location.href = '/?error_cleared=' + Date.now()
       }
     }
   }
