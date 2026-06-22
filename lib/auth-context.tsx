@@ -226,7 +226,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[Auth] 📡 Event:', event)
+        console.log('[Auth] 📡 Event:', event, 'Path:', typeof window !== 'undefined' ? window.location.pathname : 'N/A')
+        
+        // SKIP re-validation jika sedang di halaman callback
+        if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/callback')) {
+          console.log('[Auth] ⏭️ Skipping re-validation on callback page')
+          return
+        }
         
         if (isProcessingAuthChange.current) {
           console.log('[Auth] ⏸️ Already processing, skip')
@@ -244,14 +250,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           
-          // JANGAN re-validate untuk SIGNED_IN - biarkan initial load handle
-          // Hanya re-validate untuk TOKEN_REFRESHED atau USER_UPDATED
+          // JANGAN re-validate untuk SIGNED_IN - biarkan callback handle
           if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             console.log('[Auth] 🔄 Re-validating...')
             await initializeAuth()
           }
           
-          // Untuk SIGNED_IN, cukup update state tanpa re-fetch
+          // Untuk SIGNED_IN, cukup update state
           if (event === 'SIGNED_IN' && currentSession) {
             console.log('[Auth] ✅ SIGNED_IN - Update state')
             setSession(currentSession)

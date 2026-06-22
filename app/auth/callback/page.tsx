@@ -17,10 +17,16 @@ export default function AuthCallback() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (isProcessing) return
+    setIsProcessing(true)
+
     const handleCallback = async () => {
       try {
+        console.log('[Callback]  Starting callback processing...')
         const supabase = createClient()
 
         // Handle implicit flow: access_token + refresh_token
@@ -35,10 +41,10 @@ export default function AuthCallback() {
 
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[Callback] Session:', session?.user.email, 'Provider:', session?.user.app_metadata?.provider)
+        console.log('[Callback] Session:', session?.user?.email)
 
         if (sessionError || !session) {
-          console.log('[Callback] No session found, redirecting to login')
+          console.log('[Callback] ❌ No session found')
           window.location.href = '/auth/login'
           return
         }
@@ -47,7 +53,7 @@ export default function AuthCallback() {
         const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
         
         if (userError || !currentUser) {
-          console.warn('[Callback] User not valid, clearing session...')
+          console.warn('[Callback] ❌ User not valid, clearing session...')
           await supabase.auth.signOut({ scope: 'global' })
           localStorage.clear()
           sessionStorage.clear()
@@ -55,80 +61,51 @@ export default function AuthCallback() {
           return
         }
 
+        console.log('[Callback] ✅ User validated:', currentUser.email)
+
         // Check if user is admin
-        if (session.user.email === ADMIN_EMAIL) {
-          console.log('[Callback] Admin detected, redirecting to admin dashboard')
+        if (currentUser.email === ADMIN_EMAIL) {
+          console.log('[Callback] 👑 Admin detected')
           window.location.href = '/dashboard/admin'
           return
         }
 
         // Check if user has a role in the database
+        console.log('[Callback] 🔍 Checking user profile in database...')
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('id', session.user.id)
+          .eq('id', currentUser.id)
           .maybeSingle()
 
         if (profileError) {
           console.error('[Callback] Profile error:', profileError)
         }
 
+        console.log('[Callback] Profile data:', userProfile)
+
         if (!userProfile || !userProfile.role) {
-          // User doesn't have profile yet
-          const provider = session.user.app_metadata?.provider
-          console.log('[Callback] User profile not found, provider:', provider)
-
-          // Check pending role dari localStorage
-          const pendingRole = typeof window !== 'undefined'
-            ? localStorage.getItem('pendingRole')
-            : null
-
-          if (pendingRole === 'student' || pendingRole === 'tutor') {
-            console.log('[Callback] pendingRole found:', pendingRole, '— creating profile')
-            localStorage.removeItem('pendingRole')
-
-            // Create the profile with the pre-selected role
-            const setRoleRes = await fetch('/api/auth/set-role', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ role: pendingRole }),
-            })
-
-            if (setRoleRes.ok) {
-              if (pendingRole === 'student') {
-                window.location.href = '/dashboard/student/onboarding'
-              } else {
-                window.location.href = '/dashboard/tutor'
-              }
-              return
-            }
-            console.warn('[Callback] set-role API failed, falling back to select-role')
-          }
-
-          // No pending role - redirect to select-role page
-          console.log('[Callback] Redirecting to select-role')
+          // User doesn't have role yet → redirect to select-role
+          console.log('[Callback] 🆕 New user → redirect to select-role')
           window.location.href = '/auth/select-role'
           return
         }
 
-        // User sudah punya role, redirect ke dashboard
+        // User sudah punya role → redirect ke dashboard
         const role = userProfile.role as string
-        console.log('[Callback] User profile found with role:', role)
+        console.log('[Callback] ✅ User has role:', role)
         const dashboardPath = ROLE_TO_DASHBOARD[role]
         
         if (!dashboardPath) {
-          console.warn('[Callback] Unknown role value from DB:', role, '— redirecting to select-role')
+          console.warn('[Callback] ⚠️ Unknown role:', role)
           window.location.href = '/auth/select-role'
         } else {
-          console.log('[Callback] Redirecting to dashboard:', dashboardPath)
+          console.log('[Callback] 🎯 Redirecting to dashboard:', dashboardPath)
           window.location.href = `/dashboard/${dashboardPath}`
         }
         
       } catch (err) {
-        console.error('[Callback] Error:', err)
+        console.error('[Callback] ❌ Error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
         
         // Clear session on error
@@ -142,11 +119,12 @@ export default function AuthCallback() {
         }
       } finally {
         setLoading(false)
+        setIsProcessing(false)
       }
     }
 
     handleCallback()
-  }, [router])
+  }, [isProcessing])
 
   if (loading) {
     return (

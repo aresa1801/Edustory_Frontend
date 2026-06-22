@@ -10,34 +10,24 @@ import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
 
 export default function SelectRolePage() {
   const router = useRouter()
-  const { user, isFirstTimeUser, clearFirstTimeUserFlag } = useAuth()
+  const { user, clearFirstTimeUserFlag } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
-    let isMounted = true
-    let checkTimeout: NodeJS.Timeout
+    // Prevent multiple executions
+    if (isProcessing) return
+    setIsProcessing(true)
 
     const checkUserAndRole = async () => {
-      console.log('[SelectRole] Checking user and role...')
+      console.log('[SelectRole] 🔍 Checking user and role...')
       
-      // Timeout 10 detik untuk prevent stuck
-      checkTimeout = setTimeout(() => {
-        if (isMounted && checking) {
-          console.warn('[SelectRole] Check timeout, forcing redirect to home')
-          setChecking(false)
-          window.location.href = '/?check_timeout=1'
-        }
-      }, 10000)
-
       try {
         if (!user) {
-          console.log('[SelectRole] No user found, redirecting to home')
-          if (isMounted) {
-            setChecking(false)
-            window.location.href = '/?no_user=1'
-          }
+          console.log('[SelectRole] ❌ No user found')
+          window.location.href = '/?no_user=1'
           return
         }
 
@@ -58,46 +48,34 @@ export default function SelectRolePage() {
 
         // Jika sudah punya role, redirect ke dashboard
         if (profile?.role) {
-          console.log('[SelectRole] User already has role:', profile.role)
-          if (isMounted) {
-            clearTimeout(checkTimeout)
-            setChecking(false)
-            
-            const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
-              ? '/dashboard/student' 
-              : profile.role === 'tutor'
-              ? '/dashboard/tutor'
-              : '/dashboard/admin'
-            
-            window.location.href = dashboardPath
-          }
+          console.log('[SelectRole] ✅ User already has role:', profile.role)
+          
+          const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
+            ? '/dashboard/student' 
+            : profile.role === 'tutor'
+            ? '/dashboard/tutor'
+            : '/dashboard/admin'
+          
+          console.log('[SelectRole] 🎯 Redirecting to:', dashboardPath)
+          window.location.href = dashboardPath
           return
         }
 
         // User belum punya role, tampilkan halaman select role
-        console.log('[SelectRole] User has no role, showing select role page')
-        if (isMounted) {
-          clearTimeout(checkTimeout)
-          setChecking(false)
-        }
+        console.log('[SelectRole] 📝 User has no role, showing select role page')
+        setChecking(false)
+        setIsProcessing(false)
 
       } catch (err) {
         console.error('[SelectRole] Error checking user:', err)
-        if (isMounted) {
-          clearTimeout(checkTimeout)
-          setChecking(false)
-          setError('Gagal memeriksa data user. Silakan coba lagi.')
-        }
+        setError('Gagal memeriksa data user. Silakan coba lagi.')
+        setChecking(false)
+        setIsProcessing(false)
       }
     }
 
     checkUserAndRole()
-
-    return () => {
-      isMounted = false
-      if (checkTimeout) clearTimeout(checkTimeout)
-    }
-  }, [user, router, checking])
+  }, [user, isProcessing])
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
     if (!user) {
@@ -114,7 +92,7 @@ export default function SelectRolePage() {
       // Map frontend role to database role
       const dbRole = role === 'student' ? 'siswa' : 'tutor'
 
-      console.log('[SelectRole] Saving role:', { userId: user.id, role: dbRole })
+      console.log('[SelectRole] 💾 Saving role:', { userId: user.id, role: dbRole })
 
       // Cek apakah profile sudah ada
       const { data: existingProfile } = await supabase
@@ -127,7 +105,7 @@ export default function SelectRolePage() {
 
       if (existingProfile) {
         // Update existing profile
-        console.log('[SelectRole] Updating existing profile')
+        console.log('[SelectRole] 🔄 Updating existing profile')
         result = await supabase
           .from('user_profiles')
           .update({ 
@@ -137,7 +115,7 @@ export default function SelectRolePage() {
           .eq('id', user.id)
       } else {
         // Insert new profile
-        console.log('[SelectRole] Creating new profile')
+        console.log('[SelectRole] ➕ Creating new profile')
         result = await supabase
           .from('user_profiles')
           .insert({
@@ -150,16 +128,18 @@ export default function SelectRolePage() {
       }
 
       if (result.error) {
-        console.error('[SelectRole] Save error:', result.error)
+        console.error('[SelectRole] ❌ Save error:', result.error)
         throw result.error
       }
+
+      console.log('[SelectRole] ✅ Role saved to database')
 
       // Update user metadata juga
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
-      console.log('[SelectRole] Role saved successfully')
+      console.log('[SelectRole] ✅ User metadata updated')
 
       // Clear first time user flag
       clearFirstTimeUserFlag()
@@ -169,11 +149,11 @@ export default function SelectRolePage() {
         ? '/dashboard/student' 
         : '/dashboard/tutor'
       
-      console.log('[SelectRole] Redirecting to:', dashboardPath)
+      console.log('[SelectRole] 🎯 Redirecting to dashboard:', dashboardPath)
       window.location.href = dashboardPath
       
     } catch (err) {
-      console.error('[SelectRole] Error selecting role:', err)
+      console.error('[SelectRole] ❌ Error selecting role:', err)
       setError('Gagal menyimpan role. Silakan coba lagi.')
     } finally {
       setIsLoading(false)
