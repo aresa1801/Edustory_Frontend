@@ -18,6 +18,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
+  forceSignOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -105,36 +106,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('[Auth] Getting session...')
         const supabase = createClient()
         
-        // ✅ HAPUS TIMEOUT - langsung getSession tanpa Promise.race
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (!isMounted) return
         
         if (sessionError) {
           console.error('[Auth] Session error:', sessionError)
+          // Clear invalid session
+          await supabase.auth.signOut()
           setInitError(sessionError.message)
+          if (isMounted) setLoading(false)
           return
         }
         
-        console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
-        setSession(currentSession)
-        setUser(currentSession?.user ?? null)
+        console.log('[Auth] Session retrieved:', session?.user?.email || 'No user')
+        setSession(session)
+        setUser(session?.user ?? null)
 
-        if (currentSession?.user) {
+        if (session?.user) {
           console.log('[Auth] Fetching user profile...')
-          const { role, name } = await fetchUserProfile(currentSession.user)
-          if (isMounted) {
-            setUserRole(role)
-            setUserName(name)
-            console.log('[Auth] User role:', role)
+          try {
+            const { role, name } = await fetchUserProfile(session.user)
+            
+            // Cek apakah profile valid
+            if (!role && !session.user.email?.includes(ADMIN_EMAIL)) {
+              console.warn('[Auth] User profile not found in database, clearing session...')
+              // User ada di auth tapi tidak ada di database -> clear session
+              await supabase.auth.signOut()
+              if (isMounted) {
+                setUser(null)
+                setSession(null)
+                setUserRole(null)
+                setUserName(null)
+              }
+            } else {
+              // Profile valid
+              if (isMounted) {
+                setUserRole(role)
+                setUserName(name)
+                console.log('[Auth] User role:', role)
+              }
+            }
+          } catch (profileError) {
+            console.error('[Auth] Profile fetch error:', profileError)
+            // Jika error fetch profile, clear session
+            await supabase.auth.signOut()
+            if (isMounted) {
+              setUser(null)
+              setSession(null)
+            }
           }
         }
         
       } catch (error) {
         console.error('[Auth] Initialization error:', error)
         setInitError(error instanceof Error ? error.message : 'Unknown error')
+        
+        // Clear session jika ada error critical
+        try {
+          const supabase = createClient()
+          await supabase.auth.signOut()
+        } catch (e) {
+          console.error('[Auth] Failed to clear session:', e)
+        }
       } finally {
-        // ✅ PASTIKAN loading selalu di-set ke false
         if (isMounted) {
           console.log('[Auth] Initialization complete')
           setLoading(false)
@@ -146,8 +181,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: string, currentSession: Session | null) => {
-        console.log('[Auth] Auth state changed:', _event)
+      async (event, currentSession) => {
+        console.log('[Auth] Auth state changed:', event, currentSession?.user?.email)
+        
         if (isMounted) {
           setSession(currentSession)
           setUser(currentSession?.user ?? null)
@@ -155,10 +191,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (currentSession?.user) {
             try {
               const { role, name } = await fetchUserProfile(currentSession.user)
-              setUserRole(role)
-              setUserName(name)
+              
+              // Validasi profile
+              if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
+                console.warn('[Auth] Profile not found during auth state change, signing out...')
+                await supabase.auth.signOut()
+                setUserRole(null)
+                setUserName(null)
+              } else {
+                setUserRole(role)
+                setUserName(name)
+              }
             } catch (error) {
               console.error('[Auth] Profile update error:', error)
+              await supabase.auth.signOut()
+              setUserRole(null)
+              setUserName(null)
             }
           } else {
             setUserRole(null)
@@ -208,6 +256,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  const forceSignOut = async () => {
+  try {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    
+    // Clear localStorage secara manual
+    if (typeof window !== 'undefined') {
+      // Clear semua key Supabase
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key)
+        }
+      })
+    }
+    
+    setUser(null)
+    setSession(null)
+    setUserRole(null)
+    setUserName(null)
+  } catch (error) {
+    console.error('[Auth] Force sign out error:', error)
+  }
+}
+
   // Show error state
   if (initError) {
     return (
@@ -224,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, userName, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, userRole, userName, loading, signUp, signIn, signInWithGoogle, signOut, forceSignOut,}}>
       {children}
     </AuthContext.Provider>
   )

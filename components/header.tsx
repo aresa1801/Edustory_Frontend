@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard } from 'lucide-react'
+import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
@@ -15,20 +15,8 @@ const Header = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
   
-  // Safe auth check dengan error handling
-  let user = null
-  let userRole = null
-  let loading = true
-  
-  try {
-    const auth = useAuth()
-    user = auth.user
-    userRole = auth.userRole
-    loading = auth.loading
-  } catch (error) {
-    console.error('[Header] Auth context error:', error)
-    loading = false // Fallback: anggap tidak loading
-  }
+  // ✅ FIX: useAuth HARUS di top level, tidak boleh dalam try-catch
+  const { user, userRole, loading, forceSignOut } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -64,6 +52,28 @@ const Header = () => {
     } else {
       setAuthMode('signin')
       setAuthOpen(true)
+    }
+  }
+
+  // ✅ NEW: Force logout untuk clear stuck session
+  const handleForceLogout = async () => {
+    try {
+      if (forceSignOut) {
+        await forceSignOut()
+      }
+      // Clear semua cache Supabase manual
+      if (typeof window !== 'undefined') {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key)
+          }
+        })
+        sessionStorage.clear()
+      }
+      window.location.reload()
+    } catch (error) {
+      console.error('[Header] Force logout error:', error)
+      window.location.reload()
     }
   }
 
@@ -108,26 +118,36 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Desktop CTA Buttons */}
+          {/* Desktop CTA Buttons - ✅ FIXED: Prioritaskan user state */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
-              // User sudah login - tampilkan Dashboard button
-              <Button
-                onClick={handleDashboardClick}
-                className="bg-primary hover:bg-primary/90 text-white gap-2"
-                disabled={loading} // Disable sementara sambil load profile
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                {loading ? 'Loading...' : 'Dashboard'}
-              </Button>
+              // ✅ User sudah login - tampilkan Dashboard button
+              <>
+                <Button
+                  onClick={handleDashboardClick}
+                  className="bg-primary hover:bg-primary/90 text-white gap-2"
+                  disabled={loading && !userRole}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  {loading && !userRole ? 'Memuat...' : 'Dashboard'}
+                </Button>
+                <Button
+                  onClick={handleForceLogout}
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  title="Force Logout (Clear Cache)"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </>
             ) : (
-              // User belum login - tampilkan Login/Register
+              // ✅ User belum login - tampilkan Login/Register
               <>
                 <Button
                   variant="ghost"
                   onClick={handleSignIn}
                   className="text-foreground hover:text-primary gap-2"
-                  disabled={loading}
                 >
                   <LogIn className="w-4 h-4" />
                   Masuk
@@ -135,12 +155,25 @@ const Header = () => {
                 <Button
                   onClick={handleSignUp}
                   className="bg-primary hover:bg-primary/90 text-white gap-2"
-                  disabled={loading}
                 >
                   <UserPlus className="w-4 h-4" />
                   Daftar
                 </Button>
               </>
+            )}
+            
+            {/* ✅ NEW: Tombol Emergency untuk stuck session (development only) */}
+            {loading && (
+              <Button
+                onClick={handleForceLogout}
+                variant="destructive"
+                size="sm"
+                className="gap-1"
+                title="Klik jika loading stuck"
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Reset
+              </Button>
             )}
           </div>
 
@@ -169,27 +202,54 @@ const Header = () => {
                 </a>
               ))}
               <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
-                {loading ? (
-                  <div className="w-full h-9 bg-muted rounded animate-pulse"></div>
-                ) : user ? (
-                  <Button
-                    onClick={() => {
-                      handleDashboardClick()
-                      setIsOpen(false)
-                    }}
-                    className="w-full bg-primary hover:bg-primary/90 text-white"
-                  >
-                    Dashboard
-                  </Button>
+                {user ? (
+                  // ✅ User sudah login
+                  <>
+                    <Button
+                      onClick={() => {
+                        handleDashboardClick()
+                        setIsOpen(false)
+                      }}
+                      className="w-full bg-primary hover:bg-primary/90 text-white"
+                      disabled={loading && !userRole}
+                    >
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      {loading && !userRole ? 'Memuat...' : 'Dashboard'}
+                    </Button>
+                    <Button
+                      onClick={handleForceLogout}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </Button>
+                  </>
                 ) : (
+                  // ✅ User belum login
                   <>
                     <Button variant="outline" onClick={handleSignIn} className="w-full">
+                      <LogIn className="w-4 h-4 mr-2" />
                       Masuk
                     </Button>
                     <Button onClick={handleSignUp} className="w-full bg-primary hover:bg-primary/90 text-white">
+                      <UserPlus className="w-4 h-4 mr-2" />
                       Daftar
                     </Button>
                   </>
+                )}
+                
+                {/* ✅ NEW: Emergency reset button di mobile */}
+                {loading && (
+                  <Button
+                    onClick={handleForceLogout}
+                    variant="destructive"
+                    size="sm"
+                    className="w-full mt-2"
+                  >
+                    <AlertTriangle className="w-3 h-3 mr-2" />
+                    Reset Stuck Session
+                  </Button>
                 )}
               </div>
             </div>
