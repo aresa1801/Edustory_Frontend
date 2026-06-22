@@ -14,11 +14,13 @@ interface AuthContextType {
   userRole: AppRole
   userName: string | null
   loading: boolean
+  isFirstTimeUser: boolean
   signUp: (email: string, password: string, role: 'student' | 'tutor') => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   forceSignOut: () => Promise<void>
+  clearFirstTimeUserFlag: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<AppRole>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
 
   // Function to clear all Supabase storage
@@ -125,7 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (sessionError) {
           console.error('[Auth] Session error:', sessionError)
-          await supabase.auth.signOut()
+          // Force clear even on error
+          await supabase.auth.signOut({ scope: 'global' })
+          clearSupabaseStorage()
           setInitError(sessionError.message)
           if (isMounted) setLoading(false)
           return
@@ -142,13 +147,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           initTimeout = setTimeout(async () => {
             if (isMounted && loading) {
               console.warn('[Auth] Profile fetch timeout, forcing sign out...')
-              await supabase.auth.signOut()
+              await supabase.auth.signOut({ scope: 'global' })
               clearSupabaseStorage()
               if (isMounted) {
                 setUser(null)
                 setSession(null)
                 setUserRole(null)
                 setUserName(null)
+                setIsFirstTimeUser(false)
                 setLoading(false)
               }
             }
@@ -161,17 +167,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             // Validasi: jika user tidak punya role dan bukan admin
             if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
-              console.warn('[Auth] User has no valid profile, clearing session...')
-              await supabase.auth.signOut()
-              clearSupabaseStorage()
+              console.warn('[Auth] User has no valid profile - FIRST TIME USER')
+              // Ini user baru, tandai sebagai first time user
               if (isMounted) {
-                setUser(null)
-                setSession(null)
+                setIsFirstTimeUser(true)
                 setUserRole(null)
-                setUserName(null)
+                setUserName(name)
               }
             } else {
               if (isMounted) {
+                setIsFirstTimeUser(false)
                 setUserRole(role)
                 setUserName(name)
                 console.log('[Auth] User validated:', { email: currentSession.user.email, role })
@@ -180,13 +185,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch (profileError) {
             console.error('[Auth] Profile validation error:', profileError)
             if (isMounted) {
-              await supabase.auth.signOut()
+              await supabase.auth.signOut({ scope: 'global' })
               clearSupabaseStorage()
               setUser(null)
               setSession(null)
             }
           } finally {
             if (initTimeout) clearTimeout(initTimeout)
+          }
+        } else {
+          // No session
+          if (isMounted) {
+            setIsFirstTimeUser(false)
           }
         }
         
@@ -196,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         try {
           const supabase = createClient()
-          await supabase.auth.signOut()
+          await supabase.auth.signOut({ scope: 'global' })
           clearSupabaseStorage()
         } catch (e) {
           console.error('[Auth] Failed to clear session:', e)
@@ -225,25 +235,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const { role, name } = await fetchUserProfile(currentSession.user)
               
               if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
-                console.warn('[Auth] Invalid profile detected, signing out...')
-                await supabase.auth.signOut()
-                clearSupabaseStorage()
+                console.log('[Auth] First time user detected')
+                setIsFirstTimeUser(true)
                 setUserRole(null)
-                setUserName(null)
+                setUserName(name)
               } else {
+                setIsFirstTimeUser(false)
                 setUserRole(role)
                 setUserName(name)
               }
             } catch (error) {
               console.error('[Auth] Profile update error:', error)
-              await supabase.auth.signOut()
+              await supabase.auth.signOut({ scope: 'global' })
               clearSupabaseStorage()
               setUserRole(null)
               setUserName(null)
+              setIsFirstTimeUser(false)
             }
           } else {
             setUserRole(null)
             setUserName(null)
+            setIsFirstTimeUser(false)
           }
           
           setLoading(false)
@@ -280,10 +292,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/select-role`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent',
+          prompt: 'select_account', // Show account picker
         },
       },
     })
@@ -292,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     const supabase = createClient()
-    const { error } = await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut({ scope: 'global' })
     if (error) throw error
   }
 
@@ -302,10 +314,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const supabase = createClient()
       
-      // Sign out from Supabase
+      // Sign out from Supabase dengan scope global
       await supabase.auth.signOut({ scope: 'global' })
       
-      // Clear local storage
+      // Clear local storage secara agresif
       clearSupabaseStorage()
       
       // Clear state
@@ -313,6 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null)
       setUserRole(null)
       setUserName(null)
+      setIsFirstTimeUser(false)
       setLoading(false)
       
       console.log('[Auth] Force sign out completed')
@@ -329,12 +342,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null)
       setUserRole(null)
       setUserName(null)
+      setIsFirstTimeUser(false)
       setLoading(false)
       
       if (typeof window !== 'undefined') {
         window.location.href = '/'
       }
     }
+  }
+
+  const clearFirstTimeUserFlag = () => {
+    setIsFirstTimeUser(false)
   }
 
   if (initError) {
@@ -364,11 +382,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userRole, 
       userName, 
       loading, 
+      isFirstTimeUser,
       signUp, 
       signIn, 
       signInWithGoogle, 
       signOut,
       forceSignOut,
+      clearFirstTimeUserFlag,
     }}>
       {children}
     </AuthContext.Provider>

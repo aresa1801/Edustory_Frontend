@@ -8,15 +8,14 @@ import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
 
-// Helper function to mask email
-const maskEmail = (email: string | null | undefined): string => {
+// Helper function to mask email - hanya 3 bintang
+const maskEmail = (email?: string | null): string => {
   if (!email) return ''
   const [username, domain] = email.split('@')
   if (!username || !domain) return email
   
-  const maskedUsername = username.length > 2 
-    ? username[0] + '*'.repeat(username.length - 1)
-    : username[0] + '*'
+  // Hanya tampilkan huruf pertama + 3 bintang
+  const maskedUsername = username[0] + '***'
   
   return `${maskedUsername}@${domain}`
 }
