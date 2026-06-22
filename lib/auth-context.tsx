@@ -251,10 +251,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth()
 
     // ✅ Listen untuk perubahan auth state (login/logout)
+    // Listen untuk perubahan auth state (login/logout)
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[Auth] 📡 Auth state changed:', event)
+        console.log('[Auth] 📡 Auth state changed:', event, currentSession?.user?.email)
         
         // Prevent infinite loop
         if (isProcessingAuthChange.current) {
@@ -273,47 +274,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           
+          // ✅ LANGKAH PENTING: Jangan trust event, VALIDASI LANGSUNG KE SERVER
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            console.log('[Auth] 🔄 Re-validating user with server...')
+            console.log('[Auth] 🔄 Event:', event, '- Validating with server...')
             
-            // Re-validate ke server
+            // PAKAI getUser() untuk validasi KE SERVER
             const { data: { user: validatedUser }, error: validateError } = await supabase.auth.getUser()
             
             if (!isMounted) return
             
+            // ✅ JIKA USER TIDAK VALID - LANGSUNG CLEAR
             if (validateError || !validatedUser) {
-              console.log('[Auth] 🚫 User invalid after auth change, clearing...')
+              console.log('[Auth] 🚫 getUser() return error/null - User TIDAK VALID!')
+              console.log('[Auth] 🧹 Clearing session immediately...')
+              
+              // LANGSUNG CLEAR
               await supabase.auth.signOut({ scope: 'global' })
               clearSupabaseStorage()
               setAsGuest()
+              
               return
             }
             
-            // User valid, update state
+            // ✅ User valid, cek apakah ada di database
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('role, name')
+              .eq('id', validatedUser.id)
+              .maybeSingle()
+            
+            if (!isMounted) return
+            
+            // ✅ JIKA USER TIDAK ADA DI DATABASE - CLEAR JUGA
+            if (!profile?.role && validatedUser.email !== ADMIN_EMAIL) {
+              console.log('[Auth] ⚠️ User ada di auth tapi TIDAK ADA di database')
+              console.log('[Auth] 🧹 Clearing session...')
+              
+              await supabase.auth.signOut({ scope: 'global' })
+              clearSupabaseStorage()
+              setAsGuest()
+              
+              return
+            }
+            
+            // User valid dan ada di database
+            console.log('[Auth] ✅ User valid dan terdaftar:', validatedUser.email)
             setSession(currentSession)
             setUser(validatedUser)
             
-            // Fetch profile
-            try {
-              const { role, name } = await fetchUserProfile(validatedUser)
-              
-              if (!role && !validatedUser.email?.includes(ADMIN_EMAIL)) {
-                setIsFirstTimeUser(true)
-                setUserRole(null)
-                setUserName(name || validatedUser.email || null)
-              } else {
-                setIsFirstTimeUser(false)
-                setUserRole(role)
-                setUserName(name || validatedUser.email || null)
-              }
-            } catch (profileError) {
-              console.error('[Auth] Profile fetch error in auth change:', profileError)
-              setIsFirstTimeUser(true)
-              setUserRole(null)
-              setUserName(validatedUser.user_metadata?.full_name || validatedUser.email || null)
+            const roleMap: Record<string, AppRole> = {
+              siswa: 'student',
+              student: 'student',
+              tutor: 'tutor',
+              admin: 'admin',
             }
+            const mappedRole = roleMap[profile?.role as string] || null
             
+            setIsFirstTimeUser(false)
+            setUserRole(mappedRole)
+            setUserName(profile?.name || validatedUser.user_metadata?.full_name || validatedUser.email || null)
             setLoading(false)
+          }
+          
+        } catch (error) {
+          console.error('[Auth] Auth state change error:', error)
+          
+          // Error juga langsung clear
+          try {
+            await supabase.auth.signOut({ scope: 'global' })
+            clearSupabaseStorage()
+          } catch (e) {
+            console.error('[Auth] Failed to clear on error:', e)
+          }
+          
+          if (isMounted) {
+            setAsGuest()
           }
         } finally {
           isProcessingAuthChange.current = false
