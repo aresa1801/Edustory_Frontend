@@ -14,7 +14,21 @@ const Header = () => {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
-  const { user, userRole, loading } = useAuth()
+  
+  // Safe auth check dengan error handling
+  let user = null
+  let userRole = null
+  let loading = true
+  
+  try {
+    const auth = useAuth()
+    user = auth.user
+    userRole = auth.userRole
+    loading = auth.loading
+  } catch (error) {
+    console.error('[Header] Auth context error:', error)
+    loading = false // Fallback: anggap tidak loading
+  }
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -48,7 +62,6 @@ const Header = () => {
       
       router.push(dashboardPath)
     } else {
-      // Belum login atau role belum tersedia
       setAuthMode('signin')
       setAuthOpen(true)
     }
@@ -95,9 +108,15 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Desktop CTA Buttons */}
+          {/* Desktop CTA Buttons - SIMPLIFIED */}
           <div className="hidden md:flex items-center gap-3">
-            {!loading && user ? (
+            {loading ? (
+              // Loading skeleton
+              <>
+                <div className="w-20 h-9 bg-muted/50 rounded-md animate-pulse"></div>
+                <div className="w-32 h-9 bg-primary/30 rounded-md animate-pulse"></div>
+              </>
+            ) : user ? (
               <Button
                 onClick={handleDashboardClick}
                 className="bg-primary hover:bg-primary/90 text-white gap-2"
@@ -105,7 +124,7 @@ const Header = () => {
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
               </Button>
-            ) : !loading ? (
+            ) : (
               <>
                 <Button
                   variant="ghost"
@@ -120,15 +139,9 @@ const Header = () => {
                   className="bg-primary hover:bg-primary/90 text-white gap-2"
                 >
                   <UserPlus className="w-4 h-4" />
-                  Daftar Sekarang
+                  Daftar
                 </Button>
               </>
-            ) : (
-              // Loading state - tampilkan skeleton
-              <div className="flex gap-2">
-                <div className="w-20 h-9 bg-muted rounded animate-pulse"></div>
-                <div className="w-32 h-9 bg-primary/50 rounded animate-pulse"></div>
-              </div>
             )}
           </div>
 
@@ -157,7 +170,9 @@ const Header = () => {
                 </a>
               ))}
               <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
-                {!loading && user ? (
+                {loading ? (
+                  <div className="w-full h-9 bg-muted rounded animate-pulse"></div>
+                ) : user ? (
                   <Button
                     onClick={() => {
                       handleDashboardClick()
@@ -167,17 +182,15 @@ const Header = () => {
                   >
                     Dashboard
                   </Button>
-                ) : !loading ? (
+                ) : (
                   <>
                     <Button variant="outline" onClick={handleSignIn} className="w-full">
                       Masuk
                     </Button>
                     <Button onClick={handleSignUp} className="w-full bg-primary hover:bg-primary/90 text-white">
-                      Daftar Sekarang
+                      Daftar
                     </Button>
                   </>
-                ) : (
-                  <div className="w-full h-9 bg-muted rounded animate-pulse"></div>
                 )}
               </div>
             </div>
