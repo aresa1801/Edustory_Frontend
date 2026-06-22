@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
-import { AppProvider } from '@/components/app-provider'
+import { AuthProvider } from '@/lib/auth-context'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
@@ -46,11 +46,11 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <AppProvider>
+          <AuthProvider>
             <div>
               {children}
             </div>
-          </AppProvider>
+          </AuthProvider>
         </ThemeProvider>
         <Analytics />
       </body>
