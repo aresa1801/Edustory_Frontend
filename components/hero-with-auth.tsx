@@ -92,21 +92,25 @@ const HeroWithAuth = () => {
                 ))}
               </div>
 
-              {/* CTA Buttons */}
+              {/* CTA Buttons - FIXED: Prioritaskan user state, bukan loading */}
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                {!loading && user ? (
+                {user ? (
+                  // User sudah login - tampilkan Dashboard button
                   <Button
                     onClick={handleDashboardClick}
                     className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2"
+                    disabled={loading}
                   >
-                    Buka Dashboard
-                    <ArrowRight className="w-4 h-4" />
+                    {loading ? 'Loading...' : 'Buka Dashboard'}
+                    {!loading && <ArrowRight className="w-4 h-4" />}
                   </Button>
-                ) : !loading ? (
+                ) : (
+                  // User belum login - tampilkan Daftar & Masuk
                   <>
                     <Button
                       onClick={handleDaftarSekarang}
                       className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2"
+                      disabled={loading}
                     >
                       Daftar Sekarang
                       <ArrowRight className="w-4 h-4" />
@@ -115,16 +119,11 @@ const HeroWithAuth = () => {
                       onClick={handleMasuk}
                       variant="outline"
                       className="h-12 px-8 text-base font-semibold"
+                      disabled={loading}
                     >
                       Sudah Punya Akun? Masuk
                     </Button>
                   </>
-                ) : (
-                  // Loading state
-                  <div className="flex gap-3">
-                    <div className="w-40 h-12 bg-primary/50 rounded-lg animate-pulse"></div>
-                    <div className="w-48 h-12 bg-muted rounded-lg animate-pulse"></div>
-                  </div>
                 )}
               </div>
             </div>

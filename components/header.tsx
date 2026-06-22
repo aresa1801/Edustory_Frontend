@@ -108,28 +108,26 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Desktop CTA Buttons - SIMPLIFIED */}
+          {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            {loading ? (
-              // Loading skeleton
-              <>
-                <div className="w-20 h-9 bg-muted/50 rounded-md animate-pulse"></div>
-                <div className="w-32 h-9 bg-primary/30 rounded-md animate-pulse"></div>
-              </>
-            ) : user ? (
+            {user ? (
+              // User sudah login - tampilkan Dashboard button
               <Button
                 onClick={handleDashboardClick}
                 className="bg-primary hover:bg-primary/90 text-white gap-2"
+                disabled={loading} // Disable sementara sambil load profile
               >
                 <LayoutDashboard className="w-4 h-4" />
-                Dashboard
+                {loading ? 'Loading...' : 'Dashboard'}
               </Button>
             ) : (
+              // User belum login - tampilkan Login/Register
               <>
                 <Button
                   variant="ghost"
                   onClick={handleSignIn}
                   className="text-foreground hover:text-primary gap-2"
+                  disabled={loading}
                 >
                   <LogIn className="w-4 h-4" />
                   Masuk
@@ -137,6 +135,7 @@ const Header = () => {
                 <Button
                   onClick={handleSignUp}
                   className="bg-primary hover:bg-primary/90 text-white gap-2"
+                  disabled={loading}
                 >
                   <UserPlus className="w-4 h-4" />
                   Daftar
