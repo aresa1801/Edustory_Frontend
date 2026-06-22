@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/auth'
 
@@ -35,16 +35,14 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     const supabase = createClient()
     console.log('[Auth] Fetching user profile for:', currentUser.id)
     
-    // ✅ GANTI .single() dengan .maybeSingle() agar tidak error jika tidak ada data
     const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('role, name')
       .eq('id', currentUser.id)
-      .maybeSingle()  // ← PERUBAHAN PENTING
+      .maybeSingle()
 
     if (error) {
       console.error('[Auth] Profile fetch error:', error)
-      // Jangan throw error, fallback ke metadata
     }
 
     if (profile) {
@@ -62,7 +60,7 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
       }
     }
   } catch (error) {
-    console.warn('[Auth] Profile fetch failed, using metadata:', error)
+    console.warn('[Auth] Profile fetch failed:', error)
   }
 
   // Fallback ke metadata
@@ -88,13 +86,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState<string | null>(null)
   const [initError, setInitError] = useState<string | null>(null)
 
+  // Function to clear all Supabase storage
+  const clearSupabaseStorage = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key))
+      console.log('[Auth] Cleared storage keys:', keysToRemove)
+    }
+  }, [])
+
   useEffect(() => {
     let isMounted = true
+    let initTimeout: NodeJS.Timeout
 
     const initializeAuth = async () => {
       console.log('[Auth] Initializing auth context...')
       
-      // Check env variables
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         console.error('[Auth] Missing Supabase environment variables!')
         setInitError('Missing Supabase configuration')
@@ -103,36 +116,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        console.log('[Auth] Getting session...')
         const supabase = createClient()
+        console.log('[Auth] Getting session...')
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
         
         if (!isMounted) return
         
         if (sessionError) {
           console.error('[Auth] Session error:', sessionError)
-          // Clear invalid session
           await supabase.auth.signOut()
           setInitError(sessionError.message)
           if (isMounted) setLoading(false)
           return
         }
         
-        console.log('[Auth] Session retrieved:', session?.user?.email || 'No user')
-        setSession(session)
-        setUser(session?.user ?? null)
+        console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
 
-        if (session?.user) {
-          console.log('[Auth] Fetching user profile...')
-          try {
-            const { role, name } = await fetchUserProfile(session.user)
-            
-            // Cek apakah profile valid
-            if (!role && !session.user.email?.includes(ADMIN_EMAIL)) {
-              console.warn('[Auth] User profile not found in database, clearing session...')
-              // User ada di auth tapi tidak ada di database -> clear session
+        if (currentSession?.user) {
+          console.log('[Auth] Validating user profile...')
+          
+          // Set timeout untuk prevent infinite loading
+          initTimeout = setTimeout(async () => {
+            if (isMounted && loading) {
+              console.warn('[Auth] Profile fetch timeout, forcing sign out...')
               await supabase.auth.signOut()
+              clearSupabaseStorage()
+              if (isMounted) {
+                setUser(null)
+                setSession(null)
+                setUserRole(null)
+                setUserName(null)
+                setLoading(false)
+              }
+            }
+          }, 5000) // 5 detik timeout
+          
+          try {
+            const { role, name } = await fetchUserProfile(currentSession.user)
+            
+            if (!isMounted) return
+            
+            // Validasi: jika user tidak punya role dan bukan admin
+            if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
+              console.warn('[Auth] User has no valid profile, clearing session...')
+              await supabase.auth.signOut()
+              clearSupabaseStorage()
               if (isMounted) {
                 setUser(null)
                 setSession(null)
@@ -140,21 +171,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUserName(null)
               }
             } else {
-              // Profile valid
               if (isMounted) {
                 setUserRole(role)
                 setUserName(name)
-                console.log('[Auth] User role:', role)
+                console.log('[Auth] User validated:', { email: currentSession.user.email, role })
               }
             }
           } catch (profileError) {
-            console.error('[Auth] Profile fetch error:', profileError)
-            // Jika error fetch profile, clear session
-            await supabase.auth.signOut()
+            console.error('[Auth] Profile validation error:', profileError)
             if (isMounted) {
+              await supabase.auth.signOut()
+              clearSupabaseStorage()
               setUser(null)
               setSession(null)
             }
+          } finally {
+            if (initTimeout) clearTimeout(initTimeout)
           }
         }
         
@@ -162,10 +194,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[Auth] Initialization error:', error)
         setInitError(error instanceof Error ? error.message : 'Unknown error')
         
-        // Clear session jika ada error critical
         try {
           const supabase = createClient()
           await supabase.auth.signOut()
+          clearSupabaseStorage()
         } catch (e) {
           console.error('[Auth] Failed to clear session:', e)
         }
@@ -192,10 +224,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const { role, name } = await fetchUserProfile(currentSession.user)
               
-              // Validasi profile
               if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
-                console.warn('[Auth] Profile not found during auth state change, signing out...')
+                console.warn('[Auth] Invalid profile detected, signing out...')
                 await supabase.auth.signOut()
+                clearSupabaseStorage()
                 setUserRole(null)
                 setUserName(null)
               } else {
@@ -205,6 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } catch (error) {
               console.error('[Auth] Profile update error:', error)
               await supabase.auth.signOut()
+              clearSupabaseStorage()
               setUserRole(null)
               setUserName(null)
             }
@@ -221,9 +254,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       console.log('[Auth] Cleaning up auth context')
       isMounted = false
+      if (initTimeout) clearTimeout(initTimeout)
       subscription.unsubscribe()
     }
-  }, [])
+  }, [clearSupabaseStorage])
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
@@ -245,7 +279,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { 
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     })
     if (error) throw error
   }
@@ -256,47 +296,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  // Force sign out - clear everything
   const forceSignOut = async () => {
-  try {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    
-    // Clear localStorage secara manual
-    if (typeof window !== 'undefined') {
-      // Clear semua key Supabase
-      Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('sb-') || key.includes('supabase')) {
-          localStorage.removeItem(key)
-        }
-      })
+    console.log('[Auth] Force sign out initiated...')
+    try {
+      const supabase = createClient()
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut({ scope: 'global' })
+      
+      // Clear local storage
+      clearSupabaseStorage()
+      
+      // Clear state
+      setUser(null)
+      setSession(null)
+      setUserRole(null)
+      setUserName(null)
+      setLoading(false)
+      
+      console.log('[Auth] Force sign out completed')
+      
+      // Force reload to ensure clean state
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
+    } catch (error) {
+      console.error('[Auth] Force sign out error:', error)
+      // Even if error, clear everything
+      clearSupabaseStorage()
+      setUser(null)
+      setSession(null)
+      setUserRole(null)
+      setUserName(null)
+      setLoading(false)
+      
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
     }
-    
-    setUser(null)
-    setSession(null)
-    setUserRole(null)
-    setUserName(null)
-  } catch (error) {
-    console.error('[Auth] Force sign out error:', error)
   }
-}
 
-  // Show error state
   if (initError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center p-6">
           <h2 className="text-xl font-bold text-red-500 mb-2">Authentication Error</h2>
           <p className="text-muted-foreground mb-4">{initError}</p>
-          <p className="text-sm text-muted-foreground">
-            Check Vercel environment variables
-          </p>
+          <button
+            onClick={() => {
+              clearSupabaseStorage()
+              window.location.reload()
+            }}
+            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+          >
+            Clear Cache & Reload
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, userName, loading, signUp, signIn, signInWithGoogle, signOut, forceSignOut,}}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      userRole, 
+      userName, 
+      loading, 
+      signUp, 
+      signIn, 
+      signInWithGoogle, 
+      signOut,
+      forceSignOut,
+    }}>
       {children}
     </AuthContext.Provider>
   )

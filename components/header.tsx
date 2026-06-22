@@ -3,10 +3,23 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTriangle } from 'lucide-react'
+import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
+
+// Helper function to mask email
+const maskEmail = (email: string | null | undefined): string => {
+  if (!email) return ''
+  const [username, domain] = email.split('@')
+  if (!username || !domain) return email
+  
+  const maskedUsername = username.length > 2 
+    ? username[0] + '*'.repeat(username.length - 1)
+    : username[0] + '*'
+  
+  return `${maskedUsername}@${domain}`
+}
 
 const Header = () => {
   const router = useRouter()
@@ -15,7 +28,6 @@ const Header = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
   
-  // ✅ FIX: useAuth HARUS di top level, tidak boleh dalam try-catch
   const { user, userRole, loading, forceSignOut } = useAuth()
 
   useEffect(() => {
@@ -55,25 +67,13 @@ const Header = () => {
     }
   }
 
-  // ✅ NEW: Force logout untuk clear stuck session
-  const handleForceLogout = async () => {
+  const handleLogout = async () => {
     try {
-      if (forceSignOut) {
-        await forceSignOut()
-      }
-      // Clear semua cache Supabase manual
-      if (typeof window !== 'undefined') {
-        Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith('sb-') || key.includes('supabase')) {
-            localStorage.removeItem(key)
-          }
-        })
-        sessionStorage.clear()
-      }
-      window.location.reload()
+      await forceSignOut()
     } catch (error) {
-      console.error('[Header] Force logout error:', error)
-      window.location.reload()
+      console.error('[Header] Logout error:', error)
+      // Force reload even if error
+      window.location.href = '/'
     }
   }
 
@@ -118,11 +118,15 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Desktop CTA Buttons - ✅ FIXED: Prioritaskan user state */}
+          {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
-              // ✅ User sudah login - tampilkan Dashboard button
+              // User sudah login
               <>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="font-medium">{maskEmail(user.email)}</span>
+                </div>
                 <Button
                   onClick={handleDashboardClick}
                   className="bg-primary hover:bg-primary/90 text-white gap-2"
@@ -132,17 +136,17 @@ const Header = () => {
                   {loading && !userRole ? 'Memuat...' : 'Dashboard'}
                 </Button>
                 <Button
-                  onClick={handleForceLogout}
+                  onClick={handleLogout}
                   variant="outline"
                   size="icon"
-                  className="h-9 w-9"
-                  title="Force Logout (Clear Cache)"
+                  className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                  title="Logout"
                 >
                   <LogOut className="w-4 h-4" />
                 </Button>
               </>
             ) : (
-              // ✅ User belum login - tampilkan Login/Register
+              // User belum login
               <>
                 <Button
                   variant="ghost"
@@ -160,20 +164,6 @@ const Header = () => {
                   Daftar
                 </Button>
               </>
-            )}
-            
-            {/* ✅ NEW: Tombol Emergency untuk stuck session (development only) */}
-            {loading && (
-              <Button
-                onClick={handleForceLogout}
-                variant="destructive"
-                size="sm"
-                className="gap-1"
-                title="Klik jika loading stuck"
-              >
-                <AlertTriangle className="w-3 h-3" />
-                Reset
-              </Button>
             )}
           </div>
 
@@ -203,8 +193,11 @@ const Header = () => {
               ))}
               <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
                 {user ? (
-                  // ✅ User sudah login
                   <>
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground mb-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      <span className="font-medium">{maskEmail(user.email)}</span>
+                    </div>
                     <Button
                       onClick={() => {
                         handleDashboardClick()
@@ -217,7 +210,7 @@ const Header = () => {
                       {loading && !userRole ? 'Memuat...' : 'Dashboard'}
                     </Button>
                     <Button
-                      onClick={handleForceLogout}
+                      onClick={handleLogout}
                       variant="outline"
                       className="w-full"
                     >
@@ -226,7 +219,6 @@ const Header = () => {
                     </Button>
                   </>
                 ) : (
-                  // ✅ User belum login
                   <>
                     <Button variant="outline" onClick={handleSignIn} className="w-full">
                       <LogIn className="w-4 h-4 mr-2" />
@@ -237,19 +229,6 @@ const Header = () => {
                       Daftar
                     </Button>
                   </>
-                )}
-                
-                {/* ✅ NEW: Emergency reset button di mobile */}
-                {loading && (
-                  <Button
-                    onClick={handleForceLogout}
-                    variant="destructive"
-                    size="sm"
-                    className="w-full mt-2"
-                  >
-                    <AlertTriangle className="w-3 h-3 mr-2" />
-                    Reset Stuck Session
-                  </Button>
                 )}
               </div>
             </div>
