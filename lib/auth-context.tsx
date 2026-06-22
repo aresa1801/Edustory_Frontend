@@ -45,6 +45,7 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
 
     if (error) {
       console.error('[Auth] Profile fetch error:', error)
+      throw error // Throw agar bisa ditangani di caller
     }
 
     if (profile) {
@@ -61,22 +62,13 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
         name: profile.name || currentUser.email || null,
       }
     }
+    
+    // Profile tidak ada
+    return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
+    
   } catch (error) {
-    console.warn('[Auth] Profile fetch failed:', error)
-  }
-
-  // Fallback ke metadata
-  const metaRole = currentUser.user_metadata?.role as string | undefined
-  const roleMap: Record<string, AppRole> = {
-    siswa: 'student',
-    student: 'student',
-    tutor: 'tutor',
-    admin: 'admin',
-  }
-  
-  return {
-    role: roleMap[metaRole ?? ''] ?? null,
-    name: currentUser.user_metadata?.full_name || currentUser.email || null,
+    console.error('[Auth] Profile fetch failed:', error)
+    throw error // Re-throw
   }
 }
 
@@ -89,53 +81,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
 
-  // Function to clear ALL storage - lebih agresif
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
       const keysToRemove: string[] = []
-      
-      // Collect all keys to remove
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key) {
-          // Hapus semua key yang berhubungan dengan auth/supabase
-          if (
-            key.startsWith('sb-') || 
-            key.includes('supabase') || 
-            key.includes('auth') ||
-            key.includes('session') ||
-            key.includes('user')
-          ) {
-            keysToRemove.push(key)
-          }
+        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
+          keysToRemove.push(key)
         }
       }
-      
-      // Remove all collected keys
-      keysToRemove.forEach(key => {
-        try {
-          localStorage.removeItem(key)
-          console.log('[Auth] Removed key:', key)
-        } catch (e) {
-          console.error('[Auth] Failed to remove key:', key, e)
-        }
-      })
-      
-      // Clear sessionStorage juga
-      try {
-        sessionStorage.clear()
-        console.log('[Auth] SessionStorage cleared')
-      } catch (e) {
-        console.error('[Auth] Failed to clear sessionStorage:', e)
-      }
-      
-      console.log('[Auth] Total keys removed:', keysToRemove.length)
+      keysToRemove.forEach(key => localStorage.removeItem(key))
+      console.log('[Auth] Cleared storage keys:', keysToRemove)
     }
   }, [])
 
   useEffect(() => {
     let isMounted = true
-    let initTimeout: NodeJS.Timeout
+    let initTimeout: NodeJS.Timeout | null = null
 
     const initializeAuth = async () => {
       console.log('[Auth] Initializing auth context...')
@@ -149,84 +111,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const supabase = createClient()
-        console.log('[Auth] Getting session...')
+        console.log('[Auth] Validating session with server...')
         
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+        // ✅ PAKAI getUser() BUKAN getSession() - validasi ke server
+        const { data: { user: serverUser }, error: userError } = await supabase.auth.getUser()
         
         if (!isMounted) return
         
-        if (sessionError) {
-          console.error('[Auth] Session error:', sessionError)
-          // Force clear even on error
+        if (userError || !serverUser) {
+          console.log('[Auth] User not valid or deleted:', userError?.message)
+          // User tidak valid atau sudah dihapus - clear session
           await supabase.auth.signOut({ scope: 'global' })
           clearSupabaseStorage()
-          setInitError(sessionError.message)
-          if (isMounted) setLoading(false)
+          if (isMounted) {
+            setUser(null)
+            setSession(null)
+            setLoading(false)
+          }
           return
         }
         
-        console.log('[Auth] Session retrieved:', currentSession?.user?.email || 'No user')
+        console.log('[Auth] User validated:', serverUser.email)
+        
+        // Get session untuk access token
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
         setSession(currentSession)
-        setUser(currentSession?.user ?? null)
+        setUser(serverUser)
 
-        if (currentSession?.user) {
-          console.log('[Auth] Validating user profile...')
-          
-          // Set timeout untuk prevent infinite loading
-          initTimeout = setTimeout(async () => {
-            if (isMounted && loading) {
-              console.warn('[Auth] Profile fetch timeout, forcing sign out...')
-              await supabase.auth.signOut({ scope: 'global' })
-              clearSupabaseStorage()
-              if (isMounted) {
-                setUser(null)
-                setSession(null)
-                setUserRole(null)
-                setUserName(null)
-                setIsFirstTimeUser(false)
-                setLoading(false)
-              }
-            }
-          }, 5000) // 5 detik timeout
-          
-          try {
-            const { role, name } = await fetchUserProfile(currentSession.user)
-            
-            if (!isMounted) return
-            
-            // Validasi: jika user tidak punya role dan bukan admin
-            if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
-              console.warn('[Auth] User has no valid profile - FIRST TIME USER')
-              // Ini user baru, tandai sebagai first time user
-              if (isMounted) {
-                setIsFirstTimeUser(true)
-                setUserRole(null)
-                setUserName(name)
-              }
-            } else {
-              if (isMounted) {
-                setIsFirstTimeUser(false)
-                setUserRole(role)
-                setUserName(name)
-                console.log('[Auth] User validated:', { email: currentSession.user.email, role })
-              }
-            }
-          } catch (profileError) {
-            console.error('[Auth] Profile validation error:', profileError)
-            if (isMounted) {
-              await supabase.auth.signOut({ scope: 'global' })
-              clearSupabaseStorage()
-              setUser(null)
-              setSession(null)
-            }
-          } finally {
-            if (initTimeout) clearTimeout(initTimeout)
+        // Setup timeout untuk fetch profile
+        let profileFetchTimeout = false
+        initTimeout = setTimeout(() => {
+          if (isMounted && loading) {
+            console.warn('[Auth] Profile fetch timeout (>5s), marking as first-time user...')
+            profileFetchTimeout = true
+            setIsFirstTimeUser(true)
+            setLoading(false)
           }
-        } else {
-          // No session
-          if (isMounted) {
+        }, 5000)
+        
+        try {
+          const { role, name } = await fetchUserProfile(serverUser)
+          
+          if (!isMounted) return
+          
+          // Clear timeout jika berhasil
+          if (initTimeout) {
+            clearTimeout(initTimeout)
+            initTimeout = null
+          }
+          
+          // Validasi: jika user tidak punya role dan bukan admin
+          if (!role && !serverUser.email?.includes(ADMIN_EMAIL)) {
+            console.log('[Auth] First time user detected (no role)')
+            setIsFirstTimeUser(true)
+            setUserRole(null)
+            setUserName(name)
+          } else {
             setIsFirstTimeUser(false)
+            setUserRole(role)
+            setUserName(name)
+            console.log('[Auth] User validated with role:', { email: serverUser.email, role })
           }
+          
+        } catch (profileError) {
+          console.error('[Auth] Profile fetch error:', profileError)
+          
+          if (!isMounted) return
+          
+          // Clear timeout
+          if (initTimeout) {
+            clearTimeout(initTimeout)
+            initTimeout = null
+          }
+          
+          // Jika fetch profile gagal (mungkin user baru atau network error)
+          // Tandai sebagai first time user
+          console.log('[Auth] Profile fetch failed, treating as first-time user')
+          setIsFirstTimeUser(true)
+          setUserName(serverUser.user_metadata?.full_name || serverUser.email || null)
         }
         
       } catch (error) {
@@ -241,6 +203,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('[Auth] Failed to clear session:', e)
         }
       } finally {
+        // Clear timeout jika ada
+        if (initTimeout) {
+          clearTimeout(initTimeout)
+          initTimeout = null
+        }
+        
         if (isMounted) {
           console.log('[Auth] Initialization complete')
           setLoading(false)
@@ -257,37 +225,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (isMounted) {
           setSession(currentSession)
-          setUser(currentSession?.user ?? null)
-
-          if (currentSession?.user) {
-            try {
-              const { role, name } = await fetchUserProfile(currentSession.user)
-              
-              if (!role && !currentSession.user.email?.includes(ADMIN_EMAIL)) {
-                console.log('[Auth] First time user detected')
-                setIsFirstTimeUser(true)
-                setUserRole(null)
-                setUserName(name)
-              } else {
-                setIsFirstTimeUser(false)
-                setUserRole(role)
-                setUserName(name)
-              }
-            } catch (error) {
-              console.error('[Auth] Profile update error:', error)
-              await supabase.auth.signOut({ scope: 'global' })
-              clearSupabaseStorage()
-              setUserRole(null)
-              setUserName(null)
-              setIsFirstTimeUser(false)
-            }
-          } else {
+          
+          if (event === 'SIGNED_OUT') {
+            setUser(null)
             setUserRole(null)
             setUserName(null)
             setIsFirstTimeUser(false)
+            setLoading(false)
+            return
           }
           
-          setLoading(false)
+          // Untuk event lain, validasi dengan getUser()
+          if (currentSession?.user) {
+            try {
+              const { data: { user: validatedUser } } = await supabase.auth.getUser()
+              
+              if (!validatedUser) {
+                // User tidak valid
+                await supabase.auth.signOut({ scope: 'global' })
+                clearSupabaseStorage()
+                setUser(null)
+                setSession(null)
+                setUserRole(null)
+                setUserName(null)
+                setIsFirstTimeUser(false)
+                setLoading(false)
+                return
+              }
+              
+              setUser(validatedUser)
+              
+              const { role, name } = await fetchUserProfile(validatedUser).catch(() => ({ role: null, name: null }))
+              
+              if (!role && !validatedUser.email?.includes(ADMIN_EMAIL)) {
+                setIsFirstTimeUser(true)
+                setUserRole(null)
+                setUserName(name || validatedUser.email || null)
+              } else {
+                setIsFirstTimeUser(false)
+                setUserRole(role)
+                setUserName(name || validatedUser.email || null)
+              }
+              
+              setLoading(false)
+              
+            } catch (error) {
+              console.error('[Auth] Auth state change error:', error)
+              setUserRole(null)
+              setUserName(null)
+              setIsFirstTimeUser(false)
+              setLoading(false)
+            }
+          } else {
+            setUser(null)
+            setUserRole(null)
+            setUserName(null)
+            setIsFirstTimeUser(false)
+            setLoading(false)
+          }
         }
       }
     )
@@ -295,7 +290,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       console.log('[Auth] Cleaning up auth context')
       isMounted = false
-      if (initTimeout) clearTimeout(initTimeout)
+      if (initTimeout) {
+        clearTimeout(initTimeout)
+      }
       subscription.unsubscribe()
     }
   }, [clearSupabaseStorage])
@@ -324,7 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/auth/select-role`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'select_account', // Show account picker
+          prompt: 'select_account',
         },
       },
     })
@@ -337,21 +334,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
-  // Force sign out - SUPER AGGRESSIVE
   const forceSignOut = async () => {
     console.log('[Auth] FORCE SIGN OUT INITIATED...')
     
     try {
       const supabase = createClient()
       
-      // 1. Sign out dari Supabase dengan scope global
+      // Sign out dari Supabase dengan scope global
       await supabase.auth.signOut({ scope: 'global' })
       console.log('[Auth] Supabase signOut completed')
       
-      // 2. Clear semua storage
+      // Clear semua storage
       clearSupabaseStorage()
       
-      // 3. Clear semua state IMMEDIATELY
+      // Clear semua state IMMEDIATELY
       setUser(null)
       setSession(null)
       setUserRole(null)
@@ -361,16 +357,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log('[Auth] All state cleared')
       
-      // 4. FORCE HARD RELOAD - bukan cuma redirect
+      // FORCE HARD RELOAD
       if (typeof window !== 'undefined') {
-        // Clear cache browser
         if ('caches' in window) {
           await caches.keys().then(names => {
             names.forEach(name => caches.delete(name))
           })
         }
         
-        // Force reload dengan timestamp untuk bypass cache
         setTimeout(() => {
           window.location.href = '/?cleared=' + Date.now()
         }, 100)
@@ -388,7 +382,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirstTimeUser(false)
       setLoading(false)
       
-      // Force reload
       if (typeof window !== 'undefined') {
         window.location.href = '/?error_cleared=' + Date.now()
       }
