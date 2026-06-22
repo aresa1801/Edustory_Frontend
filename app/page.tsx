@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
 import Header from '@/components/header'
@@ -19,8 +19,10 @@ import WhatsAppButton from '@/components/whatsapp-button'
 
 export default function Home() {
   const router = useRouter()
-  const [isChecking, setIsChecking] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
 
+  // Cek login status (TANPA blocking)
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -28,53 +30,49 @@ export default function Home() {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session) {
-          // User sudah login, cek role
+          setIsLoggedIn(true)
+          // Cek role tapi JANGAN redirect otomatis
           const { data: profile } = await supabase
             .from('user_profiles')
             .select('role')
             .eq('id', session.user.id)
             .maybeSingle()
-
+          
           if (profile?.role) {
-            // Sudah punya role, langsung ke dashboard
-            const dashboardPath = profile.role === 'siswa' 
-              ? '/dashboard/student' 
-              : profile.role === 'tutor'
-              ? '/dashboard/tutor'
-              : profile.role === 'admin'
-              ? '/dashboard/admin'
-              : null
-            
-            if (dashboardPath) {
-              router.replace(dashboardPath)
-              return
-            }
+            setUserRole(profile.role)
           }
-          // Jika belum punya role, biarkan di landing page
         }
       } catch (err) {
         console.error('Auth check error:', err)
-      } finally {
-        setIsChecking(false)
       }
     }
 
     checkAuth()
-  }, [router])
+  }, [])
 
-  // Tampilkan loading saat mengecek auth
-  if (isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
+  // Handler untuk tombol Dashboard
+  const handleDashboardClick = () => {
+    if (isLoggedIn && userRole) {
+      // Sudah login, langsung ke dashboard sesuai role
+      const dashboardPath = userRole === 'siswa' 
+        ? '/dashboard/student' 
+        : userRole === 'tutor'
+        ? '/dashboard/tutor'
+        : userRole === 'admin'
+        ? '/dashboard/admin'
+        : '/dashboard'
+      
+      router.push(dashboardPath)
+    } else {
+      // Belum login, ke login page
+      router.push('/auth/login')
+    }
   }
 
   return (
     <div className="w-full">
-      <Header />
-      <HeroWithAuth />
+      <Header onDashboardClick={handleDashboardClick} />
+      <HeroWithAuth onDashboardClick={handleDashboardClick} />
       <Features />
       <Programs />
       <HowItWorks />

@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
 
 const Header = () => {
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
-  const { user, userRole } = useAuth()
+  const { user, userRole, loading } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -34,7 +36,23 @@ const Header = () => {
     setIsOpen(false)
   }
 
-  const dashboardPath = userRole ? `/dashboard/${userRole}` : '/dashboard'
+  const handleDashboardClick = () => {
+    if (user && userRole) {
+      const dashboardPath = userRole === 'student' 
+        ? '/dashboard/student' 
+        : userRole === 'tutor'
+        ? '/dashboard/tutor'
+        : userRole === 'admin'
+        ? '/dashboard/admin'
+        : '/dashboard'
+      
+      router.push(dashboardPath)
+    } else {
+      // Belum login atau role belum tersedia
+      setAuthMode('signin')
+      setAuthOpen(true)
+    }
+  }
 
   const menuItems = [
     { label: 'Layanan', href: '#layanan' },
@@ -79,14 +97,15 @@ const Header = () => {
 
           {/* Desktop CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
-              <Link href={dashboardPath}>
-                <Button className="bg-primary hover:bg-primary/90 text-white gap-2">
-                  <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
-                </Button>
-              </Link>
-            ) : (
+            {!loading && user ? (
+              <Button
+                onClick={handleDashboardClick}
+                className="bg-primary hover:bg-primary/90 text-white gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </Button>
+            ) : !loading ? (
               <>
                 <Button
                   variant="ghost"
@@ -104,6 +123,12 @@ const Header = () => {
                   Daftar Sekarang
                 </Button>
               </>
+            ) : (
+              // Loading state - tampilkan skeleton
+              <div className="flex gap-2">
+                <div className="w-20 h-9 bg-muted rounded animate-pulse"></div>
+                <div className="w-32 h-9 bg-primary/50 rounded animate-pulse"></div>
+              </div>
             )}
           </div>
 
@@ -132,13 +157,17 @@ const Header = () => {
                 </a>
               ))}
               <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
-                {user ? (
-                  <Link href={dashboardPath} onClick={() => setIsOpen(false)}>
-                    <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                      Dashboard
-                    </Button>
-                  </Link>
-                ) : (
+                {!loading && user ? (
+                  <Button
+                    onClick={() => {
+                      handleDashboardClick()
+                      setIsOpen(false)
+                    }}
+                    className="w-full bg-primary hover:bg-primary/90 text-white"
+                  >
+                    Dashboard
+                  </Button>
+                ) : !loading ? (
                   <>
                     <Button variant="outline" onClick={handleSignIn} className="w-full">
                       Masuk
@@ -147,6 +176,8 @@ const Header = () => {
                       Daftar Sekarang
                     </Button>
                   </>
+                ) : (
+                  <div className="w-full h-9 bg-muted rounded animate-pulse"></div>
                 )}
               </div>
             </div>

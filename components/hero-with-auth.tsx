@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { AuthModal } from './auth/auth-modal'
@@ -9,9 +10,10 @@ import { useAuth } from '@/lib/auth-context'
 import { CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
 
 const HeroWithAuth = () => {
+  const router = useRouter()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup')
-  const { user, userRole } = useAuth()
+  const { user, userRole, loading } = useAuth()
 
   const handleDaftarSekarang = () => {
     setAuthMode('signup')
@@ -23,7 +25,23 @@ const HeroWithAuth = () => {
     setAuthDialogOpen(true)
   }
 
-  const dashboardPath = userRole ? `/dashboard/${userRole}` : '/dashboard'
+  const handleDashboardClick = () => {
+    if (user && userRole) {
+      const dashboardPath = userRole === 'student' 
+        ? '/dashboard/student' 
+        : userRole === 'tutor'
+        ? '/dashboard/tutor'
+        : userRole === 'admin'
+        ? '/dashboard/admin'
+        : '/dashboard'
+      
+      router.push(dashboardPath)
+    } else {
+      // Belum login, buka modal login
+      setAuthMode('signin')
+      setAuthDialogOpen(true)
+    }
+  }
 
   return (
     <>
@@ -76,14 +94,15 @@ const HeroWithAuth = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                {user ? (
-                  <Link href={dashboardPath}>
-                    <Button className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2">
-                      Buka Dashboard
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                ) : (
+                {!loading && user ? (
+                  <Button
+                    onClick={handleDashboardClick}
+                    className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold gap-2"
+                  >
+                    Buka Dashboard
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                ) : !loading ? (
                   <>
                     <Button
                       onClick={handleDaftarSekarang}
@@ -100,6 +119,12 @@ const HeroWithAuth = () => {
                       Sudah Punya Akun? Masuk
                     </Button>
                   </>
+                ) : (
+                  // Loading state
+                  <div className="flex gap-3">
+                    <div className="w-40 h-12 bg-primary/50 rounded-lg animate-pulse"></div>
+                    <div className="w-48 h-12 bg-muted rounded-lg animate-pulse"></div>
+                  </div>
                 )}
               </div>
             </div>
