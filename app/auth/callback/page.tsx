@@ -27,7 +27,9 @@ export default function AuthCallback() {
         const searchParams = new URLSearchParams(window.location.search)
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
+        
         if (access_token && refresh_token) {
+          console.log('[Callback] Setting session from tokens...')
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
@@ -37,28 +39,26 @@ export default function AuthCallback() {
 
         if (sessionError || !session) {
           console.log('[Callback] No session found, redirecting to login')
-          router.push('/auth/login')
+          window.location.href = '/auth/login'
           return
         }
 
-        // VALIDASI: Cek apakah user masih valid di database
+        // VALIDASI: Cek apakah user masih valid
         const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
         
         if (userError || !currentUser) {
           console.warn('[Callback] User not valid, clearing session...')
           await supabase.auth.signOut({ scope: 'global' })
-          // Clear localStorage
           localStorage.clear()
           sessionStorage.clear()
-          // Redirect ke home
-          router.push('/?session_invalid=1')
+          window.location.href = '/?session_invalid=1'
           return
         }
 
         // Check if user is admin
         if (session.user.email === ADMIN_EMAIL) {
           console.log('[Callback] Admin detected, redirecting to admin dashboard')
-          router.push('/dashboard/admin')
+          window.location.href = '/dashboard/admin'
           return
         }
 
@@ -74,10 +74,11 @@ export default function AuthCallback() {
         }
 
         if (!userProfile || !userProfile.role) {
-          // User doesn't have profile yet - check pending role
+          // User doesn't have profile yet
           const provider = session.user.app_metadata?.provider
           console.log('[Callback] User profile not found, provider:', provider)
 
+          // Check pending role dari localStorage
           const pendingRole = typeof window !== 'undefined'
             ? localStorage.getItem('pendingRole')
             : null
@@ -98,31 +99,32 @@ export default function AuthCallback() {
 
             if (setRoleRes.ok) {
               if (pendingRole === 'student') {
-                router.push('/dashboard/student/onboarding')
+                window.location.href = '/dashboard/student/onboarding'
               } else {
-                router.push('/dashboard/tutor')
+                window.location.href = '/dashboard/tutor'
               }
               return
             }
             console.warn('[Callback] set-role API failed, falling back to select-role')
           }
 
-          // No pending role - let the user pick their role manually
+          // No pending role - redirect to select-role page
           console.log('[Callback] Redirecting to select-role')
-          router.push('/auth/select-role')
+          window.location.href = '/auth/select-role'
           return
         }
 
-        // Redirect to appropriate dashboard based on role
+        // User sudah punya role, redirect ke dashboard
         const role = userProfile.role as string
         console.log('[Callback] User profile found with role:', role)
         const dashboardPath = ROLE_TO_DASHBOARD[role]
         
         if (!dashboardPath) {
           console.warn('[Callback] Unknown role value from DB:', role, '— redirecting to select-role')
-          router.push('/auth/select-role')
+          window.location.href = '/auth/select-role'
         } else {
-          router.push(`/dashboard/${dashboardPath}`)
+          console.log('[Callback] Redirecting to dashboard:', dashboardPath)
+          window.location.href = `/dashboard/${dashboardPath}`
         }
         
       } catch (err) {

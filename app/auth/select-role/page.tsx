@@ -27,7 +27,7 @@ export default function SelectRolePage() {
         if (isMounted && checking) {
           console.warn('[SelectRole] Check timeout, forcing redirect to home')
           setChecking(false)
-          router.push('/?check_timeout=1')
+          window.location.href = '/?check_timeout=1'
         }
       }, 10000)
 
@@ -36,7 +36,7 @@ export default function SelectRolePage() {
           console.log('[SelectRole] No user found, redirecting to home')
           if (isMounted) {
             setChecking(false)
-            router.push('/?no_user=1')
+            window.location.href = '/?no_user=1'
           }
           return
         }
@@ -69,7 +69,7 @@ export default function SelectRolePage() {
               ? '/dashboard/tutor'
               : '/dashboard/admin'
             
-            router.push(dashboardPath)
+            window.location.href = dashboardPath
           }
           return
         }
@@ -170,7 +170,7 @@ export default function SelectRolePage() {
         : '/dashboard/tutor'
       
       console.log('[SelectRole] Redirecting to:', dashboardPath)
-      router.push(dashboardPath)
+      window.location.href = dashboardPath
       
     } catch (err) {
       console.error('[SelectRole] Error selecting role:', err)
@@ -204,7 +204,7 @@ export default function SelectRolePage() {
             Silakan login ulang untuk melanjutkan
           </p>
           <Button
-            onClick={() => router.push('/')}
+            onClick={() => window.location.href = '/'}
             className="w-full"
           >
             Kembali ke Beranda
