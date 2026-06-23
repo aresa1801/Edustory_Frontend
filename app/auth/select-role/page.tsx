@@ -15,30 +15,39 @@ export default function SelectRolePage() {
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
 
-  useEffect(() => {
-    // ✅ TUNGGU AuthContext selesai loading dulu
-    if (authLoading) {
-      console.log('[SelectRole] ⏳ Waiting for AuthContext...')
-      return
-    }
-
+    useEffect(() => {
     const checkUserAndRole = async () => {
       console.log('[SelectRole] 🔍 Checking user and role...')
       
       try {
-        if (!user) {
-          console.log('[SelectRole] ❌ No user found')
+        // ✅ CEK SESSION LANGSUNG DARI SUPABASE, bukan dari AuthContext
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        console.log('[SelectRole] Session from Supabase:', session?.user?.email)
+        
+        // Kalau tidak ada session, tunggu AuthContext
+        if (!session) {
+          if (authLoading) {
+            console.log('[SelectRole] ⏳ Waiting for AuthContext...')
+            return
+          }
+          
+          // AuthContext sudah selesai tapi tetap tidak ada user
+          console.log('[SelectRole] ❌ No session found')
           window.location.href = '/?no_user=1'
           return
         }
 
-        const supabase = createClient()
-        
+        // Ada session, gunakan user dari session
+        const currentUser = session.user
+        console.log('[SelectRole] ✅ User:', currentUser.email)
+
         // Cek apakah user sudah punya profile di database
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('id', user.id)
+          .eq('id', currentUser.id)
           .maybeSingle()
 
         if (profileError) {
@@ -74,7 +83,7 @@ export default function SelectRolePage() {
     }
 
     checkUserAndRole()
-  }, [user, authLoading]) // ✅ Tambah authLoading sebagai dependency
+  }, [authLoading]) // ✅ Hapus user dari dependency, pakai session langsung
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
     if (!user) {
