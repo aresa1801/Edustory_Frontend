@@ -128,8 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (userError || !serverUser) {
           console.log('[Auth] ❌ User tidak valid:', userError?.message)
-          await supabase.auth.signOut({ scope: 'global' })
-          clearSupabaseStorage()
+          // JANGAN langsung signOut! Session mungkin masih loading dari callback
+          // Biarkan state null, tapi jangan hapus session
           if (isMounted) {
             setAsGuest()
           }
