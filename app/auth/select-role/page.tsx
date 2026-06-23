@@ -10,16 +10,17 @@ import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
 
 export default function SelectRolePage() {
   const router = useRouter()
-  const { user, clearFirstTimeUserFlag } = useAuth()
+  const { user, clearFirstTimeUserFlag, loading: authLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
-    // Prevent multiple executions
-    if (isProcessing) return
-    setIsProcessing(true)
+    // ✅ TUNGGU AuthContext selesai loading dulu
+    if (authLoading) {
+      console.log('[SelectRole] ⏳ Waiting for AuthContext...')
+      return
+    }
 
     const checkUserAndRole = async () => {
       console.log('[SelectRole] 🔍 Checking user and role...')
@@ -64,18 +65,16 @@ export default function SelectRolePage() {
         // User belum punya role, tampilkan halaman select role
         console.log('[SelectRole] 📝 User has no role, showing select role page')
         setChecking(false)
-        setIsProcessing(false)
 
       } catch (err) {
         console.error('[SelectRole] Error checking user:', err)
         setError('Gagal memeriksa data user. Silakan coba lagi.')
         setChecking(false)
-        setIsProcessing(false)
       }
     }
 
     checkUserAndRole()
-  }, [user, isProcessing])
+  }, [user, authLoading]) // ✅ Tambah authLoading sebagai dependency
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
     if (!user) {
@@ -160,13 +159,15 @@ export default function SelectRolePage() {
     }
   }
 
-  // Show loading while checking
-  if (checking) {
+  // Show loading while checking atau AuthContext masih loading
+  if (checking || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-foreground mb-2">Memeriksa sesi Anda...</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            {authLoading ? 'Memuat sesi...' : 'Memeriksa sesi Anda...'}
+          </h2>
           <p className="text-muted-foreground">Mohon tunggu sebentar</p>
         </div>
       </div>
