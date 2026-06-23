@@ -121,15 +121,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const supabase = createClient()
         
-        // Validasi ke server dengan getUser()
-        const { data: { user: serverUser }, error: userError } = await supabase.auth.getUser()
+                // Validasi ke server dengan getUser()
+        // Tunggu maksimal 2 detik untuk session
+        let serverUser = null
+        let userError = null
+        
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const result = await supabase.auth.getUser()
+          serverUser = result.data.user
+          userError = result.error
+          
+          if (serverUser) break
+          
+          // Session belum ready, tunggu 500ms dan coba lagi
+          console.log(`[Auth] ⏳ Session belum ready, retry ${attempt + 1}/5...`)
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
         
         if (!isMounted) return
         
         if (userError || !serverUser) {
-          console.log('[Auth] ❌ User tidak valid:', userError?.message)
-          // JANGAN langsung signOut! Session mungkin masih loading dari callback
-          // Biarkan state null, tapi jangan hapus session
+          console.log('[Auth] ❌ User tidak valid setelah 5x retry:', userError?.message)
+          // Tetap set guest tapi jangan signOut
           if (isMounted) {
             setAsGuest()
           }
