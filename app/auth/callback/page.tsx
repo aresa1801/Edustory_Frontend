@@ -87,8 +87,9 @@ export default function AuthCallback() {
         console.log('[Callback] Profile data:', userProfile)
 
         if (!userProfile || !userProfile.role) {
-          // User doesn't have role yet → redirect to select-role
           console.log('[Callback] 🆕 New user → redirect to select-role')
+          // ✅ Beri delay 500ms untuk memastikan cookie tersimpan
+          await new Promise(resolve => setTimeout(resolve, 500))
           window.location.href = '/auth/select-role'
           return
         }

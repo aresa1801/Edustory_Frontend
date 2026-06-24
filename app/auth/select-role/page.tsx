@@ -16,74 +16,90 @@ export default function SelectRolePage() {
   const [checking, setChecking] = useState(true)
 
     useEffect(() => {
-    const checkUserAndRole = async () => {
-      console.log('[SelectRole] 🔍 Checking user and role...')
+  let retryCount = 0
+  const maxRetries = 15 // Maks 7.5 detik (15 x 500ms)
+  let isMounted = true
+
+  const checkUserAndRole = async () => {
+    console.log('[SelectRole] 🔍 Checking user and role...')
+    
+    try {
+      // ✅ CEK SESSION LANGSUNG DARI SUPABASE
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
       
-      try {
-        // ✅ CEK SESSION LANGSUNG DARI SUPABASE, bukan dari AuthContext
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        console.log('[SelectRole] Session from Supabase:', session?.user?.email)
-        
-        // Kalau tidak ada session, tunggu AuthContext
-        if (!session) {
-          if (authLoading) {
-            console.log('[SelectRole] ⏳ Waiting for AuthContext...')
-            return
-          }
-          
-          // AuthContext sudah selesai tapi tetap tidak ada user
-          console.log('[SelectRole] ❌ No session found')
-          window.location.href = '/?no_user=1'
+      console.log('[SelectRole] Session from Supabase:', session?.user?.email)
+      
+      if (!session) {
+        // Session belum ready, tunggu dan retry (tanpa peduli authLoading)
+        if (retryCount < maxRetries && isMounted) {
+          retryCount++
+          console.log(`[SelectRole] ⏳ Waiting for session... (${retryCount}/${maxRetries})`)
+          setTimeout(checkUserAndRole, 500)
           return
         }
-
-        // Ada session, gunakan user dari session
-        const currentUser = session.user
-        console.log('[SelectRole] ✅ User:', currentUser.email)
-
-        // Cek apakah user sudah punya profile di database
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', currentUser.id)
-          .maybeSingle()
-
-        if (profileError) {
-          console.error('[SelectRole] Profile check error:', profileError)
+        
+        // Gagal setelah retry
+        console.log('[SelectRole] ❌ No session after retries')
+        if (isMounted) {
+          window.location.href = '/?no_session=1'
         }
+        return
+      }
 
-        console.log('[SelectRole] Profile data:', profile)
+      // Ada session, lanjutkan
+      const currentUser = session.user
+      console.log('[SelectRole] ✅ User:', currentUser.email)
 
-        // Jika sudah punya role, redirect ke dashboard
-        if (profile?.role) {
-          console.log('[SelectRole] ✅ User already has role:', profile.role)
-          
-          const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
-            ? '/dashboard/student' 
-            : profile.role === 'tutor'
-            ? '/dashboard/tutor'
-            : '/dashboard/admin'
-          
-          console.log('[SelectRole] 🎯 Redirecting to:', dashboardPath)
+      // Cek profile di database
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', currentUser.id)
+        .maybeSingle()
+
+      if (profileError) {
+        console.error('[SelectRole] Profile error:', profileError)
+      }
+
+      console.log('[SelectRole] Profile data:', profile)
+
+      // Jika sudah punya role → redirect ke dashboard
+      if (profile?.role) {
+        const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
+          ? '/dashboard/student' 
+          : profile.role === 'tutor'
+          ? '/dashboard/tutor'
+          : '/dashboard/admin'
+        
+        console.log('[SelectRole] 🎯 Redirecting to:', dashboardPath)
+        if (isMounted) {
           window.location.href = dashboardPath
-          return
         }
+        return
+      }
 
-        // User belum punya role, tampilkan halaman select role
-        console.log('[SelectRole] 📝 User has no role, showing select role page')
+      // Belum punya role → tampilkan halaman pilihan
+      console.log('[SelectRole] 📝 Show select role page')
+      if (isMounted) {
         setChecking(false)
+      }
 
-      } catch (err) {
-        console.error('[SelectRole] Error checking user:', err)
+    } catch (err) {
+      console.error('[SelectRole] Error:', err)
+      if (isMounted) {
         setError('Gagal memeriksa data user. Silakan coba lagi.')
         setChecking(false)
       }
     }
+  }
 
-    checkUserAndRole()
-  }, [authLoading]) // ✅ Hapus user dari dependency, pakai session langsung
+  checkUserAndRole()
+
+  return () => {
+    isMounted = false // Cleanup untuk mencegah setState setelah unmount
+  }
+}, []) // ✅ DEPENDENCY KOSONG -> hanya dijalankan SEKALI saat mount // ✅ Hapus user dari dependency, pakai session langsung
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
     if (!user) {
