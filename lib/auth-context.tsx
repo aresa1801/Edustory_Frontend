@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initError, setInitError] = useState<string | null>(null)
   
   const isProcessingAuthChange = useRef(false)
+  const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 🔧 FIX: ref untuk timeout
 
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -97,13 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setAsGuest = useCallback(() => {
+    // 🔧 FIX: Bersihkan localStorage saat set guest
+    clearSupabaseStorage()
+    
     setUser(null)
     setSession(null)
     setUserRole(null)
     setUserName(null)
     setIsFirstTimeUser(false)
     setLoading(false)
-  }, [])
+  }, [clearSupabaseStorage])
 
   useEffect(() => {
     let isMounted = true
@@ -121,8 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const supabase = createClient()
         
-                // Validasi ke server dengan getUser()
-        // Tunggu maksimal 2 detik untuk session
+        // Validasi ke server dengan getUser()
         let serverUser = null
         let userError = null
         
@@ -133,7 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           if (serverUser) break
           
-          // Session belum ready, tunggu 500ms dan coba lagi
           console.log(`[Auth] ⏳ Session belum ready, retry ${attempt + 1}/5...`)
           await new Promise(resolve => setTimeout(resolve, 500))
         }
@@ -142,7 +144,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (userError || !serverUser) {
           console.log('[Auth] ❌ User tidak valid setelah 5x retry:', userError?.message)
-          // Tetap set guest tapi jangan signOut
           if (isMounted) {
             setAsGuest()
           }
@@ -263,39 +264,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           
-          // JANGAN re-validate untuk SIGNED_IN - biarkan callback handle
+          // Re-validate untuk TOKEN_REFRESHED atau USER_UPDATED
           if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             console.log('[Auth] 🔄 Re-validating...')
             await initializeAuth()
+            return
           }
           
-          // Untuk SIGNED_IN, cukup update state
+          // Untuk SIGNED_IN, update state
           if (event === 'SIGNED_IN' && currentSession) {
             console.log('[Auth] ✅ SIGNED_IN - Update state')
+            
+            // 🔧 FIX: Jika currentSession.user null, langsung set loading false
+            if (!currentSession.user) {
+              console.warn('[Auth] ⚠️ SIGNED_IN but user is null')
+              setLoading(false)
+              return
+            }
+
             setSession(currentSession)
-            if (currentSession.user) {
-              setUser(currentSession.user)
-              
-              // Fetch profile
-              try {
-                const { role, name } = await fetchUserProfile(currentSession.user)
-                
-                if (!role && currentSession.user.email !== ADMIN_EMAIL) {
-                  setIsFirstTimeUser(true)
-                  setUserRole(null)
-                  setUserName(name || currentSession.user.email || null)
-                } else {
-                  setIsFirstTimeUser(false)
-                  setUserRole(role)
-                  setUserName(name || currentSession.user.email || null)
-                }
-              } catch (profileError) {
-                console.error('[Auth] Profile fetch error:', profileError)
+            setUser(currentSession.user)
+            
+            // Batalkan timeout sebelumnya jika ada
+            if (profileTimeoutRef.current) {
+              clearTimeout(profileTimeoutRef.current)
+              profileTimeoutRef.current = null
+            }
+
+            // Timeout 5 detik untuk memaksa loading false
+            profileTimeoutRef.current = setTimeout(() => {
+              console.warn('[Auth] ⏱️ Profile fetch timeout, forcing loading false')
+              if (isMounted) {
+                setLoading(false)
                 setIsFirstTimeUser(true)
-                setUserName(currentSession.user.user_metadata?.full_name || currentSession.user.email || null)
+                setUserRole(null)
+                setUserName(currentSession.user?.email || null)
+              }
+              profileTimeoutRef.current = null
+            }, 5000)
+
+            try {
+              const { role, name } = await fetchUserProfile(currentSession.user)
+              if (profileTimeoutRef.current) {
+                clearTimeout(profileTimeoutRef.current)
+                profileTimeoutRef.current = null
+              }
+              
+              if (!role && currentSession.user.email !== ADMIN_EMAIL) {
+                setIsFirstTimeUser(true)
+                setUserRole(null)
+                setUserName(name || currentSession.user.email || null)
+              } else {
+                setIsFirstTimeUser(false)
+                setUserRole(role)
+                setUserName(name || currentSession.user.email || null)
+              }
+            } catch (profileError) {
+              if (profileTimeoutRef.current) {
+                clearTimeout(profileTimeoutRef.current)
+                profileTimeoutRef.current = null
+              }
+              console.error('[Auth] Profile fetch error:', profileError)
+              setIsFirstTimeUser(true)
+              setUserRole(null)
+              setUserName(currentSession.user.user_metadata?.full_name || currentSession.user.email || null)
+            } finally {
+              if (isMounted) {
+                setLoading(false)
               }
             }
-            setLoading(false)
           }
         } finally {
           isProcessingAuthChange.current = false
@@ -307,6 +344,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false
       if (initTimeout) {
         clearTimeout(initTimeout)
+      }
+      // 🔧 FIX: Bersihkan timeout saat unmount
+      if (profileTimeoutRef.current) {
+        clearTimeout(profileTimeoutRef.current)
+        profileTimeoutRef.current = null
       }
       subscription.unsubscribe()
     }

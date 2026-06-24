@@ -51,21 +51,30 @@ const Header = () => {
   }
 
   const handleDashboardClick = () => {
-    if (user && userRole) {
-      const dashboardPath = userRole === 'student' 
-        ? '/dashboard/student' 
-        : userRole === 'tutor'
-        ? '/dashboard/tutor'
-        : userRole === 'admin'
-        ? '/dashboard/admin'
-        : '/dashboard'
-      
-      router.push(dashboardPath)
-    } else {
-      setAuthMode('signin')
-      setAuthOpen(true)
-    }
+  if (!user) {
+    setAuthMode('signin')
+    setAuthOpen(true)
+    return
   }
+
+  // Jika user login tapi belum punya role → arahkan ke select-role
+  if (!userRole) {
+    console.log('[Header] User belum pilih role, redirect ke select-role')
+    router.push('/auth/select-role')
+    return
+  }
+
+  // Sudah punya role → redirect ke dashboard yang sesuai
+  const dashboardPath = userRole === 'student' 
+    ? '/dashboard/student' 
+    : userRole === 'tutor'
+    ? '/dashboard/tutor'
+    : userRole === 'admin'
+    ? '/dashboard/admin'
+    : '/dashboard'
+  
+  router.push(dashboardPath)
+}
 
   const handleLogout = async () => {
     try {
