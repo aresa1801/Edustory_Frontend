@@ -98,7 +98,7 @@ export default function SelectRolePage() {
       const supabase = createClient()
 
       // Map frontend role to database role
-      const dbRole = role === 'student' ? 'siswa' : 'tutor'
+       const dbRole = role === 'student' ? 'siswa' : 'tutor'
 
       console.log('[SelectRole] 💾 Saving role:', { userId: user.id, role: dbRole })
 
