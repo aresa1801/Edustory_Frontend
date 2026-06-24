@@ -67,7 +67,8 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     
   } catch (error) {
     console.error('[Auth] Profile fetch failed:', error)
-    throw error
+    // ✅ Jangan throw error, return null role agar user dianggap first-time
+    return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
   }
 }
 
@@ -81,7 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initError, setInitError] = useState<string | null>(null)
   
   const isProcessingAuthChange = useRef(false)
-  const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 🔧 FIX: ref untuk timeout
+  const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const sessionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -98,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setAsGuest = useCallback(() => {
-    // 🔧 FIX: Bersihkan localStorage saat set guest
+    // 🔧 Bersihkan storage saat set guest
     clearSupabaseStorage()
     
     setUser(null)
@@ -108,6 +110,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsFirstTimeUser(false)
     setLoading(false)
   }, [clearSupabaseStorage])
+
+  // Fungsi untuk memeriksa apakah user masih ada di database
+  const checkUserExistsInDatabase = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle()
+      
+      return !error && !!data
+    } catch (error) {
+      console.error('[Auth] Database check error:', error)
+      return false
+    }
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -143,7 +162,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted) return
         
         if (userError || !serverUser) {
-          console.log('[Auth] ❌ User tidak valid setelah 5x retry:', userError?.message)
+          console.log('[Auth] ❌ User tidak valid:', userError?.message)
+          // Hapus session yang tersisa
+          await supabase.auth.signOut({ scope: 'global' })
+          clearSupabaseStorage()
+          if (isMounted) {
+            setAsGuest()
+          }
+          return
+        }
+
+        // ✅ CEK APAKAH USER MASIH ADA DI DATABASE
+        const userExists = await checkUserExistsInDatabase(serverUser.id)
+        
+        // Jika user tidak ditemukan di database (sudah dihapus admin), force logout
+        if (!userExists && serverUser.email !== ADMIN_EMAIL) {
+          console.log('[Auth] ❌ User tidak ditemukan di database, force logout')
+          await supabase.auth.signOut({ scope: 'global' })
+          clearSupabaseStorage()
           if (isMounted) {
             setAsGuest()
           }
@@ -177,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             initTimeout = null
           }
           
-          if (!role && !serverUser.email?.includes(ADMIN_EMAIL)) {
+          if (!role && serverUser.email !== ADMIN_EMAIL) {
             console.log('[Auth] 🆕 First time user')
             setIsFirstTimeUser(true)
             setUserRole(null)
@@ -236,7 +272,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth()
 
-    // Listen auth changes
+    // ============================================================
+    // LISTEN AUTH STATE CHANGE (DIPERBAIKI)
+    // ============================================================
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
@@ -271,14 +309,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           
-          // Untuk SIGNED_IN, update state
+          // Untuk SIGNED_IN, update state dengan validasi database
           if (event === 'SIGNED_IN' && currentSession) {
             console.log('[Auth] ✅ SIGNED_IN - Update state')
             
-            // 🔧 FIX: Jika currentSession.user null, langsung set loading false
             if (!currentSession.user) {
               console.warn('[Auth] ⚠️ SIGNED_IN but user is null')
               setLoading(false)
+              return
+            }
+
+            // ✅ VALIDASI ULANG: cek apakah user masih ada di database
+            const userExists = await checkUserExistsInDatabase(currentSession.user.id)
+            
+            if (!userExists && currentSession.user.email !== ADMIN_EMAIL) {
+              console.warn('[Auth] ⚠️ User tidak ditemukan di database, force logout')
+              await supabase.auth.signOut({ scope: 'global' })
+              clearSupabaseStorage()
+              setAsGuest()
               return
             }
 
@@ -340,19 +388,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
+    // ============================================================
+    // INTERVAL VALIDASI PERIODIK (setiap 30 detik)
+    // ============================================================
+    sessionCheckIntervalRef.current = setInterval(async () => {
+      if (!isMounted) return
+
+      const supabaseClient = createClient()
+      const { data: { user: currentUser } } = await supabaseClient.auth.getUser()
+
+      // Jika session sudah tidak valid (user null)
+      if (!currentUser) {
+        if (user) {
+          console.log('[Auth] ⏱️ Session expired, auto logout')
+          setAsGuest()
+        }
+        return
+      }
+
+      // Cek apakah user masih ada di database
+      const userExists = await checkUserExistsInDatabase(currentUser.id)
+      
+      // Jika user dihapus dari database dan bukan admin
+      if (!userExists && currentUser.email !== ADMIN_EMAIL) {
+        console.warn('[Auth] ⏱️ User dihapus dari database, force logout')
+        await supabaseClient.auth.signOut({ scope: 'global' })
+        clearSupabaseStorage()
+        setAsGuest()
+      }
+    }, 30000) // 30 detik
+
+    // ============================================================
+    // CLEANUP
+    // ============================================================
     return () => {
       isMounted = false
       if (initTimeout) {
         clearTimeout(initTimeout)
       }
-      // 🔧 FIX: Bersihkan timeout saat unmount
       if (profileTimeoutRef.current) {
         clearTimeout(profileTimeoutRef.current)
         profileTimeoutRef.current = null
       }
+      if (sessionCheckIntervalRef.current) {
+        clearInterval(sessionCheckIntervalRef.current)
+        sessionCheckIntervalRef.current = null
+      }
       subscription.unsubscribe()
     }
-  }, [clearSupabaseStorage, setAsGuest])
+  }, [clearSupabaseStorage, setAsGuest, checkUserExistsInDatabase])
+
+  // ... (fungsi signUp, signIn, signInWithGoogle, signOut, forceSignOut, clearFirstTimeUserFlag tetap sama seperti sebelumnya)
 
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
