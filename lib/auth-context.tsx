@@ -408,12 +408,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  // Di bagian AUTH FUNCTIONS
+
   const signOut = async () => {
     console.log('[Auth] 🚪 Sign out...')
     isLoggingOut.current = true
     try {
-      const supabase = createClient()
-      await supabase.auth.signOut({ scope: 'global' })
+      // 🔧 Panggil API logout di server
+      const response = await fetch('/api/auth/logout')
+      if (!response.ok) {
+        throw new Error('Logout API failed')
+      }
+      // Bersihkan client-side storage
       clearSupabaseStorage()
       setUser(null)
       setSession(null)
@@ -423,12 +429,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     } catch (error) {
       console.error('[Auth] Sign out error:', error)
+      // Fallback: coba logout langsung di client
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut({ scope: 'global' })
+        clearSupabaseStorage()
+      } catch (e) {
+        console.error('[Auth] Fallback logout error:', e)
+      }
     } finally {
       isLoggingOut.current = false
       if (typeof window !== 'undefined') {
-        window.location.replace('/')
-        // 🔧 Perbaikan: reload tanpa parameter agar kompatibel
-        setTimeout(() => window.location.reload(), 100)
+        window.location.href = '/'
       }
     }
   }
@@ -438,10 +450,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoggingOut.current = true
     
     try {
-      const supabase = createClient()
-      await supabase.auth.signOut({ scope: 'global' })
+      // 🔧 Panggil API logout di server
+      const response = await fetch('/api/auth/logout')
+      if (!response.ok) {
+        throw new Error('Force logout API failed')
+      }
       clearSupabaseStorage()
-      
       setUser(null)
       setSession(null)
       setUserRole(null)
@@ -454,28 +468,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const names = await caches.keys()
             await Promise.all(names.map(name => caches.delete(name)))
-            console.log('[Auth] Browser cache cleared')
-          } catch (e) {
-            console.error('[Auth] Failed to clear cache:', e)
-          }
+          } catch (e) {}
         }
       }
-      
     } catch (error) {
       console.error('[Auth] Force sign out error:', error)
-      clearSupabaseStorage()
-      setUser(null)
-      setSession(null)
-      setUserRole(null)
-      setUserName(null)
-      setIsFirstTimeUser(false)
-      setLoading(false)
+      // Fallback: coba logout langsung di client
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut({ scope: 'global' })
+        clearSupabaseStorage()
+      } catch (e) {
+        console.error('[Auth] Fallback force logout error:', e)
+      }
     } finally {
       isLoggingOut.current = false
       if (typeof window !== 'undefined') {
-        window.location.replace('/')
-        // 🔧 Perbaikan: reload tanpa parameter agar kompatibel
-        setTimeout(() => window.location.reload(), 100)
+        window.location.href = '/'
       }
     }
   }
