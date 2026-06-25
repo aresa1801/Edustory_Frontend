@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isLoggingOut = useRef(false)
 
   // ============================================================
-  // PEMBERSIHAN STORAGE & COOKIE (AGRESIF)
+  // PEMBERSIHAN STORAGE & COOKIE (AGRESSIF)
   // ============================================================
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -426,7 +426,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       isLoggingOut.current = false
       if (typeof window !== 'undefined') {
-        window.location.replace('/') // Ganti href dengan replace
+        window.location.replace('/')
+        // 🔧 Perbaikan: reload tanpa parameter agar kompatibel
+        setTimeout(() => window.location.reload(), 100)
       }
     }
   }
@@ -471,7 +473,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       isLoggingOut.current = false
       if (typeof window !== 'undefined') {
-        window.location.replace('/') // Gunakan replace agar tidak ada history back
+        window.location.replace('/')
+        // 🔧 Perbaikan: reload tanpa parameter agar kompatibel
+        setTimeout(() => window.location.reload(), 100)
       }
     }
   }
