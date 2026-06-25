@@ -26,7 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // ============================================================
-// FETCH USER PROFILE (tidak throw error, return null role)
+// FETCH USER PROFILE
 // ============================================================
 async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | null; name: string | null }> {
   if (currentUser.email === ADMIN_EMAIL) {
@@ -65,7 +65,6 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
       }
     }
     
-    // Profile tidak ada → user baru
     return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
     
   } catch (error) {
@@ -86,12 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isProcessingAuthChange = useRef(false)
   const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const sessionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const isLoggingOut = useRef(false) // 🔧 Flag untuk cegah re-inisialisasi
 
   // ============================================================
-  // CLEAR STORAGE & SET GUEST
+  // CLEAR STORAGE & COOKIES
   // ============================================================
   const clearSupabaseStorage = useCallback(() => {
     if (typeof window !== 'undefined') {
+      // Hapus localStorage
       const keysToRemove: string[] = []
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
@@ -101,6 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       keysToRemove.forEach(key => localStorage.removeItem(key))
       console.log('[Auth] Cleared storage keys:', keysToRemove)
+
+      // 🔧 Hapus cookie yang berkaitan dengan Supabase
+      document.cookie.split(';').forEach(cookie => {
+        const [name] = cookie.trim().split('=')
+        if (name && (name.startsWith('sb-') || name.includes('supabase') || name.includes('auth'))) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+          console.log('[Auth] Cleared cookie:', name)
+        }
+      })
     }
   }, [])
 
@@ -115,16 +125,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSupabaseStorage])
 
   // ============================================================
-  // MAIN USEFFECT – INISIALISASI & SUBSCRIPTION
+  // MAIN USEFFECT
   // ============================================================
   useEffect(() => {
     let isMounted = true
     let initTimeout: NodeJS.Timeout | null = null
 
-    // -----------------------------------------------------------------
-    // INISIALISASI AWAL
-    // -----------------------------------------------------------------
     const initializeAuth = async () => {
+      // 🔧 Jika sedang logout, skip inisialisasi
+      if (isLoggingOut.current) {
+        console.log('[Auth] ⏸️ Skipping init during logout')
+        return
+      }
+
       console.log('[Auth] 🛡️ Validasi auth...')
       
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -136,7 +149,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const supabase = createClient()
         
-        // Coba dapatkan user dari session (dengan retry)
         let serverUser = null
         let userError = null
         
@@ -151,7 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (!isMounted) return
         
-        // Jika gagal mendapatkan user → anggap guest
         if (userError || !serverUser) {
           console.log('[Auth] ❌ User tidak valid:', userError?.message)
           await supabase.auth.signOut({ scope: 'global' })
@@ -168,7 +179,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(serverUser)
         }
 
-        // Timeout 3 detik untuk keamanan
         initTimeout = setTimeout(() => {
           if (isMounted && loading) {
             console.warn('[Auth] ⏱️ Timeout, marking as first-time user...')
@@ -177,7 +187,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }, 3000)
         
-        // Ambil profile
         try {
           const { role, name } = await fetchUserProfile(serverUser)
           
@@ -230,7 +239,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, currentSession) => {
         console.log('[Auth] 📡 Event:', event, 'Path:', typeof window !== 'undefined' ? window.location.pathname : 'N/A')
         
-        // Skip jika di halaman callback
+        // 🔧 Jika sedang logout, abaikan semua event
+        if (isLoggingOut.current) {
+          console.log('[Auth] ⏸️ Ignoring event during logout')
+          return
+        }
+        
         if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/callback')) {
           console.log('[Auth] ⏭️ Skipping re-validation on callback page')
           return
@@ -267,17 +281,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return
             }
 
-            // ✅ Update state tanpa memaksa logout
             setSession(currentSession)
             setUser(currentSession.user)
             
-            // Batalkan timeout sebelumnya
             if (profileTimeoutRef.current) {
               clearTimeout(profileTimeoutRef.current)
               profileTimeoutRef.current = null
             }
 
-            // Timeout 5 detik untuk memaksa loading false jika fetch profile lama
             profileTimeoutRef.current = setTimeout(() => {
               console.warn('[Auth] ⏱️ Profile fetch timeout, forcing loading false')
               if (isMounted) {
@@ -325,10 +336,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     // -----------------------------------------------------------------
-    // INTERVAL PERIODIK – HANYA CEK SESSION (bukan profile)
+    // INTERVAL PERIODIK
     // -----------------------------------------------------------------
     sessionCheckIntervalRef.current = setInterval(async () => {
-      if (!isMounted) return
+      if (!isMounted || isLoggingOut.current) return
       const supabaseClient = createClient()
       const { data: { user: currentUser } } = await supabaseClient.auth.getUser()
       if (!currentUser) {
@@ -338,12 +349,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return
       }
-      // Tidak perlu cek profile di sini, biarkan callback dan inisialisasi yang menangani
     }, 30000)
 
-    // -----------------------------------------------------------------
-    // CLEANUP
-    // -----------------------------------------------------------------
     return () => {
       isMounted = false
       if (initTimeout) clearTimeout(initTimeout)
@@ -354,7 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSupabaseStorage, setAsGuest])
 
   // ============================================================
-  // AUTH FUNCTIONS (tidak diubah)
+  // AUTH FUNCTIONS – DIPERBAIKI
   // ============================================================
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
@@ -388,14 +395,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  // 🔧 Perbaiki signOut biasa
   const signOut = async () => {
-    const supabase = createClient()
-    const { error } = await supabase.auth.signOut({ scope: 'global' })
-    if (error) throw error
-  }
-
-  const forceSignOut = async () => {
-    console.log('[Auth] 🚨 Force sign out...')
+    console.log('[Auth] 🚪 Sign out...')
+    isLoggingOut.current = true // Cegah re-inisialisasi
     try {
       const supabase = createClient()
       await supabase.auth.signOut({ scope: 'global' })
@@ -406,15 +409,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserName(null)
       setIsFirstTimeUser(false)
       setLoading(false)
+    } catch (error) {
+      console.error('[Auth] Sign out error:', error)
+    } finally {
+      isLoggingOut.current = false
+      // Redirect ke home setelah logout
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
+    }
+  }
+
+  // 🔧 Perbaiki forceSignOut
+  const forceSignOut = async () => {
+    console.log('[Auth] 🚨 Force sign out...')
+    isLoggingOut.current = true // Cegah re-inisialisasi
+    
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut({ scope: 'global' })
+      clearSupabaseStorage()
+      
+      setUser(null)
+      setSession(null)
+      setUserRole(null)
+      setUserName(null)
+      setIsFirstTimeUser(false)
+      setLoading(false)
+      
+      // Hapus cache browser
       if (typeof window !== 'undefined') {
         if ('caches' in window) {
           try {
             const names = await caches.keys()
             await Promise.all(names.map(name => caches.delete(name)))
-          } catch (e) {}
+            console.log('[Auth] Browser cache cleared')
+          } catch (e) {
+            console.error('[Auth] Failed to clear cache:', e)
+          }
         }
-        setTimeout(() => window.location.href = '/?cleared=' + Date.now(), 100)
       }
+      
     } catch (error) {
       console.error('[Auth] Force sign out error:', error)
       clearSupabaseStorage()
@@ -424,8 +459,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserName(null)
       setIsFirstTimeUser(false)
       setLoading(false)
+    } finally {
+      isLoggingOut.current = false
+      // Redirect ke home setelah logout
       if (typeof window !== 'undefined') {
-        window.location.href = '/?error_cleared=' + Date.now()
+        window.location.href = '/'
       }
     }
   }
