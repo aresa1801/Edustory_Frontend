@@ -304,14 +304,14 @@ const Header = () => {
         </div>
 
         <AuthModalDialog
-          isOpen={authOpen}
+          isOpen={authOpen }
           onOpenChange={setAuthOpen}
           defaultMode={authMode}
         />
       </header>
 
       {/* ✅ Modal Konfirmasi Logout */}
-      {showLogoutDialog && (
+      {showLogoutDialog &&(
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-2xl border border-border/50 p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="text-lg font-semibold text-foreground mb-2">Konfirmasi Logout</h3>
