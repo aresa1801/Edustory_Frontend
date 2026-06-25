@@ -121,16 +121,16 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
               <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-4">
                 <GraduationCap className="w-10 h-10 text-blue-600 dark:text-blue-400" />
               </div>
-              <CardTitle className="text-2xl font-bold">Saya Siswa</CardTitle>
+              <CardTitle className="text-2xl font-bold">Saya Student</CardTitle>
               <CardDescription className="text-base">
-                Saya ingin mencari pengajar privat yang sesuai dengan kebutuhan saya
+                Saya ingin belajar dan menemukan tutor yang tepat
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center pb-8">
               <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
-                <li>✓ Akses ke ribuan tutor profesional</li>
-                <li>✓ Jadwal fleksibel sesuai keinginan</li>
-                <li>✓ Pembelajaran personal dan efektif</li>
+                <li>✓ Temukan tutor profesional di berbagai bidang</li>
+                <li>✓ Belajar dengan metode yang personal dan efektif</li>
+                <li>✓ Raih prestasi akademik bersama mentor terbaik</li>
               </ul>
               <Button 
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -143,7 +143,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
                 {isLoading === 'student' ? (
                   <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
                 ) : (
-                  'Pilih Siswa'
+                  'Siap belajar!'
                 )}
               </Button>
             </CardContent>
@@ -156,24 +156,24 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             `}
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-green-400" />
             <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
-                <UserCog className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+              <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
+                <UserCog className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <CardTitle className="text-2xl font-bold">Saya Pengajar</CardTitle>
+              <CardTitle className="text-2xl font-bold">Saya Tutor</CardTitle>
               <CardDescription className="text-base">
-                Saya ingin mengajar dan membagikan ilmu kepada siswa yang membutuhkan
+                Saya ingin berbagi ilmu dan mengajar siswa
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center pb-8">
               <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
                 <li>✓ Temukan siswa yang cocok dengan keahlian Anda</li>
-                <li>✓ Atur jadwal dan tarif sendiri</li>
+                <li>✓ Atur jadwal dan pilih student sendiri</li>
                 <li>✓ Dapatkan penghasilan tambahan</li>
               </ul>
               <Button 
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                 disabled={isLoading === 'tutor'}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -183,7 +183,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
                 {isLoading === 'tutor' ? (
                   <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
                 ) : (
-                  'Pilih Pengajar'
+                  'Siap mengajar!'
                 )}
               </Button>
             </CardContent>
