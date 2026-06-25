@@ -13,16 +13,20 @@ interface SelectRoleClientProps {
 }
 
 export default function SelectRoleClient({ userEmail, userId, userName }: SelectRoleClientProps) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState<'student' | 'tutor' | null>(null)
   const [error, setError] = useState('')
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
-    setIsLoading(true)
+    setIsLoading(role)
     setError('')
+
+    console.log('[SelectRole] 📝 Memilih role:', role)
 
     try {
       const supabase = createClient()
       const dbRole = role === 'student' ? 'siswa' : 'tutor'
+
+      console.log('[SelectRole] 💾 Menyimpan role ke database:', { userId, dbRole })
 
       const { data: existingProfile } = await supabase
         .from('user_profiles')
@@ -53,95 +57,141 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       }
 
       if (result.error) {
-        console.error('[SelectRole] ❌ Save error:', result.error)
+        console.error('[SelectRole] ❌ Gagal simpan:', result.error)
         throw result.error
       }
 
-      // Update metadata (opsional)
+      console.log('[SelectRole] ✅ Role berhasil disimpan')
+
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
-      // Redirect ke dashboard sesuai role
       const dashboardPath = role === 'student' 
         ? '/dashboard/student' 
         : '/dashboard/tutor'
       
+      console.log('[SelectRole] 🎯 Redirect ke:', dashboardPath)
       window.location.href = dashboardPath
       
     } catch (err) {
-      console.error('[SelectRole] ❌ Error selecting role:', err)
-      setError('Gagal menyimpan role. Silakan coba lagi.')
-    } finally {
-      setIsLoading(false)
+      console.error('[SelectRole] ❌ Error:', err)
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan role. Silakan coba lagi.')
+      setIsLoading(null)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-      <div className="max-w-2xl w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">Pilih Peran Anda</h1>
-          <p className="text-muted-foreground text-lg">
-            Selamat datang di EduStory! Pilih peran Anda untuk melanjutkan.
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
+      <div className="max-w-5xl w-full">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent mb-3">
+            Pilih Peran Anda
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Tentukan bagaimana Anda ingin menggunakan EduStory. Pilihan ini dapat diubah kapan saja melalui pengaturan akun.
           </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Email: <span className="font-medium">{userEmail}</span>
-          </p>
+          {userEmail && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Masuk sebagai <span className="font-medium text-foreground">{userEmail}</span>
+            </p>
+          )}
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/50 rounded-lg text-destructive text-center">
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/50 rounded-lg text-destructive text-center flex items-center justify-center gap-2">
+            <AlertCircle className="w-5 h-5" />
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+          {/* Student Card */}
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
+            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
+              ${isLoading === 'student' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
+            `}
             onClick={() => !isLoading && handleSelectRole('student')}
           >
-            <CardHeader>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <GraduationCap className="w-6 h-6 text-primary" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400" />
+            <CardHeader className="text-center pt-8">
+              <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-4">
+                <GraduationCap className="w-10 h-10 text-blue-600 dark:text-blue-400" />
               </div>
-              <CardTitle className="text-xl">Saya Siswa</CardTitle>
-              <CardDescription>
-                Saya ingin mencari pengajar privat untuk membantu pembelajaran
+              <CardTitle className="text-2xl font-bold">Saya Siswa</CardTitle>
+              <CardDescription className="text-base">
+                Saya ingin mencari pengajar privat yang sesuai dengan kebutuhan saya
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Pilih Siswa
+            <CardContent className="text-center pb-8">
+              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
+                <li>✓ Akses ke ribuan tutor profesional</li>
+                <li>✓ Jadwal fleksibel sesuai keinginan</li>
+                <li>✓ Pembelajaran personal dan efektif</li>
+              </ul>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isLoading === 'student'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectRole('student')
+                }}
+              >
+                {isLoading === 'student' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
+                ) : (
+                  'Pilih Siswa'
+                )}
               </Button>
             </CardContent>
           </Card>
 
+          {/* Tutor Card */}
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
+            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
+              ${isLoading === 'tutor' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
+            `}
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
-            <CardHeader>
-              <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
-                <UserCog className="w-6 h-6 text-secondary" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
+            <CardHeader className="text-center pt-8">
+              <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
+                <UserCog className="w-10 h-10 text-amber-600 dark:text-amber-400" />
               </div>
-              <CardTitle className="text-xl">Saya Pengajar</CardTitle>
-              <CardDescription>
-                Saya ingin mengajar dan membantu siswa mencapai potensi terbaik
+              <CardTitle className="text-2xl font-bold">Saya Pengajar</CardTitle>
+              <CardDescription className="text-base">
+                Saya ingin mengajar dan membagikan ilmu kepada siswa yang membutuhkan
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" disabled={isLoading}>
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Pilih Pengajar
+            <CardContent className="text-center pb-8">
+              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
+                <li>✓ Temukan siswa yang cocok dengan keahlian Anda</li>
+                <li>✓ Atur jadwal dan tarif sendiri</li>
+                <li>✓ Dapatkan penghasilan tambahan</li>
+              </ul>
+              <Button 
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={isLoading === 'tutor'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectRole('tutor')
+                }}
+              >
+                {isLoading === 'tutor' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
+                ) : (
+                  'Pilih Pengajar'
+                )}
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-8">
-          Pilihan ini tidak dapat diubah setelah disimpan
+        <p className="text-center text-xs text-muted-foreground mt-8">
+          Pilihan ini dapat diubah kapan saja di pengaturan akun Anda.
         </p>
       </div>
     </div>
