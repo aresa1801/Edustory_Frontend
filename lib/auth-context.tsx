@@ -85,33 +85,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isProcessingAuthChange = useRef(false)
   const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const sessionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const isLoggingOut = useRef(false) // 🔧 Flag untuk cegah re-inisialisasi
+  const isLoggingOut = useRef(false)
 
   // ============================================================
-  // CLEAR STORAGE & COOKIES
+  // PEMBERSIHAN STORAGE & COOKIE (AGRESIF)
   // ============================================================
   const clearSupabaseStorage = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      // Hapus localStorage
-      const keysToRemove: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
-          keysToRemove.push(key)
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key))
-      console.log('[Auth] Cleared storage keys:', keysToRemove)
+    if (typeof window === 'undefined') return
 
-      // 🔧 Hapus cookie yang berkaitan dengan Supabase
-      document.cookie.split(';').forEach(cookie => {
-        const [name] = cookie.trim().split('=')
-        if (name && (name.startsWith('sb-') || name.includes('supabase') || name.includes('auth'))) {
-          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
-          console.log('[Auth] Cleared cookie:', name)
-        }
-      })
+    // 1. Hapus semua localStorage yang terkait Supabase
+    const keysToRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
+        keysToRemove.push(key)
+      }
     }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+    console.log('[Auth] Cleared localStorage keys:', keysToRemove)
+
+    // 2. Hapus semua cookie yang terkait Supabase (dengan berbagai path & domain)
+    const allCookies = document.cookie.split(';')
+    allCookies.forEach(cookie => {
+      const trimmed = cookie.trim()
+      const name = trimmed.split('=')[0]
+      if (name && (name.startsWith('sb-') || name.includes('supabase') || name.includes('auth'))) {
+        // Hapus dengan path default
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`
+        // Hapus dengan path /auth
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/auth`
+        // Hapus dengan path /dashboard
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/dashboard`
+        // Hapus dengan domain saat ini
+        const domain = window.location.hostname
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}`
+        // Hapus tanpa path
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC`
+        console.log('[Auth] Cleared cookie:', name)
+      }
+    })
+
+    // 3. Bersihkan sessionStorage juga
+    sessionStorage.clear()
   }, [])
 
   const setAsGuest = useCallback(() => {
@@ -132,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let initTimeout: NodeJS.Timeout | null = null
 
     const initializeAuth = async () => {
-      // 🔧 Jika sedang logout, skip inisialisasi
       if (isLoggingOut.current) {
         console.log('[Auth] ⏸️ Skipping init during logout')
         return
@@ -239,7 +253,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, currentSession) => {
         console.log('[Auth] 📡 Event:', event, 'Path:', typeof window !== 'undefined' ? window.location.pathname : 'N/A')
         
-        // 🔧 Jika sedang logout, abaikan semua event
         if (isLoggingOut.current) {
           console.log('[Auth] ⏸️ Ignoring event during logout')
           return
@@ -361,7 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSupabaseStorage, setAsGuest])
 
   // ============================================================
-  // AUTH FUNCTIONS – DIPERBAIKI
+  // AUTH FUNCTIONS – LOGOUT DIPERBAIKI
   // ============================================================
   const signUp = async (email: string, password: string, role: 'student' | 'tutor') => {
     const supabase = createClient()
@@ -395,10 +408,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
-  // 🔧 Perbaiki signOut biasa
   const signOut = async () => {
     console.log('[Auth] 🚪 Sign out...')
-    isLoggingOut.current = true // Cegah re-inisialisasi
+    isLoggingOut.current = true
     try {
       const supabase = createClient()
       await supabase.auth.signOut({ scope: 'global' })
@@ -413,17 +425,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[Auth] Sign out error:', error)
     } finally {
       isLoggingOut.current = false
-      // Redirect ke home setelah logout
       if (typeof window !== 'undefined') {
-        window.location.href = '/'
+        window.location.replace('/') // Ganti href dengan replace
       }
     }
   }
 
-  // 🔧 Perbaiki forceSignOut
   const forceSignOut = async () => {
     console.log('[Auth] 🚨 Force sign out...')
-    isLoggingOut.current = true // Cegah re-inisialisasi
+    isLoggingOut.current = true
     
     try {
       const supabase = createClient()
@@ -437,7 +447,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirstTimeUser(false)
       setLoading(false)
       
-      // Hapus cache browser
       if (typeof window !== 'undefined') {
         if ('caches' in window) {
           try {
@@ -461,9 +470,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     } finally {
       isLoggingOut.current = false
-      // Redirect ke home setelah logout
       if (typeof window !== 'undefined') {
-        window.location.href = '/'
+        window.location.replace('/') // Gunakan replace agar tidak ada history back
       }
     }
   }
