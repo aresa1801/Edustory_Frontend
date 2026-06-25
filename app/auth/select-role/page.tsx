@@ -10,12 +10,12 @@ export default function SelectRolePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
-  const [user, setUser] = useState<any>(null) // State lokal untuk user
+  const [user, setUser] = useState<any>(null) // Simpan user lokal
   const isMounted = useRef(true)
 
   useEffect(() => {
     let retryCount = 0
-    const maxRetries = 15
+    const maxRetries = 20 // 10 detik (20 x 500ms)
 
     const checkUserAndRole = async () => {
       console.log('[SelectRole] 🔍 Checking user and role...')
@@ -27,6 +27,7 @@ export default function SelectRolePage() {
         console.log('[SelectRole] Session from Supabase:', session?.user?.email)
         
         if (!session) {
+          // Session belum siap, tunggu dan retry
           if (retryCount < maxRetries && isMounted.current) {
             retryCount++
             console.log(`[SelectRole] ⏳ Waiting for session... (${retryCount}/${maxRetries})`)
@@ -34,6 +35,7 @@ export default function SelectRolePage() {
             return
           }
           
+          // Gagal setelah retry → redirect ke home
           console.log('[SelectRole] ❌ No session after retries')
           if (isMounted.current) {
             window.location.href = '/?no_session=1'
@@ -41,12 +43,12 @@ export default function SelectRolePage() {
           return
         }
 
-        // Simpan user ke state lokal
+        // Session ditemukan → simpan user lokal
         const currentUser = session.user
         setUser(currentUser)
         console.log('[SelectRole] ✅ User:', currentUser.email)
 
-        // Cek profile di database
+        // Cek apakah user sudah punya role di database
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
@@ -59,10 +61,10 @@ export default function SelectRolePage() {
 
         console.log('[SelectRole] Profile data:', profile)
 
-        // Jika sudah punya role → redirect ke dashboard
+        // Jika sudah punya role → redirect langsung ke dashboard
         if (profile?.role) {
           const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
-            ? '/dashboard/student' 
+            ? '/dashboard/student'
             : profile.role === 'tutor'
             ? '/dashboard/tutor'
             : '/dashboard/admin'
@@ -84,7 +86,7 @@ export default function SelectRolePage() {
         console.error('[SelectRole] Error:', err)
         if (isMounted.current) {
           setError('Gagal memeriksa data user. Silakan coba lagi.')
-          setChecking(false)
+          setChecking(false) // Tetap hilangkan loading agar user bisa melihat error
         }
       }
     }
@@ -94,8 +96,11 @@ export default function SelectRolePage() {
     return () => {
       isMounted.current = false
     }
-  }, [])
+  }, []) // Dependency kosong – hanya dijalankan sekali
 
+  // ============================================================
+  // HANDLE PILIH ROLE
+  // ============================================================
   const handleSelectRole = async (role: 'student' | 'tutor') => {
     if (!user) {
       setError('User tidak ditemukan. Silakan login ulang.')
@@ -111,6 +116,7 @@ export default function SelectRolePage() {
 
       console.log('[SelectRole] 💾 Saving role:', { userId: user.id, role: dbRole })
 
+      // Cek profile sudah ada atau belum
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('id')
@@ -120,6 +126,7 @@ export default function SelectRolePage() {
       let result
 
       if (existingProfile) {
+        // Update
         result = await supabase
           .from('user_profiles')
           .update({ 
@@ -128,6 +135,7 @@ export default function SelectRolePage() {
           })
           .eq('id', user.id)
       } else {
+        // Insert
         result = await supabase
           .from('user_profiles')
           .insert({
@@ -146,12 +154,14 @@ export default function SelectRolePage() {
 
       console.log('[SelectRole] ✅ Role saved to database')
 
+      // Update user metadata (opsional)
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
       console.log('[SelectRole] ✅ User metadata updated')
 
+      // Redirect ke dashboard sesuai role
       const dashboardPath = role === 'student' 
         ? '/dashboard/student' 
         : '/dashboard/tutor'
@@ -167,7 +177,10 @@ export default function SelectRolePage() {
     }
   }
 
-  // Loading hanya berdasarkan state lokal `checking`
+  // ============================================================
+  // RENDER
+  // ============================================================
+  // Tampilkan loading selama pengecekan
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5">
@@ -180,7 +193,7 @@ export default function SelectRolePage() {
     )
   }
 
-  // Jika user tidak ditemukan (setelah checking selesai)
+  // Jika user tidak ditemukan setelah pengecekan selesai
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5 p-4">
@@ -201,7 +214,7 @@ export default function SelectRolePage() {
     )
   }
 
-  // Tampilan pilihan role (sama seperti sebelumnya)
+  // Tampilan pilihan role
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="max-w-2xl w-full">
@@ -236,7 +249,10 @@ export default function SelectRolePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" disabled={isLoading}>
+              <Button 
+                className="w-full" 
+                disabled={isLoading}
+              >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Pilih Siswa
               </Button>
@@ -257,7 +273,11 @@ export default function SelectRolePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline" disabled={isLoading}>
+              <Button 
+                className="w-full" 
+                variant="outline"
+                disabled={isLoading}
+              >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Pilih Pengajar
               </Button>
