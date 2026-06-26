@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
@@ -25,60 +24,30 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setIsLoading(role)
     setError('')
 
-    // 🔥 userId sudah pasti ada dari props server
     console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
 
     try {
-      const supabase = createClient()
+      // 🔥 Panggil API server
+      const response = await fetch('/api/auth/select-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          userEmail,
+          userName,
+          role: 'student',
+        }),
+      })
 
-      // 🔥 UPSERT ke user_profiles
-      console.log('[SelectRole] 💾 Menyimpan ke user_profiles...')
-      const { error: upsertError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: userId,
-          role: 'siswa',
-          name: userName || userEmail,
-          email: userEmail,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' })
+      const result = await response.json()
 
-      if (upsertError) {
-        console.error('[SelectRole] ❌ Upsert error:', upsertError)
-        throw new Error(`Gagal menyimpan profile: ${upsertError.message}`)
+      if (!response.ok) {
+        throw new Error(result.error || 'Gagal menyimpan role')
       }
 
-      console.log('[SelectRole] ✅ Profile saved to user_profiles!')
-
-      // 🔥 Buat entri di students
-      console.log('[SelectRole] 📝 Membuat entri student...')
-      const { data: existingStudent } = await supabase
-        .from('students')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle()
-
-      if (!existingStudent) {
-        const { error: studentError } = await supabase
-          .from('students')
-          .insert({
-            user_id: userId,
-            status: 'active',
-            onboarding_complete: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-        if (studentError) {
-          console.error('[SelectRole] ❌ Student insert error:', studentError)
-          // Tidak throw, biarkan redirect tetap jalan
-        } else {
-          console.log('[SelectRole] ✅ Student entry created!')
-        }
-      }
+      console.log('[SelectRole] ✅ Role saved via API:', result.message)
 
       // 🔥 Redirect ke dashboard student
-      console.log('[SelectRole] 🎯 Redirecting to /dashboard/student')
       window.location.href = '/dashboard/student'
       
     } catch (err) {
@@ -88,7 +57,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     }
   }
 
-  // UI (tidak berubah)
+  // UI (sama seperti sebelumnya)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">
