@@ -23,10 +23,11 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       const fetchUserId = async () => {
         try {
           const supabase = createClient()
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user?.id) {
-            console.log('[SelectRole] ✅ Client: User ID found:', session.user.id)
-            setActualUserId(session.user.id)
+          // Pakai getUser() seperti di dashboard
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.id) {
+            console.log('[SelectRole] ✅ Client: User ID found:', user.id)
+            setActualUserId(user.id)
           }
         } catch (err) {
           console.error('[SelectRole] ❌ Error fetching user:', err)
@@ -55,30 +56,42 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     console.log('[SelectRole] 📝 Memilih student, User ID:', finalUserId)
 
     try {
-      // 🔍 STEP 1: Buat client
-      console.log('[SelectRole] STEP 1 - Creating Supabase client...')
       const supabase = createClient()
 
-      // 🔍 STEP 2: Ambil session
-      console.log('[SelectRole] STEP 2 - Getting session...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log('[SelectRole] STEP 2 - Session result:', session ? '✅ Ada' : '❌ TIDAK ADA')
-
-      if (sessionError) {
-        console.error('[SelectRole] ❌ Session error:', sessionError)
-        throw new Error(`Session error: ${sessionError.message}`)
+      // 🔥 PAKAI getUser() seperti di dashboard (dengan timeout)
+      console.log('[SelectRole] ⏳ Verifikasi user (getUser)...')
+      const getUserPromise = supabase.auth.getUser()
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout getUser()')), 8000))
+      
+      let currentUser = null
+      try {
+        const result = await Promise.race([getUserPromise, timeout]) as any
+        if (result.data?.user) {
+          currentUser = result.data.user
+          console.log('[SelectRole] ✅ getUser() success:', currentUser.email)
+        }
+      } catch (err) {
+        console.warn('[SelectRole] getUser() timeout/error, fallback to getSession()...')
       }
 
-      if (!session?.user) {
-        console.error('[SelectRole] ❌ No session or user')
-        throw new Error('Sesi tidak valid. Silakan login ulang.')
+      // Fallback ke getSession() jika getUser gagal
+      if (!currentUser) {
+        console.log('[SelectRole] 🔄 Fallback to getSession()...')
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError) {
+          throw new Error(`Session error: ${sessionError.message}`)
+        }
+        if (!session?.user) {
+          throw new Error('Sesi tidak valid. Silakan login ulang.')
+        }
+        currentUser = session.user
+        console.log('[SelectRole] ✅ getSession() success:', currentUser.email)
       }
 
-      const currentUser = session.user
-      console.log('[SelectRole] ✅ User from session:', currentUser.email, 'ID:', currentUser.id)
+      console.log('[SelectRole] ✅ User verified:', currentUser.id)
 
-      // 🔍 STEP 3: Upsert ke user_profiles
-      console.log('[SelectRole] STEP 3 - Upserting to user_profiles...')
+      // 🔥 UPSERT ke user_profiles
+      console.log('[SelectRole] 💾 Saving to user_profiles...')
       const { error: upsertError } = await supabase
         .from('user_profiles')
         .upsert({
@@ -94,10 +107,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         throw new Error(`Gagal menyimpan profile: ${upsertError.message}`)
       }
 
-      console.log('[SelectRole] ✅ Profile saved!')
+      console.log('[SelectRole] ✅ Profile saved to user_profiles!')
 
-      // 🔍 STEP 4: Buat entri student
-      console.log('[SelectRole] STEP 4 - Creating student entry...')
+      // 🔥 Buat entri di students
+      console.log('[SelectRole] 📝 Creating student entry...')
       const { data: existingStudent } = await supabase
         .from('students')
         .select('id')
@@ -117,13 +130,14 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
         if (studentError) {
           console.error('[SelectRole] ❌ Student insert error:', studentError)
+          // Tidak throw, biarkan redirect tetap jalan
         } else {
-          console.log('[SelectRole] ✅ Student entry created')
+          console.log('[SelectRole] ✅ Student entry created!')
         }
       }
 
-      // 🔍 STEP 5: Redirect
-      console.log('[SelectRole] STEP 5 - Redirecting to dashboard...')
+      // 🔥 Redirect
+      console.log('[SelectRole] 🎯 Redirecting to dashboard...')
       window.location.href = '/dashboard/student'
       
     } catch (err) {
