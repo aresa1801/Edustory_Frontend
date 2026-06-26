@@ -24,10 +24,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       const fetchUserId = async () => {
         try {
           const supabase = createClient()
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user?.id) {
-            console.log('[SelectRole] ✅ Client: User ID found:', session.user.id)
-            setActualUserId(session.user.id)
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.id) {
+            console.log('[SelectRole] ✅ Client: User ID found:', user.id)
+            setActualUserId(user.id)
           } else {
             console.error('[SelectRole] ❌ Client: No user found')
             setError('Sesi tidak valid. Silakan login ulang.')
@@ -68,22 +68,52 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       console.log('[SelectRole] STEP 2 - Creating Supabase client...')
       const supabase = createClient()
 
-      // 🔍 STEP 3: Ambil session (tanpa validasi ke server)
-      console.log('[SelectRole] STEP 3 - Getting session from client...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      // 🔍 STEP 3: Verifikasi user dari session (priority: getUser)
+      console.log('[SelectRole] STEP 3 - Verifying user from session (getUser)...')
       
-      if (sessionError) {
-        console.error('[SelectRole] ❌ Session error:', sessionError)
-        throw new Error(`Session error: ${sessionError.message}`)
+      let currentUser = null
+      let userError = null
+
+      // Coba getUser() dulu
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) {
+          console.warn('[SelectRole] getUser() error:', error)
+          userError = error
+        } else if (user) {
+          currentUser = user
+          console.log('[SelectRole] ✅ getUser() success:', user.email)
+        }
+      } catch (err) {
+        console.warn('[SelectRole] getUser() exception:', err)
+        userError = err
       }
-      
-      if (!session?.user) {
-        console.error('[SelectRole] ❌ No session or user')
+
+      // Jika getUser gagal, coba getSession()
+      if (!currentUser) {
+        console.log('[SelectRole] getUser() failed, trying getSession()...')
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (sessionError) {
+            console.warn('[SelectRole] getSession() error:', sessionError)
+            userError = sessionError
+          } else if (session?.user) {
+            currentUser = session.user
+            console.log('[SelectRole] ✅ getSession() success:', currentUser.email)
+          }
+        } catch (err) {
+          console.warn('[SelectRole] getSession() exception:', err)
+          userError = err
+        }
+      }
+
+      // Jika masih tidak ada user, throw error
+      if (!currentUser) {
+        console.error('[SelectRole] ❌ No user found after both attempts')
         throw new Error('Sesi tidak valid. Silakan login ulang.')
       }
 
-      const currentUser = session.user
-      console.log('[SelectRole] ✅ User from session:', currentUser.email, 'ID:', currentUser.id)
+      console.log('[SelectRole] ✅ User terverifikasi:', currentUser.email, 'ID:', currentUser.id)
 
       // Gunakan ID dari session
       const safeUserId = currentUser.id
