@@ -1,25 +1,104 @@
+// ============================================================
+// SERVER COMPONENT
+// ============================================================
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+
+export default async function SelectRolePage() {
+  const cookieStore = cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set() {},
+        remove() {},
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    console.log('[SelectRole] ❌ No user found, redirect to home')
+    redirect('/?no_session=1')
+  }
+
+  console.log('[SelectRole] ✅ Server: User found:', user.email, 'ID:', user.id)
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profile?.role) {
+    const dashboardPath = profile.role === 'siswa' || profile.role === 'student'
+      ? '/dashboard/student'
+      : profile.role === 'tutor'
+      ? '/dashboard/tutor'
+      : '/dashboard/admin'
+    console.log('[SelectRole] ✅ User already has role, redirect to:', dashboardPath)
+    redirect(dashboardPath)
+  }
+
+  // Render client component dengan props yang jelas
+  return (
+    <SelectRoleClient 
+      userEmail={user.email!} 
+      userId={user.id} 
+      userName={user.user_metadata?.full_name || user.email!} 
+    />
+  )
+}
+
+// ============================================================
+// CLIENT COMPONENT
+// ============================================================
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
 
-interface SelectRoleClientProps {
-  userEmail: string
-  userId: string
-  userName: string
-}
-
-export default function SelectRoleClient({ userEmail, userId, userName }: SelectRoleClientProps) {
+function SelectRoleClient({ userEmail, userId, userName }: { userEmail: string; userId: string; userName: string }) {
   const [isLoading, setIsLoading] = useState<'student' | 'tutor' | null>(null)
   const [error, setError] = useState('')
+  const [actualUserId, setActualUserId] = useState<string | null>(userId || null)
+
+  // 🔧 FALLBACK: Jika userId dari props undefined, ambil dari session di client
+  useEffect(() => {
+    if (!actualUserId) {
+      console.warn('[SelectRole] ⚠️ userId from props is undefined, fetching from client...')
+      const fetchUserId = async () => {
+        try {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.id) {
+            console.log('[SelectRole] ✅ Client: User ID found:', user.id)
+            setActualUserId(user.id)
+          } else {
+            console.error('[SelectRole] ❌ Client: No user found')
+            setError('Sesi tidak valid. Silakan login ulang.')
+          }
+        } catch (err) {
+          console.error('[SelectRole] ❌ Client: Error fetching user:', err)
+          setError('Gagal memuat data user. Silakan refresh halaman.')
+        }
+      }
+      fetchUserId()
+    }
+  }, [actualUserId])
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
-    // ============================================================
     // 🚫 TUTOR DI-NONAKTIFKAN SEMENTARA
-    // ============================================================
     if (role === 'tutor') {
       setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!" untuk menjadi student.')
       return
@@ -28,21 +107,27 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setIsLoading(role)
     setError('')
 
-    console.log('[SelectRole] 📝 Memilih role:', role)
+    // Gunakan actualUserId (fallback) jika userId props undefined
+    const finalUserId = actualUserId || userId
+    if (!finalUserId) {
+      setError('ID user tidak ditemukan. Silakan refresh halaman atau login ulang.')
+      setIsLoading(null)
+      return
+    }
+
+    console.log('[SelectRole] 📝 Memilih role:', role, 'User ID:', finalUserId)
 
     try {
       const supabase = createClient()
       const dbRole = 'siswa' // Hanya student yang aktif
 
-      console.log('[SelectRole] 💾 Menyimpan role ke user_profiles:', { userId, dbRole })
+      console.log('[SelectRole] 💾 Menyimpan role ke user_profiles:', { userId: finalUserId, dbRole })
 
-      // ============================================================
       // 1. UPDATE user_profiles
-      // ============================================================
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('id')
-        .eq('id', userId)
+        .eq('id', finalUserId)
         .maybeSingle()
 
       let result
@@ -54,14 +139,14 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             role: dbRole,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', userId)
+          .eq('id', finalUserId)
       } else {
         result = await supabase
           .from('user_profiles')
           .insert({
-            id: userId,
+            id: finalUserId,
             role: dbRole,
-            name: userName,
+            name: userName || userEmail,
             email: userEmail,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -75,26 +160,22 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       console.log('[SelectRole] ✅ user_profiles berhasil disimpan')
 
-      // ============================================================
-      // 2. BUAT ENTRI DI TABEL students (karena hanya student)
-      // ============================================================
+      // 2. BUAT ENTRI DI TABEL students
       console.log('[SelectRole] 📝 Membuat entri di tabel students...')
       
-      // Cek apakah student sudah punya entri
       const { data: existingStudent } = await supabase
         .from('students')
         .select('id')
-        .eq('user_id', userId)
+        .eq('user_id', finalUserId)
         .maybeSingle()
 
       if (!existingStudent) {
-        // Buat entri baru dengan onboarding_complete: false
         const { error: studentError } = await supabase
           .from('students')
           .insert({
-            user_id: userId,
+            user_id: finalUserId,
             status: 'active',
-            onboarding_complete: false, // 🔑 Ini akan memicu form onboarding
+            onboarding_complete: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -102,25 +183,20 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         if (studentError) {
           console.error('[SelectRole] ❌ Gagal buat entri students:', studentError)
           throw new Error('Gagal membuat profil student. Silakan coba lagi.')
-        } else {
-          console.log('[SelectRole] ✅ Entri students berhasil dibuat')
         }
+        console.log('[SelectRole] ✅ Entri students berhasil dibuat')
       } else {
         console.log('[SelectRole] ℹ️ Entri students sudah ada')
       }
 
-      // ============================================================
-      // 3. UPDATE METADATA (opsional)
-      // ============================================================
+      // 3. UPDATE METADATA
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
       console.log('[SelectRole] ✅ User metadata updated')
 
-      // ============================================================
       // 4. REDIRECT KE DASHBOARD STUDENT
-      // ============================================================
       console.log('[SelectRole] 🎯 Redirect ke: /dashboard/student')
       window.location.href = '/dashboard/student'
       
@@ -131,6 +207,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     }
   }
 
+  // RENDER UI (sama seperti sebelumnya)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">
