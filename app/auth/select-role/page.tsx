@@ -17,6 +17,14 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
+    // ============================================================
+    // 🚫 TUTOR DI-NONAKTIFKAN SEMENTARA
+    // ============================================================
+    if (role === 'tutor') {
+      setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!" untuk menjadi student.')
+      return
+    }
+
     setIsLoading(role)
     setError('')
 
@@ -24,10 +32,13 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
     try {
       const supabase = createClient()
-      const dbRole = role === 'student' ? 'siswa' : 'tutor'
+      const dbRole = 'siswa' // Hanya student yang aktif
 
-      console.log('[SelectRole] 💾 Menyimpan role ke database:', { userId, dbRole })
+      console.log('[SelectRole] 💾 Menyimpan role ke user_profiles:', { userId, dbRole })
 
+      // ============================================================
+      // 1. UPDATE user_profiles
+      // ============================================================
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('id')
@@ -51,28 +62,67 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             id: userId,
             role: dbRole,
             name: userName,
+            email: userEmail,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
       }
 
       if (result.error) {
-        console.error('[SelectRole] ❌ Gagal simpan:', result.error)
+        console.error('[SelectRole] ❌ Gagal simpan user_profiles:', result.error)
         throw result.error
       }
 
-      console.log('[SelectRole] ✅ Role berhasil disimpan')
+      console.log('[SelectRole] ✅ user_profiles berhasil disimpan')
 
+      // ============================================================
+      // 2. BUAT ENTRI DI TABEL students (karena hanya student)
+      // ============================================================
+      console.log('[SelectRole] 📝 Membuat entri di tabel students...')
+      
+      // Cek apakah student sudah punya entri
+      const { data: existingStudent } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (!existingStudent) {
+        // Buat entri baru dengan onboarding_complete: false
+        const { error: studentError } = await supabase
+          .from('students')
+          .insert({
+            user_id: userId,
+            status: 'active',
+            onboarding_complete: false, // 🔑 Ini akan memicu form onboarding
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+
+        if (studentError) {
+          console.error('[SelectRole] ❌ Gagal buat entri students:', studentError)
+          throw new Error('Gagal membuat profil student. Silakan coba lagi.')
+        } else {
+          console.log('[SelectRole] ✅ Entri students berhasil dibuat')
+        }
+      } else {
+        console.log('[SelectRole] ℹ️ Entri students sudah ada')
+      }
+
+      // ============================================================
+      // 3. UPDATE METADATA (opsional)
+      // ============================================================
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
-      const dashboardPath = role === 'student' 
-        ? '/dashboard/student' 
-        : '/dashboard/tutor'
-      
-      console.log('[SelectRole] 🎯 Redirect ke:', dashboardPath)
-      window.location.href = dashboardPath
+      console.log('[SelectRole] ✅ User metadata updated')
+
+      // ============================================================
+      // 4. REDIRECT KE DASHBOARD STUDENT
+      // ============================================================
+      console.log('[SelectRole] 🎯 Redirect ke: /dashboard/student')
+      window.location.href = '/dashboard/student'
       
     } catch (err) {
       console.error('[SelectRole] ❌ Error:', err)
@@ -109,7 +159,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          {/* Student Card */}
+          {/* Student Card (AKTIF) */}
           <Card 
             className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
               ${isLoading === 'student' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
@@ -149,42 +199,31 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             </CardContent>
           </Card>
 
-          {/* Tutor Card */}
+          {/* Tutor Card (DI-NONAKTIFKAN) */}
           <Card 
-            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
-              ${isLoading === 'tutor' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
-            `}
-            onClick={() => !isLoading && handleSelectRole('tutor')}
+            className="relative overflow-hidden border-2 opacity-60 cursor-not-allowed"
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-green-400" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400 to-gray-300" />
             <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
-                <UserCog className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+              <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
+                <UserCog className="w-10 h-10 text-gray-500 dark:text-gray-400" />
               </div>
-              <CardTitle className="text-2xl font-bold">Saya Tutor</CardTitle>
-              <CardDescription className="text-base">
-                Saya ingin berbagi ilmu dan mengajar siswa
+              <CardTitle className="text-2xl font-bold text-gray-500">Saya Tutor</CardTitle>
+              <CardDescription className="text-base text-gray-400">
+                🚧 Segera hadir! Fitur tutor sedang dalam pengembangan
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center pb-8">
-              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
+              <ul className="text-sm text-gray-400 space-y-2 mb-6 text-left max-w-xs mx-auto">
                 <li>✓ Temukan siswa yang cocok dengan keahlian Anda</li>
                 <li>✓ Atur jadwal dan pilih student sendiri</li>
                 <li>✓ Dapatkan penghasilan tambahan</li>
               </ul>
               <Button 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={isLoading === 'tutor'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSelectRole('tutor')
-                }}
+                className="w-full bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
+                disabled={true}
               >
-                {isLoading === 'tutor' ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
-                ) : (
-                  'Siap mengajar!'
-                )}
+                Segera hadir
               </Button>
             </CardContent>
           </Card>
