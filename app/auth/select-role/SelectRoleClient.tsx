@@ -17,69 +17,78 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
-  if (role === 'tutor') {
-    setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!"')
-    return
+    if (role === 'tutor') {
+      setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!"')
+      return
+    }
+
+    setIsLoading(role)
+    setError('')
+
+    console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
+
+    try {
+      console.log('[SelectRole] 🔍 Step 1: Membuat Supabase client...')
+      const supabase = createClient()
+
+      console.log('[SelectRole] 🔍 Step 2: Mengambil session...')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('[SelectRole] 🔍 Session:', session ? '✅ Ada' : '❌ Tidak ada')
+      if (sessionError) {
+        console.error('[SelectRole] ❌ Session error:', sessionError)
+      }
+
+      const accessToken = session?.access_token
+      console.log('[SelectRole] 🔍 Access token:', accessToken ? '✅ Ada' : '❌ Tidak ada')
+
+      if (!accessToken) {
+        throw new Error('Tidak dapat mengambil token akses. Silakan login ulang.')
+      }
+
+      console.log('[SelectRole] 🔑 Token akses ditemukan, mengirim request ke API...')
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
+      console.log('[SelectRole] 🔍 Step 3: Fetch ke /api/auth/set-role...')
+      const response = await fetch('/api/auth/set-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ role: 'student' }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeout)
+
+      console.log('[SelectRole] 📡 Response status:', response.status)
+
+      const result = await response.json()
+      console.log('[SelectRole] 📦 Response body:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `Gagal menyimpan role (status ${response.status})`)
+      }
+
+      console.log('[SelectRole] ✅ Role saved via API:', result)
+
+      console.log('[SelectRole] 🎯 Redirecting to /dashboard/student')
+      window.location.href = '/dashboard/student'
+      
+    } catch (err) {
+      console.error('[SelectRole] ❌ Error:', err)
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timeout. Silakan coba lagi.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Gagal menyimpan role. Silakan coba lagi.')
+      }
+      setIsLoading(null)
+    }
   }
 
-  setIsLoading(role)
-  setError('')
-
-  console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
-
-  try {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    const accessToken = session?.access_token
-
-    if (!accessToken) {
-      throw new Error('Tidak dapat mengambil token akses. Silakan login ulang.')
-    }
-
-    console.log('[SelectRole] 🔑 Token akses ditemukan, mengirim request ke API...')
-
-    // 🔥 Tambahkan timeout 10 detik
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000)
-
-    const response = await fetch('/api/auth/set-role', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ role: 'student' }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeout)
-
-    console.log('[SelectRole] 📡 Response status:', response.status)
-
-    const result = await response.json()
-    console.log('[SelectRole] 📦 Response body:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || `Gagal menyimpan role (status ${response.status})`)
-    }
-
-    console.log('[SelectRole] ✅ Role saved via API:', result)
-
-    // Redirect ke dashboard student
-    window.location.href = '/dashboard/student'
-    
-  } catch (err) {
-    console.error('[SelectRole] ❌ Error:', err)
-    if (err instanceof Error && err.name === 'AbortError') {
-      setError('Request timeout. Silakan coba lagi.')
-    } else {
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan role. Silakan coba lagi.')
-    }
-    setIsLoading(null)
-  }
-}
-
-  // UI (sama seperti sebelumnya)
+  // UI (tidak berubah)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">
