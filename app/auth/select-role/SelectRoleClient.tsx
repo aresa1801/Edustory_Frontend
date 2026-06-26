@@ -17,7 +17,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
   const [actualUserId, setActualUserId] = useState<string | null>(userId || null)
 
-  // Fallback: jika userId dari props undefined, ambil dari session di client
+  // Fallback: ambil userId dari session jika props undefined
   useEffect(() => {
     if (!actualUserId) {
       console.warn('[SelectRole] ⚠️ userId from props is undefined, fetching from client...')
@@ -51,8 +51,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setIsLoading(role)
     setError('')
 
-    // Ambil userId dari state atau props
-    let finalUserId = actualUserId || userId
+    // 🔍 STEP 1: Pastikan userId ada
+    const finalUserId = actualUserId || userId
+    console.log('[SelectRole] STEP 1 - finalUserId:', finalUserId, 'Type:', typeof finalUserId)
+
     if (!finalUserId) {
       setError('ID user tidak ditemukan. Silakan refresh halaman atau login ulang.')
       setIsLoading(null)
@@ -62,80 +64,99 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     console.log('[SelectRole] 📝 Memilih role:', role, 'User ID:', finalUserId)
 
     try {
+      // 🔍 STEP 2: Inisialisasi Supabase
+      console.log('[SelectRole] STEP 2 - Creating Supabase client...')
       const supabase = createClient()
 
-      // ✅ Verifikasi user dari session
+      // 🔍 STEP 3: Verifikasi user dari session
+      console.log('[SelectRole] STEP 3 - Verifying user from session...')
       const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
-      if (userError || !currentUser) {
-        console.error('[SelectRole] ❌ Gagal verifikasi user:', userError)
-        setError('Sesi tidak valid. Silakan login ulang.')
-        setIsLoading(null)
-        return
-      }
-
-      if (currentUser.id !== finalUserId) {
-        console.warn('[SelectRole] ⚠️ User ID mismatch, using session ID:', currentUser.id)
-        finalUserId = currentUser.id
-        setActualUserId(finalUserId)
-      }
-
-      console.log('[SelectRole] ✅ User terverifikasi:', currentUser.email)
-
-      const dbRole = 'siswa' // Hanya student yang aktif
-
-      // ============================================================
-      // 1. UPSERT user_profiles (menggunakan .upsert untuk menghindari error)
-      // ============================================================
-      console.log('[SelectRole] 💾 Menyimpan role ke user_profiles:', { userId: finalUserId, dbRole })
-
-      const { data: upsertData, error: upsertError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: finalUserId,
-          role: dbRole,
-          name: userName || userEmail,
-          email: userEmail,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        }, {
-          onConflict: 'id',
-          ignoreDuplicates: false,
-        })
-        .select()
-
-      if (upsertError) {
-        console.error('[SelectRole] ❌ Gagal upsert user_profiles:', {
-          code: upsertError.code,
-          message: upsertError.message,
-          details: upsertError.details,
-          hint: upsertError.hint,
-        })
-        throw new Error(`Gagal menyimpan profile: ${upsertError.message} (${upsertError.code})`)
-      }
-
-      console.log('[SelectRole] ✅ user_profiles berhasil disimpan:', upsertData)
-
-      // ============================================================
-      // 2. BUAT ENTRI DI TABEL students (jika belum ada)
-      // ============================================================
-      console.log('[SelectRole] 📝 Membuat entri di tabel students...')
       
-      const { data: existingStudent, error: studentCheckError } = await supabase
-        .from('students')
-        .select('id')
-        .eq('user_id', finalUserId)
+      if (userError) {
+        console.error('[SelectRole] ❌ User verification error:', userError)
+        throw new Error(`Verifikasi user gagal: ${userError.message}`)
+      }
+      
+      if (!currentUser) {
+        console.error('[SelectRole] ❌ No user in session')
+        throw new Error('Sesi tidak valid. Silakan login ulang.')
+      }
+
+      console.log('[SelectRole] ✅ User terverifikasi:', currentUser.email, 'ID:', currentUser.id)
+
+      // Pastikan ID sama
+      const safeUserId = currentUser.id
+      if (safeUserId !== finalUserId) {
+        console.warn('[SelectRole] ⚠️ ID mismatch, using session ID:', safeUserId)
+      }
+
+      const dbRole = 'siswa'
+
+      // 🔍 STEP 4: Cek profile existing
+      console.log('[SelectRole] STEP 4 - Checking existing profile for:', safeUserId)
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('id, role')
+        .eq('id', safeUserId)
         .maybeSingle()
 
-      if (studentCheckError) {
-        console.error('[SelectRole] ❌ Gagal cek student:', studentCheckError)
-        // Tidak throw, lanjutkan
+      if (checkError) {
+        console.error('[SelectRole] ❌ Check profile error:', checkError)
+        throw new Error(`Gagal cek profile: ${checkError.message}`)
       }
+
+      console.log('[SelectRole] Existing profile:', existingProfile)
+
+      // 🔍 STEP 5: Insert atau Update
+      let result
+      if (existingProfile) {
+        console.log('[SelectRole] STEP 5a - Updating existing profile...')
+        result = await supabase
+          .from('user_profiles')
+          .update({ 
+            role: dbRole,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', safeUserId)
+      } else {
+        console.log('[SelectRole] STEP 5b - Inserting new profile...')
+        result = await supabase
+          .from('user_profiles')
+          .insert({
+            id: safeUserId,
+            role: dbRole,
+            name: userName || userEmail,
+            email: userEmail,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+      }
+
+      if (result.error) {
+        console.error('[SelectRole] ❌ Supabase error DETAIL:', {
+          code: result.error.code,
+          message: result.error.message,
+          details: result.error.details,
+          hint: result.error.hint,
+        })
+        throw new Error(`Supabase error: ${result.error.message} (${result.error.code})`)
+      }
+
+      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!', result.data)
+
+      // 🔍 STEP 6: Buat entri di students
+      console.log('[SelectRole] STEP 6 - Creating student entry...')
+      const { data: existingStudent } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', safeUserId)
+        .maybeSingle()
 
       if (!existingStudent) {
         const { error: studentError } = await supabase
           .from('students')
           .insert({
-            user_id: finalUserId,
+            user_id: safeUserId,
             status: 'active',
             onboarding_complete: false,
             created_at: new Date().toISOString(),
@@ -143,7 +164,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
           })
 
         if (studentError) {
-          console.error('[SelectRole] ❌ Gagal buat entri students:', studentError)
+          console.error('[SelectRole] ❌ Student insert error:', studentError)
           throw new Error(`Gagal membuat profil student: ${studentError.message}`)
         }
         console.log('[SelectRole] ✅ Entri students berhasil dibuat')
@@ -151,19 +172,15 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         console.log('[SelectRole] ℹ️ Entri students sudah ada')
       }
 
-      // ============================================================
-      // 3. UPDATE METADATA (opsional)
-      // ============================================================
+      // 🔍 STEP 7: Update metadata
+      console.log('[SelectRole] STEP 7 - Updating user metadata...')
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
-      console.log('[SelectRole] ✅ User metadata updated')
+      console.log('[SelectRole] ✅ Semua proses selesai! Redirecting...')
 
-      // ============================================================
-      // 4. REDIRECT KE DASHBOARD STUDENT
-      // ============================================================
-      console.log('[SelectRole] 🎯 Redirect ke: /dashboard/student')
+      // 🔍 STEP 8: Redirect
       window.location.href = '/dashboard/student'
       
     } catch (err) {
@@ -173,6 +190,9 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     }
   }
 
+  // ============================================================
+  // UI (Tidak berubah)
+  // ============================================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">
