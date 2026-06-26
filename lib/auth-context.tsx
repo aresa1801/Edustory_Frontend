@@ -143,235 +143,230 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // MAIN USEFFECT
   // ============================================================
   useEffect(() => {
-    let isMounted = true
-    let initTimeout: NodeJS.Timeout | null = null
+  let isMounted = true
+  let initTimeout: NodeJS.Timeout | null = null
 
-    const initializeAuth = async () => {
-      if (isLoggingOut.current) {
-        console.log('[Auth] ⏸️ Skipping init during logout')
-        return
-      }
+  const initializeAuth = useCallback(async () => {
+    if (isLoggingOut.current) {
+      console.log('[Auth] ⏸️ Skipping init during logout')
+      return
+    }
 
-      console.log('[Auth] 🛡️ Validasi auth...')
+    console.log('[Auth] 🛡️ Validasi auth...')
+    
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setInitError('Missing Supabase configuration')
+      if (isMounted) setLoading(false)
+      return
+    }
+
+    try {
+      const supabase = createClient()
       
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        setInitError('Missing Supabase configuration')
-        if (isMounted) setLoading(false)
+      let serverUser = null
+      let userError = null
+      
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const result = await supabase.auth.getUser()
+        serverUser = result.data.user
+        userError = result.error
+        if (serverUser) break
+        console.log(`[Auth] ⏳ Session belum ready, retry ${attempt + 1}/3...`)
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+      
+      if (!isMounted) return
+      
+      if (userError || !serverUser) {
+        console.log('[Auth] ❌ User tidak valid:', userError?.message)
+        await supabase.auth.signOut({ scope: 'global' })
+        clearSupabaseStorage()
+        if (isMounted) setAsGuest()
         return
       }
+      
+      console.log('[Auth] ✅ User valid:', serverUser.email)
+      
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (isMounted) {
+        setSession(currentSession)
+        setUser(serverUser)
+      }
 
+      // 🔥 Hanya fetch profile jika user valid dan kita belum pernah fetch sebelumnya
       try {
-        const supabase = createClient()
-        
-        let serverUser = null
-        let userError = null
-        
-        for (let attempt = 0; attempt < 5; attempt++) {
-          const result = await supabase.auth.getUser()
-          serverUser = result.data.user
-          userError = result.error
-          if (serverUser) break
-          console.log(`[Auth] ⏳ Session belum ready, retry ${attempt + 1}/5...`)
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
+        const { role, name } = await fetchUserProfile(serverUser)
         
         if (!isMounted) return
         
-        if (userError || !serverUser) {
-          console.log('[Auth] ❌ User tidak valid:', userError?.message)
-          await supabase.auth.signOut({ scope: 'global' })
-          clearSupabaseStorage()
-          if (isMounted) setAsGuest()
-          return
-        }
-        
-        console.log('[Auth] ✅ User valid:', serverUser.email)
-        
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (isMounted) {
-          setSession(currentSession)
-          setUser(serverUser)
-        }
-
-        initTimeout = setTimeout(() => {
-          if (isMounted && loading) {
-            console.warn('[Auth] ⏱️ Timeout, marking as first-time user...')
-            setIsFirstTimeUser(true)
-            setLoading(false)
-          }
-        }, 3000)
-        
-        try {
-          const { role, name } = await fetchUserProfile(serverUser)
-          
-          if (!isMounted) return
-          if (initTimeout) { clearTimeout(initTimeout); initTimeout = null }
-          
-          if (!role && serverUser.email !== ADMIN_EMAIL) {
-            console.log('[Auth] 🆕 First time user')
-            setIsFirstTimeUser(true)
-            setUserRole(null)
-            setUserName(name)
-          } else {
-            console.log('[Auth] ✅ User has role:', role)
-            setIsFirstTimeUser(false)
-            setUserRole(role)
-            setUserName(name)
-          }
-          if (isMounted) setLoading(false)
-          
-        } catch (profileError) {
-          console.error('[Auth] ⚠️ Profile fetch error:', profileError)
-          if (!isMounted) return
-          if (initTimeout) { clearTimeout(initTimeout); initTimeout = null }
+        if (!role && serverUser.email !== ADMIN_EMAIL) {
+          console.log('[Auth] 🆕 First time user')
           setIsFirstTimeUser(true)
-          setUserName(serverUser.user_metadata?.full_name || serverUser.email || null)
-          if (isMounted) setLoading(false)
+          setUserRole(null)
+          setUserName(name)
+        } else {
+          console.log('[Auth] ✅ User has role:', role)
+          setIsFirstTimeUser(false)
+          setUserRole(role)
+          setUserName(name)
         }
+        if (isMounted) setLoading(false)
         
-      } catch (error) {
-        console.error('[Auth] ❌ Initialization error:', error)
-        setInitError(error instanceof Error ? error.message : 'Unknown error')
-        try {
-          const supabase = createClient()
-          await supabase.auth.signOut({ scope: 'global' })
-          clearSupabaseStorage()
-        } catch (e) {}
-        if (isMounted) setAsGuest()
-      } finally {
-        if (initTimeout) { clearTimeout(initTimeout); initTimeout = null }
+      } catch (profileError) {
+        console.error('[Auth] ⚠️ Profile fetch error:', profileError)
+        if (!isMounted) return
+        setIsFirstTimeUser(true)
+        setUserName(serverUser.user_metadata?.full_name || serverUser.email || null)
+        if (isMounted) setLoading(false)
+      }
+      
+    } catch (error) {
+      console.error('[Auth] ❌ Initialization error:', error)
+      setInitError(error instanceof Error ? error.message : 'Unknown error')
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut({ scope: 'global' })
+        clearSupabaseStorage()
+      } catch (e) {}
+      if (isMounted) setAsGuest()
+    } finally {
+      if (initTimeout) {
+        clearTimeout(initTimeout)
+        initTimeout = null
       }
     }
+  }, [clearSupabaseStorage, setAsGuest]) // ✅ Dependency stabil
 
-    initializeAuth()
+  // Jalankan sekali saat mount
+  initializeAuth()
 
-    // -----------------------------------------------------------------
-    // SUBSCRIPTION AUTH STATE CHANGE
-    // -----------------------------------------------------------------
-    const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log('[Auth] 📡 Event:', event, 'Path:', typeof window !== 'undefined' ? window.location.pathname : 'N/A')
+  // -----------------------------------------------------------------
+  // SUBSCRIPTION AUTH STATE CHANGE
+  // -----------------------------------------------------------------
+  const supabase = createClient()
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    async (event, currentSession) => {
+      console.log('[Auth] 📡 Event:', event, 'Path:', typeof window !== 'undefined' ? window.location.pathname : 'N/A')
+      
+      if (isLoggingOut.current) {
+        console.log('[Auth] ⏸️ Ignoring event during logout')
+        return
+      }
+      
+      if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/callback')) {
+        console.log('[Auth] ⏭️ Skipping re-validation on callback page')
+        return
+      }
+      
+      if (isProcessingAuthChange.current) {
+        console.log('[Auth] ⏸️ Already processing, skip')
+        return
+      }
+      
+      isProcessingAuthChange.current = true
+      
+      try {
+        if (!isMounted) return
         
-        if (isLoggingOut.current) {
-          console.log('[Auth] ⏸️ Ignoring event during logout')
+        if (event === 'SIGNED_OUT') {
+          console.log('[Auth] 🚪 User signed out')
+          setAsGuest()
           return
         }
         
-        if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/callback')) {
-          console.log('[Auth] ⏭️ Skipping re-validation on callback page')
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          console.log('[Auth] 🔄 Re-validating...')
+          await initializeAuth()
           return
         }
         
-        if (isProcessingAuthChange.current) {
-          console.log('[Auth] ⏸️ Already processing, skip')
-          return
-        }
-        
-        isProcessingAuthChange.current = true
-        
-        try {
-          if (!isMounted) return
+        if (event === 'SIGNED_IN' && currentSession) {
+          console.log('[Auth] ✅ SIGNED_IN - Update state')
           
-          if (event === 'SIGNED_OUT') {
-            console.log('[Auth] 🚪 User signed out')
-            setAsGuest()
+          if (!currentSession.user) {
+            console.warn('[Auth] ⚠️ SIGNED_IN but user is null')
+            setLoading(false)
             return
           }
+
+          setSession(currentSession)
+          setUser(currentSession.user)
           
-          if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            console.log('[Auth] 🔄 Re-validating...')
-            await initializeAuth()
-            return
+          if (profileTimeoutRef.current) {
+            clearTimeout(profileTimeoutRef.current)
+            profileTimeoutRef.current = null
           }
-          
-          if (event === 'SIGNED_IN' && currentSession) {
-            console.log('[Auth] ✅ SIGNED_IN - Update state')
-            
-            if (!currentSession.user) {
-              console.warn('[Auth] ⚠️ SIGNED_IN but user is null')
+
+          profileTimeoutRef.current = setTimeout(() => {
+            console.warn('[Auth] ⏱️ Profile fetch timeout, forcing loading false')
+            if (isMounted) {
               setLoading(false)
-              return
+              setIsFirstTimeUser(true)
+              setUserRole(null)
+              setUserName(currentSession.user?.email || null)
             }
+            profileTimeoutRef.current = null
+          }, 5000)
 
-            setSession(currentSession)
-            setUser(currentSession.user)
-            
+          try {
+            const { role, name } = await fetchUserProfile(currentSession.user)
             if (profileTimeoutRef.current) {
               clearTimeout(profileTimeoutRef.current)
               profileTimeoutRef.current = null
             }
-
-            profileTimeoutRef.current = setTimeout(() => {
-              console.warn('[Auth] ⏱️ Profile fetch timeout, forcing loading false')
-              if (isMounted) {
-                setLoading(false)
-                setIsFirstTimeUser(true)
-                setUserRole(null)
-                setUserName(currentSession.user?.email || null)
-              }
-              profileTimeoutRef.current = null
-            }, 5000)
-
-            try {
-              const { role, name } = await fetchUserProfile(currentSession.user)
-              if (profileTimeoutRef.current) {
-                clearTimeout(profileTimeoutRef.current)
-                profileTimeoutRef.current = null
-              }
-              
-              if (!role && currentSession.user.email !== ADMIN_EMAIL) {
-                setIsFirstTimeUser(true)
-                setUserRole(null)
-                setUserName(name || currentSession.user.email || null)
-              } else {
-                setIsFirstTimeUser(false)
-                setUserRole(role)
-                setUserName(name || currentSession.user.email || null)
-              }
-            } catch (profileError) {
-              if (profileTimeoutRef.current) {
-                clearTimeout(profileTimeoutRef.current)
-                profileTimeoutRef.current = null
-              }
-              console.error('[Auth] Profile fetch error:', profileError)
+            
+            if (!role && currentSession.user.email !== ADMIN_EMAIL) {
               setIsFirstTimeUser(true)
               setUserRole(null)
-              setUserName(currentSession.user.user_metadata?.full_name || currentSession.user.email || null)
-            } finally {
-              if (isMounted) setLoading(false)
+              setUserName(name || currentSession.user.email || null)
+            } else {
+              setIsFirstTimeUser(false)
+              setUserRole(role)
+              setUserName(name || currentSession.user.email || null)
             }
+          } catch (profileError) {
+            if (profileTimeoutRef.current) {
+              clearTimeout(profileTimeoutRef.current)
+              profileTimeoutRef.current = null
+            }
+            console.error('[Auth] Profile fetch error:', profileError)
+            setIsFirstTimeUser(true)
+            setUserRole(null)
+            setUserName(currentSession.user.user_metadata?.full_name || currentSession.user.email || null)
+          } finally {
+            if (isMounted) setLoading(false)
           }
-        } finally {
-          isProcessingAuthChange.current = false
         }
+      } finally {
+        isProcessingAuthChange.current = false
       }
-    )
-
-    // -----------------------------------------------------------------
-    // INTERVAL PERIODIK
-    // -----------------------------------------------------------------
-    sessionCheckIntervalRef.current = setInterval(async () => {
-      if (!isMounted || isLoggingOut.current) return
-      const supabaseClient = createClient()
-      const { data: { user: currentUser } } = await supabaseClient.auth.getUser()
-      if (!currentUser) {
-        if (user) {
-          console.log('[Auth] ⏱️ Session expired, auto logout')
-          setAsGuest()
-        }
-        return
-      }
-    }, 30000)
-
-    return () => {
-      isMounted = false
-      if (initTimeout) clearTimeout(initTimeout)
-      if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current)
-      if (sessionCheckIntervalRef.current) clearInterval(sessionCheckIntervalRef.current)
-      subscription.unsubscribe()
     }
-  }, [clearSupabaseStorage, setAsGuest])
+  )
+
+  // -----------------------------------------------------------------
+  // INTERVAL PERIODIK
+  // -----------------------------------------------------------------
+  sessionCheckIntervalRef.current = setInterval(async () => {
+    if (!isMounted || isLoggingOut.current) return
+    const supabaseClient = createClient()
+    const { data: { user: currentUser } } = await supabaseClient.auth.getUser()
+    if (!currentUser) {
+      if (user) {
+        console.log('[Auth] ⏱️ Session expired, auto logout')
+        setAsGuest()
+      }
+      return
+    }
+  }, 30000)
+
+  return () => {
+    isMounted = false
+    if (initTimeout) clearTimeout(initTimeout)
+    if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current)
+    if (sessionCheckIntervalRef.current) clearInterval(sessionCheckIntervalRef.current)
+    subscription.unsubscribe()
+  }
+}, [clearSupabaseStorage, setAsGuest]) // ✅ Dependency stabil
 
   // ============================================================
   // AUTH FUNCTIONS – LOGOUT DIPERBAIKI
