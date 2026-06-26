@@ -1,6 +1,17 @@
 import { createBrowserClient } from '@supabase/ssr'
 
 export function createClient() {
+  // 🔍 Log untuk debugging (opsional, bisa dihapus setelah berhasil)
+  console.log('[Auth] Creating Supabase client...')
+  console.log('[Auth] URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Ada' : '❌ TIDAK ADA')
+  console.log('[Auth] ANON KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ Ada' : '❌ TIDAK ADA')
+
+  // 🚨 Validasi environment variable
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error('[Auth] ❌ Supabase environment variables are missing!')
+    throw new Error('Supabase environment variables are not configured')
+  }
+
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -15,7 +26,6 @@ export async function registerUser(
 ) {
   const supabase = createClient()
 
-  // Sign up the user
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -35,7 +45,6 @@ export async function registerUser(
     throw new Error('Failed to create user')
   }
 
-  // Create user profile
   const dbRole = role === 'student' ? 'siswa' : role
   const { error: profileError } = await supabase
     .from('user_profiles')
