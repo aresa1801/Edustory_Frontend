@@ -68,15 +68,24 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       console.log('[SelectRole] STEP 2 - Creating Supabase client...')
       const supabase = createClient()
 
-      // 🔍 STEP 3: Verifikasi user dari session
+      // 🔍 STEP 3: Verifikasi user dari session dengan timeout
       console.log('[SelectRole] STEP 3 - Verifying user from session...')
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
       
+      // Buat promise dengan timeout 10 detik
+      const getUserPromise = supabase.auth.getUser()
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: getUser() tidak merespon')), 10000)
+      })
+
+      const result = await Promise.race([getUserPromise, timeoutPromise]) as any
+      
+      const { data: { user: currentUser }, error: userError } = result
+
       if (userError) {
         console.error('[SelectRole] ❌ User verification error:', userError)
         throw new Error(`Verifikasi user gagal: ${userError.message}`)
       }
-      
+
       if (!currentUser) {
         console.error('[SelectRole] ❌ No user in session')
         throw new Error('Sesi tidak valid. Silakan login ulang.')
@@ -92,26 +101,34 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       const dbRole = 'siswa'
 
-      // 🔍 STEP 4: Cek profile existing
+      // 🔍 STEP 4: Cek profile existing (dengan timeout)
       console.log('[SelectRole] STEP 4 - Checking existing profile for:', safeUserId)
-      const { data: existingProfile, error: checkError } = await supabase
+      
+      const checkPromise = supabase
         .from('user_profiles')
         .select('id, role')
         .eq('id', safeUserId)
         .maybeSingle()
 
-      if (checkError) {
-        console.error('[SelectRole] ❌ Check profile error:', checkError)
-        throw new Error(`Gagal cek profile: ${checkError.message}`)
+      const checkTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: check profile tidak merespon')), 10000)
+      })
+
+      const checkResult = await Promise.race([checkPromise, checkTimeout]) as any
+
+      if (checkResult.error) {
+        console.error('[SelectRole] ❌ Check profile error:', checkResult.error)
+        throw new Error(`Gagal cek profile: ${checkResult.error.message}`)
       }
 
+      const existingProfile = checkResult.data
       console.log('[SelectRole] Existing profile:', existingProfile)
 
       // 🔍 STEP 5: Insert atau Update
-      let result
+      let insertResult
       if (existingProfile) {
         console.log('[SelectRole] STEP 5a - Updating existing profile...')
-        result = await supabase
+        insertResult = await supabase
           .from('user_profiles')
           .update({ 
             role: dbRole,
@@ -120,7 +137,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
           .eq('id', safeUserId)
       } else {
         console.log('[SelectRole] STEP 5b - Inserting new profile...')
-        result = await supabase
+        insertResult = await supabase
           .from('user_profiles')
           .insert({
             id: safeUserId,
@@ -132,17 +149,17 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
           })
       }
 
-      if (result.error) {
+      if (insertResult.error) {
         console.error('[SelectRole] ❌ Supabase error DETAIL:', {
-          code: result.error.code,
-          message: result.error.message,
-          details: result.error.details,
-          hint: result.error.hint,
+          code: insertResult.error.code,
+          message: insertResult.error.message,
+          details: insertResult.error.details,
+          hint: insertResult.error.hint,
         })
-        throw new Error(`Supabase error: ${result.error.message} (${result.error.code})`)
+        throw new Error(`Supabase error: ${insertResult.error.message} (${insertResult.error.code})`)
       }
 
-      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!', result.data)
+      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!', insertResult.data)
 
       // 🔍 STEP 6: Buat entri di students
       console.log('[SelectRole] STEP 6 - Creating student entry...')
@@ -191,7 +208,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   }
 
   // ============================================================
-  // UI (Tidak berubah)
+  // UI (tidak berubah)
   // ============================================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
