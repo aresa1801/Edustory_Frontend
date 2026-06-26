@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
@@ -27,14 +28,23 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
 
     try {
-      // 🔥 Panggil API server
-      const response = await fetch('/api/auth/select-role', {
+      // 🔥 Ambil access token dari session
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Tidak dapat mengambil token akses. Silakan login ulang.')
+      }
+
+      // 🔥 Panggil endpoint yang SUDAH ADA
+      const response = await fetch('/api/auth/set-role', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
-          userId,
-          userEmail,
-          userName,
           role: 'student',
         }),
       })
@@ -45,7 +55,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         throw new Error(result.error || 'Gagal menyimpan role')
       }
 
-      console.log('[SelectRole] ✅ Role saved via API:', result.message)
+      console.log('[SelectRole] ✅ Role saved via API:', result)
 
       // 🔥 Redirect ke dashboard student
       window.location.href = '/dashboard/student'
