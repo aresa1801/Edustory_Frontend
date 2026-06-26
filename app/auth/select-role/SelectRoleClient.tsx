@@ -51,7 +51,8 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setIsLoading(role)
     setError('')
 
-    const finalUserId = actualUserId || userId
+    // Ambil userId dari state atau props
+    let finalUserId = actualUserId || userId
     if (!finalUserId) {
       setError('ID user tidak ditemukan. Silakan refresh halaman atau login ulang.')
       setIsLoading(null)
@@ -62,55 +63,73 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
     try {
       const supabase = createClient()
+
+      // ✅ Verifikasi user dari session
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
+      if (userError || !currentUser) {
+        console.error('[SelectRole] ❌ Gagal verifikasi user:', userError)
+        setError('Sesi tidak valid. Silakan login ulang.')
+        setIsLoading(null)
+        return
+      }
+
+      if (currentUser.id !== finalUserId) {
+        console.warn('[SelectRole] ⚠️ User ID mismatch, using session ID:', currentUser.id)
+        finalUserId = currentUser.id
+        setActualUserId(finalUserId)
+      }
+
+      console.log('[SelectRole] ✅ User terverifikasi:', currentUser.email)
+
       const dbRole = 'siswa' // Hanya student yang aktif
 
+      // ============================================================
+      // 1. UPSERT user_profiles (menggunakan .upsert untuk menghindari error)
+      // ============================================================
       console.log('[SelectRole] 💾 Menyimpan role ke user_profiles:', { userId: finalUserId, dbRole })
 
-      // 1. UPDATE user_profiles
-      const { data: existingProfile } = await supabase
+      const { data: upsertData, error: upsertError } = await supabase
         .from('user_profiles')
-        .select('id')
-        .eq('id', finalUserId)
-        .maybeSingle()
+        .upsert({
+          id: finalUserId,
+          role: dbRole,
+          name: userName || userEmail,
+          email: userEmail,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: false,
+        })
+        .select()
 
-      let result
-
-      if (existingProfile) {
-        result = await supabase
-          .from('user_profiles')
-          .update({ 
-            role: dbRole,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', finalUserId)
-      } else {
-        result = await supabase
-          .from('user_profiles')
-          .insert({
-            id: finalUserId,
-            role: dbRole,
-            name: userName || userEmail,
-            email: userEmail,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+      if (upsertError) {
+        console.error('[SelectRole] ❌ Gagal upsert user_profiles:', {
+          code: upsertError.code,
+          message: upsertError.message,
+          details: upsertError.details,
+          hint: upsertError.hint,
+        })
+        throw new Error(`Gagal menyimpan profile: ${upsertError.message} (${upsertError.code})`)
       }
 
-      if (result.error) {
-        console.error('[SelectRole] ❌ Gagal simpan user_profiles:', result.error)
-        throw result.error
-      }
+      console.log('[SelectRole] ✅ user_profiles berhasil disimpan:', upsertData)
 
-      console.log('[SelectRole] ✅ user_profiles berhasil disimpan')
-
-      // 2. BUAT ENTRI DI TABEL students
+      // ============================================================
+      // 2. BUAT ENTRI DI TABEL students (jika belum ada)
+      // ============================================================
       console.log('[SelectRole] 📝 Membuat entri di tabel students...')
       
-      const { data: existingStudent } = await supabase
+      const { data: existingStudent, error: studentCheckError } = await supabase
         .from('students')
         .select('id')
         .eq('user_id', finalUserId)
         .maybeSingle()
+
+      if (studentCheckError) {
+        console.error('[SelectRole] ❌ Gagal cek student:', studentCheckError)
+        // Tidak throw, lanjutkan
+      }
 
       if (!existingStudent) {
         const { error: studentError } = await supabase
@@ -125,22 +144,25 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
         if (studentError) {
           console.error('[SelectRole] ❌ Gagal buat entri students:', studentError)
-          throw new Error('Gagal membuat profil student. Silakan coba lagi.')
-        } else {
-          console.log('[SelectRole] ✅ Entri students berhasil dibuat')
+          throw new Error(`Gagal membuat profil student: ${studentError.message}`)
         }
+        console.log('[SelectRole] ✅ Entri students berhasil dibuat')
       } else {
         console.log('[SelectRole] ℹ️ Entri students sudah ada')
       }
 
-      // 3. UPDATE METADATA
+      // ============================================================
+      // 3. UPDATE METADATA (opsional)
+      // ============================================================
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
       console.log('[SelectRole] ✅ User metadata updated')
 
+      // ============================================================
       // 4. REDIRECT KE DASHBOARD STUDENT
+      // ============================================================
       console.log('[SelectRole] 🎯 Redirect ke: /dashboard/student')
       window.location.href = '/dashboard/student'
       
