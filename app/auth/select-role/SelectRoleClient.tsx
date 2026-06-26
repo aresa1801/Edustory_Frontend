@@ -17,7 +17,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
   const [actualUserId, setActualUserId] = useState<string | null>(userId || null)
 
-  // Fallback: ambil userId dari session jika props undefined (pakai getSession)
+  // Fallback: ambil userId dari session jika props undefined
   useEffect(() => {
     if (!actualUserId) {
       console.warn('[SelectRole] ⚠️ userId from props is undefined, fetching from client...')
@@ -51,7 +51,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setError('')
 
     const finalUserId = actualUserId || userId
-    console.log('[SelectRole] STEP 1 - finalUserId:', finalUserId)
+    console.log('[SelectRole] 📝 Memilih role:', role, 'User ID:', finalUserId)
 
     if (!finalUserId) {
       setError('ID user tidak ditemukan. Silakan refresh halaman atau login ulang.')
@@ -59,89 +59,41 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       return
     }
 
-    console.log('[SelectRole] 📝 Memilih role:', role, 'User ID:', finalUserId)
-
     try {
       const supabase = createClient()
 
-      // 🔍 STEP 3: Ambil session (LANGSUNG dari cookie, tanpa validasi server)
-      console.log('[SelectRole] STEP 3 - Getting session from client (getSession)...')
+      // Ambil session untuk mendapatkan user terverifikasi
+      console.log('[SelectRole] ⏳ Verifikasi user...')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-      if (sessionError) {
-        console.error('[SelectRole] ❌ Session error:', sessionError)
-        throw new Error(`Session error: ${sessionError.message}`)
-      }
-
-      if (!session?.user) {
-        console.error('[SelectRole] ❌ No session or user')
+      if (sessionError || !session?.user) {
         throw new Error('Sesi tidak valid. Silakan login ulang.')
       }
-
       const currentUser = session.user
-      console.log('[SelectRole] ✅ User from session:', currentUser.email, 'ID:', currentUser.id)
+      console.log('[SelectRole] ✅ User:', currentUser.email, 'ID:', currentUser.id)
 
       const safeUserId = currentUser.id
-      if (safeUserId !== finalUserId) {
-        console.warn('[SelectRole] ⚠️ ID mismatch, using session ID:', safeUserId)
-      }
-
       const dbRole = 'siswa'
 
-      // 🔍 STEP 4: Cek profile existing
-      console.log('[SelectRole] STEP 4 - Checking existing profile for:', safeUserId)
-      const { data: existingProfile, error: checkError } = await supabase
+      // UPSERT: insert atau update user_profiles
+      console.log('[SelectRole] 💾 Menyimpan profile...')
+      const { error: upsertError } = await supabase
         .from('user_profiles')
-        .select('id, role')
-        .eq('id', safeUserId)
-        .maybeSingle()
+        .upsert({
+          id: safeUserId,
+          role: dbRole,
+          name: userName || userEmail,
+          email: userEmail,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
 
-      if (checkError) {
-        console.error('[SelectRole] ❌ Check profile error:', checkError)
-        throw new Error(`Gagal cek profile: ${checkError.message}`)
+      if (upsertError) {
+        console.error('[SelectRole] ❌ Upsert error:', upsertError)
+        throw new Error(`Gagal menyimpan profile: ${upsertError.message}`)
       }
+      console.log('[SelectRole] ✅ Profile saved/updated')
 
-      console.log('[SelectRole] Existing profile:', existingProfile)
-
-      // 🔍 STEP 5: Insert atau Update
-      let insertResult
-      if (existingProfile) {
-        console.log('[SelectRole] STEP 5a - Updating existing profile...')
-        insertResult = await supabase
-          .from('user_profiles')
-          .update({ 
-            role: dbRole,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', safeUserId)
-      } else {
-        console.log('[SelectRole] STEP 5b - Inserting new profile...')
-        insertResult = await supabase
-          .from('user_profiles')
-          .insert({
-            id: safeUserId,
-            role: dbRole,
-            name: userName || userEmail,
-            email: userEmail,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-      }
-
-      if (insertResult.error) {
-        console.error('[SelectRole] ❌ Supabase error DETAIL:', {
-          code: insertResult.error.code,
-          message: insertResult.error.message,
-          details: insertResult.error.details,
-          hint: insertResult.error.hint,
-        })
-        throw new Error(`Supabase error: ${insertResult.error.message} (${insertResult.error.code})`)
-      }
-
-      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!')
-
-      // 🔍 STEP 6: Buat entri di students
-      console.log('[SelectRole] STEP 6 - Creating student entry...')
+      // Buat entri student jika belum ada
+      console.log('[SelectRole] 📝 Memastikan entri student...')
       const { data: existingStudent } = await supabase
         .from('students')
         .select('id')
@@ -161,22 +113,18 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
         if (studentError) {
           console.error('[SelectRole] ❌ Student insert error:', studentError)
-          throw new Error(`Gagal membuat profil student: ${studentError.message}`)
+          // Tidak throw, agar tetap redirect
+        } else {
+          console.log('[SelectRole] ✅ Student entry created')
         }
-        console.log('[SelectRole] ✅ Entri students berhasil dibuat')
-      } else {
-        console.log('[SelectRole] ℹ️ Entri students sudah ada')
       }
 
-      // 🔍 STEP 7: Update metadata
-      console.log('[SelectRole] STEP 7 - Updating user metadata...')
+      // Update metadata
       await supabase.auth.updateUser({
         data: { role: dbRole },
       })
 
-      console.log('[SelectRole] ✅ Semua proses selesai! Redirecting...')
-
-      // 🔍 STEP 8: Redirect
+      console.log('[SelectRole] ✅ Selesai! Redirect ke dashboard...')
       window.location.href = '/dashboard/student'
       
     } catch (err) {
@@ -186,9 +134,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     }
   }
 
-  // ============================================================
-  // UI (tidak berubah)
-  // ============================================================
+  // UI tetap sama (tidak diubah)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">

@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/auth'
 import { ADMIN_EMAIL } from '@/lib/constants'
 
-// Map DB role values to dashboard route segments
 const ROLE_TO_DASHBOARD: Record<string, string> = {
   siswa: 'student',
   student: 'student',
@@ -15,15 +14,13 @@ const ROLE_TO_DASHBOARD: Record<string, string> = {
 export default function AuthCallback() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const hasProcessed = useRef(false) // ✅ PAKAI REF, BUKAN STATE
+  const hasProcessed = useRef(false)
 
   useEffect(() => {
-    // Prevent multiple executions dengan ref
     if (hasProcessed.current) {
       console.log('[Callback] Already processed, skipping...')
       return
     }
-    
     hasProcessed.current = true
     console.log('[Callback] 🚀 Starting callback processing...')
 
@@ -31,29 +28,26 @@ export default function AuthCallback() {
       try {
         const supabase = createClient()
 
-        // Handle implicit flow: access_token + refresh_token
+        // Handle token from URL (implicit flow)
         const searchParams = new URLSearchParams(window.location.search)
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
-        
         if (access_token && refresh_token) {
           console.log('[Callback] Setting session from tokens...')
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
-        // Get the current session
+        // Get session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         console.log('[Callback] Session:', session?.user?.email)
-
         if (sessionError || !session) {
           console.log('[Callback] ❌ No session found')
           window.location.href = '/auth/login'
           return
         }
 
-        // VALIDASI: Cek apakah user masih valid
+        // Get user
         const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
-        
         if (userError || !currentUser) {
           console.warn('[Callback] ❌ User not valid, clearing session...')
           await supabase.auth.signOut({ scope: 'global' })
@@ -65,40 +59,50 @@ export default function AuthCallback() {
 
         console.log('[Callback] ✅ User validated:', currentUser.email)
 
-        // Check if user is admin
+        // Admin
         if (currentUser.email === ADMIN_EMAIL) {
           console.log('[Callback] 👑 Admin detected')
           window.location.href = '/dashboard/admin'
           return
         }
 
-        // Check if user has a role in the database
+        // Cek profile dengan try-catch untuk menghindari error RLS
         console.log('[Callback] 🔍 Checking user profile in database...')
-        const { data: userProfile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', currentUser.id)
-          .maybeSingle()
+        let userProfile = null
+        let profileError = null
+        try {
+          const result = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', currentUser.id)
+            .maybeSingle()
+          userProfile = result.data
+          profileError = result.error
+        } catch (err) {
+          profileError = err
+          console.error('[Callback] Profile fetch exception:', err)
+        }
 
         if (profileError) {
           console.error('[Callback] Profile error:', profileError)
+          // Jika error karena RLS, anggap user baru
+          console.log('[Callback] ⚠️ Profile error, treating as new user')
+          window.location.href = '/auth/select-role'
+          return
         }
 
         console.log('[Callback] Profile data:', userProfile)
 
         if (!userProfile || !userProfile.role) {
           console.log('[Callback] 🆕 New user → redirect to select-role')
-          // ✅ Beri delay 500ms untuk memastikan cookie tersimpan
           await new Promise(resolve => setTimeout(resolve, 500))
           window.location.href = '/auth/select-role'
           return
         }
 
-        // User sudah punya role → redirect ke dashboard
         const role = userProfile.role as string
         console.log('[Callback] ✅ User has role:', role)
         const dashboardPath = ROLE_TO_DASHBOARD[role]
-        
         if (!dashboardPath) {
           console.warn('[Callback] ⚠️ Unknown role:', role)
           window.location.href = '/auth/select-role'
@@ -106,12 +110,9 @@ export default function AuthCallback() {
           console.log('[Callback] 🎯 Redirecting to dashboard:', dashboardPath)
           window.location.href = `/dashboard/${dashboardPath}`
         }
-        
       } catch (err) {
         console.error('[Callback] ❌ Error:', err)
         setError('Terjadi kesalahan saat memproses autentikasi')
-        
-        // Clear session on error
         try {
           const supabase = createClient()
           await supabase.auth.signOut({ scope: 'global' })
@@ -126,13 +127,13 @@ export default function AuthCallback() {
     }
 
     handleCallback()
-  }, []) // ✅ EMPTY DEPENDENCY ARRAY - hanya run sekali
+  }, [])
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-foreground">Sedang memproses...</h1>
           <p className="text-muted-foreground mt-2">Silakan tunggu sebentar</p>
         </div>
