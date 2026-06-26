@@ -17,55 +17,67 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
-    if (role === 'tutor') {
-      setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!"')
-      return
-    }
-
-    setIsLoading(role)
-    setError('')
-
-    console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
-
-    try {
-      // 🔥 Ambil access token dari session
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
-
-      if (!accessToken) {
-        throw new Error('Tidak dapat mengambil token akses. Silakan login ulang.')
-      }
-
-      // 🔥 Panggil endpoint yang SUDAH ADA
-      const response = await fetch('/api/auth/set-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          role: 'student',
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Gagal menyimpan role')
-      }
-
-      console.log('[SelectRole] ✅ Role saved via API:', result)
-
-      // 🔥 Redirect ke dashboard student
-      window.location.href = '/dashboard/student'
-      
-    } catch (err) {
-      console.error('[SelectRole] ❌ Error:', err)
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan role. Silakan coba lagi.')
-      setIsLoading(null)
-    }
+  if (role === 'tutor') {
+    setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!"')
+    return
   }
+
+  setIsLoading(role)
+  setError('')
+
+  console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
+
+  try {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessToken = session?.access_token
+
+    if (!accessToken) {
+      throw new Error('Tidak dapat mengambil token akses. Silakan login ulang.')
+    }
+
+    console.log('[SelectRole] 🔑 Token akses ditemukan, mengirim request ke API...')
+
+    // 🔥 Tambahkan timeout 10 detik
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
+    const response = await fetch('/api/auth/set-role', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ role: 'student' }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeout)
+
+    console.log('[SelectRole] 📡 Response status:', response.status)
+
+    const result = await response.json()
+    console.log('[SelectRole] 📦 Response body:', result)
+
+    if (!response.ok) {
+      throw new Error(result.error || `Gagal menyimpan role (status ${response.status})`)
+    }
+
+    console.log('[SelectRole] ✅ Role saved via API:', result)
+
+    // Redirect ke dashboard student
+    window.location.href = '/dashboard/student'
+    
+  } catch (err) {
+    console.error('[SelectRole] ❌ Error:', err)
+    if (err instanceof Error && err.name === 'AbortError') {
+      setError('Request timeout. Silakan coba lagi.')
+    } else {
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan role. Silakan coba lagi.')
+    }
+    setIsLoading(null)
+  }
+}
 
   // UI (sama seperti sebelumnya)
   return (
