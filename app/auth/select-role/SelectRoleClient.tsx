@@ -24,10 +24,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       const fetchUserId = async () => {
         try {
           const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user?.id) {
-            console.log('[SelectRole] ✅ Client: User ID found:', user.id)
-            setActualUserId(user.id)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user?.id) {
+            console.log('[SelectRole] ✅ Client: User ID found:', session.user.id)
+            setActualUserId(session.user.id)
           } else {
             console.error('[SelectRole] ❌ Client: No user found')
             setError('Sesi tidak valid. Silakan login ulang.')
@@ -53,7 +53,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
     // 🔍 STEP 1: Pastikan userId ada
     const finalUserId = actualUserId || userId
-    console.log('[SelectRole] STEP 1 - finalUserId:', finalUserId, 'Type:', typeof finalUserId)
+    console.log('[SelectRole] STEP 1 - finalUserId:', finalUserId)
 
     if (!finalUserId) {
       setError('ID user tidak ditemukan. Silakan refresh halaman atau login ulang.')
@@ -68,32 +68,24 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       console.log('[SelectRole] STEP 2 - Creating Supabase client...')
       const supabase = createClient()
 
-      // 🔍 STEP 3: Verifikasi user dari session dengan timeout
-      console.log('[SelectRole] STEP 3 - Verifying user from session...')
+      // 🔍 STEP 3: Ambil session (tanpa validasi ke server)
+      console.log('[SelectRole] STEP 3 - Getting session from client...')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      // Buat promise dengan timeout 10 detik
-      const getUserPromise = supabase.auth.getUser()
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: getUser() tidak merespon')), 10000)
-      })
-
-      const result = await Promise.race([getUserPromise, timeoutPromise]) as any
-      
-      const { data: { user: currentUser }, error: userError } = result
-
-      if (userError) {
-        console.error('[SelectRole] ❌ User verification error:', userError)
-        throw new Error(`Verifikasi user gagal: ${userError.message}`)
+      if (sessionError) {
+        console.error('[SelectRole] ❌ Session error:', sessionError)
+        throw new Error(`Session error: ${sessionError.message}`)
       }
-
-      if (!currentUser) {
-        console.error('[SelectRole] ❌ No user in session')
+      
+      if (!session?.user) {
+        console.error('[SelectRole] ❌ No session or user')
         throw new Error('Sesi tidak valid. Silakan login ulang.')
       }
 
-      console.log('[SelectRole] ✅ User terverifikasi:', currentUser.email, 'ID:', currentUser.id)
+      const currentUser = session.user
+      console.log('[SelectRole] ✅ User from session:', currentUser.email, 'ID:', currentUser.id)
 
-      // Pastikan ID sama
+      // Gunakan ID dari session
       const safeUserId = currentUser.id
       if (safeUserId !== finalUserId) {
         console.warn('[SelectRole] ⚠️ ID mismatch, using session ID:', safeUserId)
@@ -101,27 +93,19 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       const dbRole = 'siswa'
 
-      // 🔍 STEP 4: Cek profile existing (dengan timeout)
+      // 🔍 STEP 4: Cek profile existing
       console.log('[SelectRole] STEP 4 - Checking existing profile for:', safeUserId)
-      
-      const checkPromise = supabase
+      const { data: existingProfile, error: checkError } = await supabase
         .from('user_profiles')
         .select('id, role')
         .eq('id', safeUserId)
         .maybeSingle()
 
-      const checkTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: check profile tidak merespon')), 10000)
-      })
-
-      const checkResult = await Promise.race([checkPromise, checkTimeout]) as any
-
-      if (checkResult.error) {
-        console.error('[SelectRole] ❌ Check profile error:', checkResult.error)
-        throw new Error(`Gagal cek profile: ${checkResult.error.message}`)
+      if (checkError) {
+        console.error('[SelectRole] ❌ Check profile error:', checkError)
+        throw new Error(`Gagal cek profile: ${checkError.message}`)
       }
 
-      const existingProfile = checkResult.data
       console.log('[SelectRole] Existing profile:', existingProfile)
 
       // 🔍 STEP 5: Insert atau Update
@@ -159,7 +143,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         throw new Error(`Supabase error: ${insertResult.error.message} (${insertResult.error.code})`)
       }
 
-      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!', insertResult.data)
+      console.log('[SelectRole] ✅ user_profiles berhasil disimpan!')
 
       // 🔍 STEP 6: Buat entri di students
       console.log('[SelectRole] STEP 6 - Creating student entry...')
