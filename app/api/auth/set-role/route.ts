@@ -5,20 +5,14 @@ export async function POST(request: NextRequest) {
   console.log('[API] 📥 Received POST request to /api/auth/set-role')
 
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('Authorization')
-    console.log('[API] 🔑 Auth header:', authHeader ? '✅ Present' : '❌ Missing')
+    // Ambil data dari body
+    const { userId, role, email, name } = await request.json()
+    console.log('[API] 📝 Payload:', { userId, role, email, name })
 
-    const accessToken = authHeader?.replace('Bearer ', '')
-
-    if (!accessToken) {
-      console.error('[API] ❌ Missing authorization token')
-      return NextResponse.json({ error: 'Missing authorization token' }, { status: 401 })
+    if (!userId) {
+      console.error('[API] ❌ Missing userId')
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
-
-    // Parse role from body
-    const { role } = await request.json()
-    console.log('[API] 📝 Role received:', role)
 
     if (role !== 'student' && role !== 'tutor') {
       console.error('[API] ❌ Invalid role:', role)
@@ -35,61 +29,48 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Verify token and get user
-    console.log('[API] 🔍 Verifying token...')
-    const { data: { user }, error: userError } = await adminSupabase.auth.getUser(accessToken)
-
-    if (userError || !user) {
-      console.error('[API] ❌ Token verification failed:', userError?.message)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Opsional: verifikasi bahwa userId benar-benar ada di auth.users
+    // (gunakan admin API untuk memastikan)
+    console.log('[API] 🔍 Verifikasi user ID di auth...')
+    const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(userId)
+    if (authError || !authUser) {
+      console.error('[API] ❌ User not found in auth:', authError?.message)
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
+    console.log('[API] ✅ User verified:', authUser.user?.email)
 
-    console.log('[API] ✅ User verified:', user.email, 'ID:', user.id)
+    // Gunakan email dan name dari auth jika tidak disediakan
+    const userEmail = email || authUser.user?.email
+    const userName = name || authUser.user?.user_metadata?.full_name || userEmail
+
+    if (!userEmail) {
+      console.error('[API] ❌ Email is missing')
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    }
 
     const now = new Date().toISOString()
 
-    // Try full upsert
+    // Upsert ke user_profiles
     console.log('[API] 💾 Upserting to user_profiles...')
     const { error: upsertError } = await adminSupabase
       .from('user_profiles')
       .upsert({
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata?.full_name || user.email,
+        id: userId,
+        email: userEmail,
+        name: userName,
         role: dbRole,
-        avatar_url: user.user_metadata?.avatar_url || null,
+        avatar_url: authUser.user?.user_metadata?.avatar_url || null,
         updated_at: now,
       }, { onConflict: 'id' })
 
     if (upsertError) {
       console.error('[API] ❌ Upsert failed:', upsertError)
-      console.log('[API] 🔄 Attempting minimal upsert...')
-
-      if (!user.email) {
-        console.error('[API] ❌ User email is missing')
-        return NextResponse.json({ error: 'User email is required' }, { status: 400 })
-      }
-
-      const { error: minimalUpsertError } = await adminSupabase
-        .from('user_profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          role: dbRole,
-          updated_at: now,
-        }, { onConflict: 'id' })
-
-      if (minimalUpsertError) {
-        console.error('[API] ❌ Minimal upsert also failed:', minimalUpsertError)
-        return NextResponse.json({ error: minimalUpsertError.message }, { status: 500 })
-      }
-      console.log('[API] ✅ Minimal upsert succeeded')
-    } else {
-      console.log('[API] ✅ Full upsert succeeded')
+      return NextResponse.json({ error: upsertError.message }, { status: 500 })
     }
 
+    console.log('[API] ✅ Upsert succeeded')
     console.log('[API] 🎉 Role saved successfully')
-    return NextResponse.json({ success: true, role })
+    return NextResponse.json({ success: true, role: dbRole })
   } catch (error) {
     console.error('[API] ❌ Unexpected error:', error)
     return NextResponse.json(

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
@@ -28,38 +27,21 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
 
     try {
-      // 1. Buat Supabase client dan dapatkan session
-      console.log('[SelectRole] 🔍 Step 1: Membuat Supabase client...')
-      const supabase = createClient()
-
-      console.log('[SelectRole] 🔍 Step 2: Mengambil session...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) {
-        console.error('[SelectRole] ❌ Session error:', sessionError)
-        throw new Error('Gagal mengambil session: ' + sessionError.message)
-      }
-
-      if (!session) {
-        console.error('[SelectRole] ❌ Session is null')
-        throw new Error('Tidak ada session aktif. Silakan login ulang.')
-      }
-
-      const accessToken = session.access_token
-      console.log('[SelectRole] 🔍 Access token:', accessToken ? '✅ Ada' : '❌ Tidak ada')
-
-      // 2. Kirim request ke API route dengan token
-      console.log('[SelectRole] 🔍 Step 3: Mengirim request ke /api/auth/set-role...')
+      console.log('[SelectRole] 🔍 Mengirim request ke API...')
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 15000) // 15 detik timeout
+      const timeout = setTimeout(() => controller.abort(), 15000)
 
       const response = await fetch('/api/auth/set-role', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ role: 'student' }),
+        body: JSON.stringify({ 
+          userId: userId, 
+          role: 'student',
+          email: userEmail,
+          name: userName
+        }),
         signal: controller.signal,
       })
 
@@ -67,7 +49,6 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       console.log('[SelectRole] 📡 Response status:', response.status)
 
-      // 3. Parse response
       const result = await response.json()
       console.log('[SelectRole] 📦 Response body:', result)
 
@@ -77,9 +58,8 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       console.log('[SelectRole] ✅ Role berhasil disimpan via API:', result)
 
-      // 4. Redirect ke dashboard student
+      // Redirect ke dashboard student
       console.log('[SelectRole] 🎯 Redirecting ke /dashboard/student')
-      // Gunakan window.location.replace agar tidak ada history back ke halaman ini
       window.location.replace('/dashboard/student')
 
     } catch (err) {

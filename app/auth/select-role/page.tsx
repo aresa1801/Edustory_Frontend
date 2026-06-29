@@ -29,6 +29,7 @@ export default async function SelectRolePage() {
 
   console.log('[SelectRole] ✅ Server: User found:', user.email, 'ID:', user.id)
 
+  // Cek apakah user sudah punya role
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role')
@@ -45,6 +46,7 @@ export default async function SelectRolePage() {
     redirect(dashboardPath)
   }
 
+  // Render client component dengan data user
   return (
     <SelectRoleClient 
       userEmail={user.email!} 
