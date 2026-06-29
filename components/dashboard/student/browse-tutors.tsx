@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,15 +44,30 @@ export default function StudentBrowseTutors() {
   const [selectedPayment, setSelectedPayment] = useState('')
   const [createdMatchId, setCreatedMatchId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchTutors()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // ============================================================
+  // REFS UNTUK STABILITAS
+  // ============================================================
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
 
-  const fetchTutors = async () => {
+  // ============================================================
+  // FETCH TUTORS (dibungkus useCallback)
+  // ============================================================
+  const fetchTutors = useCallback(async () => {
+    // Cegah fetch ganda
+    if (fetchDone.current) {
+      console.log('[BrowseTutors] ⏭️ Sudah pernah fetch, skip')
+      return
+    }
+    fetchDone.current = true
+
     setLoading(true)
+    setError(null)
+
     try {
+      console.log('[BrowseTutors] 🔄 Fetching tutors...')
       const supabase = createClient()
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('tutors')
         .select(`
           id,
@@ -69,7 +84,7 @@ export default function StudentBrowseTutors() {
         .eq('approval_status', 'approved')
         .order('rating', { ascending: false })
 
-      if (error) throw error
+      if (fetchError) throw fetchError
 
       let filtered: any[] = data || []
 
@@ -92,25 +107,54 @@ export default function StudentBrowseTutors() {
         filtered = filtered.filter(tutor => tutor.experience_years >= Number(minExperience))
       }
 
-      setTutors(filtered)
-      setError(null)
-    } catch (err) {
-      console.error('Failed to load tutors:', err)
-      // Show empty state instead of crashing; actual error shown subtly
-      setTutors([])
-      setError(err instanceof Error ? err.message : 'Gagal memuat pengajar')
+      if (isMounted.current) {
+        setTutors(filtered)
+        setError(null)
+        console.log('[BrowseTutors] ✅ Tutors loaded:', filtered.length)
+      }
+    } catch (err: any) {
+      console.error('[BrowseTutors] ❌ Error:', err)
+      if (isMounted.current) {
+        setTutors([])
+        setError(err.message || 'Gagal memuat pengajar')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        console.log('[BrowseTutors] 🏁 Loading selesai')
+      }
     }
-  }
+  }, [searchSubject, genderFilter, maxRate, minExperience])
 
-  const applyFilters = () => fetchTutors()
+  // ============================================================
+  // EFFECT: FETCH TUTORS (hanya sekali)
+  // ============================================================
+  useEffect(() => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    fetchTutors()
+
+    return () => {
+      isMounted.current = false
+    }
+  }, [fetchTutors]) // ✅ fetchTutors stabil dengan useCallback
+
+  // ============================================================
+  // FUNGSI LAIN
+  // ============================================================
+  const applyFilters = () => {
+    fetchDone.current = false // Izinkan fetch ulang
+    fetchTutors()
+  }
 
   const resetFilters = () => {
     setSearchSubject('')
     setGenderFilter('all')
     setMaxRate('')
     setMinExperience('')
+    fetchDone.current = false
+    fetchTutors()
   }
 
   const handleSelectTutor = (tutor: any) => {
@@ -198,12 +242,18 @@ export default function StudentBrowseTutors() {
 
   const handleCloseDialog = () => {
     setShowDialog(false)
-    if (createdMatchId) fetchTutors()
+    if (createdMatchId) {
+      fetchDone.current = false
+      fetchTutors()
+    }
   }
 
   const depositAmount = (selectedTutor?.hourly_rate || 0) * 2
   const selectedPaymentMethod = PAYMENT_METHODS.find(m => m.id === selectedPayment)
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -287,7 +337,7 @@ export default function StudentBrowseTutors() {
             <p className="text-muted-foreground">
               {error ? 'Belum ada tutor tersedia. Coba lagi nanti.' : 'Tidak ada pengajar yang sesuai filter Anda'}
             </p>
-            {error && <Button variant="outline" size="sm" onClick={fetchTutors}>Coba Lagi</Button>}
+            {error && <Button variant="outline" size="sm" onClick={() => { fetchDone.current = false; fetchTutors() }}>Coba Lagi</Button>}
             {!error && <Button variant="outline" size="sm" onClick={resetFilters}>Reset Filter</Button>}
           </CardContent>
         </Card>
@@ -366,7 +416,7 @@ export default function StudentBrowseTutors() {
         </div>
       )}
 
-      {/* Enrollment Dialog */}
+      {/* Enrollment Dialog (sama seperti sebelumnya) */}
       <Dialog open={showDialog} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>

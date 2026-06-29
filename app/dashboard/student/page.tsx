@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,8 +12,8 @@ import StudentMyMatches from '@/components/dashboard/student/my-matches'
 import StudentProfile from '@/components/dashboard/student/student-profile'
 import { createClient } from '@/lib/auth'
 import {
-  Users, Clock, BookOpen, CheckCircle, Search, BookMarked,
-  BarChart3, ArrowRight, Calendar, Star, GraduationCap, Wallet
+  Users, Clock, BookOpen, CheckCircle, Search,
+  ArrowRight, Calendar, Star
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -30,53 +30,110 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
+  
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false) // ⚠️ WAJIB ADA: CEGAH FETCH GANDA
 
   useEffect(() => {
+    // ⚠️ CEGAH EKSEKUSI GANDA
+    if (fetchDone.current) return
+    fetchDone.current = true
+
+    isMounted.current = true
+
     const fetchData = async () => {
+      console.log('[Dashboard] 🔄 Fetching data...')
       try {
         const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError) throw new Error(userError.message)
+        if (!user) throw new Error('User tidak ditemukan')
 
-        const [{ data: up }, { data: sd }] = await Promise.all([
-          supabase.from('user_profiles').select('name, email').eq('id', user.id).single(),
-          supabase.from('students').select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete').eq('user_id', user.id).maybeSingle(),
-        ])
+        console.log('[Dashboard] ✅ User:', user.email)
 
-        setProfile({ ...up, ...sd })
+        // ⚠️ PAKAI maybeSingle() BUKAN single() – agar tidak error jika profil belum ada
+        const { data: up, error: upError } = await supabase
+          .from('user_profiles')
+          .select('name, email')
+          .eq('id', user.id)
+          .maybeSingle() // ⚠️ PERUBAHAN PENTING
+
+        if (upError) throw upError
+
+        // ⚠️ FALLBACK jika user_profiles belum ada (user baru)
+        const profileData = up || { 
+          name: user.user_metadata?.full_name || user.email, 
+          email: user.email 
+        }
+        
+        if (!isMounted.current) return
+        setProfile(profileData)
+
+        // Ambil student
+        const { data: sd, error: sdError } = await supabase
+          .from('students')
+          .select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (sdError) throw sdError
+
+        if (!isMounted.current) return
+        setProfile((prev: any) => ({ ...prev, ...sd }))
 
         if (sd?.id) {
-          const [{ data: md }, { data: offers }] = await Promise.all([
-            supabase
-              .from('matches')
-              .select(`
-                id, status, subject, start_date, lesson_frequency,
-                tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
-              `)
-              .eq('student_id', sd.id)
-              .order('start_date', { ascending: false })
-              .limit(5),
-            supabase
-              .from('matches')
-              .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-              .eq('student_id', sd.id)
-              .eq('initiated_by', 'tutor')
-              .eq('status', 'pending'),
-          ])
+          // Ambil matches
+          const { data: md, error: mdError } = await supabase
+            .from('matches')
+            .select(`
+              id, status, subject, start_date, lesson_frequency,
+              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
+            `)
+            .eq('student_id', sd.id)
+            .order('start_date', { ascending: false })
+            .limit(5)
 
-          setMatches(md || [])
-          setTutorOffers(offers || [])
+          if (mdError) throw mdError
+
+          // Ambil tutor offers
+          const { data: offers, error: offersError } = await supabase
+            .from('matches')
+            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
+            .eq('student_id', sd.id)
+            .eq('initiated_by', 'tutor')
+            .eq('status', 'pending')
+
+          if (offersError) throw offersError
+
+          if (isMounted.current) {
+            setMatches(md || [])
+            setTutorOffers(offers || [])
+          }
         }
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
+
+        console.log('[Dashboard] ✅ Data siap')
+      } catch (err: any) {
+        console.error('[Dashboard] ❌ Fetch error:', err)
+        if (isMounted.current) {
+          setError(err.message || 'Gagal memuat data dashboard')
+        }
       } finally {
-        setLoading(false)
+        if (isMounted.current) {
+          setLoading(false)
+          console.log('[Dashboard] 🏁 Loading selesai')
+        }
       }
     }
 
     fetchData()
-  }, [])
+
+    return () => {
+      isMounted.current = false
+    }
+  }, []) // ⚠️ DEPENDENCY KOSONG
 
   if (loading) {
     return (
@@ -86,11 +143,23 @@ export default function StudentDashboard() {
     )
   }
 
+  if (error) {
+    return (
+      <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
-
   const onboardingComplete = profile?.onboarding_complete
+
+  // Memoisasi komponen turunan
+  const browseTab = useMemo(() => <StudentBrowseTutors />, [])
+  const matchesTab = useMemo(() => <StudentMyMatches />, [])
+  const profileTab = useMemo(() => <StudentProfile />, [])
 
   return (
     <div>
@@ -102,7 +171,6 @@ export default function StudentDashboard() {
           </p>
         </div>
 
-        {/* Onboarding reminder */}
         {!onboardingComplete && (
           <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
             <AlertDescription className="text-amber-700 dark:text-amber-300 flex items-center justify-between flex-wrap gap-2">
@@ -116,7 +184,6 @@ export default function StudentDashboard() {
           </Alert>
         )}
 
-        {/* New tutor offers notification */}
         {tutorOffers.length > 0 && (
           <Alert className="mb-6 bg-blue-500/10 border-blue-500/30">
             <AlertDescription className="text-blue-700 dark:text-blue-300 flex items-center justify-between flex-wrap gap-2">
@@ -142,7 +209,6 @@ export default function StudentDashboard() {
           <TabsTrigger value="profile">Profil Saya</TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -157,7 +223,6 @@ export default function StudentDashboard() {
                 </div>
               </div>
             </Card>
-
             <Card className="p-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
@@ -169,7 +234,6 @@ export default function StudentDashboard() {
                 </div>
               </div>
             </Card>
-
             <Card className="p-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
@@ -181,7 +245,6 @@ export default function StudentDashboard() {
                 </div>
               </div>
             </Card>
-
             <Card className="p-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
@@ -211,28 +274,24 @@ export default function StudentDashboard() {
                     <p className="text-sm text-muted-foreground">{profile?.email}</p>
                   </div>
                 </div>
-
                 {profile?.grade_level && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tingkat Kelas</span>
                     <span className="font-medium">{profile.grade_level}</span>
                   </div>
                 )}
-
                 {profile?.budget_per_month && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Budget/Bulan</span>
                     <span className="font-medium">Rp {Number(profile.budget_per_month).toLocaleString('id-ID')}</span>
                   </div>
                 )}
-
                 {profile?.sessions_per_month && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Pertemuan/Bulan</span>
                     <span className="font-medium">{profile.sessions_per_month}× sesi</span>
                   </div>
                 )}
-
                 {profile?.status && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Status</span>
@@ -243,7 +302,6 @@ export default function StudentDashboard() {
                     </span>
                   </div>
                 )}
-
                 {profile?.subjects?.length > 0 && (
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Mata Pelajaran:</p>
@@ -257,28 +315,18 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => setActiveTab('profile')}
-                >
+                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setActiveTab('profile')}>
                   Edit Profil
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Quick Actions */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Aksi Cepat</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Link
-                  href="/dashboard/student/tutor-offers"
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                >
+                <Link href="/dashboard/student/tutor-offers" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
                   <div className="w-9 h-9 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
                     <Star className="w-4 h-4 text-yellow-600 dark:text-yellow-300" />
                   </div>
@@ -290,11 +338,7 @@ export default function StudentDashboard() {
                   </div>
                   <ArrowRight className="w-4 h-4 text-muted-foreground" />
                 </Link>
-
-                <button
-                  onClick={() => setActiveTab('browse')}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
-                >
+                <button onClick={() => setActiveTab('browse')} className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-left">
                   <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <Search className="w-4 h-4 text-primary" />
                   </div>
@@ -304,11 +348,7 @@ export default function StudentDashboard() {
                   </div>
                   <ArrowRight className="w-4 h-4 text-muted-foreground" />
                 </button>
-
-                <Link
-                  href="/dashboard/student/schedule"
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                >
+                <Link href="/dashboard/student/schedule" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
                   <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
                     <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
                   </div>
@@ -318,13 +358,9 @@ export default function StudentDashboard() {
                   </div>
                   <ArrowRight className="w-4 h-4 text-muted-foreground" />
                 </Link>
-
-                <Link
-                  href="/dashboard/student/analytics"
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                >
+                <Link href="/dashboard/student/analytics" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
                   <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-300" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">Analitik & Nilai</p>
@@ -349,15 +385,10 @@ export default function StudentDashboard() {
                 {matches.slice(0, 4).map(match => {
                   const statusCfg = STATUS_LABEL[match.status] || { label: match.status, color: 'bg-slate-500/20 text-slate-300 border border-slate-500/30' }
                   return (
-                    <div
-                      key={match.id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 transition-colors"
-                    >
+                    <div key={match.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 transition-colors">
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{match.subject}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Pengajar: {match.tutors?.user_profiles?.name || '—'}
-                        </p>
+                        <p className="text-xs text-muted-foreground">Pengajar: {match.tutors?.user_profiles?.name || '—'}</p>
                         {match.start_date && (
                           <p className="text-xs text-muted-foreground">
                             Mulai: {new Date(match.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -397,19 +428,10 @@ export default function StudentDashboard() {
           )}
         </TabsContent>
 
-        <TabsContent value="browse" className="space-y-4">
-          <StudentBrowseTutors />
-        </TabsContent>
-
-        <TabsContent value="matches" className="space-y-4">
-          <StudentMyMatches />
-        </TabsContent>
-
-        <TabsContent value="profile" className="space-y-4">
-          <StudentProfile />
-        </TabsContent>
+        <TabsContent value="browse">{browseTab}</TabsContent>
+        <TabsContent value="matches">{matchesTab}</TabsContent>
+        <TabsContent value="profile">{profileTab}</TabsContent>
       </Tabs>
     </div>
   )
 }
-
