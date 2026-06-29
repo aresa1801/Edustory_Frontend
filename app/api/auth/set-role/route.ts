@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   console.log('[API] 📥 Received POST request to /api/auth/set-role')
 
   try {
-    // Get the access token from the Authorization header
+    // Get token from Authorization header
     const authHeader = request.headers.get('Authorization')
     console.log('[API] 🔑 Auth header:', authHeader ? '✅ Present' : '❌ Missing')
 
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing authorization token' }, { status: 401 })
     }
 
+    // Parse role from body
     const { role } = await request.json()
     console.log('[API] 📝 Role received:', role)
 
@@ -27,14 +28,14 @@ export async function POST(request: NextRequest) {
     const dbRole = role === 'student' ? 'siswa' : role
     console.log('[API] 📝 Mapping role to dbRole:', dbRole)
 
-    // Use service role key to bypass RLS
+    // Initialize Supabase admin client (bypass RLS)
     console.log('[API] 🔧 Initializing Supabase admin client...')
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Verify the token and get the user
+    // Verify token and get user
     console.log('[API] 🔍 Verifying token...')
     const { data: { user }, error: userError } = await adminSupabase.auth.getUser(accessToken)
 
