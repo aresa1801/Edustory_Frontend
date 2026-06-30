@@ -26,63 +26,61 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<any>({ name: 'Siswa', email: '' })
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
-  
+
   const isMounted = useRef(true)
-  const fetchDone = useRef(false) // ⚠️ WAJIB ADA: CEGAH FETCH GANDA
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    // ⚠️ CEGAH EKSEKUSI GANDA
     if (fetchDone.current) return
     fetchDone.current = true
-
     isMounted.current = true
 
+    // ⏱️ PASTIKAN LOADING BERHENTI MAKSIMAL 3 DETIK
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Dashboard] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
     const fetchData = async () => {
-      console.log('[Dashboard] 🔄 Fetching data...')
       try {
+        console.log('[Dashboard] 🔄 Fetching data...')
         const supabase = createClient()
         const { data: { user }, error: userError } = await supabase.auth.getUser()
-        
-        if (userError) throw new Error(userError.message)
+        if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
 
-        console.log('[Dashboard] ✅ User:', user.email)
-
-        // ⚠️ PAKAI maybeSingle() BUKAN single() – agar tidak error jika profil belum ada
+        // Ambil user_profiles (maybeSingle)
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('name, email')
           .eq('id', user.id)
-          .maybeSingle() // ⚠️ PERUBAHAN PENTING
-
+          .maybeSingle()
         if (upError) throw upError
 
-        // ⚠️ FALLBACK jika user_profiles belum ada (user baru)
-        const profileData = up || { 
-          name: user.user_metadata?.full_name || user.email, 
-          email: user.email 
-        }
-        
-        if (!isMounted.current) return
-        setProfile(profileData)
+        const profileData = up || { name: user.user_metadata?.full_name || user.email, email: user.email }
 
-        // Ambil student
+        // Ambil students
         const { data: sd, error: sdError } = await supabase
           .from('students')
           .select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete')
           .eq('user_id', user.id)
           .maybeSingle()
-
         if (sdError) throw sdError
 
         if (!isMounted.current) return
-        setProfile((prev: any) => ({ ...prev, ...sd }))
+
+        // Gabungkan profile dan student
+        setProfile({ ...profileData, ...sd })
 
         if (sd?.id) {
           // Ambil matches
@@ -95,7 +93,6 @@ export default function StudentDashboard() {
             .eq('student_id', sd.id)
             .order('start_date', { ascending: false })
             .limit(5)
-
           if (mdError) throw mdError
 
           // Ambil tutor offers
@@ -105,7 +102,6 @@ export default function StudentDashboard() {
             .eq('student_id', sd.id)
             .eq('initiated_by', 'tutor')
             .eq('status', 'pending')
-
           if (offersError) throw offersError
 
           if (isMounted.current) {
@@ -114,16 +110,30 @@ export default function StudentDashboard() {
           }
         }
 
+        // Jika data berhasil, hapus error dan loading
+        if (isMounted.current) {
+          setError(null)
+          setLoading(false)
+        }
         console.log('[Dashboard] ✅ Data siap')
+
       } catch (err: any) {
         console.error('[Dashboard] ❌ Fetch error:', err)
         if (isMounted.current) {
-          setError(err.message || 'Gagal memuat data dashboard')
+          setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
+          // Jangan set loading false di sini, nanti timeout yang akan mengatur
         }
       } finally {
-        if (isMounted.current) {
-          setLoading(false)
-          console.log('[Dashboard] 🏁 Loading selesai')
+        // Jika fetch selesai sebelum timeout, kita tetap set loading false
+        if (isMounted.current && timeoutId.current) {
+          clearTimeout(timeoutId.current)
+          // Hanya set loading false jika belum false
+          setLoading(prev => {
+            if (prev) {
+              console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
+            }
+            return false
+          })
         }
       }
     }
@@ -132,37 +142,41 @@ export default function StudentDashboard() {
 
     return () => {
       isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, []) // ⚠️ DEPENDENCY KOSONG
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Memoisasi komponen turunan agar stabil
+  const browseTab = useMemo(() => <StudentBrowseTutors />, [])
+  const matchesTab = useMemo(() => <StudentMyMatches />, [])
+  const profileTab = useMemo(() => <StudentProfile />, [])
+
+  // --- RENDER ---
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
+        <p className="text-xs text-muted-foreground/50 mt-1">Jika lama, halaman akan tetap tampil</p>
       </div>
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
+  // Hitung statistik
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
   const onboardingComplete = profile?.onboarding_complete
 
-  // Memoisasi komponen turunan
-  const browseTab = useMemo(() => <StudentBrowseTutors />, [])
-  const matchesTab = useMemo(() => <StudentMyMatches />, [])
-  const profileTab = useMemo(() => <StudentProfile />, [])
-
   return (
     <div>
+      {/* Tampilkan error kecil jika ada, tapi tidak mengganggu UI */}
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
