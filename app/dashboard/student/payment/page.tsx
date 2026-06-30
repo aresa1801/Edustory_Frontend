@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/auth'
 import {
   QrCode,
-  Smartphone,
   Building2,
   Clock,
   CheckCircle2,
@@ -73,8 +72,12 @@ function QrisDisplay({ amount, token }: { amount: number; token: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const isMounted = useRef(true)
 
   useEffect(() => {
+    isMounted.current = true
+    let cancelled = false
+
     const generate = async () => {
       setLoading(true)
       setError(null)
@@ -85,15 +88,26 @@ function QrisDisplay({ amount, token }: { amount: number; token: string }) {
           body: JSON.stringify({ amount }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'Gagal membuat QRIS')
-        setQrisString(json.dynamicQris)
+        if (!cancelled && isMounted.current) {
+          if (!res.ok) throw new Error(json.error || 'Gagal membuat QRIS')
+          setQrisString(json.dynamicQris)
+        }
       } catch (e: any) {
-        setError(e.message)
+        if (!cancelled && isMounted.current) {
+          setError(e.message)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled && isMounted.current) {
+          setLoading(false)
+        }
       }
     }
     generate()
+
+    return () => {
+      cancelled = true
+      isMounted.current = false
+    }
   }, [amount, token])
 
   const handleCopy = async () => {
@@ -109,7 +123,6 @@ function QrisDisplay({ amount, token }: { amount: number; token: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl">
-        {/* QR visual using a free QR API */}
         <img
           src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString!)}`}
           alt="QRIS Code"
@@ -195,6 +208,7 @@ function StudentPaymentContent() {
   const [config, setConfig] = useState<PaymentConfig>({})
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<string>(onboardingMethod || 'qris')
   const [amount, setAmount] = useState<string>(onboardingAmount)
   const [matchId, setMatchId] = useState<string>('')
@@ -204,38 +218,112 @@ function StudentPaymentContent() {
   const [submitted, setSubmitted] = useState(false)
   const [qrisString, setQrisString] = useState<string | null>(null)
 
-  useEffect(() => {
-    const init = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/auth/login'); return }
-      setToken(session.access_token)
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
-      const [{ data: cfgRows }, { data: payRows }] = await Promise.all([
-        supabase.from('payment_config').select('config_key, config_value'),
-        supabase
+  // Inisialisasi data
+  useEffect(() => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+    isMounted.current = true
+
+    // Timeout 3 detik untuk memaksa loading false
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Payment] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
+    const init = async () => {
+      try {
+        console.log('[Payment] 🔄 Inisialisasi...')
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session) {
+          console.log('[Payment] ⚠️ No session, redirect to login')
+          router.push('/auth/login')
+          return
+        }
+
+        setToken(session.access_token)
+
+        // Ambil konfigurasi pembayaran
+        const { data: cfgRows, error: cfgError } = await supabase
+          .from('payment_config')
+          .select('config_key, config_value')
+
+        if (cfgError) {
+          console.error('[Payment] ❌ Config error:', cfgError)
+          // Tetap lanjut dengan config kosong
+        }
+
+        const cfgMap: PaymentConfig = {}
+        for (const row of cfgRows || []) {
+          cfgMap[row.config_key] = row.config_value
+        }
+        setConfig(cfgMap)
+
+        // Ambil riwayat pembayaran
+        const { data: payRows, error: payError } = await supabase
           .from('payment_deposits')
           .select('id, amount, payment_method, payment_status, created_at, transaction_ref, matches:match_id(subject, status)')
           .order('created_at', { ascending: false })
-          .limit(20),
-      ])
+          .limit(20)
 
-      const cfgMap: PaymentConfig = {}
-      for (const row of cfgRows || []) cfgMap[row.config_key] = row.config_value
-      setConfig(cfgMap)
-      setPayments((payRows || []) as any[])
-      setLoading(false)
+        if (payError) {
+          console.error('[Payment] ❌ Payment history error:', payError)
+          // Tetap lanjut dengan array kosong
+        }
+
+        if (isMounted.current) {
+          setPayments((payRows || []) as any[])
+          // Jika tidak ada error, hapus error global
+          if (!cfgError && !payError) {
+            setError(null)
+          } else {
+            setError('Gagal memuat data pembayaran, namun halaman tetap dapat digunakan.')
+          }
+        }
+        console.log('[Payment] ✅ Data siap')
+      } catch (err: any) {
+        console.error('[Payment] ❌ Init error:', err)
+        if (isMounted.current) {
+          setError(err.message || 'Gagal inisialisasi halaman')
+        }
+      } finally {
+        if (isMounted.current) {
+          setLoading(false)
+          console.log('[Payment] 🏁 Loading selesai')
+        }
+      }
     }
-    init()
-  }, [router])
 
-  // Pre-generate QRIS when method=qris and amount is valid
+    init()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
+  }, [router, loading])
+
+  // Generate QRIS jika metode qris dan amount valid
   useEffect(() => {
-    if (selectedMethod !== 'qris' || !token) { setQrisString(null); return }
+    if (selectedMethod !== 'qris' || !token) {
+      setQrisString(null)
+      return
+    }
     const parsed = parseFloat(amount)
-    if (!parsed || parsed <= 0) { setQrisString(null); return }
+    if (!parsed || parsed <= 0) {
+      setQrisString(null)
+      return
+    }
 
     let cancelled = false
+
     const generate = async () => {
       try {
         const res = await fetch('/api/payments/qris', {
@@ -244,25 +332,47 @@ function StudentPaymentContent() {
           body: JSON.stringify({ amount: Math.round(parsed) }),
         })
         const json = await res.json()
-        if (!cancelled && res.ok) setQrisString(json.dynamicQris)
-      } catch { /* ignore */ }
+        if (!cancelled && res.ok) {
+          setQrisString(json.dynamicQris)
+        } else if (!cancelled) {
+          console.error('[Payment] QRIS generation failed:', json.error)
+        }
+      } catch {
+        // ignore
+      }
     }
+
     const timer = setTimeout(generate, 600)
-    return () => { cancelled = true; clearTimeout(timer) }
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [selectedMethod, amount, token])
 
   const handleSubmit = async () => {
     setSubmitError(null)
     const parsed = parseFloat(amount)
-    if (!parsed || parsed <= 0) { setSubmitError('Masukkan nominal yang valid'); return }
-    if (!fromOnboarding && !tutorId.trim()) { setSubmitError('ID tutor wajib diisi'); return }
-    if (!token) return
+    if (!parsed || parsed <= 0) {
+      setSubmitError('Masukkan nominal yang valid')
+      return
+    }
+    if (!fromOnboarding && !tutorId.trim()) {
+      setSubmitError('ID tutor wajib diisi')
+      return
+    }
+    if (!token) {
+      setSubmitError('Sesi tidak valid, silakan login ulang')
+      return
+    }
 
     setSubmitting(true)
     try {
       const res = await fetch('/api/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           tutorId: fromOnboarding ? undefined : tutorId,
           matchId: matchId || undefined,
@@ -276,12 +386,13 @@ function StudentPaymentContent() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Gagal merekam pembayaran')
       setSubmitted(true)
+
       if (fromOnboarding) {
-        // Payment mocked as paid — go straight to tutor offers
         router.push('/dashboard/student/tutor-offers')
         return
       }
-      // Reload history for regular payments
+
+      // Refresh history
       const supabase = createClient()
       const { data } = await supabase
         .from('payment_deposits')
@@ -296,7 +407,15 @@ function StudentPaymentContent() {
     }
   }
 
-  if (loading) return <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
+  // Render loading
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat halaman pembayaran...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -311,6 +430,12 @@ function StudentPaymentContent() {
         </p>
       </div>
 
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Onboarding deposit form */}
       {fromOnboarding && (
         <Card className="border-primary/30">
@@ -320,7 +445,6 @@ function StudentPaymentContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Amount (read-only) */}
             <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
               <p className="text-xs text-muted-foreground mb-1">Total Deposit</p>
               <p className="text-2xl font-bold text-primary">
@@ -328,7 +452,6 @@ function StudentPaymentContent() {
               </p>
             </div>
 
-            {/* Method selector (pre-filled but editable) */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Metode Pembayaran</label>
 
@@ -382,7 +505,6 @@ function StudentPaymentContent() {
               </div>
             </div>
 
-            {/* Payment detail */}
             {parseFloat(amount) > 0 && (
               <div className="border border-border rounded-xl p-4 bg-muted/20">
                 <p className="text-sm font-medium mb-3">
@@ -423,7 +545,11 @@ function StudentPaymentContent() {
               disabled={submitting || !parseFloat(amount)}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {submitting ? <><Spinner className="w-4 h-4 mr-2" /> Memproses...</> : '✅ Konfirmasi & Selesaikan Deposit'}
+              {submitting ? (
+                <><Spinner className="w-4 h-4 mr-2" /> Memproses...</>
+              ) : (
+                '✅ Konfirmasi & Selesaikan Deposit'
+              )}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
@@ -440,7 +566,6 @@ function StudentPaymentContent() {
             <CardTitle className="text-base">Buat Pembayaran Baru</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Amount */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Nominal (Rp)</label>
               <input
@@ -453,7 +578,6 @@ function StudentPaymentContent() {
               />
             </div>
 
-            {/* Tutor ID */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">ID Tutor</label>
               <input
@@ -465,7 +589,6 @@ function StudentPaymentContent() {
               />
             </div>
 
-            {/* Match ID (optional) */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">ID Pencocokan <span className="text-muted-foreground font-normal">(opsional)</span></label>
               <input
@@ -477,7 +600,6 @@ function StudentPaymentContent() {
               />
             </div>
 
-            {/* Method selector */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Metode Pembayaran</label>
 
@@ -531,7 +653,6 @@ function StudentPaymentContent() {
               </div>
             </div>
 
-            {/* Payment detail based on method */}
             {parseFloat(amount) > 0 && (
               <div className="border border-border rounded-xl p-4 bg-muted/20">
                 <p className="text-sm font-medium mb-3">
@@ -580,7 +701,11 @@ function StudentPaymentContent() {
               disabled={submitting || !parseFloat(amount) || !tutorId.trim()}
               className="w-full"
             >
-              {submitting ? <><Spinner className="w-4 h-4 mr-2" /> Memproses...</> : 'Konfirmasi Pembayaran'}
+              {submitting ? (
+                <><Spinner className="w-4 h-4 mr-2" /> Memproses...</>
+              ) : (
+                'Konfirmasi Pembayaran'
+              )}
             </Button>
           </CardContent>
         </Card>
