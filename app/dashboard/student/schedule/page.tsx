@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
-import { Calendar, Clock, User, BookOpen, MapPin } from 'lucide-react'
+import { Calendar, Clock, User, BookOpen } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
   matched: 'bg-green-500/20 text-green-300 border-green-500/30',
@@ -49,78 +49,134 @@ export default function StudentSchedulePage() {
   const [error, setError] = useState<string | null>(null)
   const [studentProfile, setStudentProfile] = useState<any>(null)
 
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
-        const { data: studentData, error: studentErr } = await supabase
-          .from('students')
-          .select('id, grade_level, preferred_schedule, sessions_per_month, budget_per_month')
-          .eq('user_id', user.id)
-          .single()
+  const fetchSchedule = async () => {
+    if (fetchDone.current) return
+    fetchDone.current = true
 
-        // PGRST116 = no rows returned; treat as new student with no schedule
-        if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
+    setLoading(true)
+    setError(null)
 
-        setStudentProfile(studentData)
+    try {
+      console.log('[Schedule] 🔄 Fetching schedule...')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
 
-        if (studentData?.id) {
-          const { data: matches, error: matchErr } = await supabase
-            .from('matches')
-            .select(`
-              id,
-              status,
-              subject,
-              lesson_frequency,
-              start_date,
-              tutors:tutor_id(
-                rating,
-                user_profiles:user_id(name)
-              )
-            `)
-            .eq('student_id', studentData.id)
-            .in('status', ['matched', 'active', 'pending', 'completed'])
-            .order('start_date', { ascending: true })
+      if (!user) {
+        console.log('[Schedule] ⚠️ User not found')
+        setStudentProfile(null)
+        setSchedule([])
+        return
+      }
 
-          if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
+      // ✅ Pakai maybeSingle() bukan single()
+      const { data: studentData, error: studentErr } = await supabase
+        .from('students')
+        .select('id, grade_level, preferred_schedule, sessions_per_month, budget_per_month')
+        .eq('user_id', user.id)
+        .maybeSingle()
 
-          const items: ScheduleItem[] = (matches || []).map((m: any) => ({
-            id: m.id,
-            status: m.status,
-            subject: m.subject || '-',
-            frequency: m.lesson_frequency || 'flexible',
-            startDate: m.start_date,
-            tutorName: m.tutors?.user_profiles?.name || 'Tutor',
-            tutorRating: m.tutors?.rating || 0,
-            gradeLevel: studentData.grade_level || '-',
-          }))
+      if (studentErr && studentErr.code !== 'PGRST116') {
+        console.error('[Schedule] ❌ Student error:', studentErr)
+        throw studentErr
+      }
 
-          setSchedule(items)
-        }
-      } catch (err) {
-        console.error('Failed to load schedule:', err)
-        // Show empty state instead of error page
-      } finally {
+      if (!studentData) {
+        console.log('[Schedule] ⚠️ No student profile found')
+        setStudentProfile(null)
+        setSchedule([])
+        return
+      }
+
+      setStudentProfile(studentData)
+
+      // Ambil matches
+      const { data: matches, error: matchErr } = await supabase
+        .from('matches')
+        .select(`
+          id,
+          status,
+          subject,
+          lesson_frequency,
+          start_date,
+          tutors:tutor_id(
+            rating,
+            user_profiles:user_id(name)
+          )
+        `)
+        .eq('student_id', studentData.id)
+        .in('status', ['matched', 'active', 'pending', 'completed'])
+        .order('start_date', { ascending: true })
+
+      if (matchErr && matchErr.code !== 'PGRST116') {
+        console.error('[Schedule] ❌ Match error:', matchErr)
+        throw matchErr
+      }
+
+      const items: ScheduleItem[] = (matches || []).map((m: any) => ({
+        id: m.id,
+        status: m.status,
+        subject: m.subject || '-',
+        frequency: m.lesson_frequency || 'flexible',
+        startDate: m.start_date,
+        tutorName: m.tutors?.user_profiles?.name || 'Tutor',
+        tutorRating: m.tutors?.rating || 0,
+        gradeLevel: studentData.grade_level || '-',
+      }))
+
+      if (isMounted.current) {
+        setSchedule(items)
+        setError(null)
+        console.log('[Schedule] ✅ Schedule loaded:', items.length)
+      }
+    } catch (err: any) {
+      console.error('[Schedule] ❌ Error:', err)
+      if (isMounted.current) {
+        setError(err.message || 'Gagal memuat jadwal, namun halaman tetap dapat digunakan.')
+        setSchedule([])
+      }
+    } finally {
+      if (isMounted.current) {
         setLoading(false)
+        console.log('[Schedule] 🏁 Loading selesai')
       }
     }
+  }
+
+  useEffect(() => {
+    isMounted.current = true
+
+    // ⏱️ TIMEOUT 3 DETIK - PASTIKAN LOADING BERHENTI
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Schedule] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
 
     fetchSchedule()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
   }, [])
 
+  // --- RENDER LOADING ---
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat jadwal belajar...</p>
       </div>
     )
   }
 
-  // error is retained in state but we render empty state instead
-
+  // Hitung statistik
   const activeSchedule = schedule.filter(s => ['matched', 'active'].includes(s.status))
   const pendingSchedule = schedule.filter(s => s.status === 'pending')
   const completedSchedule = schedule.filter(s => s.status === 'completed')
@@ -133,6 +189,13 @@ export default function StudentSchedulePage() {
           Jadwal sesi belajar Anda bersama tutor yang telah dikonfirmasi.
         </p>
       </div>
+
+      {/* Error alert (tidak mengganggu UI) */}
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Learning Plan Summary */}
       {studentProfile && (
@@ -192,6 +255,7 @@ export default function StudentSchedulePage() {
         </Card>
       </div>
 
+      {/* Schedule List / Empty State */}
       {schedule.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
@@ -228,7 +292,9 @@ export default function StudentSchedulePage() {
                             <Calendar className="w-4 h-4" />
                             <span>
                               Mulai: {new Date(item.startDate).toLocaleDateString('id-ID', {
-                                day: 'numeric', month: 'long', year: 'numeric',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
                               })}
                             </span>
                           </div>

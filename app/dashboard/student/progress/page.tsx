@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -15,14 +15,39 @@ export default function StudentProgressPage() {
   const [matches, setMatches] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+    isMounted.current = true
+
+    // ⏱️ TIMEOUT 3 DETIK - PASTIKAN LOADING BERHENTI
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Progress] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
     const fetchData = async () => {
       try {
+        console.log('[Progress] 🔄 Fetching data...')
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
 
-        const { data: profileData } = await supabase
+        if (!user) {
+          console.log('[Progress] ⚠️ User not found')
+          setProfile(null)
+          setMatches([])
+          return
+        }
+
+        // ✅ Pakai maybeSingle() biar tidak error jika belum ada profil
+        const { data: profileData, error: profileError } = await supabase
           .from('students')
           .select(`
             id,
@@ -33,62 +58,90 @@ export default function StudentProgressPage() {
             user_profiles:user_id(name, email)
           `)
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
+
+        if (profileError) {
+          console.error('[Progress] ❌ Profile error:', profileError)
+          throw profileError
+        }
+
+        if (!profileData) {
+          console.log('[Progress] ⚠️ No student profile yet')
+          setProfile(null)
+          setMatches([])
+          return
+        }
 
         setProfile(profileData)
 
-        if (profileData?.id) {
-          const { data: matchData } = await supabase
-            .from('matches')
-            .select(`
-              id,
-              status,
-              subject,
-              start_date,
-              lesson_frequency,
-              tutors:tutor_id(
-                experience_years,
-                rating,
-                user_profiles:user_id(name)
-              )
-            `)
-            .eq('student_id', profileData.id)
-            .order('start_date', { ascending: false })
+        // Ambil matches jika ada student id
+        const { data: matchData, error: matchError } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            status,
+            subject,
+            start_date,
+            lesson_frequency,
+            tutors:tutor_id(
+              experience_years,
+              rating,
+              user_profiles:user_id(name)
+            )
+          `)
+          .eq('student_id', profileData.id)
+          .order('start_date', { ascending: false })
 
+        if (matchError) {
+          console.error('[Progress] ❌ Match error:', matchError)
+          throw matchError
+        }
+
+        if (isMounted.current) {
           setMatches(matchData || [])
+          setError(null)
+          console.log('[Progress] ✅ Data loaded:', matchData?.length || 0, 'matches')
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Gagal memuat data')
+        console.error('[Progress] ❌ Fetch error:', err)
+        if (isMounted.current) {
+          setError(err instanceof Error ? err.message : 'Gagal memuat data')
+          // Set data kosong agar UI tetap tampil
+          setProfile(null)
+          setMatches([])
+        }
       } finally {
-        setLoading(false)
+        if (isMounted.current) {
+          setLoading(false)
+          console.log('[Progress] 🏁 Loading selesai')
+        }
       }
     }
 
     fetchData()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
   }, [])
 
+  // RENDER LOADING
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat progres belajar...</p>
       </div>
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
-  const completedMatches = matches.filter(m => m.status === 'completed')
-  const pendingMatches = matches.filter(m => m.status === 'pending')
-  const totalMatches = matches.length
+  // Hitung statistik (aman meskipun data null)
+  const activeMatches = (matches || []).filter(m => ['matched', 'active'].includes(m.status))
+  const completedMatches = (matches || []).filter(m => m.status === 'completed')
+  const pendingMatches = (matches || []).filter(m => m.status === 'pending')
+  const totalMatches = (matches || []).length
   const completionRate = totalMatches > 0 ? Math.round((completedMatches.length / totalMatches) * 100) : 0
-
   const subjects = profile?.subjects || []
 
   return (
@@ -99,6 +152,12 @@ export default function StudentProgressPage() {
           Pantau perkembangan belajar dan histori sesi Anda.
         </p>
       </div>
+
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
