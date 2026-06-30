@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -19,56 +19,124 @@ export default function StudentMyMatches() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchMatches()
-  }, [])
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   const fetchMatches = async () => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+
     setLoading(true)
+    setError(null)
+
     try {
+      console.log('[MyMatches] 🔄 Fetching matches...')
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
 
-      if (!session) {
-        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
-        return
-      }
-
-      const response = await fetch('/api/matches', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      })
-
-      if (!response.ok) {
-        // Show empty state instead of crashing
+      if (!user) {
+        console.log('[MyMatches] ⚠️ User not found')
         setMatches([])
         return
       }
 
-      const data = await response.json()
-      setMatches(data || [])
-      setError(null)
-    } catch (err) {
-      console.error('Failed to load matches:', err)
-      // Show empty state instead of error when no data yet
-      setMatches([])
-      setError(null)
+      const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (studentError) {
+        console.error('[MyMatches] ❌ Student error:', studentError)
+        throw studentError
+      }
+
+      if (!student) {
+        console.log('[MyMatches] ⚠️ No student profile')
+        setMatches([])
+        return
+      }
+
+      const { data, error: matchError } = await supabase
+        .from('matches')
+        .select(`
+          id,
+          status,
+          subject,
+          start_date,
+          lesson_frequency,
+          student_selected_at,
+          tutor_confirmed_at,
+          tutors:tutor_id(
+            hourly_rate,
+            experience_years,
+            user_profiles:user_id(name, bio)
+          )
+        `)
+        .eq('student_id', student.id)
+        .order('start_date', { ascending: false })
+
+      if (matchError) {
+        console.error('[MyMatches] ❌ Match error:', matchError)
+        throw matchError
+      }
+
+      if (isMounted.current) {
+        setMatches(data || [])
+        console.log('[MyMatches] ✅ Matches loaded:', data?.length || 0)
+      }
+    } catch (err: any) {
+      console.error('[MyMatches] ❌ Error:', err)
+      if (isMounted.current) {
+        setError(err.message || 'Gagal memuat data')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        console.log('[MyMatches] 🏁 Loading selesai')
+      }
     }
+  }
+
+  useEffect(() => {
+    isMounted.current = true
+
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[MyMatches] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
+    fetchMatches()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
+  }, [])
+
+  // Helper untuk format lesson_frequency
+  const formatFrequency = (frequency: string | null | undefined) => {
+    if (!frequency) return '-'
+    // Ubah '1-per-week' menjadi '1 Per Week' misalnya, tapi kita hanya ubah menjadi huruf kapital di awal kata
+    return frequency
+      .replace(/-/g, ' ') // ganti semua '-' dengan spasi
+      .replace(/\b\w/g, (char) => char.toUpperCase()) // kapitalisasi setiap kata
   }
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
+      <div className="flex flex-col items-center justify-center py-12">
         <Spinner className="h-8 w-8" />
+        <p className="mt-3 text-sm text-muted-foreground">Memuat pengajar...</p>
       </div>
     )
   }
 
-  if (error) {
+  if (error && matches.length === 0) {
     return (
       <Alert variant="destructive">
         <AlertDescription>{error}</AlertDescription>
@@ -81,7 +149,7 @@ export default function StudentMyMatches() {
       <Card>
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">
-            Anda belum memiliki pencocokan. Mulai cari pengajar sekarang!
+            Anda belum memiliki pengajar. Mulai cari pengajar sekarang!
           </p>
         </CardContent>
       </Card>
@@ -99,8 +167,8 @@ export default function StudentMyMatches() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg">{tutor?.user_profiles?.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">Mata Pelajaran: {match.subject}</p>
+                  <CardTitle className="text-lg">{tutor?.user_profiles?.name || 'Tutor'}</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">Mata Pelajaran: {match.subject || '-'}</p>
                 </div>
                 <Badge variant="outline" className={`${statusConfig.color} border`}>
                   {statusConfig.label}
@@ -112,13 +180,13 @@ export default function StudentMyMatches() {
                 <div>
                   <p className="text-xs text-muted-foreground">Frekuensi Pembelajaran</p>
                   <p className="text-sm font-medium">
-                    {match.lesson_frequency?.replace('-', ' ').replace(/^./, m => m.toUpperCase())}
+                    {formatFrequency(match.lesson_frequency)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Tanggal Mulai</p>
                   <p className="text-sm font-medium">
-                    {new Date(match.start_date).toLocaleDateString('id-ID')}
+                    {match.start_date ? new Date(match.start_date).toLocaleDateString('id-ID') : '-'}
                   </p>
                 </div>
               </div>
@@ -127,12 +195,12 @@ export default function StudentMyMatches() {
                 <div>
                   <p className="text-xs text-muted-foreground">Tarif</p>
                   <p className="text-sm font-medium">
-                    Rp {tutor?.hourly_rate?.toLocaleString()}/jam
+                    {tutor?.hourly_rate ? `Rp ${tutor.hourly_rate.toLocaleString()}/jam` : '-'}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Pengalaman</p>
-                  <p className="text-sm font-medium">{tutor?.experience_years} tahun</p>
+                  <p className="text-sm font-medium">{tutor?.experience_years || 0} tahun</p>
                 </div>
               </div>
 

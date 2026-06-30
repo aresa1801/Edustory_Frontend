@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -42,21 +42,41 @@ export default function StudentAnalyticsPage() {
   const [reviewText, setReviewText] = useState('')
   const [submittingRating, setSubmittingRating] = useState(false)
 
+  const isMounted = useRef(true)
+  const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+
   const fetchData = async () => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+
     try {
+      console.log('[Analytics] 🔄 Fetching data...')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      
+      if (!user) {
+        console.log('[Analytics] ⚠️ User not found, using empty data')
+        setLoading(false)
+        return
+      }
 
       const { data: studentData, error: studentErr } = await supabase
         .from('students')
         .select('id, subjects')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle() // ✅ maybeSingle() bukan single()
 
-      // PGRST116 = no rows returned; treat as new student with no data
-      if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
-      if (!studentData) return
+      if (studentErr && studentErr.code !== 'PGRST116') {
+        console.error('[Analytics] ❌ Student error:', studentErr)
+        throw studentErr
+      }
+
+      if (!studentData) {
+        console.log('[Analytics] ⚠️ No student profile found')
+        setLoading(false)
+        return
+      }
 
       setSubjects(studentData.subjects || [])
 
@@ -75,7 +95,10 @@ export default function StudentAnalyticsPage() {
         .eq('student_id', studentData.id)
         .order('created_at', { ascending: false })
 
-      if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
+      if (matchErr && matchErr.code !== 'PGRST116') {
+        console.error('[Analytics] ❌ Match error:', matchErr)
+        throw matchErr
+      }
 
       const allMatches = matches || []
       const completed = allMatches.filter((m: any) => m.status === 'completed')
@@ -103,16 +126,38 @@ export default function StudentAnalyticsPage() {
       }))
 
       setTutorRatings(ratings)
+      setError(null)
+      console.log('[Analytics] ✅ Data loaded:', allMatches.length, 'matches')
     } catch (err) {
-      console.error('Failed to load analytics:', err)
-      // Show zeroed stats with error notice rather than blocking the page
+      console.error('[Analytics] ❌ Fetch error:', err)
       setError('Gagal memuat data analitik. Data mungkin tidak lengkap.')
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        console.log('[Analytics] 🏁 Loading selesai')
+      }
     }
   }
 
-  useEffect(() => { fetchData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    isMounted.current = true
+
+    // ⏱️ TIMEOUT 3 DETIK - PASTIKAN LOADING BERHENTI
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Analytics] ⏱️ Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
+    fetchData()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmitRating = async () => {
     if (!selectedMatch || ratingValue === 0) return
@@ -129,12 +174,11 @@ export default function StudentAnalyticsPage() {
 
       if (updateErr) throw updateErr
 
-      // Also update tutor's aggregate rating
       const { data: matchData } = await supabase
         .from('matches')
         .select('tutor_id')
         .eq('id', selectedMatch.matchId)
-        .single()
+        .maybeSingle()
 
       if (matchData?.tutor_id) {
         const { data: allRatings } = await supabase
@@ -156,6 +200,9 @@ export default function StudentAnalyticsPage() {
       setSelectedMatch(null)
       setRatingValue(0)
       setReviewText('')
+      
+      // Reset fetchDone agar bisa fetch ulang
+      fetchDone.current = false
       await fetchData()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan penilaian')
@@ -164,15 +211,15 @@ export default function StudentAnalyticsPage() {
     }
   }
 
+  // ✅ TAMPILKAN LOADING
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat data analitik...</p>
       </div>
     )
   }
-
-  // error is kept in state but we no longer block rendering with it
 
   const statCards = [
     { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-300', bg: 'bg-blue-500/20' },
@@ -198,6 +245,8 @@ export default function StudentAnalyticsPage() {
           <AlertDescription className="text-amber-700 text-sm">{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* ✅ STATS TETAP TAMPIL MESKIPUN KOSONG */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="p-5">
@@ -215,7 +264,6 @@ export default function StudentAnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Completion Rate */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -233,7 +281,6 @@ export default function StudentAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Average Rating Given */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -270,7 +317,6 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      {/* Subjects */}
       {subjects.length > 0 && (
         <Card className="mb-8">
           <CardHeader>
@@ -289,7 +335,6 @@ export default function StudentAnalyticsPage() {
         </Card>
       )}
 
-      {/* Unrated completed sessions */}
       {unratedMatches.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -329,7 +374,6 @@ export default function StudentAnalyticsPage() {
         </div>
       )}
 
-      {/* Rated sessions */}
       {ratedMatches.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4">Riwayat Penilaian</h2>
@@ -365,7 +409,6 @@ export default function StudentAnalyticsPage() {
         </div>
       )}
 
-      {/* Rating Dialog */}
       <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
         <DialogContent>
           <DialogHeader>

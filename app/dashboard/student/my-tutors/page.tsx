@@ -1,5 +1,7 @@
 'use client'
 
+import { Suspense } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 import StudentMyMatches from '@/components/dashboard/student/my-matches'
 
 export default function MyTutorsPage() {
@@ -12,7 +14,14 @@ export default function MyTutorsPage() {
         </p>
       </div>
 
-      <StudentMyMatches />
+      <Suspense fallback={
+        <div className="flex justify-center items-center py-12">
+          <Spinner className="h-8 w-8" />
+          <p className="ml-3 text-sm text-muted-foreground">Memuat daftar pengajar...</p>
+        </div>
+      }>
+        <StudentMyMatches />
+      </Suspense>
     </div>
   )
 }
