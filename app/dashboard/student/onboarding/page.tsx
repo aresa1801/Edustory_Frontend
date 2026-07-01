@@ -72,6 +72,7 @@ export default function StudentOnboardingPage() {
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [initializing, setInitializing] = useState(true) // ✅ State inisialisasi
 
   // Step 1 – Profile
   const [siswaData, setSiswaData] = useState({
@@ -113,11 +114,14 @@ export default function StudentOnboardingPage() {
         }
         setUserId(user.id)
         setUserEmail(user.email || '')
-        // Pre-fill name from auth
         setSiswaData(prev => ({ ...prev, name: user.user_metadata?.full_name || '' }))
       } catch (err) {
         console.error('[Onboarding] Init error:', err)
         setError('Gagal memuat data user. Silakan coba lagi.')
+      } finally {
+        if (isMounted.current) {
+          setInitializing(false) // ✅ Selesai inisialisasi
+        }
       }
     }
     init()
@@ -152,14 +156,17 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // FUNGSI SAVE PROFILE – hanya untuk step 1 dan 2
+  // FUNGSI SAVE PROFILE
   // ============================================================
   const saveProfileData = async (saveStudent: boolean = true) => {
-    if (!userId) throw new Error('User ID tidak ditemukan')
+    // ✅ Cegah jika userId belum ada
+    if (!userId) {
+      throw new Error('User ID tidak ditemukan. Silakan muat ulang halaman.')
+    }
 
     const supabase = createClient()
 
-    // 1. Update user_profiles
+    // 1. Update user_profiles (name, phone, gender, bio)
     const { error: upErr } = await supabase
       .from('user_profiles')
       .update({
@@ -167,21 +174,14 @@ export default function StudentOnboardingPage() {
         phone: siswaData.phone.trim() || null,
         gender: siswaData.gender || null,
         bio: siswaData.bio.trim() || null,
+        role: 'siswa', // ✅ Pastikan role siswa
       })
       .eq('id', userId)
 
     if (upErr) throw new Error(`Gagal update user_profiles: ${upErr.message}`)
 
-    // 2. Upsert students (hanya jika saveStudent = true)
+    // 2. Upsert students (jika saveStudent = true)
     if (saveStudent) {
-      // Pastikan user memiliki role 'siswa'
-      const { error: roleErr } = await supabase
-        .from('user_profiles')
-        .update({ role: 'siswa' })
-        .eq('id', userId)
-
-      if (roleErr) throw new Error(`Gagal set role siswa: ${roleErr.message}`)
-
       const studentPayload: any = {
         user_id: userId,
         grade_level: gradeLevel || null,
@@ -202,7 +202,7 @@ export default function StudentOnboardingPage() {
         status: 'active',
       }
 
-      // Hapus field yang null agar tidak error
+      // Hapus field null/undefined
       Object.keys(studentPayload).forEach(key => {
         if (studentPayload[key] === null || studentPayload[key] === undefined) {
           delete studentPayload[key]
@@ -223,50 +223,59 @@ export default function StudentOnboardingPage() {
   // HANDLE NEXT
   // ============================================================
   const handleNext = async () => {
+    // ✅ Cegah klik jika masih inisialisasi
+    if (initializing) {
+      setError('Masih memuat data, harap tunggu...')
+      return
+    }
+    if (!userId) {
+      setError('User ID tidak ditemukan. Silakan muat ulang halaman.')
+      return
+    }
+
     if (!validateStep()) return
 
     setSaving(true)
     setError(null)
 
     try {
-      // STEP 1 → 2: Simpan data profil (user_profiles + students sebagian)
+      // STEP 1 → 2
       if (step === 1) {
-        await saveProfileData(true) // Simpan ke students juga (data sekolah, ortu)
+        await saveProfileData(true)
         setStep(s => s + 1)
         setSaving(false)
         return
       }
 
-      // STEP 2 → 3: Simpan minat belajar (grade, subjects, goals) ke students
+      // STEP 2 → 3
       if (step === 2) {
-        await saveProfileData(true) // Update students dengan data minat belajar
+        await saveProfileData(true)
         setStep(s => s + 1)
         setSaving(false)
         return
       }
 
-      // STEP 3 → 4: Simpan rencana belajar (schedule, budget, sessions) ke students
+      // STEP 3 → 4
       if (step === 3) {
-        await saveProfileData(true) // Update students dengan rencana belajar
+        await saveProfileData(true)
         setStep(s => s + 1)
         setSaving(false)
         return
       }
 
-      // STEP 4: Submit payment dan tandai onboarding_complete = true
+      // STEP 4 – Selesai
       if (step === 4) {
-        // Save final data + set onboarding_complete = true
         const supabase = createClient()
-        
-        // 1. Update students set onboarding_complete = true
+
+        // 1. Update onboarding_complete = true
         const { error: completeErr } = await supabase
           .from('students')
           .update({ onboarding_complete: true })
           .eq('user_id', userId)
 
-        if (completeErr) throw new Error(`Gagal update onboarding status: ${completeErr.message}`)
+        if (completeErr) throw new Error(`Gagal update onboarding: ${completeErr.message}`)
 
-        // 2. Proses payment via API
+        // 2. Proses payment
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) throw new Error('Sesi tidak ditemukan, silakan login ulang')
 
@@ -291,7 +300,6 @@ export default function StudentOnboardingPage() {
           throw new Error(json.error || 'Gagal menyimpan data pembayaran')
         }
 
-        // Redirect ke dashboard
         router.push('/dashboard/student')
         setSaving(false)
         return
@@ -318,8 +326,19 @@ export default function StudentOnboardingPage() {
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === selectedPayment)
 
   // ============================================================
-  // RENDER (SAMA SEPERTI SEBELUMNYA, HANYA TAMBAHKAN handleBack)
+  // RENDER
   // ============================================================
+  if (initializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Memuat data user...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/3 to-blue-50/30">
       {/* Header */}
@@ -377,7 +396,7 @@ export default function StudentOnboardingPage() {
           </div>
         )}
 
-        {/* ========== STEP 1: PROFILE ========== */}
+        {/* STEP 1 – PROFIL SISWA */}
         {step === 1 && (
           <Card className="shadow-sm">
             <CardHeader className="pb-4">
@@ -441,7 +460,6 @@ export default function StudentOnboardingPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {/* Tanggal Lahir DIHAPUS karena tidak ada di tabel */}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Tentang Saya / Catatan</Label>
@@ -570,7 +588,7 @@ export default function StudentOnboardingPage() {
           </Card>
         )}
 
-        {/* ========== STEP 2: MINAT BELAJAR ========== */}
+        {/* STEP 2 – MINAT BELAJAR */}
         {step === 2 && (
           <Card className="shadow-sm">
             <CardHeader className="pb-4">
@@ -645,7 +663,7 @@ export default function StudentOnboardingPage() {
           </Card>
         )}
 
-        {/* ========== STEP 3: RENCANA BELAJAR ========== */}
+        {/* STEP 3 – RENCANA BELAJAR */}
         {step === 3 && (
           <Card className="shadow-sm">
             <CardHeader className="pb-4">
@@ -735,7 +753,7 @@ export default function StudentOnboardingPage() {
           </Card>
         )}
 
-        {/* ========== STEP 4: DEPOSIT ========== */}
+        {/* STEP 4 – DEPOSIT */}
         {step === 4 && (
           <Card className="shadow-sm">
             <CardHeader className="pb-4">
@@ -832,13 +850,17 @@ export default function StudentOnboardingPage() {
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={saving}
+            disabled={saving || initializing}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             {step === 1 ? 'Kembali' : 'Sebelumnya'}
           </Button>
 
-          <Button onClick={handleNext} disabled={saving} className="bg-primary hover:bg-primary/90 px-8">
+          <Button
+            onClick={handleNext}
+            disabled={saving || initializing}
+            className="bg-primary hover:bg-primary/90 px-8"
+          >
             {saving ? (
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
