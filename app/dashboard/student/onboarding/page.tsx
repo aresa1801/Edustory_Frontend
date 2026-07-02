@@ -242,10 +242,76 @@ export default function StudentOnboardingPage() {
 
     const supabase = createClient()
 
+    console.log(\'[Onboarding] Step 1: Saving student profile data\', { userId: currentUserId })
+
+
+
     // 1. Update user_profiles (best-effort, jangan block students save)
     try {
-      const profileUpdate: Record<string, any> = {
-        name: siswaData.name.trim(),
+      console.log('[Onboarding] Updating user_profiles with:', profileUpdate)
+      const { error: profileUpdateErr } = await supabase
+        .from('user_profiles')
+        .update(profileUpdate)
+        .eq('id', currentUserId)
+
+      if (profileUpdateErr) {
+        console.warn('[Onboarding] user_profiles update warning:', profileUpdateErr)
+      } else {
+        console.log('[Onboarding] user_profiles updated successfully')
+      }
+    } catch (profileErr) {
+      console.warn('[Onboarding] user_profiles update exception:', profileErr)
+      // Lanjutkan ke students save meskipun user_profiles gagal
+    }
+
+    // 2. Upsert ke students table – data siswa, sekolah, orang tua
+    const studentPayload: Record<string, any> = {
+      user_id: currentUserId,
+      school_name: sekolahData.school_name.trim() || null,
+      school_type: sekolahData.school_type || null,
+      school_city: sekolahData.school_city.trim() || null,
+      school_address: sekolahData.school_address.trim() || null,
+      parent_name: ortuData.parent_name.trim() || null,
+      parent_phone: ortuData.parent_phone.trim() || null,
+      parent_email: ortuData.parent_email.trim() || null,
+      parent_relation: ortuData.parent_relation || null,
+      onboarding_complete: false,
+      status: 'active',
+    }
+
+    console.log('[Onboarding] Raw student payload:', studentPayload)
+
+    // Hapus field null/undefined (kecuali user_id, onboarding_complete, status)
+    const keepFields = ['user_id', 'onboarding_complete', 'status']
+    Object.keys(studentPayload).forEach(key => {
+      if (!keepFields.includes(key) && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+        delete studentPayload[key]
+      }
+    })
+
+    console.log('[Onboarding] Cleaned student payload:', studentPayload)
+
+    const { data: upsertData, error: sdErr } = await supabase
+      .from('students')
+      .upsert(studentPayload, { onConflict: 'user_id' })
+      .select()
+
+    console.log('[Onboarding] Upsert response:', { data: upsertData, error: sdErr })
+
+    if (sdErr) {
+      const errorMsg = `Gagal menyimpan data profil siswa: ${sdErr.message}`
+      console.error('[Onboarding] Students upsert error:', errorMsg)
+      throw new Error(errorMsg)
+    }
+
+    if (!upsertData || upsertData.length === 0) {
+      const errorMsg = 'Data gagal disimpan ke database (tidak ada response)'
+      console.error('[Onboarding] Students upsert returned no data:', studentPayload)
+      throw new Error(errorMsg)
+    }
+
+    console.log('[Onboarding] Step 1 saved successfully:', upsertData[0])
+    return true
         role: 'siswa',
       }
       if (siswaData.phone.trim()) profileUpdate.phone = siswaData.phone.trim()
@@ -974,7 +1040,7 @@ export default function StudentOnboardingPage() {
             {step === 1 ? 'Kembali' : 'Sebelumnya'}
           </Button>
 
-          <Button onClick={handleNext} disabled={saving || !userId} className="bg-primary hover:bg-primary/90 px-8">
+          <Button onClick={handleNext} disabled={saving} className="bg-primary hover:bg-primary/90 px-8">
             {saving ? (
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
