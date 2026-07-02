@@ -6,6 +6,7 @@ import './globals.css'
 
 export const dynamic = 'force-dynamic'
 
+
 export const metadata: Metadata = {
   title: 'EduStory - Platform Pembelajaran Privat Terpercaya',
   description: 'Platform pembelajaran privat dengan pengajar profesional, fleksibel, dan personalized untuk semua usia. Les privat ke rumah, les online, kelas semi-privat, dan homeschooling.',
