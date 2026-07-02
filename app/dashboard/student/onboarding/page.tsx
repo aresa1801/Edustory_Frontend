@@ -225,7 +225,7 @@ export default function StudentOnboardingPage() {
     const studentPayload: Record<string, any> = {
       user_id: userId,
       grade_level: gradeLevel || null,
-      subjects: subjects.length > 0 ? subjects : [],
+      subjects: subjects,
       learning_goals: learningGoals.trim() || null,
     }
 
