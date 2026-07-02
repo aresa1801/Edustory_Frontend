@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -66,6 +67,7 @@ const PROFILE_TABS = [
 
 export default function StudentOnboardingPage() {
   const router = useRouter()
+  const { user: authUser, loading: authLoading } = useAuth()
   const [step, setStep] = useState(1)
   const [profileTab, setProfileTab] = useState('siswa')
   const [saving, setSaving] = useState(false)
@@ -99,32 +101,109 @@ export default function StudentOnboardingPage() {
   const [transferProof, setTransferProof] = useState('')
 
   const isMounted = useRef(true)
+  const userIdRef = useRef<string | null>(null)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
+
+  /**
+   * Resolve userId from multiple sources (state, auth context, session).
+   * Returns the userId or throws if not found.
+   */
+  const resolveUserId = async (): Promise<string> => {
+    // 1. Check state (via ref for immediate access)
+    if (userIdRef.current) return userIdRef.current
+
+    // 2. Check auth context
+    if (authUser?.id) {
+      setUserId(authUser.id)
+      userIdRef.current = authUser.id
+      return authUser.id
+    }
+
+    // 3. Try getSession as fallback
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        setUserId(session.user.id)
+        userIdRef.current = session.user.id
+        return session.user.id
+      }
+    } catch (err) {
+      console.error('[Onboarding] resolveUserId fallback error:', err)
+    }
+
+    throw new Error('Sesi tidak ditemukan. Silakan login ulang.')
+  }
+
+  // Sync userId from auth context as primary source
+  useEffect(() => {
+    if (authUser && !userId) {
+      setUserId(authUser.id)
+      setUserEmail(authUser.email || '')
+      setSiswaData(prev => ({ ...prev, name: prev.name || authUser.user_metadata?.full_name || '' }))
+    }
+  }, [authUser, userId])
 
   useEffect(() => {
     isMounted.current = true
     const init = async () => {
       try {
         const supabase = createClient()
+
+        // Try getUser() first (validates token with server)
+        let currentUser = null
         const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) {
-          router.push('/auth/login')
-          return
+
+        if (user) {
+          currentUser = user
+        } else {
+          // Fallback: use getSession() which reads from local storage/cookies
+          console.warn('[Onboarding] getUser() failed, trying getSession()...', userError?.message)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) {
+            currentUser = session.user
+          }
         }
-        setUserId(user.id)
-        setUserEmail(user.email || '')
-        // Pre-fill name from auth
-        setSiswaData(prev => ({ ...prev, name: user.user_metadata?.full_name || '' }))
+
+        if (!currentUser) {
+          // If auth context has user, use that
+          if (authUser) {
+            currentUser = authUser
+          } else if (!authLoading) {
+            router.push('/auth/login')
+            return
+          } else {
+            // Auth is still loading, wait for context sync via the other useEffect
+            return
+          }
+        }
+
+        if (isMounted.current) {
+          setUserId(currentUser.id)
+          setUserEmail(currentUser.email || '')
+          setSiswaData(prev => ({ ...prev, name: prev.name || currentUser.user_metadata?.full_name || '' }))
+        }
       } catch (err) {
         console.error('[Onboarding] Init error:', err)
-        setError('Gagal memuat data user. Silakan coba lagi.')
+        // If auth context has user, use that as final fallback
+        if (authUser && isMounted.current) {
+          setUserId(authUser.id)
+          setUserEmail(authUser.email || '')
+          setSiswaData(prev => ({ ...prev, name: prev.name || authUser.user_metadata?.full_name || '' }))
+        } else {
+          setError('Gagal memuat data user. Silakan coba lagi.')
+        }
       }
     }
     init()
     return () => {
       isMounted.current = false
     }
-  }, [router])
+  }, [router, authUser, authLoading])
 
   const toggleSubject = (s: string) => {
     setSubjects(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -159,7 +238,7 @@ export default function StudentOnboardingPage() {
    * Simpan data profil siswa (step 1): data siswa, sekolah, orang tua
    */
   const saveStep1Data = async () => {
-    if (!userId) throw new Error('User ID tidak ditemukan')
+    const currentUserId = await resolveUserId()
 
     const supabase = createClient()
 
@@ -176,7 +255,7 @@ export default function StudentOnboardingPage() {
       await supabase
         .from('user_profiles')
         .update(profileUpdate)
-        .eq('id', userId)
+        .eq('id', currentUserId)
     } catch (profileErr) {
       console.warn('[Onboarding] user_profiles update warning:', profileErr)
       // Lanjutkan ke students save meskipun user_profiles gagal
@@ -184,7 +263,7 @@ export default function StudentOnboardingPage() {
 
     // 2. Upsert ke students table – data siswa, sekolah, orang tua
     const studentPayload: Record<string, any> = {
-      user_id: userId,
+      user_id: currentUserId,
       school_name: sekolahData.school_name.trim() || null,
       school_type: sekolahData.school_type || null,
       school_city: sekolahData.school_city.trim() || null,
@@ -218,12 +297,12 @@ export default function StudentOnboardingPage() {
    * Simpan data minat belajar (step 2): grade_level, subjects, learning_goals
    */
   const saveStep2Data = async () => {
-    if (!userId) throw new Error('User ID tidak ditemukan')
+    const currentUserId = await resolveUserId()
 
     const supabase = createClient()
 
     const studentPayload: Record<string, any> = {
-      user_id: userId,
+      user_id: currentUserId,
       grade_level: gradeLevel || null,
       subjects: subjects,
       learning_goals: learningGoals.trim() || null,
@@ -249,12 +328,12 @@ export default function StudentOnboardingPage() {
    * Simpan data rencana belajar (step 3): schedule, budget, sessions
    */
   const saveStep3Data = async () => {
-    if (!userId) throw new Error('User ID tidak ditemukan')
+    const currentUserId = await resolveUserId()
 
     const supabase = createClient()
 
     const studentPayload: Record<string, any> = {
-      user_id: userId,
+      user_id: currentUserId,
       preferred_schedule: schedule || null,
       budget_per_month: budgetPerMonth ? Number(budgetPerMonth) : null,
       sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
@@ -312,13 +391,14 @@ export default function StudentOnboardingPage() {
 
       // STEP 4: Submit payment dan tandai onboarding_complete = true
       if (step === 4) {
+        const currentUserId = await resolveUserId()
         const supabase = createClient()
         
         // 1. Update students set onboarding_complete = true
         const { error: completeErr } = await supabase
           .from('students')
           .update({ onboarding_complete: true })
-          .eq('user_id', userId)
+          .eq('user_id', currentUserId)
 
         if (completeErr) throw new Error(`Gagal update onboarding status: ${completeErr.message}`)
 
@@ -894,7 +974,7 @@ export default function StudentOnboardingPage() {
             {step === 1 ? 'Kembali' : 'Sebelumnya'}
           </Button>
 
-          <Button onClick={handleNext} disabled={saving} className="bg-primary hover:bg-primary/90 px-8">
+          <Button onClick={handleNext} disabled={saving || !userId} className="bg-primary hover:bg-primary/90 px-8">
             {saving ? (
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
