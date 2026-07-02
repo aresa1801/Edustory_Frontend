@@ -152,69 +152,126 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // FUNGSI SAVE PROFILE – hanya untuk step 1 dan 2
+  // FUNGSI SAVE – simpan data ke students table per step
   // ============================================================
-  const saveProfileData = async (saveStudent: boolean = true) => {
+
+  /**
+   * Simpan data profil siswa (step 1): data siswa, sekolah, orang tua
+   */
+  const saveStep1Data = async () => {
     if (!userId) throw new Error('User ID tidak ditemukan')
 
     const supabase = createClient()
 
-    // 1. Update user_profiles
-    const { error: upErr } = await supabase
-      .from('user_profiles')
-      .update({
+    // 1. Update user_profiles (best-effort, jangan block students save)
+    try {
+      const profileUpdate: Record<string, any> = {
         name: siswaData.name.trim(),
-        phone: siswaData.phone.trim() || null,
-        gender: siswaData.gender || null,
-        bio: siswaData.bio.trim() || null,
-      })
-      .eq('id', userId)
-
-    if (upErr) throw new Error(`Gagal update user_profiles: ${upErr.message}`)
-
-    // 2. Upsert students (hanya jika saveStudent = true)
-    if (saveStudent) {
-      // Pastikan user memiliki role 'siswa'
-      const { error: roleErr } = await supabase
-        .from('user_profiles')
-        .update({ role: 'siswa' })
-        .eq('id', userId)
-
-      if (roleErr) throw new Error(`Gagal set role siswa: ${roleErr.message}`)
-
-      const studentPayload: any = {
-        user_id: userId,
-        grade_level: gradeLevel || null,
-        subjects: subjects || [],
-        learning_goals: learningGoals.trim() || null,
-        preferred_schedule: schedule || null,
-        budget_per_month: budgetPerMonth ? Number(budgetPerMonth) : null,
-        sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
-        school_name: sekolahData.school_name.trim() || null,
-        school_type: sekolahData.school_type || null,
-        school_city: sekolahData.school_city.trim() || null,
-        school_address: sekolahData.school_address.trim() || null,
-        parent_name: ortuData.parent_name.trim() || null,
-        parent_phone: ortuData.parent_phone.trim() || null,
-        parent_email: ortuData.parent_email.trim() || null,
-        parent_relation: ortuData.parent_relation || null,
-        onboarding_complete: false, // Belum selesai sampai step 4
-        status: 'active',
+        role: 'siswa',
       }
+      if (siswaData.phone.trim()) profileUpdate.phone = siswaData.phone.trim()
+      if (siswaData.gender) profileUpdate.gender = siswaData.gender
+      if (siswaData.bio.trim()) profileUpdate.bio = siswaData.bio.trim()
 
-      // Hapus field yang null agar tidak error
-      Object.keys(studentPayload).forEach(key => {
-        if (studentPayload[key] === null || studentPayload[key] === undefined) {
-          delete studentPayload[key]
-        }
-      })
-
-      const { error: sdErr } = await supabase
-        .from('students')
-        .upsert(studentPayload, { onConflict: 'user_id' })
-
-      if (sdErr) throw new Error(`Gagal save students: ${sdErr.message}`)
+      await supabase
+        .from('user_profiles')
+        .update(profileUpdate)
+        .eq('id', userId)
+    } catch (profileErr) {
+      console.warn('[Onboarding] user_profiles update warning:', profileErr)
+      // Lanjutkan ke students save meskipun user_profiles gagal
     }
+
+    // 2. Upsert ke students table – data siswa, sekolah, orang tua
+    const studentPayload: Record<string, any> = {
+      user_id: userId,
+      school_name: sekolahData.school_name.trim() || null,
+      school_type: sekolahData.school_type || null,
+      school_city: sekolahData.school_city.trim() || null,
+      school_address: sekolahData.school_address.trim() || null,
+      parent_name: ortuData.parent_name.trim() || null,
+      parent_phone: ortuData.parent_phone.trim() || null,
+      parent_email: ortuData.parent_email.trim() || null,
+      parent_relation: ortuData.parent_relation || null,
+      onboarding_complete: false,
+      status: 'active',
+    }
+
+    // Hapus field null/undefined (kecuali user_id, onboarding_complete, status)
+    const keepFields = ['user_id', 'onboarding_complete', 'status']
+    Object.keys(studentPayload).forEach(key => {
+      if (!keepFields.includes(key) && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+        delete studentPayload[key]
+      }
+    })
+
+    const { error: sdErr } = await supabase
+      .from('students')
+      .upsert(studentPayload, { onConflict: 'user_id' })
+
+    if (sdErr) throw new Error(`Gagal save students: ${sdErr.message}`)
+
+    return true
+  }
+
+  /**
+   * Simpan data minat belajar (step 2): grade_level, subjects, learning_goals
+   */
+  const saveStep2Data = async () => {
+    if (!userId) throw new Error('User ID tidak ditemukan')
+
+    const supabase = createClient()
+
+    const studentPayload: Record<string, any> = {
+      user_id: userId,
+      grade_level: gradeLevel || null,
+      subjects: subjects,
+      learning_goals: learningGoals.trim() || null,
+    }
+
+    // Hapus field null (kecuali user_id dan subjects)
+    Object.keys(studentPayload).forEach(key => {
+      if (key !== 'user_id' && key !== 'subjects' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+        delete studentPayload[key]
+      }
+    })
+
+    const { error: sdErr } = await supabase
+      .from('students')
+      .upsert(studentPayload, { onConflict: 'user_id' })
+
+    if (sdErr) throw new Error(`Gagal save minat belajar: ${sdErr.message}`)
+
+    return true
+  }
+
+  /**
+   * Simpan data rencana belajar (step 3): schedule, budget, sessions
+   */
+  const saveStep3Data = async () => {
+    if (!userId) throw new Error('User ID tidak ditemukan')
+
+    const supabase = createClient()
+
+    const studentPayload: Record<string, any> = {
+      user_id: userId,
+      preferred_schedule: schedule || null,
+      budget_per_month: budgetPerMonth ? Number(budgetPerMonth) : null,
+      sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
+    }
+
+    // Hapus field null (kecuali user_id)
+    Object.keys(studentPayload).forEach(key => {
+      if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+        delete studentPayload[key]
+      }
+    })
+
+    const { error: sdErr } = await supabase
+      .from('students')
+      .upsert(studentPayload, { onConflict: 'user_id' })
+
+    if (sdErr) throw new Error(`Gagal save rencana belajar: ${sdErr.message}`)
 
     return true
   }
@@ -229,33 +286,32 @@ export default function StudentOnboardingPage() {
     setError(null)
 
     try {
-      // STEP 1 → 2: Simpan data profil (user_profiles + students sebagian)
+      // STEP 1 → 2: Simpan data profil siswa (sekolah, ortu) ke students
       if (step === 1) {
-        await saveProfileData(true) // Simpan ke students juga (data sekolah, ortu)
-        setStep(s => s + 1)
+        await saveStep1Data()
+        setStep(2)
         setSaving(false)
         return
       }
 
       // STEP 2 → 3: Simpan minat belajar (grade, subjects, goals) ke students
       if (step === 2) {
-        await saveProfileData(true) // Update students dengan data minat belajar
-        setStep(s => s + 1)
+        await saveStep2Data()
+        setStep(3)
         setSaving(false)
         return
       }
 
       // STEP 3 → 4: Simpan rencana belajar (schedule, budget, sessions) ke students
       if (step === 3) {
-        await saveProfileData(true) // Update students dengan rencana belajar
-        setStep(s => s + 1)
+        await saveStep3Data()
+        setStep(4)
         setSaving(false)
         return
       }
 
       // STEP 4: Submit payment dan tandai onboarding_complete = true
       if (step === 4) {
-        // Save final data + set onboarding_complete = true
         const supabase = createClient()
         
         // 1. Update students set onboarding_complete = true
