@@ -242,22 +242,37 @@ export default function StudentOnboardingPage() {
 
     const supabase = createClient()
 
+    console.log('[Onboarding] Step 1: Saving student profile data', { userId: currentUserId })
+
     // 1. Update user_profiles (best-effort, jangan block students save)
     try {
       const profileUpdate: Record<string, any> = {
         name: siswaData.name.trim(),
+        email: userEmail || undefined,
         role: 'siswa',
       }
       if (siswaData.phone.trim()) profileUpdate.phone = siswaData.phone.trim()
       if (siswaData.gender) profileUpdate.gender = siswaData.gender
       if (siswaData.bio.trim()) profileUpdate.bio = siswaData.bio.trim()
 
-      await supabase
+      console.log('[Onboarding] Updating user_profiles with:', profileUpdate)
+      const { error: profileUpdateErr } = await supabase
         .from('user_profiles')
         .update(profileUpdate)
         .eq('id', currentUserId)
+
+      if (profileUpdateErr) {
+        console.warn('[Onboarding] user_profiles update warning:', {
+          message: profileUpdateErr.message,
+          details: profileUpdateErr.details,
+          hint: profileUpdateErr.hint,
+          code: profileUpdateErr.code,
+        })
+      } else {
+        console.log('[Onboarding] user_profiles updated successfully')
+      }
     } catch (profileErr) {
-      console.warn('[Onboarding] user_profiles update warning:', profileErr)
+      console.warn('[Onboarding] user_profiles update exception:', profileErr)
       // Lanjutkan ke students save meskipun user_profiles gagal
     }
 
@@ -276,6 +291,8 @@ export default function StudentOnboardingPage() {
       status: 'active',
     }
 
+    console.log('[Onboarding] Step 1 payload before cleanup:', studentPayload)
+
     // Hapus field null/undefined (kecuali user_id, onboarding_complete, status)
     const keepFields = ['user_id', 'onboarding_complete', 'status']
     Object.keys(studentPayload).forEach(key => {
@@ -284,12 +301,32 @@ export default function StudentOnboardingPage() {
       }
     })
 
-    const { error: sdErr } = await supabase
+    console.log('[Onboarding] Step 1 payload after cleanup:', studentPayload)
+
+    const { data: upsertData, error: sdErr } = await supabase
       .from('students')
       .upsert(studentPayload, { onConflict: 'user_id' })
+      .select()
 
-    if (sdErr) throw new Error(`Gagal save students: ${sdErr.message}`)
+    console.log('[Onboarding] Step 1 upsert response:', { data: upsertData, error: sdErr })
 
+    if (sdErr) {
+      console.error('[Onboarding] Step 1 upsert error details:', {
+        message: sdErr.message,
+        details: sdErr.details,
+        hint: sdErr.hint,
+        code: sdErr.code,
+        payload: studentPayload,
+      })
+      throw new Error(`Gagal menyimpan data profil siswa: ${sdErr.message}`)
+    }
+
+    if (!upsertData || upsertData.length === 0) {
+      console.error('[Onboarding] Step 1 upsert returned no data:', { payload: studentPayload, data: upsertData })
+      throw new Error('Data profil siswa gagal disimpan ke database (response kosong)')
+    }
+
+    console.log('[Onboarding] Step 1 saved successfully:', upsertData[0])
     return true
   }
 
@@ -308,6 +345,8 @@ export default function StudentOnboardingPage() {
       learning_goals: learningGoals.trim() || null,
     }
 
+    console.log('[Onboarding] Step 2 payload before cleanup:', studentPayload)
+
     // Hapus field null (kecuali user_id dan subjects)
     Object.keys(studentPayload).forEach(key => {
       if (key !== 'user_id' && key !== 'subjects' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
@@ -315,12 +354,32 @@ export default function StudentOnboardingPage() {
       }
     })
 
-    const { error: sdErr } = await supabase
+    console.log('[Onboarding] Step 2 payload after cleanup:', studentPayload)
+
+    const { data: upsertData, error: sdErr } = await supabase
       .from('students')
       .upsert(studentPayload, { onConflict: 'user_id' })
+      .select()
 
-    if (sdErr) throw new Error(`Gagal save minat belajar: ${sdErr.message}`)
+    console.log('[Onboarding] Step 2 upsert response:', { data: upsertData, error: sdErr })
 
+    if (sdErr) {
+      console.error('[Onboarding] Step 2 upsert error details:', {
+        message: sdErr.message,
+        details: sdErr.details,
+        hint: sdErr.hint,
+        code: sdErr.code,
+        payload: studentPayload,
+      })
+      throw new Error(`Gagal save minat belajar: ${sdErr.message}`)
+    }
+
+    if (!upsertData || upsertData.length === 0) {
+      console.error('[Onboarding] Step 2 upsert returned no data:', { payload: studentPayload, data: upsertData })
+      throw new Error('Data minat belajar gagal disimpan ke database (response kosong)')
+    }
+
+    console.log('[Onboarding] Step 2 saved successfully:', upsertData[0])
     return true
   }
 
@@ -339,6 +398,8 @@ export default function StudentOnboardingPage() {
       sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
     }
 
+    console.log('[Onboarding] Step 3 payload before cleanup:', studentPayload)
+
     // Hapus field null (kecuali user_id)
     Object.keys(studentPayload).forEach(key => {
       if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
@@ -346,12 +407,32 @@ export default function StudentOnboardingPage() {
       }
     })
 
-    const { error: sdErr } = await supabase
+    console.log('[Onboarding] Step 3 payload after cleanup:', studentPayload)
+
+    const { data: upsertData, error: sdErr } = await supabase
       .from('students')
       .upsert(studentPayload, { onConflict: 'user_id' })
+      .select()
 
-    if (sdErr) throw new Error(`Gagal save rencana belajar: ${sdErr.message}`)
+    console.log('[Onboarding] Step 3 upsert response:', { data: upsertData, error: sdErr })
 
+    if (sdErr) {
+      console.error('[Onboarding] Step 3 upsert error details:', {
+        message: sdErr.message,
+        details: sdErr.details,
+        hint: sdErr.hint,
+        code: sdErr.code,
+        payload: studentPayload,
+      })
+      throw new Error(`Gagal save rencana belajar: ${sdErr.message}`)
+    }
+
+    if (!upsertData || upsertData.length === 0) {
+      console.error('[Onboarding] Step 3 upsert returned no data:', { payload: studentPayload, data: upsertData })
+      throw new Error('Data rencana belajar gagal disimpan ke database (response kosong)')
+    }
+
+    console.log('[Onboarding] Step 3 saved successfully:', upsertData[0])
     return true
   }
 
@@ -359,15 +440,23 @@ export default function StudentOnboardingPage() {
   // HANDLE NEXT
   // ============================================================
   const handleNext = async () => {
-    if (!validateStep()) return
+    console.log('[Onboarding] handleNext triggered', { step, saving })
 
+    if (!validateStep()) {
+      console.log('[Onboarding] handleNext validation failed', { step })
+      return
+    }
+
+    console.log('[Onboarding] handleNext validation passed', { step })
     setSaving(true)
     setError(null)
 
     try {
       // STEP 1 → 2: Simpan data profil siswa (sekolah, ortu) ke students
       if (step === 1) {
+        console.log('[Onboarding] handleNext saving step 1 data')
         await saveStep1Data()
+        console.log('[Onboarding] handleNext moving from step 1 to step 2')
         setStep(2)
         setSaving(false)
         return
@@ -375,7 +464,9 @@ export default function StudentOnboardingPage() {
 
       // STEP 2 → 3: Simpan minat belajar (grade, subjects, goals) ke students
       if (step === 2) {
+        console.log('[Onboarding] handleNext saving step 2 data')
         await saveStep2Data()
+        console.log('[Onboarding] handleNext moving from step 2 to step 3')
         setStep(3)
         setSaving(false)
         return
@@ -383,7 +474,9 @@ export default function StudentOnboardingPage() {
 
       // STEP 3 → 4: Simpan rencana belajar (schedule, budget, sessions) ke students
       if (step === 3) {
+        console.log('[Onboarding] handleNext saving step 3 data')
         await saveStep3Data()
+        console.log('[Onboarding] handleNext moving from step 3 to step 4')
         setStep(4)
         setSaving(false)
         return
@@ -391,6 +484,11 @@ export default function StudentOnboardingPage() {
 
       // STEP 4: Submit payment dan tandai onboarding_complete = true
       if (step === 4) {
+        console.log('[Onboarding] handleNext finalizing onboarding', {
+          selectedPayment,
+          budgetPerMonth,
+          transferProof: transferProof.trim() || null,
+        })
         const currentUserId = await resolveUserId()
         const supabase = createClient()
         
@@ -400,7 +498,18 @@ export default function StudentOnboardingPage() {
           .update({ onboarding_complete: true })
           .eq('user_id', currentUserId)
 
-        if (completeErr) throw new Error(`Gagal update onboarding status: ${completeErr.message}`)
+        if (completeErr) {
+          console.error('[Onboarding] handleNext onboarding status update error:', {
+            message: completeErr.message,
+            details: completeErr.details,
+            hint: completeErr.hint,
+            code: completeErr.code,
+            userId: currentUserId,
+          })
+          throw new Error(`Gagal update onboarding status: ${completeErr.message}`)
+        }
+
+        console.log('[Onboarding] handleNext onboarding status updated successfully', { userId: currentUserId })
 
         // 2. Proses payment via API
         const { data: { session } } = await supabase.auth.getSession()
@@ -408,11 +517,18 @@ export default function StudentOnboardingPage() {
 
         const depositAmount = budgetPerMonth ? Number(budgetPerMonth) : 0
 
+        console.log('[Onboarding] handleNext submitting payment payload', {
+          amount: depositAmount,
+          paymentMethod: selectedPayment,
+          isOnboardingDeposit: true,
+          transactionRef: transferProof.trim() || null,
+        })
+
         const res = await fetch('/api/payments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': 'Bearer ' + session.access_token
           },
           body: JSON.stringify({
             amount: depositAmount,
@@ -424,8 +540,15 @@ export default function StudentOnboardingPage() {
 
         if (!res.ok) {
           const json = await res.json().catch(() => ({}))
+          console.error('[Onboarding] handleNext payment request failed:', {
+            status: res.status,
+            statusText: res.statusText,
+            response: json,
+          })
           throw new Error(json.error || 'Gagal menyimpan data pembayaran')
         }
+
+        console.log('[Onboarding] handleNext payment saved successfully, redirecting to dashboard')
 
         // Redirect ke dashboard
         router.push('/dashboard/student')
@@ -433,7 +556,12 @@ export default function StudentOnboardingPage() {
         return
       }
     } catch (err: any) {
-      console.error('[Onboarding] Error:', err)
+      console.error('[Onboarding] handleNext error details:', {
+        step,
+        message: err?.message,
+        stack: err?.stack,
+        error: err,
+      })
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
       setSaving(false)
     }
@@ -974,7 +1102,7 @@ export default function StudentOnboardingPage() {
             {step === 1 ? 'Kembali' : 'Sebelumnya'}
           </Button>
 
-          <Button onClick={handleNext} disabled={saving || !userId} className="bg-primary hover:bg-primary/90 px-8">
+          <Button onClick={handleNext} disabled={saving} className="bg-primary hover:bg-primary/90 px-8">
             {saving ? (
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
