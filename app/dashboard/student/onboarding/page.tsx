@@ -272,20 +272,37 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  const currentUserId = await resolveUserId()
-  const supabase = createClient()
+  console.log('[DEBUG] 🚀 saveStep1Data START')
 
-  // Ambil session untuk mendapatkan access token
+  // 1. Resolve user ID
+  const currentUserId = await resolveUserId()
+  console.log('[DEBUG] 👤 currentUserId:', currentUserId)
+
+  // 2. Buat Supabase client dan ambil session
+  const supabase = createClient()
+  console.log('[DEBUG] 📦 supabase client created')
+
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session) {
-    console.error('[Onboarding] Session error:', sessionError)
-    throw new Error('Gagal mendapatkan session. Silakan login ulang.')
+  console.log('[DEBUG] 🔑 Session retrieved:', { 
+    hasSession: !!session, 
+    userEmail: session?.user?.email,
+    hasAccessToken: !!session?.access_token,
+    error: sessionError
+  })
+
+  if (sessionError) {
+    console.error('[DEBUG] ❌ Session error:', sessionError)
+    throw new Error(`Session error: ${sessionError.message}`)
   }
 
-  const accessToken = session.access_token
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  if (!session) {
+    console.error('[DEBUG] ❌ No session found')
+    throw new Error('No session found')
+  }
 
-  // Payload sederhana
+  console.log('[DEBUG] ✅ Access token available:', session.access_token.substring(0, 10) + '...')
+
+  // 3. Siapkan payload
   const payload = {
     user_id: currentUserId,
     name: siswaData.name.trim() || 'Test Name',
@@ -293,30 +310,39 @@ export default function StudentOnboardingPage() {
     status: 'active',
     onboarding_complete: false,
   }
+  console.log('[DEBUG] 📦 Payload:', payload)
 
-  console.log('[Onboarding] 📦 Payload:', payload)
-  console.log('[Onboarding] 🔑 Access token:', accessToken ? 'Ada' : 'Tidak ada')
+  // 4. Kirim request dengan fetch (pakai access token, BUKAN anon key)
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
+  console.log('[DEBUG] 🌐 Fetch URL:', url)
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/students`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      'Authorization': `Bearer ${accessToken}` // <-- pakai access token, bukan anon key
-    },
-    body: JSON.stringify(payload)
-  })
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${session.access_token}` // ← ACCESS TOKEN!
+      },
+      body: JSON.stringify(payload)
+    })
 
-  const responseData = await response.json()
-  console.log('[Onboarding] 📡 Response status:', response.status)
-  console.log('[Onboarding] 📡 Response data:', responseData)
+    console.log('[DEBUG] 📡 Response status:', response.status)
+    console.log('[DEBUG] 📡 Response ok:', response.ok)
 
-  if (!response.ok) {
-    throw new Error(`Insert failed: ${responseData.message || response.statusText}`)
+    const responseData = await response.json()
+    console.log('[DEBUG] 📡 Response data:', responseData)
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseData)}`)
+    }
+
+    console.log('[DEBUG] ✅ Data inserted successfully!')
+    return true
+  } catch (err) {
+    console.error('[DEBUG] ❌ Fetch error:', err)
+    throw err
   }
-
-  console.log('[Onboarding] ✅ Data inserted successfully')
-  return true
 }
 
   // ============================================================
