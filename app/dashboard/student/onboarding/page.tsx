@@ -272,55 +272,110 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-    const currentUserId = await resolveUserId()
-    const supabase = createClient()
+  const currentUserId = await resolveUserId()
+  const supabase = createClient()
 
-    console.log('[Onboarding] Step1: saving all student data for', currentUserId)
+  console.log('[Onboarding] Step1: saving all student data for', currentUserId)
 
-    // Payload lengkap untuk students (semua field)
-    const studentPayload: Record<string, any> = {
-      user_id: currentUserId,
-      // Data Siswa
-      name: siswaData.name.trim() || null,
-      phone: siswaData.phone.trim() || null,
-      gender: siswaData.gender || null,
-      bio: siswaData.bio.trim() || null,
-      // Data Sekolah
-      school_name: sekolahData.school_name.trim() || null,
-      school_type: sekolahData.school_type || null,
-      school_city: sekolahData.school_city.trim() || null,
-      school_address: sekolahData.school_address.trim() || null,
-      // Data Orang Tua
-      parent_name: ortuData.parent_name.trim() || null,
-      parent_phone: ortuData.parent_phone.trim() || null,
-      parent_email: ortuData.parent_email.trim() || null,
-      parent_relation: ortuData.parent_relation || null,
-      // Status
-      onboarding_complete: false,
-      status: 'active',
-    }
+  // 1. CEK apakah user_profiles ada untuk user ini
+  const { data: profile, error: profileCheckErr } = await supabase
+    .from('user_profiles')
+    .select('id')
+    .eq('id', currentUserId)
+    .maybeSingle()
 
-    // Hapus field null/undefined (kecuali user_id)
-    Object.keys(studentPayload).forEach(key => {
-      if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
-        delete studentPayload[key]
-      }
-    })
-
-    console.log('[Onboarding] Upsert students payload:', studentPayload)
-
-    const { error: upsertErr } = await supabase
-      .from('students')
-      .upsert(studentPayload, { onConflict: 'user_id' })
-
-    if (upsertErr) {
-      console.error('[Onboarding] Upsert students error:', upsertErr)
-      throw new Error(`Gagal menyimpan data siswa: ${upsertErr.message}`)
-    }
-
-    console.log('[Onboarding] Students data saved successfully')
-    return true
+  if (profileCheckErr) {
+    console.error('[Onboarding] Error checking user_profiles:', profileCheckErr)
+    throw new Error(`Gagal verifikasi profil user: ${profileCheckErr.message}`)
   }
+
+  if (!profile) {
+    console.error('[Onboarding] user_profiles NOT FOUND for user:', currentUserId)
+    throw new Error('Profil user tidak ditemukan. Silakan login ulang.')
+  }
+
+  console.log('[Onboarding] user_profiles FOUND for user:', currentUserId)
+
+  // 2. Siapkan payload
+  const studentPayload: Record<string, any> = {
+    user_id: currentUserId,
+    name: siswaData.name.trim() || null,
+    phone: siswaData.phone.trim() || null,
+    gender: siswaData.gender || null,
+    bio: siswaData.bio.trim() || null,
+    school_name: sekolahData.school_name.trim() || null,
+    school_type: sekolahData.school_type || null,
+    school_city: sekolahData.school_city.trim() || null,
+    school_address: sekolahData.school_address.trim() || null,
+    parent_name: ortuData.parent_name.trim() || null,
+    parent_phone: ortuData.parent_phone.trim() || null,
+    parent_email: ortuData.parent_email.trim() || null,
+    parent_relation: ortuData.parent_relation || null,
+    onboarding_complete: false,
+    status: 'active',
+  }
+
+  // Hapus null/undefined (kecuali user_id)
+  Object.keys(studentPayload).forEach(key => {
+    if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+      delete studentPayload[key]
+    }
+  })
+
+  console.log('[Onboarding] Upsert payload:', studentPayload)
+
+  // 3. Upsert dengan .select()
+  const { data, error: upsertErr } = await supabase
+    .from('students')
+    .upsert(studentPayload, { onConflict: 'user_id' })
+    .select()
+
+  console.log('[Onboarding] Upsert response data:', data)
+  console.log('[Onboarding] Upsert error:', upsertErr)
+
+  if (upsertErr) {
+    console.error('[Onboarding] Upsert error details:', upsertErr)
+    throw new Error(`Gagal menyimpan data siswa: ${upsertErr.message}`)
+  }
+
+  // 4. Jika upsert tidak mengembalikan data, coba cek manual
+  if (!data || data.length === 0) {
+    console.warn('[Onboarding] Upsert returned no data, checking manually...')
+    const { data: checkData, error: checkErr } = await supabase
+      .from('students')
+      .select('*')
+      .eq('user_id', currentUserId)
+      .maybeSingle()
+
+    console.log('[Onboarding] Manual check result:', checkData)
+    console.log('[Onboarding] Manual check error:', checkErr)
+
+    if (checkErr) {
+      console.error('[Onboarding] Manual check error:', checkErr)
+      throw new Error(`Gagal verifikasi data: ${checkErr.message}`)
+    }
+
+    if (!checkData) {
+      console.error('[Onboarding] Data STILL NOT FOUND after upsert!')
+      // Coba insert langsung sebagai fallback
+      console.log('[Onboarding] Attempting direct insert...')
+      const { error: insertErr } = await supabase
+        .from('students')
+        .insert(studentPayload)
+      if (insertErr) {
+        console.error('[Onboarding] Direct insert error:', insertErr)
+        throw new Error(`Insert langsung gagal: ${insertErr.message}`)
+      }
+      console.log('[Onboarding] Direct insert success!')
+    } else {
+      console.log('[Onboarding] Data found after manual check:', checkData)
+    }
+  } else {
+    console.log('[Onboarding] Data saved successfully:', data[0])
+  }
+
+  return true
+}
 
   // ============================================================
   // SAVE STEP 2
