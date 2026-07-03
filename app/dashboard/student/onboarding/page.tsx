@@ -272,59 +272,69 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
+  console.log('[Onboarding] 🔍 saveStep1Data START')
+  
+  // 1. Buat client dan ambil user ID
+  const supabase = createClient()
   const currentUserId = await resolveUserId()
+  console.log('[Onboarding] currentUserId:', currentUserId)
 
-  console.log('[FETCH] 🔍 Starting direct fetch for user:', currentUserId)
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  console.log('[FETCH] URL:', url)
-  console.log('[FETCH] ANON KEY exists:', !!anonKey)
-
-  if (!url || !anonKey) {
-    console.error('[FETCH] ❌ Environment variables missing!')
-    throw new Error('Supabase URL atau ANON KEY tidak ditemukan.')
+  // 2. Ambil session untuk mendapatkan access token
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) {
+    console.error('[Onboarding] ❌ Session error:', sessionError)
+    throw new Error(`Session error: ${sessionError.message}`)
   }
+  if (!session) {
+    console.error('[Onboarding] ❌ No session found')
+    throw new Error('No active session. Silakan login ulang.')
+  }
+  console.log('[Onboarding] ✅ Session OK, user:', session.user.email)
+  console.log('[Onboarding] ✅ Access token:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
 
+  // 3. Siapkan payload (minimal dulu untuk testing)
   const payload = {
     user_id: currentUserId,
-    name: siswaData.name.trim() || 'Test Name',
-    parent_name: ortuData.parent_name.trim() || 'Test Parent',
+    name: siswaData.name.trim() || null,
+    parent_name: ortuData.parent_name.trim() || null,
     status: 'active',
     onboarding_complete: false,
   }
 
-  console.log('[FETCH] 📦 Payload:', payload)
-
-  try {
-    const response = await fetch(`${url}/rest/v1/students`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify(payload),
-    })
-
-    console.log('[FETCH] 📡 Response status:', response.status)
-
-    const data = await response.json()
-    console.log('[FETCH] 📡 Response data:', data)
-
-    if (!response.ok) {
-      console.error('[FETCH] ❌ Response error:', data)
-      throw new Error(`Gagal insert: ${data.message || JSON.stringify(data)}`)
+  // Hapus null/undefined
+  Object.keys(payload).forEach(key => {
+    const k = key as keyof typeof payload
+    if (payload[k] === null || payload[k] === undefined) {
+      delete payload[k]
     }
+  })
+  console.log('[Onboarding] 📦 Payload:', payload)
 
-    console.log('[FETCH] ✅ Data inserted successfully:', data)
-    return true
-  } catch (err: any) {
-    console.error('[FETCH] ❌ Exception:', err)
-    throw new Error(`Request gagal: ${err.message}`)
+  // 4. Kirim dengan fetch menggunakan access token
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
+  console.log('[Onboarding] 🌐 URL:', url)
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      'Authorization': `Bearer ${session.access_token}` // <-- ACCESS TOKEN
+    },
+    body: JSON.stringify(payload)
+  })
+
+  console.log('[Onboarding] 📡 Response status:', response.status)
+  const data = await response.json()
+  console.log('[Onboarding] 📡 Response data:', data)
+
+  if (!response.ok) {
+    console.error('[Onboarding] ❌ Response error:', data)
+    throw new Error(`Insert failed: ${data.message || JSON.stringify(data)}`)
   }
+
+  console.log('[Onboarding] ✅ Insert successful:', data)
+  return true
 }
 
   // ============================================================
