@@ -275,93 +275,53 @@ export default function StudentOnboardingPage() {
   console.log('[ONBOARDING] 🚀 saveStep1Data DIMULAI')
 
   try {
-    // Step 1: Gunakan authUser dari context (sudah tersedia)
-    console.log('[ONBOARDING] 📌 1. Getting user from context...')
-    if (!authUser) {
-      throw new Error('User tidak ditemukan di context. Silakan login ulang.')
-    }
-    const currentUserId = authUser.id
-    console.log('[ONBOARDING] ✅ currentUserId:', currentUserId)
-    console.log('[ONBOARDING] ✅ User email:', authUser.email)
+    // 1. Ambil user dari context
+    if (!authUser) throw new Error('User tidak ditemukan di context')
+    console.log('[ONBOARDING] ✅ currentUserId:', authUser.id)
 
-    // Step 2: Dapatkan access token dari session (masih perlu, tapi bisa dari supabase client)
-    console.log('[ONBOARDING] 📌 2. Getting access token...')
+    // 2. Ambil session + access token
     const supabase = createClient()
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    console.log('[ONBOARDING] ✅ Session retrieved:', { 
-      hasSession: !!session, 
-      userEmail: session?.user?.email,
-      error: sessionError?.message || null
-    })
+    if (sessionError) throw new Error(`Session error: ${sessionError.message}`)
+    if (!session) throw new Error('No active session')
+    console.log('[ONBOARDING] ✅ Access token ada')
 
-    if (sessionError) {
-      console.error('[ONBOARDING] ❌ Session error:', sessionError)
-      throw new Error(`Session error: ${sessionError.message}`)
-    }
-
-    if (!session) {
-      console.error('[ONBOARDING] ❌ No session found')
-      throw new Error('No active session. Silakan login ulang.')
-    }
-
-    const accessToken = session.access_token
-    console.log('[ONBOARDING] ✅ Access token available:', accessToken ? '✅ Ada' : '❌ Tidak ada')
-
-    // Step 3: Siapkan payload dengan SEMUA data profil
-    console.log('[ONBOARDING] 📌 3. Preparing payload with all profile data...')
+    // 3. Siapkan payload (minimal dulu)
     const payload = {
-      user_id: currentUserId,
-      // Data Siswa
-      name: siswaData.name.trim() || null,
-      phone: siswaData.phone.trim() || null,
-      gender: siswaData.gender || null,
-      bio: siswaData.bio.trim() || null,
-      // Data Sekolah
-      school_name: sekolahData.school_name.trim() || null,
-      school_type: sekolahData.school_type || null,
-      school_city: sekolahData.school_city.trim() || null,
-      school_address: sekolahData.school_address.trim() || null,
-      // Data Orang Tua
-      parent_name: ortuData.parent_name.trim() || null,
-      parent_phone: ortuData.parent_phone.trim() || null,
-      parent_email: ortuData.parent_email.trim() || null,
-      parent_relation: ortuData.parent_relation || null,
-      // Status
-      status: 'active',
-      onboarding_complete: false,
+      user_id: authUser.id,
+      name: siswaData.name.trim(),
+      parent_name: ortuData.parent_name.trim(),
+      // tambahkan field lain kalau mau, tapi minimal dulu
     }
-    // Hapus null/undefined untuk tidak menimpa data yang sudah ada
-    Object.keys(payload).forEach(key => {
-      const k = key as keyof typeof payload
-      if (payload[k] === null || payload[k] === undefined) {
-        delete payload[k]
-      }
-    })
     console.log('[ONBOARDING] 📦 Payload:', payload)
-    // Step 4: Kirim ke API endpoint baru
-    console.log('[ONBOARDING] 📌 4. Sending request to /api/students/onboarding...')
-    const response = await fetch('/api/students/onboarding', {
+
+    // 4. Kirim fetch ke API route (gunakan URL absolut)
+    const apiUrl = process.env.NEXT_PUBLIC_APP_URL 
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/students/onboarding`
+      : '/api/students/onboarding'
+    console.log('[ONBOARDING] 🌐 API URL:', apiUrl)
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + accessToken,
+        'Authorization': 'Bearer ' + session.access_token,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     })
 
     console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const responseData = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', responseData)
+    const result = await response.json()
+    console.log('[ONBOARDING] 📡 Response data:', result)
 
     if (!response.ok) {
-      console.error('[ONBOARDING] ❌ Response error:', responseData)
-      throw new Error(`Insert failed: ${responseData.message || JSON.stringify(responseData)}`)
+      throw new Error(result.error || `HTTP ${response.status}`)
     }
 
-    console.log('[ONBOARDING] ✅ Insert successful:', responseData)
+    console.log('[ONBOARDING] ✅ Sukses!')
     return true
-  } catch (err: any) {
-    console.error('[ONBOARDING] ❌ CATCH ERROR:', err)
+  } catch (err) {
+    console.error('[ONBOARDING] ❌ ERROR:', err)
     throw err
   }
 }
