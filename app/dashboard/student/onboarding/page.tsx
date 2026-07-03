@@ -272,32 +272,21 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('[DEBUG] 🚀 saveStep1Data START')
-
-  // 1. Resolve user ID
   const currentUserId = await resolveUserId()
-  console.log('[DEBUG] 👤 currentUserId:', currentUserId)
 
-  // 2. Ambil session
-  const supabase = createClient()
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  console.log('[DEBUG] 🔑 Session:', { 
-    hasSession: !!session, 
-    userEmail: session?.user?.email,
-    hasAccessToken: !!session?.access_token
-  })
+  console.log('[FETCH] 🔍 Starting direct fetch for user:', currentUserId)
 
-  if (!session || !session.access_token) {
-    throw new Error('No access token')
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  console.log('[FETCH] URL:', url)
+  console.log('[FETCH] ANON KEY exists:', !!anonKey)
+
+  if (!url || !anonKey) {
+    console.error('[FETCH] ❌ Environment variables missing!')
+    throw new Error('Supabase URL atau ANON KEY tidak ditemukan.')
   }
 
-  // 3. Cek environment variables
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  console.log('[DEBUG] 🔍 SUPABASE_URL:', supabaseUrl)
-  console.log('[DEBUG] 🔍 SUPABASE_ANON_KEY exists:', !!supabaseAnonKey)
-
-  // 4. Siapkan payload
   const payload = {
     user_id: currentUserId,
     name: siswaData.name.trim() || 'Test Name',
@@ -305,37 +294,36 @@ export default function StudentOnboardingPage() {
     status: 'active',
     onboarding_complete: false,
   }
-  console.log('[DEBUG] 📦 Payload:', payload)
 
-  // 5. Jika URL undefined, gunakan hardcode untuk testing
-  const url = supabaseUrl || 'https://tqzzxmqwgbfbynhbdlby.supabase.co/rest/v1/students'
-  console.log('[DEBUG] 🌐 Fetch URL:', url)
+  console.log('[FETCH] 📦 Payload:', payload)
 
-  console.log('[DEBUG] ⏳ Attempting fetch...')
   try {
-    const response = await fetch(url, {
+    const response = await fetch(`${url}/rest/v1/students`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey || '',
-        'Authorization': `Bearer ${session.access_token}`
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+        'Prefer': 'return=representation'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     })
 
-    console.log('[DEBUG] 📡 Response status:', response.status)
+    console.log('[FETCH] 📡 Response status:', response.status)
+
     const data = await response.json()
-    console.log('[DEBUG] 📡 Response data:', data)
+    console.log('[FETCH] 📡 Response data:', data)
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`)
+      console.error('[FETCH] ❌ Response error:', data)
+      throw new Error(`Gagal insert: ${data.message || JSON.stringify(data)}`)
     }
 
-    console.log('[DEBUG] ✅ Success!')
+    console.log('[FETCH] ✅ Data inserted successfully:', data)
     return true
-  } catch (err) {
-    console.error('[DEBUG] ❌ Fetch error:', err)
-    throw err
+  } catch (err: any) {
+    console.error('[FETCH] ❌ Exception:', err)
+    throw new Error(`Request gagal: ${err.message}`)
   }
 }
 
