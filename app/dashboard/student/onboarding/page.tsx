@@ -142,58 +142,61 @@ export default function StudentOnboardingPage() {
   // LOAD DATA DARI SUPABASE
   // ============================================================
   const loadStudentData = async (uid: string) => {
-    try {
-      const supabase = createClient()
+  try {
+    const supabase = createClient()
 
-      // Load user_profiles
-      const { data: profile, error: profileErr } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', uid)
-        .maybeSingle()
+    // Load user_profiles (hanya baca)
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('name, email, phone, gender, bio')
+      .eq('id', uid)
+      .maybeSingle()
 
-      if (!profileErr && profile) {
-        setSiswaData(prev => ({
-          ...prev,
-          name: profile.name || '',
-          phone: profile.phone || '',
-          gender: profile.gender || '',
-          bio: profile.bio || '',
-        }))
-        setUserEmail(profile.email || '')
-      }
-
-      // Load students
-      const { data: student, error: studentErr } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', uid)
-        .maybeSingle()
-
-      if (!studentErr && student) {
-        setSekolahData({
-          school_name: student.school_name || '',
-          school_type: student.school_type || '',
-          school_city: student.school_city || '',
-          school_address: student.school_address || '',
-        })
-        setOrtuData({
-          parent_name: student.parent_name || '',
-          parent_phone: student.parent_phone || '',
-          parent_email: student.parent_email || '',
-          parent_relation: student.parent_relation || '',
-        })
-        setGradeLevel(student.grade_level || '')
-        setSubjects(student.subjects || [])
-        setLearningGoals(student.learning_goals || '')
-        setSchedule(student.preferred_schedule || '')
-        setBudgetPerMonth(student.budget_per_month?.toString() || '')
-        setSessionsPerMonth(student.sessions_per_month?.toString() || '')
-      }
-    } catch (err) {
-      console.error('[Onboarding] Load data error:', err)
+    if (!profileErr && profile) {
+      setSiswaData({
+        name: profile.name || '',
+        phone: profile.phone || '',
+        gender: profile.gender || '',
+        bio: profile.bio || '',
+      })
+      setUserEmail(profile.email || '')
+    } else if (profileErr) {
+      console.warn('[Onboarding] Load profile error:', profileErr)
     }
+
+    // Load students (data spesifik siswa)
+    const { data: student, error: studentErr } = await supabase
+      .from('students')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle()
+
+    if (!studentErr && student) {
+      setSekolahData({
+        school_name: student.school_name || '',
+        school_type: student.school_type || '',
+        school_city: student.school_city || '',
+        school_address: student.school_address || '',
+      })
+      setOrtuData({
+        parent_name: student.parent_name || '',
+        parent_phone: student.parent_phone || '',
+        parent_email: student.parent_email || '',
+        parent_relation: student.parent_relation || '',
+      })
+      setGradeLevel(student.grade_level || '')
+      setSubjects(student.subjects || [])
+      setLearningGoals(student.learning_goals || '')
+      setSchedule(student.preferred_schedule || '')
+      setBudgetPerMonth(student.budget_per_month?.toString() || '')
+      setSessionsPerMonth(student.sessions_per_month?.toString() || '')
+    } else if (studentErr) {
+      console.warn('[Onboarding] Load student error:', studentErr)
+    }
+  } catch (err) {
+    console.error('[Onboarding] Load data error:', err)
   }
+}
 
   // ============================================================
   // INISIALISASI
@@ -278,120 +281,43 @@ export default function StudentOnboardingPage() {
   const currentUserId = await resolveUserId()
   const supabase = createClient()
 
-  console.log('[Onboarding] Step1 start for userId:', currentUserId)
+  console.log('[Onboarding] Step1: saving student data for', currentUserId)
 
-  // --- 1. Update user_profiles (untuk nama siswa) ---
-  try {
-    const profileUpdate: Record<string, any> = {
-      name: siswaData.name.trim(),
-      role: 'siswa',
-    }
-    if (siswaData.phone.trim()) profileUpdate.phone = siswaData.phone.trim()
-    if (siswaData.gender) profileUpdate.gender = siswaData.gender
-    if (siswaData.bio.trim()) profileUpdate.bio = siswaData.bio.trim()
-    // email: ambil dari authUser atau state
-    const email = userEmail || authUser?.email
-    if (email) profileUpdate.email = email
-
-    console.log('[Onboarding] Updating user_profiles:', profileUpdate)
-    const { error: profileErr } = await supabase
-      .from('user_profiles')
-      .update(profileUpdate)
-      .eq('id', currentUserId)
-
-    if (profileErr) {
-      console.warn('[Onboarding] user_profiles update error:', profileErr)
-      // Jangan throw, tetap lanjut ke students
-    } else {
-      console.log('[Onboarding] user_profiles updated')
-    }
-  } catch (err) {
-    console.warn('[Onboarding] user_profiles exception:', err)
-    // Jangan throw, lanjut
+  // Payload untuk students (hanya field yang ada di tabel students)
+  const studentPayload: Record<string, any> = {
+    user_id: currentUserId,
+    school_name: sekolahData.school_name.trim() || null,
+    school_type: sekolahData.school_type || null,
+    school_city: sekolahData.school_city.trim() || null,
+    school_address: sekolahData.school_address.trim() || null,
+    parent_name: ortuData.parent_name.trim() || null,
+    parent_phone: ortuData.parent_phone.trim() || null,
+    parent_email: ortuData.parent_email.trim() || null,
+    parent_relation: ortuData.parent_relation || null,
+    onboarding_complete: false,
+    status: 'active',
   }
 
-  // --- 2. Pastikan ada record students ---
-  let studentId: string | null = null
-  try {
-    console.log('[Onboarding] Checking existing student record...')
-    const { data: existing, error: checkErr } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', currentUserId)
-      .maybeSingle()
-
-    if (checkErr) {
-      console.error('[Onboarding] Error checking student:', checkErr)
-      throw new Error(`Gagal cek data siswa: ${checkErr.message}`)
+  // Hapus field null/undefined (kecuali user_id)
+  Object.keys(studentPayload).forEach(key => {
+    if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
+      delete studentPayload[key]
     }
+  })
 
-    if (!existing) {
-      console.log('[Onboarding] No student record, inserting...')
-      const { data: inserted, error: insertErr } = await supabase
-        .from('students')
-        .insert({
-          user_id: currentUserId,
-          status: 'active',
-          onboarding_complete: false,
-        })
-        .select('id')
-        .single()
+  console.log('[Onboarding] Upsert students payload:', studentPayload)
 
-      if (insertErr) {
-        console.error('[Onboarding] Insert student error:', insertErr)
-        throw new Error(`Gagal insert data siswa: ${insertErr.message}`)
-      }
-      studentId = inserted.id
-      console.log('[Onboarding] Student record inserted, id:', studentId)
-    } else {
-      studentId = existing.id
-      console.log('[Onboarding] Student record exists, id:', studentId)
-    }
-  } catch (err) {
-    console.error('[Onboarding] Error in student check/insert:', err)
-    throw err // Lempar ke handleNext
+  const { error: upsertErr } = await supabase
+    .from('students')
+    .upsert(studentPayload, { onConflict: 'user_id' })
+
+  if (upsertErr) {
+    console.error('[Onboarding] Upsert students error:', upsertErr)
+    throw new Error(`Gagal menyimpan data siswa: ${upsertErr.message}`)
   }
 
-  // --- 3. Update students dengan data lengkap (sekolah, orang tua) ---
-  try {
-    const updatePayload: Record<string, any> = {
-      school_name: sekolahData.school_name.trim() || null,
-      school_type: sekolahData.school_type || null,
-      school_city: sekolahData.school_city.trim() || null,
-      school_address: sekolahData.school_address.trim() || null,
-      parent_name: ortuData.parent_name.trim() || null,
-      parent_phone: ortuData.parent_phone.trim() || null,
-      parent_email: ortuData.parent_email.trim() || null,
-      parent_relation: ortuData.parent_relation || null,
-      onboarding_complete: false,
-      status: 'active',
-    }
-
-    // Hapus null/undefined
-    Object.keys(updatePayload).forEach(key => {
-      if (updatePayload[key] === null || updatePayload[key] === undefined) {
-        delete updatePayload[key]
-      }
-    })
-
-    console.log('[Onboarding] Updating students with payload:', updatePayload)
-    const { data: updated, error: updateErr } = await supabase
-      .from('students')
-      .update(updatePayload)
-      .eq('user_id', currentUserId)
-      .select()
-
-    if (updateErr) {
-      console.error('[Onboarding] Update student error:', updateErr)
-      throw new Error(`Gagal update data siswa: ${updateErr.message}`)
-    }
-
-    console.log('[Onboarding] Student updated successfully:', updated)
-    return true
-  } catch (err) {
-    console.error('[Onboarding] Error in student update:', err)
-    throw err
-  }
+  console.log('[Onboarding] Students data saved successfully')
+  return true
 }
 
   // ============================================================
@@ -629,15 +555,17 @@ export default function StudentOnboardingPage() {
                       <Label>Nama Lengkap <span className="text-red-500">*</span></Label>
                       <Input
                         value={siswaData.name}
-                        onChange={e => setSiswaData(p => ({ ...p, name: e.target.value }))}
-                        placeholder="Nama lengkap sesuai KK"
+                        disabled
+                        className="bg-muted/50"
+                        placeholder="Nama lengkap (dari profil)"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label>No. HP / WhatsApp</Label>
                       <Input
                         value={siswaData.phone}
-                        onChange={e => setSiswaData(p => ({ ...p, phone: e.target.value }))}
+                        disabled
+                        className="bg-muted/50"
                         placeholder="08xx-xxxx-xxxx"
                       />
                     </div>
@@ -645,8 +573,10 @@ export default function StudentOnboardingPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Jenis Kelamin</Label>
-                      <Select value={siswaData.gender} onValueChange={v => setSiswaData(p => ({ ...p, gender: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Pilih jenis kelamin" /></SelectTrigger>
+                      <Select value={siswaData.gender} disabled>
+                        <SelectTrigger className="bg-muted/50">
+                          <SelectValue placeholder="Pilih jenis kelamin" />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="laki-laki">Laki-laki</SelectItem>
                           <SelectItem value="perempuan">Perempuan</SelectItem>
@@ -658,7 +588,8 @@ export default function StudentOnboardingPage() {
                     <Label>Tentang Saya / Catatan</Label>
                     <Textarea
                       value={siswaData.bio}
-                      onChange={e => setSiswaData(p => ({ ...p, bio: e.target.value }))}
+                      disabled
+                      className="bg-muted/50"
                       placeholder="Ceritakan tentang diri Anda, kebiasaan belajar, dll."
                       rows={3}
                     />
