@@ -275,9 +275,8 @@ export default function StudentOnboardingPage() {
   const currentUserId = await resolveUserId()
   const supabase = createClient()
 
-  console.log('[TEST] 🔍 Starting simple insert for user:', currentUserId)
+  console.log('[TEST] 🔍 Starting insert for user:', currentUserId)
 
-  // Payload minimal (hanya field yang pasti ada di tabel)
   const payload = {
     user_id: currentUserId,
     name: siswaData.name.trim() || 'Test Name',
@@ -288,22 +287,32 @@ export default function StudentOnboardingPage() {
 
   console.log('[TEST] 📦 Payload:', payload)
 
-  // 1. Coba insert
-  const { data, error } = await supabase
-    .from('students')
-    .insert(payload)
-    .select()
+  try {
+    // Set timeout 10 detik
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout after 10s')), 10000)
+    })
 
-  console.log('[TEST] 📡 Insert response:', { data, error })
+    const insertPromise = supabase
+      .from('students')
+      .insert(payload)
+      .select()
 
-  if (error) {
-    console.error('[TEST] ❌ Insert error details:', error)
-    // Tampilkan error di UI
-    throw new Error(`Insert gagal: ${error.message} (${error.code})`)
+    const result = await Promise.race([insertPromise, timeoutPromise]) as any
+
+    console.log('[TEST] 📡 Insert response:', result)
+
+    if (result.error) {
+      console.error('[TEST] ❌ Insert error:', result.error)
+      throw new Error(`Insert gagal: ${result.error.message}`)
+    }
+
+    console.log('[TEST] ✅ Insert success:', result.data)
+    return true
+  } catch (err) {
+    console.error('[TEST] ❌ Exception:', err)
+    throw err
   }
-
-  console.log('[TEST] ✅ Data inserted successfully:', data)
-  return true
 }
 
   // ============================================================
