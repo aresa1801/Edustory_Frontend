@@ -275,53 +275,48 @@ export default function StudentOnboardingPage() {
   const currentUserId = await resolveUserId()
   const supabase = createClient()
 
-  console.log('[Onboarding] 🔍 Saving data for user:', currentUserId)
+  // Ambil session untuk mendapatkan access token
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !session) {
+    console.error('[Onboarding] Session error:', sessionError)
+    throw new Error('Gagal mendapatkan session. Silakan login ulang.')
+  }
 
-  // Langsung siapkan payload (tanpa pengecekan session)
-  const payload: Record<string, any> = {
+  const accessToken = session.access_token
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
+  // Payload sederhana
+  const payload = {
     user_id: currentUserId,
-    name: siswaData.name.trim() || null,
-    phone: siswaData.phone.trim() || null,
-    gender: siswaData.gender || null,
-    bio: siswaData.bio.trim() || null,
-    school_name: sekolahData.school_name.trim() || null,
-    school_type: sekolahData.school_type || null,
-    school_city: sekolahData.school_city.trim() || null,
-    school_address: sekolahData.school_address.trim() || null,
-    parent_name: ortuData.parent_name.trim() || null,
-    parent_phone: ortuData.parent_phone.trim() || null,
-    parent_email: ortuData.parent_email.trim() || null,
-    parent_relation: ortuData.parent_relation || null,
+    name: siswaData.name.trim() || 'Test Name',
+    parent_name: ortuData.parent_name.trim() || 'Test Parent',
     status: 'active',
     onboarding_complete: false,
   }
 
-  // Hapus null/undefined
-  Object.keys(payload).forEach(key => {
-    if (payload[key] === null || payload[key] === undefined) {
-      delete payload[key]
-    }
+  console.log('[Onboarding] 📦 Payload:', payload)
+  console.log('[Onboarding] 🔑 Access token:', accessToken ? 'Ada' : 'Tidak ada')
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/students`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      'Authorization': `Bearer ${accessToken}` // <-- pakai access token, bukan anon key
+    },
+    body: JSON.stringify(payload)
   })
 
-  console.log('[Onboarding] 📦 Payload:', payload)
+  const responseData = await response.json()
+  console.log('[Onboarding] 📡 Response status:', response.status)
+  console.log('[Onboarding] 📡 Response data:', responseData)
 
-  try {
-    const { data, error } = await supabase
-      .from('students')
-      .upsert(payload, { onConflict: 'user_id' })
-      .select()
-
-    if (error) {
-      console.error('[Onboarding] ❌ Upsert error:', error)
-      throw new Error(`Gagal menyimpan data: ${error.message} (${error.code})`)
-    }
-
-    console.log('[Onboarding] ✅ Data saved:', data)
-    return true
-  } catch (err) {
-    console.error('[Onboarding] ❌ Exception:', err)
-    throw err
+  if (!response.ok) {
+    throw new Error(`Insert failed: ${responseData.message || response.statusText}`)
   }
+
+  console.log('[Onboarding] ✅ Data inserted successfully')
+  return true
 }
 
   // ============================================================
