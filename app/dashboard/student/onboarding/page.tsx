@@ -275,20 +275,20 @@ export default function StudentOnboardingPage() {
   console.log('[ONBOARDING] 🚀 saveStep1Data DIMULAI')
 
   try {
-    // Step 1: Resolve user ID
-    console.log('[ONBOARDING] 📌 1. Resolving user ID...')
-    const currentUserId = await resolveUserId()
+    // Step 1: Gunakan authUser dari context (sudah tersedia)
+    console.log('[ONBOARDING] 📌 1. Getting user from context...')
+    if (!authUser) {
+      throw new Error('User tidak ditemukan di context. Silakan login ulang.')
+    }
+    const currentUserId = authUser.id
     console.log('[ONBOARDING] ✅ currentUserId:', currentUserId)
+    console.log('[ONBOARDING] ✅ User email:', authUser.email)
 
-    // Step 2: Buat Supabase client
-    console.log('[ONBOARDING] 📌 2. Creating Supabase client...')
+    // Step 2: Dapatkan access token dari session (masih perlu, tapi bisa dari supabase client)
+    console.log('[ONBOARDING] 📌 2. Getting access token...')
     const supabase = createClient()
-    console.log('[ONBOARDING] ✅ Supabase client created')
-
-    // Step 3: Ambil session
-    console.log('[ONBOARDING] 📌 3. Getting session...')
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    console.log('[ONBOARDING] ✅ getSession result:', { 
+    console.log('[ONBOARDING] ✅ Session retrieved:', { 
       hasSession: !!session, 
       userEmail: session?.user?.email,
       error: sessionError?.message || null
@@ -304,10 +304,11 @@ export default function StudentOnboardingPage() {
       throw new Error('No active session. Silakan login ulang.')
     }
 
-    console.log('[ONBOARDING] ✅ Session OK, user:', session.user.email)
+    const accessToken = session.access_token
+    console.log('[ONBOARDING] ✅ Access token available:', accessToken ? '✅ Ada' : '❌ Tidak ada')
 
-    // Step 4: Siapkan payload
-    console.log('[ONBOARDING] 📌 4. Preparing payload...')
+    // Step 3: Siapkan payload
+    console.log('[ONBOARDING] 📌 3. Preparing payload...')
     const payload = {
       user_id: currentUserId,
       name: siswaData.name.trim() || null,
@@ -325,18 +326,17 @@ export default function StudentOnboardingPage() {
     })
     console.log('[ONBOARDING] 📦 Payload:', payload)
 
-    // Step 5: Kirim request dengan fetch
-    console.log('[ONBOARDING] 📌 5. Sending fetch request...')
+    // Step 4: Kirim dengan fetch
+    console.log('[ONBOARDING] 📌 4. Sending fetch request...')
     const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
     console.log('[ONBOARDING] 🌐 URL:', url)
-    console.log('[ONBOARDING] 🔑 Access token available:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Prefer': 'return=representation'
       },
       body: JSON.stringify(payload)
