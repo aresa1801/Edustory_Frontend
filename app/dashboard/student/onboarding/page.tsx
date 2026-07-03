@@ -273,58 +273,63 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep1Data = async () => {
   const currentUserId = await resolveUserId()
+  const supabase = createClient() // <- ini dari lib/supabase/client.ts
 
-  console.log('[FETCH] 🔍 Starting direct fetch for user:', currentUserId)
+  console.log('[Onboarding] 🔍 Saving with Supabase client for user:', currentUserId)
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  console.log('[FETCH] URL:', url)
-  console.log('[FETCH] ANON KEY exists:', !!anonKey)
-
-  if (!url || !anonKey) {
-    console.error('[FETCH] ❌ Environment variables missing!')
-    throw new Error('Supabase URL atau ANON KEY tidak ditemukan.')
+  // Cek session untuk memastikan autentikasi
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) {
+    console.error('[Onboarding] Session error:', sessionError)
+    throw new Error('Gagal mendapatkan session. Silakan login ulang.')
   }
+  if (!session) {
+    console.error('[Onboarding] No session found')
+    throw new Error('Session tidak ditemukan. Silakan login ulang.')
+  }
+  console.log('[Onboarding] Session OK, user:', session.user.email)
 
-  const payload = {
+  // Payload lengkap (semua data yang ada di step 1)
+  const payload: Record<string, any> = {
     user_id: currentUserId,
-    name: siswaData.name.trim() || 'Test Name',
-    parent_name: ortuData.parent_name.trim() || 'Test Parent',
+    name: siswaData.name.trim() || null,
+    phone: siswaData.phone.trim() || null,
+    gender: siswaData.gender || null,
+    bio: siswaData.bio.trim() || null,
+    school_name: sekolahData.school_name.trim() || null,
+    school_type: sekolahData.school_type || null,
+    school_city: sekolahData.school_city.trim() || null,
+    school_address: sekolahData.school_address.trim() || null,
+    parent_name: ortuData.parent_name.trim() || null,
+    parent_phone: ortuData.parent_phone.trim() || null,
+    parent_email: ortuData.parent_email.trim() || null,
+    parent_relation: ortuData.parent_relation || null,
     status: 'active',
     onboarding_complete: false,
   }
 
-  console.log('[FETCH] 📦 Payload:', payload)
-
-  try {
-    const response = await fetch(`${url}/rest/v1/students`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify(payload),
-    })
-
-    console.log('[FETCH] 📡 Response status:', response.status)
-
-    const data = await response.json()
-    console.log('[FETCH] 📡 Response data:', data)
-
-    if (!response.ok) {
-      console.error('[FETCH] ❌ Response error:', data)
-      throw new Error(`Gagal insert: ${data.message || JSON.stringify(data)}`)
+  // Hapus null/undefined
+  Object.keys(payload).forEach(key => {
+    if (payload[key] === null || payload[key] === undefined) {
+      delete payload[key]
     }
+  })
 
-    console.log('[FETCH] ✅ Data inserted successfully:', data)
-    return true
-  } catch (err: any) {
-    console.error('[FETCH] ❌ Exception:', err)
-    throw new Error(`Request gagal: ${err.message}`)
+  console.log('[Onboarding] 📦 Upsert payload:', payload)
+
+  // Upsert dengan .select() untuk mendapat data kembali
+  const { data, error } = await supabase
+    .from('students')
+    .upsert(payload, { onConflict: 'user_id' })
+    .select()
+
+  if (error) {
+    console.error('[Onboarding] ❌ Upsert error:', error)
+    throw new Error(`Gagal menyimpan data: ${error.message}`)
   }
+
+  console.log('[Onboarding] ✅ Data saved:', data)
+  return true
 }
 
   // ============================================================
