@@ -272,69 +272,91 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('[Onboarding] 🔍 saveStep1Data START')
-  
-  // 1. Buat client dan ambil user ID
-  const supabase = createClient()
-  const currentUserId = await resolveUserId()
-  console.log('[Onboarding] currentUserId:', currentUserId)
+  console.log('[ONBOARDING] 🚀 saveStep1Data DIMULAI')
 
-  // 2. Ambil session untuk mendapatkan access token
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError) {
-    console.error('[Onboarding] ❌ Session error:', sessionError)
-    throw new Error(`Session error: ${sessionError.message}`)
-  }
-  if (!session) {
-    console.error('[Onboarding] ❌ No session found')
-    throw new Error('No active session. Silakan login ulang.')
-  }
-  console.log('[Onboarding] ✅ Session OK, user:', session.user.email)
-  console.log('[Onboarding] ✅ Access token:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
+  try {
+    // Step 1: Resolve user ID
+    console.log('[ONBOARDING] 📌 1. Resolving user ID...')
+    const currentUserId = await resolveUserId()
+    console.log('[ONBOARDING] ✅ currentUserId:', currentUserId)
 
-  // 3. Siapkan payload (minimal dulu untuk testing)
-  const payload = {
-    user_id: currentUserId,
-    name: siswaData.name.trim() || null,
-    parent_name: ortuData.parent_name.trim() || null,
-    status: 'active',
-    onboarding_complete: false,
-  }
+    // Step 2: Buat Supabase client
+    console.log('[ONBOARDING] 📌 2. Creating Supabase client...')
+    const supabase = createClient()
+    console.log('[ONBOARDING] ✅ Supabase client created')
 
-  // Hapus null/undefined
-  Object.keys(payload).forEach(key => {
-    const k = key as keyof typeof payload
-    if (payload[k] === null || payload[k] === undefined) {
-      delete payload[k]
+    // Step 3: Ambil session
+    console.log('[ONBOARDING] 📌 3. Getting session...')
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log('[ONBOARDING] ✅ getSession result:', { 
+      hasSession: !!session, 
+      userEmail: session?.user?.email,
+      error: sessionError?.message || null
+    })
+
+    if (sessionError) {
+      console.error('[ONBOARDING] ❌ Session error:', sessionError)
+      throw new Error(`Session error: ${sessionError.message}`)
     }
-  })
-  console.log('[Onboarding] 📦 Payload:', payload)
 
-  // 4. Kirim dengan fetch menggunakan access token
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
-  console.log('[Onboarding] 🌐 URL:', url)
+    if (!session) {
+      console.error('[ONBOARDING] ❌ No session found')
+      throw new Error('No active session. Silakan login ulang.')
+    }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      'Authorization': `Bearer ${session.access_token}` // <-- ACCESS TOKEN
-    },
-    body: JSON.stringify(payload)
-  })
+    console.log('[ONBOARDING] ✅ Session OK, user:', session.user.email)
 
-  console.log('[Onboarding] 📡 Response status:', response.status)
-  const data = await response.json()
-  console.log('[Onboarding] 📡 Response data:', data)
+    // Step 4: Siapkan payload
+    console.log('[ONBOARDING] 📌 4. Preparing payload...')
+    const payload = {
+      user_id: currentUserId,
+      name: siswaData.name.trim() || null,
+      parent_name: ortuData.parent_name.trim() || null,
+      status: 'active',
+      onboarding_complete: false,
+    }
 
-  if (!response.ok) {
-    console.error('[Onboarding] ❌ Response error:', data)
-    throw new Error(`Insert failed: ${data.message || JSON.stringify(data)}`)
+    // Hapus null/undefined
+    Object.keys(payload).forEach(key => {
+      const k = key as keyof typeof payload
+      if (payload[k] === null || payload[k] === undefined) {
+        delete payload[k]
+      }
+    })
+    console.log('[ONBOARDING] 📦 Payload:', payload)
+
+    // Step 5: Kirim request dengan fetch
+    console.log('[ONBOARDING] 📌 5. Sending fetch request...')
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
+    console.log('[ONBOARDING] 🌐 URL:', url)
+    console.log('[ONBOARDING] 🔑 Access token available:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${session.access_token}`,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    console.log('[ONBOARDING] 📡 Response status:', response.status)
+    const responseData = await response.json()
+    console.log('[ONBOARDING] 📡 Response data:', responseData)
+
+    if (!response.ok) {
+      console.error('[ONBOARDING] ❌ Response error:', responseData)
+      throw new Error(`Insert failed: ${responseData.message || JSON.stringify(responseData)}`)
+    }
+
+    console.log('[ONBOARDING] ✅ Insert successful:', responseData)
+    return true
+  } catch (err: any) {
+    console.error('[ONBOARDING] ❌ CATCH ERROR:', err)
+    throw err
   }
-
-  console.log('[Onboarding] ✅ Insert successful:', data)
-  return true
 }
 
   // ============================================================
