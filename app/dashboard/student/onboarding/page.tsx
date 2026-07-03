@@ -275,20 +275,57 @@ export default function StudentOnboardingPage() {
   console.log('🔥🔥🔥 SAVE STEP 1 FIRED 🔥🔥🔥')
 
   try {
-    // 1. Coba fetch ke API route dengan payload statis
-    console.log('📡 Attempting fetch to /api/students/onboarding')
+    // 1. Ambil session untuk mendapatkan access token
+    const supabase = createClient()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
+    if (sessionError) {
+      console.error('❌ Session error:', sessionError)
+      throw sessionError
+    }
+
+    if (!session) {
+      console.error('❌ No session')
+      throw new Error('No active session')
+    }
+
+    console.log('✅ Session OK, user:', session.user.email)
+    console.log('✅ Access token:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
+
+    // 2. Payload statis untuk testing (sekarang dengan data dari state)
+    const payload = {
+      user_id: session.user.id,
+      name: siswaData.name.trim() || 'Test Name',
+      parent_name: ortuData.parent_name.trim() || 'Test Parent',
+      status: 'active',
+      onboarding_complete: false,
+    }
+    console.log('📦 Payload:', payload)
+
+    // 3. Fetch dengan Authorization header
+    console.log('📡 Attempting fetch to /api/students/onboarding')
     const response = await fetch('/api/students/onboarding', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ test: 'hello' }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify(payload),
     })
 
     console.log('✅ Response status:', response.status)
     const data = await response.json()
     console.log('✅ Response data:', data)
+
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`)
+    }
+
+    console.log('✅ Data saved successfully!')
+    return true
   } catch (err) {
     console.error('❌ Fetch error:', err)
+    throw err
   }
 }
 
