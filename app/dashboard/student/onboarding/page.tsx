@@ -272,59 +272,78 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('🔥🔥🔥 SAVE STEP 1 FIRED 🔥🔥🔥')
+  console.log('[ONBOARDING] 🔥 SAVE STEP 1 FIRED')
 
   try {
-    // 1. Ambil session untuk mendapatkan access token
+    // 1. Gunakan authUser dari context (sudah available)
+    if (!authUser) throw new Error('User tidak ditemukan di context')
+    console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+
+    // 2. Ambil session dengan timeout (agar tidak hang selamanya)
     const supabase = createClient()
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    const sessionPromise = supabase.auth.getSession()
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('getSession timeout after 5s')), 5000)
+    )
 
-    if (sessionError) {
-      console.error('❌ Session error:', sessionError)
-      throw sessionError
-    }
+    // Type assertion: kita tahu hasilnya akan seperti sessionPromise
+    const result = await Promise.race([sessionPromise, timeoutPromise]) as Awaited<typeof sessionPromise>
+    const { data: { session } } = result
 
-    if (!session) {
-      console.error('❌ No session')
-      throw new Error('No active session')
-    }
+    if (!session) throw new Error('No active session')
 
-    console.log('✅ Session OK, user:', session.user.email)
-    console.log('✅ Access token:', session.access_token ? '✅ Ada' : '❌ Tidak ada')
+    const accessToken = session.access_token
+    console.log('[ONBOARDING] ✅ Access token available:', accessToken ? '✅ Ada' : '❌ Tidak ada')
 
-    // 2. Payload statis untuk testing (sekarang dengan data dari state)
+    // 3. Payload dari state
     const payload = {
-      user_id: session.user.id,
-      name: siswaData.name.trim() || 'Test Name',
-      parent_name: ortuData.parent_name.trim() || 'Test Parent',
+      user_id: authUser.id,
+      name: siswaData.name.trim() || null,
+      phone: siswaData.phone.trim() || null,
+      gender: siswaData.gender || null,
+      bio: siswaData.bio.trim() || null,
+      school_name: sekolahData.school_name.trim() || null,
+      school_type: sekolahData.school_type || null,
+      school_city: sekolahData.school_city.trim() || null,
+      school_address: sekolahData.school_address.trim() || null,
+      parent_name: ortuData.parent_name.trim() || null,
+      parent_phone: ortuData.parent_phone.trim() || null,
+      parent_email: ortuData.parent_email.trim() || null,
+      parent_relation: ortuData.parent_relation || null,
       status: 'active',
       onboarding_complete: false,
     }
-    console.log('📦 Payload:', payload)
 
-    // 3. Fetch dengan Authorization header
-    console.log('📡 Attempting fetch to /api/students/onboarding')
+    // Hapus null/undefined
+    Object.keys(payload).forEach(key => {
+      const k = key as keyof typeof payload
+      if (payload[k] === null || payload[k] === undefined) delete payload[k]
+    })
+
+    console.log('[ONBOARDING] 📦 Payload:', payload)
+
+    // 4. Kirim request dengan Authorization header
     const response = await fetch('/api/students/onboarding', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token,
+        'Authorization': 'Bearer ' + accessToken,
       },
       body: JSON.stringify(payload),
     })
 
-    console.log('✅ Response status:', response.status)
-    const data = await response.json()
-    console.log('✅ Response data:', data)
+    console.log('[ONBOARDING] 📡 Response status:', response.status)
+    const resultData = await response.json()
+    console.log('[ONBOARDING] 📡 Response data:', resultData)
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP ${response.status}`)
+      throw new Error(resultData.error || `HTTP ${response.status}`)
     }
 
-    console.log('✅ Data saved successfully!')
+    console.log('[ONBOARDING] ✅ Data berhasil disimpan!')
     return true
   } catch (err) {
-    console.error('❌ Fetch error:', err)
+    console.error('[ONBOARDING] ❌ Error:', err)
     throw err
   }
 }
