@@ -46,25 +46,22 @@ export default function StudentProfile() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [activeProfileTab, setActiveProfileTab] = useState('siswa')
+  const [userEmail, setUserEmail] = useState('')
 
-  // user_profiles fields
-  const [userProfile, setUserProfile] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    bio: '',
-    gender: '',
-  })
-
-  // students table fields
+  // SEMUA data siswa ada di students table
   const [studentData, setStudentData] = useState({
     id: '',
     user_id: '',
+    name: '',
+    phone: '',
+    gender: '',
+    bio: '',
     grade_level: '',
     subjects: [] as string[],
     learning_goals: '',
     preferred_schedule: '',
     budget_per_month: '',
+    sessions_per_month: '',
     address: '',
     city: '',
     status: '',
@@ -76,16 +73,15 @@ export default function StudentProfile() {
     school_type: '',
     school_city: '',
     school_address: '',
-    sessions_per_month: '',
   })
 
   // Profile completion score (0–100)
   const completionScore = useMemo(() => {
     const fields = [
-      userProfile.name.trim(),
-      userProfile.phone.trim(),
-      userProfile.gender,
-      userProfile.bio.trim(),
+      studentData.name.trim(),
+      studentData.phone.trim(),
+      studentData.gender,
+      studentData.bio.trim(),
       studentData.grade_level,
       studentData.subjects.length > 0 ? 'ok' : '',
       studentData.learning_goals.trim(),
@@ -97,65 +93,58 @@ export default function StudentProfile() {
     ]
     const filled = fields.filter(Boolean).length
     return Math.round((filled / fields.length) * 100)
-  }, [userProfile, studentData])
+  }, [studentData])
 
   const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-
       if (!user) {
         setError('Anda harus login terlebih dahulu')
         return
       }
+      setUserEmail(user.email || '')
 
-      const { data: up, error: upErr } = await supabase
-        .from('user_profiles')
-        .select('name, email, phone, bio, gender')
-        .eq('id', user.id)
-        .single()
-
-      if (upErr) throw upErr
-
-      setUserProfile({
-        name: up?.name || '',
-        // Always use the auth email as the authoritative source
-        email: user.email || up?.email || '',
-        phone: up?.phone || '',
-        bio: up?.bio || '',
-        gender: up?.gender || '',
-      })
-
+      // Ambil semua data dari students (sudah termasuk name, phone, gender, bio)
       const { data: sd, error: sdErr } = await supabase
         .from('students')
-        .select('id, user_id, grade_level, subjects, learning_goals, preferred_schedule, budget_per_month, sessions_per_month, address, city, status, parent_name, parent_email, parent_phone, parent_relation, school_name, school_type, school_city, school_address')
+        .select('*')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (sdErr && sdErr.code !== 'PGRST116') throw sdErr
 
-      setStudentData({
-        id: sd?.id || '',
-        user_id: user.id,
-        grade_level: sd?.grade_level || '',
-        subjects: sd?.subjects || [],
-        learning_goals: sd?.learning_goals || '',
-        preferred_schedule: sd?.preferred_schedule || '',
-        budget_per_month: sd?.budget_per_month?.toString() || '',
-        sessions_per_month: sd?.sessions_per_month?.toString() || '',
-        address: sd?.address || '',
-        city: sd?.city || '',
-        status: sd?.status || '',
-        parent_name: sd?.parent_name || '',
-        parent_email: sd?.parent_email || '',
-        parent_phone: sd?.parent_phone || '',
-        parent_relation: sd?.parent_relation || '',
-        school_name: sd?.school_name || '',
-        school_type: sd?.school_type || '',
-        school_city: sd?.school_city || '',
-        school_address: sd?.school_address || '',
-      })
+      if (sd) {
+        setStudentData({
+          id: sd.id || '',
+          user_id: user.id,
+          name: sd.name || '',
+          phone: sd.phone || '',
+          gender: sd.gender || '',
+          bio: sd.bio || '',
+          grade_level: sd.grade_level || '',
+          subjects: sd.subjects || [],
+          learning_goals: sd.learning_goals || '',
+          preferred_schedule: sd.preferred_schedule || '',
+          budget_per_month: sd.budget_per_month?.toString() || '',
+          sessions_per_month: sd.sessions_per_month?.toString() || '',
+          address: sd.address || '',
+          city: sd.city || '',
+          status: sd.status || '',
+          parent_name: sd.parent_name || '',
+          parent_email: sd.parent_email || '',
+          parent_phone: sd.parent_phone || '',
+          parent_relation: sd.parent_relation || '',
+          school_name: sd.school_name || '',
+          school_type: sd.school_type || '',
+          school_city: sd.school_city || '',
+          school_address: sd.school_address || '',
+        })
+      } else {
+        // Jika belum ada data, set default dengan user_id
+        setStudentData(prev => ({ ...prev, user_id: user.id }))
+      }
 
       setError(null)
     } catch (err) {
@@ -179,91 +168,80 @@ export default function StudentProfile() {
   }
 
   const handleSave = async () => {
-  if (!userProfile.name.trim()) {
-    setError('Nama lengkap tidak boleh kosong')
-    return
-  }
+    if (!studentData.name.trim()) {
+      setError('Nama lengkap tidak boleh kosong')
+      return
+    }
 
-  setSaving(true)
-  setError(null)
-  try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Anda harus login terlebih dahulu')
+    setSaving(true)
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Anda harus login terlebih dahulu')
 
-    // Step 1: Upsert user_profiles
-    const { error: upErr } = await supabase
-      .from('user_profiles')
-      .upsert({
-        id: user.id,
-        email: user.email || userProfile.email,
-        name: userProfile.name.trim(),
-        phone: userProfile.phone.trim() || null,
-        bio: userProfile.bio.trim() || null,
-        gender: userProfile.gender || null,
-        role: 'siswa', // Pastikan role ter-set
-      }, {
-        onConflict: 'id' // Explicit onConflict
+      // Payload lengkap untuk students (semua field)
+      const payload: Record<string, any> = {
+        user_id: user.id,
+        name: studentData.name.trim() || null,
+        phone: studentData.phone.trim() || null,
+        gender: studentData.gender || null,
+        bio: studentData.bio.trim() || null,
+        grade_level: studentData.grade_level || null,
+        subjects: studentData.subjects || [],
+        learning_goals: studentData.learning_goals.trim() || null,
+        preferred_schedule: studentData.preferred_schedule || null,
+        budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
+        sessions_per_month: studentData.sessions_per_month ? Number(studentData.sessions_per_month) : null,
+        address: studentData.address.trim() || null,
+        city: studentData.city || null,
+        status: studentData.status || 'active',
+        parent_name: studentData.parent_name.trim() || null,
+        parent_email: studentData.parent_email.trim() || null,
+        parent_phone: studentData.parent_phone.trim() || null,
+        parent_relation: studentData.parent_relation || null,
+        school_name: studentData.school_name.trim() || null,
+        school_type: studentData.school_type || null,
+        school_city: studentData.school_city.trim() || null,
+        school_address: studentData.school_address.trim() || null,
+        onboarding_complete: true,
+      }
+
+      // Hapus null/undefined
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === null || payload[key] === undefined) {
+          delete payload[key]
+        }
       })
 
-    if (upErr) {
-      console.error('Error saving user_profiles:', upErr)
-      throw upErr
+      console.log('Saving student data:', payload)
+
+      const { data: savedSd, error: sdErr } = await supabase
+        .from('students')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single()
+
+      if (sdErr) {
+        console.error('Error saving students:', sdErr)
+        throw sdErr
+      }
+
+      console.log('Student saved successfully:', savedSd)
+
+      if (savedSd && !studentData.id) {
+        setStudentData(prev => ({ ...prev, id: savedSd.id }))
+      }
+
+      setSuccess('Profil berhasil disimpan!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      console.error('Save error:', err)
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
+    } finally {
+      setSaving(false)
     }
-
-    // Step 2: Upsert students table
-    const studentPayload = {
-      user_id: user.id,
-      grade_level: studentData.grade_level || null,
-      subjects: studentData.subjects || [],
-      learning_goals: studentData.learning_goals.trim() || null,
-      preferred_schedule: studentData.preferred_schedule || null,
-      budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
-      sessions_per_month: studentData.sessions_per_month ? Number(studentData.sessions_per_month) : null,
-      address: studentData.address.trim() || null,
-      city: studentData.city || null,
-      parent_name: studentData.parent_name.trim() || null,
-      parent_email: studentData.parent_email.trim() || null,
-      parent_phone: studentData.parent_phone.trim() || null,
-      parent_relation: studentData.parent_relation || null,
-      school_name: studentData.school_name.trim() || null,
-      school_type: studentData.school_type || null,
-      school_city: studentData.school_city.trim() || null,
-      school_address: studentData.school_address.trim() || null,
-      onboarding_complete: true, // Set ini menjadi true
-      status: studentData.status || 'active', // Pastikan status ter-set
-    }
-
-    console.log('Saving student data:', studentPayload)
-
-    const { data: savedSd, error: sdErr } = await supabase
-      .from('students')
-      .upsert(studentPayload, { 
-        onConflict: 'user_id' 
-      })
-      .select()
-      .single()
-      
-    if (sdErr) {
-      console.error('Error saving students:', sdErr)
-      throw sdErr
-    }
-
-    console.log('Student saved successfully:', savedSd)
-    
-    if (savedSd && !studentData.id) {
-      setStudentData(prev => ({ ...prev, id: savedSd.id }))
-    }
-
-    setSuccess('Profil berhasil disimpan!')
-    setTimeout(() => setSuccess(null), 3000)
-  } catch (err) {
-    console.error('Save error:', err)
-    setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
-  } finally {
-    setSaving(false)
   }
-}
 
   if (loading) {
     return (
@@ -274,8 +252,8 @@ export default function StudentProfile() {
     )
   }
 
-  const initials = userProfile.name
-    ? userProfile.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  const initials = studentData.name
+    ? studentData.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '?'
 
   const completionColor =
@@ -307,10 +285,10 @@ export default function StudentProfile() {
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-lg leading-tight truncate">{userProfile.name || 'Nama belum diisi'}</p>
+              <p className="font-semibold text-lg leading-tight truncate">{studentData.name || 'Nama belum diisi'}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{userProfile.email}</span>
+                <span className="truncate">{userEmail}</span>
               </p>
               {studentData.status && (
                 <span className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -386,8 +364,8 @@ export default function StudentProfile() {
                     </Label>
                     <Input
                       id="name"
-                      value={userProfile.name}
-                      onChange={e => setUserProfile(p => ({ ...p, name: e.target.value }))}
+                      value={studentData.name}
+                      onChange={e => setStudentData(p => ({ ...p, name: e.target.value }))}
                       placeholder="Nama lengkap Anda"
                     />
                   </div>
@@ -400,7 +378,7 @@ export default function StudentProfile() {
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="email"
-                        value={userProfile.email}
+                        value={userEmail}
                         readOnly
                         className="pl-9 bg-muted/40 cursor-not-allowed text-muted-foreground"
                       />
@@ -415,14 +393,14 @@ export default function StudentProfile() {
                     </Label>
                     <Input
                       id="phone"
-                      value={userProfile.phone}
-                      onChange={e => setUserProfile(p => ({ ...p, phone: e.target.value }))}
+                      value={studentData.phone}
+                      onChange={e => setStudentData(p => ({ ...p, phone: e.target.value }))}
                       placeholder="08xxxxxxxxxx"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="gender">Jenis Kelamin</Label>
-                    <Select value={userProfile.gender} onValueChange={v => setUserProfile(p => ({ ...p, gender: v }))}>
+                    <Select value={studentData.gender} onValueChange={v => setStudentData(p => ({ ...p, gender: v }))}>
                       <SelectTrigger id="gender">
                         <SelectValue placeholder="Pilih jenis kelamin" />
                       </SelectTrigger>
@@ -438,13 +416,13 @@ export default function StudentProfile() {
                   <Label htmlFor="bio">Tentang Saya</Label>
                   <Textarea
                     id="bio"
-                    value={userProfile.bio}
-                    onChange={e => setUserProfile(p => ({ ...p, bio: e.target.value }))}
+                    value={studentData.bio}
+                    onChange={e => setStudentData(p => ({ ...p, bio: e.target.value }))}
                     placeholder="Ceritakan sedikit tentang diri Anda…"
                     rows={3}
                     className="resize-none"
                   />
-                  <p className="text-xs text-muted-foreground text-right">{userProfile.bio.length} karakter</p>
+                  <p className="text-xs text-muted-foreground text-right">{studentData.bio.length} karakter</p>
                 </div>
               </CardContent>
             </Card>
