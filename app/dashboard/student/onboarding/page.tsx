@@ -273,25 +273,11 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep1Data = async () => {
   const currentUserId = await resolveUserId()
-  const supabase = createClient() // dari lib/supabase/client.ts
+  const supabase = createClient()
 
-  console.log('[Onboarding] 🔍 Saving with Supabase client for user:', currentUserId)
+  console.log('[Onboarding] 🔍 Saving data for user:', currentUserId)
 
-  // 1. Cek session (pastikan user sudah login)
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError) {
-    console.error('[Onboarding] ❌ Session error:', sessionError)
-    throw new Error('Gagal mendapatkan session. Silakan login ulang.')
-  }
-  if (!session) {
-    console.error('[Onboarding] ❌ No session found')
-    throw new Error('Session tidak ditemukan. Silakan login ulang.')
-  }
-  console.log('[Onboarding] ✅ Session OK, user:', session.user.email)
-  console.log('[Onboarding] ✅ session.user.id:', session.user.id)
-  console.log('[Onboarding] ✅ currentUserId:', currentUserId)
-
-  // 2. Siapkan payload lengkap (semua data dari step 1)
+  // Langsung siapkan payload (tanpa pengecekan session)
   const payload: Record<string, any> = {
     user_id: currentUserId,
     name: siswaData.name.trim() || null,
@@ -310,28 +296,32 @@ export default function StudentOnboardingPage() {
     onboarding_complete: false,
   }
 
-  // Hapus field null/undefined
+  // Hapus null/undefined
   Object.keys(payload).forEach(key => {
     if (payload[key] === null || payload[key] === undefined) {
       delete payload[key]
     }
   })
 
-  console.log('[Onboarding] 📦 Upsert payload:', payload)
+  console.log('[Onboarding] 📦 Payload:', payload)
 
-  // 3. Upsert ke students
-  const { data, error } = await supabase
-    .from('students')
-    .upsert(payload, { onConflict: 'user_id' })
-    .select()
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .upsert(payload, { onConflict: 'user_id' })
+      .select()
 
-  if (error) {
-    console.error('[Onboarding] ❌ Upsert error:', error)
-    throw new Error(`Gagal menyimpan data: ${error.message} (${error.code})`)
+    if (error) {
+      console.error('[Onboarding] ❌ Upsert error:', error)
+      throw new Error(`Gagal menyimpan data: ${error.message} (${error.code})`)
+    }
+
+    console.log('[Onboarding] ✅ Data saved:', data)
+    return true
+  } catch (err) {
+    console.error('[Onboarding] ❌ Exception:', err)
+    throw err
   }
-
-  console.log('[Onboarding] ✅ Data saved successfully:', data)
-  return true
 }
 
   // ============================================================
