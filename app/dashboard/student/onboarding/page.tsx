@@ -272,36 +272,37 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('[ONBOARDING] 🚀 saveStep1Data DIMULAI')
+  console.log('[ONBOARDING] 🔥 saveStep1Data FIRED')
 
   try {
-    // 1. Ambil user dari context
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-    console.log('[ONBOARDING] ✅ currentUserId:', authUser.id)
-
-    // 2. Ambil session + access token
+    // 1. Ambil session dan token
     const supabase = createClient()
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) throw new Error(`Session error: ${sessionError.message}`)
-    if (!session) throw new Error('No active session')
-    console.log('[ONBOARDING] ✅ Access token ada')
+    if (sessionError) {
+      console.error('[ONBOARDING] ❌ Session error:', sessionError)
+      throw sessionError
+    }
+    if (!session) {
+      console.error('[ONBOARDING] ❌ No session')
+      throw new Error('No session')
+    }
+    console.log('[ONBOARDING] ✅ Session OK, user:', session.user.email)
 
-    // 3. Siapkan payload (minimal dulu)
+    // 2. Payload statis untuk testing
     const payload = {
-      user_id: authUser.id,
-      name: siswaData.name.trim(),
-      parent_name: ortuData.parent_name.trim(),
-      // tambahkan field lain kalau mau, tapi minimal dulu
+      user_id: session.user.id,
+      name: 'Test Student From Hardcode',
+      parent_name: 'Test Parent',
+      status: 'active',
+      onboarding_complete: false,
     }
     console.log('[ONBOARDING] 📦 Payload:', payload)
 
-    // 4. Kirim fetch ke API route (gunakan URL absolut)
-    const apiUrl = process.env.NEXT_PUBLIC_APP_URL 
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/students/onboarding`
-      : '/api/students/onboarding'
-    console.log('[ONBOARDING] 🌐 API URL:', apiUrl)
+    // 3. Fetch dengan URL absolut
+    const url = 'http://localhost:3000/api/students/onboarding'
+    console.log('[ONBOARDING] 🌐 Fetching:', url)
 
-    const response = await fetch(apiUrl, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -318,10 +319,10 @@ export default function StudentOnboardingPage() {
       throw new Error(result.error || `HTTP ${response.status}`)
     }
 
-    console.log('[ONBOARDING] ✅ Sukses!')
+    console.log('[ONBOARDING] ✅ SUCCESS!')
     return true
   } catch (err) {
-    console.error('[ONBOARDING] ❌ ERROR:', err)
+    console.error('[ONBOARDING] ❌ CATCH ERROR:', err)
     throw err
   }
 }
