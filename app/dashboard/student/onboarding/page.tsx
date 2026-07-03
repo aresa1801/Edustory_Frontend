@@ -273,23 +273,25 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep1Data = async () => {
   const currentUserId = await resolveUserId()
-  const supabase = createClient() // <- ini dari lib/supabase/client.ts
+  const supabase = createClient() // dari lib/supabase/client.ts
 
   console.log('[Onboarding] 🔍 Saving with Supabase client for user:', currentUserId)
 
-  // Cek session untuk memastikan autentikasi
+  // 1. Cek session (pastikan user sudah login)
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   if (sessionError) {
-    console.error('[Onboarding] Session error:', sessionError)
+    console.error('[Onboarding] ❌ Session error:', sessionError)
     throw new Error('Gagal mendapatkan session. Silakan login ulang.')
   }
   if (!session) {
-    console.error('[Onboarding] No session found')
+    console.error('[Onboarding] ❌ No session found')
     throw new Error('Session tidak ditemukan. Silakan login ulang.')
   }
-  console.log('[Onboarding] Session OK, user:', session.user.email)
+  console.log('[Onboarding] ✅ Session OK, user:', session.user.email)
+  console.log('[Onboarding] ✅ session.user.id:', session.user.id)
+  console.log('[Onboarding] ✅ currentUserId:', currentUserId)
 
-  // Payload lengkap (semua data yang ada di step 1)
+  // 2. Siapkan payload lengkap (semua data dari step 1)
   const payload: Record<string, any> = {
     user_id: currentUserId,
     name: siswaData.name.trim() || null,
@@ -308,7 +310,7 @@ export default function StudentOnboardingPage() {
     onboarding_complete: false,
   }
 
-  // Hapus null/undefined
+  // Hapus field null/undefined
   Object.keys(payload).forEach(key => {
     if (payload[key] === null || payload[key] === undefined) {
       delete payload[key]
@@ -317,7 +319,7 @@ export default function StudentOnboardingPage() {
 
   console.log('[Onboarding] 📦 Upsert payload:', payload)
 
-  // Upsert dengan .select() untuk mendapat data kembali
+  // 3. Upsert ke students
   const { data, error } = await supabase
     .from('students')
     .upsert(payload, { onConflict: 'user_id' })
@@ -325,10 +327,10 @@ export default function StudentOnboardingPage() {
 
   if (error) {
     console.error('[Onboarding] ❌ Upsert error:', error)
-    throw new Error(`Gagal menyimpan data: ${error.message}`)
+    throw new Error(`Gagal menyimpan data: ${error.message} (${error.code})`)
   }
 
-  console.log('[Onboarding] ✅ Data saved:', data)
+  console.log('[Onboarding] ✅ Data saved successfully:', data)
   return true
 }
 
