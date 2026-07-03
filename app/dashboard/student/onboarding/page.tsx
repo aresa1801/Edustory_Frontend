@@ -275,105 +275,34 @@ export default function StudentOnboardingPage() {
   const currentUserId = await resolveUserId()
   const supabase = createClient()
 
-  console.log('[Onboarding] Step1: saving all student data for', currentUserId)
+  console.log('[TEST] 🔍 Starting simple insert for user:', currentUserId)
 
-  // 1. CEK apakah user_profiles ada untuk user ini
-  const { data: profile, error: profileCheckErr } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('id', currentUserId)
-    .maybeSingle()
-
-  if (profileCheckErr) {
-    console.error('[Onboarding] Error checking user_profiles:', profileCheckErr)
-    throw new Error(`Gagal verifikasi profil user: ${profileCheckErr.message}`)
-  }
-
-  if (!profile) {
-    console.error('[Onboarding] user_profiles NOT FOUND for user:', currentUserId)
-    throw new Error('Profil user tidak ditemukan. Silakan login ulang.')
-  }
-
-  console.log('[Onboarding] user_profiles FOUND for user:', currentUserId)
-
-  // 2. Siapkan payload
-  const studentPayload: Record<string, any> = {
+  // Payload minimal (hanya field yang pasti ada di tabel)
+  const payload = {
     user_id: currentUserId,
-    name: siswaData.name.trim() || null,
-    phone: siswaData.phone.trim() || null,
-    gender: siswaData.gender || null,
-    bio: siswaData.bio.trim() || null,
-    school_name: sekolahData.school_name.trim() || null,
-    school_type: sekolahData.school_type || null,
-    school_city: sekolahData.school_city.trim() || null,
-    school_address: sekolahData.school_address.trim() || null,
-    parent_name: ortuData.parent_name.trim() || null,
-    parent_phone: ortuData.parent_phone.trim() || null,
-    parent_email: ortuData.parent_email.trim() || null,
-    parent_relation: ortuData.parent_relation || null,
-    onboarding_complete: false,
+    name: siswaData.name.trim() || 'Test Name',
+    parent_name: ortuData.parent_name.trim() || 'Test Parent',
     status: 'active',
+    onboarding_complete: false,
   }
 
-  // Hapus null/undefined (kecuali user_id)
-  Object.keys(studentPayload).forEach(key => {
-    if (key !== 'user_id' && (studentPayload[key] === null || studentPayload[key] === undefined)) {
-      delete studentPayload[key]
-    }
-  })
+  console.log('[TEST] 📦 Payload:', payload)
 
-  console.log('[Onboarding] Upsert payload:', studentPayload)
-
-  // 3. Upsert dengan .select()
-  const { data, error: upsertErr } = await supabase
+  // 1. Coba insert
+  const { data, error } = await supabase
     .from('students')
-    .upsert(studentPayload, { onConflict: 'user_id' })
+    .insert(payload)
     .select()
 
-  console.log('[Onboarding] Upsert response data:', data)
-  console.log('[Onboarding] Upsert error:', upsertErr)
+  console.log('[TEST] 📡 Insert response:', { data, error })
 
-  if (upsertErr) {
-    console.error('[Onboarding] Upsert error details:', upsertErr)
-    throw new Error(`Gagal menyimpan data siswa: ${upsertErr.message}`)
+  if (error) {
+    console.error('[TEST] ❌ Insert error details:', error)
+    // Tampilkan error di UI
+    throw new Error(`Insert gagal: ${error.message} (${error.code})`)
   }
 
-  // 4. Jika upsert tidak mengembalikan data, coba cek manual
-  if (!data || data.length === 0) {
-    console.warn('[Onboarding] Upsert returned no data, checking manually...')
-    const { data: checkData, error: checkErr } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', currentUserId)
-      .maybeSingle()
-
-    console.log('[Onboarding] Manual check result:', checkData)
-    console.log('[Onboarding] Manual check error:', checkErr)
-
-    if (checkErr) {
-      console.error('[Onboarding] Manual check error:', checkErr)
-      throw new Error(`Gagal verifikasi data: ${checkErr.message}`)
-    }
-
-    if (!checkData) {
-      console.error('[Onboarding] Data STILL NOT FOUND after upsert!')
-      // Coba insert langsung sebagai fallback
-      console.log('[Onboarding] Attempting direct insert...')
-      const { error: insertErr } = await supabase
-        .from('students')
-        .insert(studentPayload)
-      if (insertErr) {
-        console.error('[Onboarding] Direct insert error:', insertErr)
-        throw new Error(`Insert langsung gagal: ${insertErr.message}`)
-      }
-      console.log('[Onboarding] Direct insert success!')
-    } else {
-      console.log('[Onboarding] Data found after manual check:', checkData)
-    }
-  } else {
-    console.log('[Onboarding] Data saved successfully:', data[0])
-  }
-
+  console.log('[TEST] ✅ Data inserted successfully:', data)
   return true
 }
 
