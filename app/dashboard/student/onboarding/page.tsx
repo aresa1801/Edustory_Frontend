@@ -307,17 +307,30 @@ export default function StudentOnboardingPage() {
     const accessToken = session.access_token
     console.log('[ONBOARDING] ✅ Access token available:', accessToken ? '✅ Ada' : '❌ Tidak ada')
 
-    // Step 3: Siapkan payload
-    console.log('[ONBOARDING] 📌 3. Preparing payload...')
+    // Step 3: Siapkan payload dengan SEMUA data profil
+    console.log('[ONBOARDING] 📌 3. Preparing payload with all profile data...')
     const payload = {
       user_id: currentUserId,
+      // Data Siswa
       name: siswaData.name.trim() || null,
+      phone: siswaData.phone.trim() || null,
+      gender: siswaData.gender || null,
+      bio: siswaData.bio.trim() || null,
+      // Data Sekolah
+      school_name: sekolahData.school_name.trim() || null,
+      school_type: sekolahData.school_type || null,
+      school_city: sekolahData.school_city.trim() || null,
+      school_address: sekolahData.school_address.trim() || null,
+      // Data Orang Tua
       parent_name: ortuData.parent_name.trim() || null,
+      parent_phone: ortuData.parent_phone.trim() || null,
+      parent_email: ortuData.parent_email.trim() || null,
+      parent_relation: ortuData.parent_relation || null,
+      // Status
       status: 'active',
       onboarding_complete: false,
     }
-
-    // Hapus null/undefined
+    // Hapus null/undefined untuk tidak menimpa data yang sudah ada
     Object.keys(payload).forEach(key => {
       const k = key as keyof typeof payload
       if (payload[k] === null || payload[k] === undefined) {
@@ -325,19 +338,13 @@ export default function StudentOnboardingPage() {
       }
     })
     console.log('[ONBOARDING] 📦 Payload:', payload)
-
-    // Step 4: Kirim dengan fetch
-    console.log('[ONBOARDING] 📌 4. Sending fetch request...')
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
-    console.log('[ONBOARDING] 🌐 URL:', url)
-
-    const response = await fetch(url, {
+    // Step 4: Kirim ke API endpoint baru
+    console.log('[ONBOARDING] 📌 4. Sending request to /api/students/onboarding...')
+    const response = await fetch('/api/students/onboarding', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        'Authorization': `Bearer ${accessToken}`,
-        'Prefer': 'return=representation'
+        'Authorization': 'Bearer ' + accessToken,
       },
       body: JSON.stringify(payload)
     })
