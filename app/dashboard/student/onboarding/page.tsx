@@ -273,29 +273,10 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep1Data = async () => {
   console.log('[ONBOARDING] 🔥 SAVE STEP 1 FIRED')
-
   try {
-    // 1. Gunakan authUser dari context (sudah available)
     if (!authUser) throw new Error('User tidak ditemukan di context')
     console.log('[ONBOARDING] ✅ User ID:', authUser.id)
 
-    // 2. Ambil session dengan timeout (agar tidak hang selamanya)
-    const supabase = createClient()
-    const sessionPromise = supabase.auth.getSession()
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('getSession timeout after 5s')), 5000)
-    )
-
-    // Type assertion: kita tahu hasilnya akan seperti sessionPromise
-    const result = await Promise.race([sessionPromise, timeoutPromise]) as Awaited<typeof sessionPromise>
-    const { data: { session } } = result
-
-    if (!session) throw new Error('No active session')
-
-    const accessToken = session.access_token
-    console.log('[ONBOARDING] ✅ Access token available:', accessToken ? '✅ Ada' : '❌ Tidak ada')
-
-    // 3. Payload dari state
     const payload = {
       user_id: authUser.id,
       name: siswaData.name.trim() || null,
@@ -322,22 +303,21 @@ export default function StudentOnboardingPage() {
 
     console.log('[ONBOARDING] 📦 Payload:', payload)
 
-    // 4. Kirim request dengan Authorization header
+    // Kirim tanpa Authorization header, cukup JSON
     const response = await fetch('/api/students/onboarding', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + accessToken,
       },
       body: JSON.stringify(payload),
     })
 
     console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const resultData = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', resultData)
+    const result = await response.json()
+    console.log('[ONBOARDING] 📡 Response data:', result)
 
     if (!response.ok) {
-      throw new Error(resultData.error || `HTTP ${response.status}`)
+      throw new Error(result.error || `HTTP ${response.status}`)
     }
 
     console.log('[ONBOARDING] ✅ Data berhasil disimpan!')
