@@ -272,58 +272,23 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 1 – SEMUA DATA KE TABEL students
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('[ONBOARDING] 🔥 saveStep1Data FIRED')
+  console.log('🔥🔥🔥 SAVE STEP 1 FIRED 🔥🔥🔥')
 
   try {
-    // 1. Ambil session dan token
-    const supabase = createClient()
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) {
-      console.error('[ONBOARDING] ❌ Session error:', sessionError)
-      throw sessionError
-    }
-    if (!session) {
-      console.error('[ONBOARDING] ❌ No session')
-      throw new Error('No session')
-    }
-    console.log('[ONBOARDING] ✅ Session OK, user:', session.user.email)
+    // 1. Coba fetch ke API route dengan payload statis
+    console.log('📡 Attempting fetch to /api/students/onboarding')
 
-    // 2. Payload statis untuk testing
-    const payload = {
-      user_id: session.user.id,
-      name: 'Test Student From Hardcode',
-      parent_name: 'Test Parent',
-      status: 'active',
-      onboarding_complete: false,
-    }
-    console.log('[ONBOARDING] 📦 Payload:', payload)
-
-    // 3. Fetch dengan URL absolut
-    const url = 'http://localhost:3000/api/students/onboarding'
-    console.log('[ONBOARDING] 🌐 Fetching:', url)
-
-    const response = await fetch(url, {
+    const response = await fetch('/api/students/onboarding', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token,
-      },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test: 'hello' }),
     })
 
-    console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const result = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`)
-    }
-
-    console.log('[ONBOARDING] ✅ SUCCESS!')
-    return true
+    console.log('✅ Response status:', response.status)
+    const data = await response.json()
+    console.log('✅ Response data:', data)
   } catch (err) {
-    console.error('[ONBOARDING] ❌ CATCH ERROR:', err)
-    throw err
+    console.error('❌ Fetch error:', err)
   }
 }
 
