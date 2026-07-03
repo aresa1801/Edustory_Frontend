@@ -278,31 +278,26 @@ export default function StudentOnboardingPage() {
   const currentUserId = await resolveUserId()
   console.log('[DEBUG] 👤 currentUserId:', currentUserId)
 
-  // 2. Buat Supabase client dan ambil session
+  // 2. Ambil session
   const supabase = createClient()
-  console.log('[DEBUG] 📦 supabase client created')
-
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  console.log('[DEBUG] 🔑 Session retrieved:', { 
+  console.log('[DEBUG] 🔑 Session:', { 
     hasSession: !!session, 
     userEmail: session?.user?.email,
-    hasAccessToken: !!session?.access_token,
-    error: sessionError
+    hasAccessToken: !!session?.access_token
   })
 
-  if (sessionError) {
-    console.error('[DEBUG] ❌ Session error:', sessionError)
-    throw new Error(`Session error: ${sessionError.message}`)
+  if (!session || !session.access_token) {
+    throw new Error('No access token')
   }
 
-  if (!session) {
-    console.error('[DEBUG] ❌ No session found')
-    throw new Error('No session found')
-  }
+  // 3. Cek environment variables
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  console.log('[DEBUG] 🔍 SUPABASE_URL:', supabaseUrl)
+  console.log('[DEBUG] 🔍 SUPABASE_ANON_KEY exists:', !!supabaseAnonKey)
 
-  console.log('[DEBUG] ✅ Access token available:', session.access_token.substring(0, 10) + '...')
-
-  // 3. Siapkan payload
+  // 4. Siapkan payload
   const payload = {
     user_id: currentUserId,
     name: siswaData.name.trim() || 'Test Name',
@@ -312,32 +307,31 @@ export default function StudentOnboardingPage() {
   }
   console.log('[DEBUG] 📦 Payload:', payload)
 
-  // 4. Kirim request dengan fetch (pakai access token, BUKAN anon key)
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/students`
+  // 5. Jika URL undefined, gunakan hardcode untuk testing
+  const url = supabaseUrl || 'https://tqzzxmqwgbfbynhbdlby.supabase.co/rest/v1/students'
   console.log('[DEBUG] 🌐 Fetch URL:', url)
 
+  console.log('[DEBUG] ⏳ Attempting fetch...')
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        'Authorization': `Bearer ${session.access_token}` // ← ACCESS TOKEN!
+        'apikey': supabaseAnonKey || '',
+        'Authorization': `Bearer ${session.access_token}`
       },
       body: JSON.stringify(payload)
     })
 
     console.log('[DEBUG] 📡 Response status:', response.status)
-    console.log('[DEBUG] 📡 Response ok:', response.ok)
-
-    const responseData = await response.json()
-    console.log('[DEBUG] 📡 Response data:', responseData)
+    const data = await response.json()
+    console.log('[DEBUG] 📡 Response data:', data)
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseData)}`)
+      throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`)
     }
 
-    console.log('[DEBUG] ✅ Data inserted successfully!')
+    console.log('[DEBUG] ✅ Success!')
     return true
   } catch (err) {
     console.error('[DEBUG] ❌ Fetch error:', err)
