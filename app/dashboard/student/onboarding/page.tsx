@@ -273,9 +273,19 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep1Data = async () => {
   const currentUserId = await resolveUserId()
-  const supabase = createClient()
 
-  console.log('[TEST] 🔍 Starting insert for user:', currentUserId)
+  console.log('[FETCH] 🔍 Starting direct fetch for user:', currentUserId)
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  console.log('[FETCH] URL:', url)
+  console.log('[FETCH] ANON KEY exists:', !!anonKey)
+
+  if (!url || !anonKey) {
+    console.error('[FETCH] ❌ Environment variables missing!')
+    throw new Error('Supabase URL atau ANON KEY tidak ditemukan.')
+  }
 
   const payload = {
     user_id: currentUserId,
@@ -285,33 +295,35 @@ export default function StudentOnboardingPage() {
     onboarding_complete: false,
   }
 
-  console.log('[TEST] 📦 Payload:', payload)
+  console.log('[FETCH] 📦 Payload:', payload)
 
   try {
-    // Set timeout 10 detik
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout after 10s')), 10000)
+    const response = await fetch(`${url}/rest/v1/students`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(payload),
     })
 
-    const insertPromise = supabase
-      .from('students')
-      .insert(payload)
-      .select()
+    console.log('[FETCH] 📡 Response status:', response.status)
 
-    const result = await Promise.race([insertPromise, timeoutPromise]) as any
+    const data = await response.json()
+    console.log('[FETCH] 📡 Response data:', data)
 
-    console.log('[TEST] 📡 Insert response:', result)
-
-    if (result.error) {
-      console.error('[TEST] ❌ Insert error:', result.error)
-      throw new Error(`Insert gagal: ${result.error.message}`)
+    if (!response.ok) {
+      console.error('[FETCH] ❌ Response error:', data)
+      throw new Error(`Gagal insert: ${data.message || JSON.stringify(data)}`)
     }
 
-    console.log('[TEST] ✅ Insert success:', result.data)
+    console.log('[FETCH] ✅ Data inserted successfully:', data)
     return true
-  } catch (err) {
-    console.error('[TEST] ❌ Exception:', err)
-    throw err
+  } catch (err: any) {
+    console.error('[FETCH] ❌ Exception:', err)
+    throw new Error(`Request gagal: ${err.message}`)
   }
 }
 
