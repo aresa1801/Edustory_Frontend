@@ -18,44 +18,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
     }
 
-    // Validasi user_id dengan admin API
+    // Validasi user_id
     const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId)
     if (userError || !user) {
       console.error('[API] Invalid user_id:', userError)
       return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 })
     }
 
-    // Siapkan payload untuk upsert
+    // --- Buat payload hanya dengan user_id ---
     const payload: Record<string, any> = {
       user_id: userId,
-      // Step 1
-      name: body.name || null,
-      phone: body.phone || null,
-      gender: body.gender || null,
-      bio: body.bio || null,
-      school_name: body.school_name || null,
-      school_type: body.school_type || null,
-      school_city: body.school_city || null,
-      school_address: body.school_address || null,
-      parent_name: body.parent_name || null,
-      parent_phone: body.parent_phone || null,
-      parent_email: body.parent_email || null,
-      parent_relation: body.parent_relation || null,
-      // Step 2 – TAMBAHKAN INI
-      grade_level: body.grade_level || null,
-      subjects: body.subjects || [],
-      learning_goals: body.learning_goals?.trim() || null,
-      // Step 3 – nanti ditambahkan
-      preferred_schedule: body.preferred_schedule || null,
-      budget_per_month: body.budget_per_month || null,
-      sessions_per_month: body.sessions_per_month || null,
-      status: body.status || 'active',
-      onboarding_complete: body.onboarding_complete ?? false,
     }
 
-    // Hapus null/undefined
+    // Step 1 – Profil Siswa (hanya tambahkan jika ada di body)
+    if (body.name !== undefined) payload.name = body.name || null
+    if (body.phone !== undefined) payload.phone = body.phone || null
+    if (body.gender !== undefined) payload.gender = body.gender || null
+    if (body.bio !== undefined) payload.bio = body.bio || null
+    if (body.school_name !== undefined) payload.school_name = body.school_name || null
+    if (body.school_type !== undefined) payload.school_type = body.school_type || null
+    if (body.school_city !== undefined) payload.school_city = body.school_city || null
+    if (body.school_address !== undefined) payload.school_address = body.school_address || null
+    if (body.parent_name !== undefined) payload.parent_name = body.parent_name || null
+    if (body.parent_phone !== undefined) payload.parent_phone = body.parent_phone || null
+    if (body.parent_email !== undefined) payload.parent_email = body.parent_email || null
+    if (body.parent_relation !== undefined) payload.parent_relation = body.parent_relation || null
+
+    // Step 2 – Minat Belajar
+    if (body.grade_level !== undefined) payload.grade_level = body.grade_level || null
+    if (body.subjects !== undefined) payload.subjects = body.subjects // array, bisa []
+    if (body.learning_goals !== undefined) payload.learning_goals = body.learning_goals?.trim() || null
+
+    // Step 3 – Rencana Belajar
+    if (body.preferred_schedule !== undefined) payload.preferred_schedule = body.preferred_schedule || null
+    if (body.budget_per_month !== undefined) payload.budget_per_month = body.budget_per_month
+    if (body.sessions_per_month !== undefined) payload.sessions_per_month = body.sessions_per_month
+
+    // Status
+    if (body.status !== undefined) payload.status = body.status || 'active'
+    if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
+
+    // Hapus null/undefined (tapi hati-hati jangan hapus subjects jika [] karena [] bukan null)
     Object.keys(payload).forEach(key => {
-      if (payload[key] === null || payload[key] === undefined) delete payload[key]
+      if (payload[key] === null || payload[key] === undefined) {
+        delete payload[key]
+      }
     })
 
     console.log('[API] Upsert payload:', payload)
