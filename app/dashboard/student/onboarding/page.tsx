@@ -141,7 +141,10 @@ export default function StudentOnboardingPage() {
   // ============================================================
   // LOAD DATA – HANYA DARI TABEL students
   // ============================================================
-  const loadStudentData = async (uid: string) => {
+  // ============================================================
+// LOAD DATA – HANYA DARI TABEL students
+// ============================================================
+const loadStudentData = async (uid: string) => {
   console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
   try {
     const supabase = createClient()
@@ -159,7 +162,7 @@ export default function StudentOnboardingPage() {
     if (student) {
       console.log('[ONBOARDING] ✅ Data ditemukan:', student)
 
-      // Isi semua state dengan data dari database
+      // Step 1 – Profil Siswa
       setSiswaData({
         name: student.name || '',
         phone: student.phone || '',
@@ -178,12 +181,18 @@ export default function StudentOnboardingPage() {
         parent_email: student.parent_email || '',
         parent_relation: student.parent_relation || '',
       })
+
+      // Step 2 – Minat Belajar
       setGradeLevel(student.grade_level || '')
       setSubjects(student.subjects || [])
       setLearningGoals(student.learning_goals || '')
+
+      // Step 3 – Rencana Belajar
       setSchedule(student.preferred_schedule || '')
       setBudgetPerMonth(student.budget_per_month?.toString() || '')
       setSessionsPerMonth(student.sessions_per_month?.toString() || '')
+
+      // Step 4 – Deposit (tidak ada yang perlu di-set)
     } else {
       console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
     }
