@@ -115,7 +115,7 @@ export default function StudentOnboardingPage() {
   }, [userId])
 
   // ============================================================
-  // RESOLVE USER ID (hanya dari auth, tanpa sentuh user_profiles)
+  // RESOLVE USER ID
   // ============================================================
   const resolveUserId = async (): Promise<string> => {
     if (userIdRef.current) return userIdRef.current
@@ -141,118 +141,116 @@ export default function StudentOnboardingPage() {
   // ============================================================
   // LOAD DATA – HANYA DARI TABEL students
   // ============================================================
-  // ============================================================
-// LOAD DATA – HANYA DARI TABEL students
-// ============================================================
-const loadStudentData = async (uid: string) => {
-  console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
-  try {
-    const supabase = createClient()
-    const { data: student, error: studentErr } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle()
+  const loadStudentData = async (uid: string) => {
+    console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
+    try {
+      const supabase = createClient()
+      const { data: student, error: studentErr } = await supabase
+        .from('students')
+        .select('*')
+        .eq('user_id', uid)
+        .maybeSingle()
 
-    if (studentErr) {
-      console.warn('[ONBOARDING] ⚠️ Error loading student:', studentErr)
-      return
+      if (studentErr) {
+        console.warn('[ONBOARDING] ⚠️ Error loading student:', studentErr)
+        return
+      }
+
+      if (student) {
+        console.log('[ONBOARDING] ✅ Data ditemukan:', student)
+
+        // Step 1 – Profil Siswa
+        setSiswaData({
+          name: student.name || '',
+          phone: student.phone || '',
+          gender: student.gender || '',
+          bio: student.bio || '',
+        })
+        setSekolahData({
+          school_name: student.school_name || '',
+          school_type: student.school_type || '',
+          school_city: student.school_city || '',
+          school_address: student.school_address || '',
+        })
+        setOrtuData({
+          parent_name: student.parent_name || '',
+          parent_phone: student.parent_phone || '',
+          parent_email: student.parent_email || '',
+          parent_relation: student.parent_relation || '',
+        })
+
+        // Step 2 – Minat Belajar
+        setGradeLevel(student.grade_level || '')
+        setSubjects(student.subjects || [])
+        setLearningGoals(student.learning_goals || '')
+
+        // Step 3 – Rencana Belajar
+        setSchedule(student.preferred_schedule || '')
+        setBudgetPerMonth(student.budget_per_month?.toString() || '')
+        setSessionsPerMonth(student.sessions_per_month?.toString() || '')
+
+        // Step 4 – Deposit (tidak di-set karena tidak di-render di onboarding)
+        // Jika ingin muncul di profil nanti, bisa disimpan di state terpisah
+      } else {
+        console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
+      }
+    } catch (err) {
+      console.error('[ONBOARDING] ❌ Load data error:', err)
     }
-
-    if (student) {
-      console.log('[ONBOARDING] ✅ Data ditemukan:', student)
-
-      // Step 1 – Profil Siswa
-      setSiswaData({
-        name: student.name || '',
-        phone: student.phone || '',
-        gender: student.gender || '',
-        bio: student.bio || '',
-      })
-      setSekolahData({
-        school_name: student.school_name || '',
-        school_type: student.school_type || '',
-        school_city: student.school_city || '',
-        school_address: student.school_address || '',
-      })
-      setOrtuData({
-        parent_name: student.parent_name || '',
-        parent_phone: student.parent_phone || '',
-        parent_email: student.parent_email || '',
-        parent_relation: student.parent_relation || '',
-      })
-
-      // Step 2 – Minat Belajar
-      setGradeLevel(student.grade_level || '')
-      setSubjects(student.subjects || [])
-      setLearningGoals(student.learning_goals || '')
-
-      // Step 3 – Rencana Belajar
-      setSchedule(student.preferred_schedule || '')
-      setBudgetPerMonth(student.budget_per_month?.toString() || '')
-      setSessionsPerMonth(student.sessions_per_month?.toString() || '')
-
-      // Step 4 – Deposit (tidak ada yang perlu di-set)
-    } else {
-      console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
-    }
-  } catch (err) {
-    console.error('[ONBOARDING] ❌ Load data error:', err)
   }
-}
 
   // ============================================================
   // INISIALISASI
   // ============================================================
   useEffect(() => {
-  isMounted.current = true
-  const init = async () => {
-    try {
-      const supabase = createClient()
-      let currentUser = null
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (user) {
-        currentUser = user
-      } else {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) currentUser = session.user
-      }
-      if (!currentUser) {
-        if (authUser) {
-          currentUser = authUser
-        } else if (!authLoading) {
-          router.push('/auth/login')
-          return
+    isMounted.current = true
+    const init = async () => {
+      try {
+        const supabase = createClient()
+        let currentUser = null
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (user) {
+          currentUser = user
         } else {
-          return
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) currentUser = session.user
+        }
+        if (!currentUser) {
+          if (authUser) {
+            currentUser = authUser
+          } else if (!authLoading) {
+            router.push('/auth/login')
+            return
+          } else {
+            return
+          }
+        }
+        if (isMounted.current) {
+          setUserId(currentUser.id)
+          setUserEmail(currentUser.email || '')
+          console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
+        }
+      } catch (err) {
+        console.error('[ONBOARDING] Init error:', err)
+        if (authUser && isMounted.current) {
+          setUserId(authUser.id)
+          setUserEmail(authUser.email || '')
+          await loadStudentData(authUser.id)
+        } else {
+          setError('Gagal memuat data user.')
         }
       }
-      if (isMounted.current) {
-        setUserId(currentUser.id)
-        setUserEmail(currentUser.email || '')
-        console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
-      }
-    } catch (err) {
-      console.error('[ONBOARDING] Init error:', err)
-      if (authUser && isMounted.current) {
-        setUserId(authUser.id)
-        setUserEmail(authUser.email || '')
-        await loadStudentData(authUser.id)
-      } else {
-        setError('Gagal memuat data user.')
-      }
     }
-  }
-  init()
-  return () => { isMounted.current = false }
-}, [router, authUser, authLoading])
+    init()
+    return () => { isMounted.current = false }
+  }, [router, authUser, authLoading])
 
-useEffect(() => {
-  if (userId) {
-    console.log('[ONBOARDING] 🔄 useEffect userId changed, loading data for:', userId)
-    loadStudentData(userId)
-  }
-}, [userId])
+  useEffect(() => {
+    if (userId) {
+      console.log('[ONBOARDING] 🔄 useEffect userId changed, loading data for:', userId)
+      loadStudentData(userId)
+    }
+  }, [userId])
 
   // ============================================================
   // VALIDASI
@@ -285,174 +283,211 @@ useEffect(() => {
   }
 
   // ============================================================
-  // SAVE STEP 1 – SEMUA DATA KE TABEL students
+  // SAVE STEP 1
   // ============================================================
   const saveStep1Data = async () => {
-  console.log('[ONBOARDING] 🔥 SAVE STEP 1 FIRED')
-  try {
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-    console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+    console.log('[ONBOARDING] 🔥 SAVE STEP 1 FIRED')
+    try {
+      if (!authUser) throw new Error('User tidak ditemukan di context')
+      console.log('[ONBOARDING] ✅ User ID:', authUser.id)
 
-    const payload = {
-      user_id: authUser.id,
-      name: siswaData.name.trim() || null,
-      phone: siswaData.phone.trim() || null,
-      gender: siswaData.gender || null,
-      bio: siswaData.bio.trim() || null,
-      school_name: sekolahData.school_name.trim() || null,
-      school_type: sekolahData.school_type || null,
-      school_city: sekolahData.school_city.trim() || null,
-      school_address: sekolahData.school_address.trim() || null,
-      parent_name: ortuData.parent_name.trim() || null,
-      parent_phone: ortuData.parent_phone.trim() || null,
-      parent_email: ortuData.parent_email.trim() || null,
-      parent_relation: ortuData.parent_relation || null,
-      status: 'active',
-      onboarding_complete: false,
+      const payload = {
+        user_id: authUser.id,
+        name: siswaData.name.trim() || null,
+        phone: siswaData.phone.trim() || null,
+        gender: siswaData.gender || null,
+        bio: siswaData.bio.trim() || null,
+        school_name: sekolahData.school_name.trim() || null,
+        school_type: sekolahData.school_type || null,
+        school_city: sekolahData.school_city.trim() || null,
+        school_address: sekolahData.school_address.trim() || null,
+        parent_name: ortuData.parent_name.trim() || null,
+        parent_phone: ortuData.parent_phone.trim() || null,
+        parent_email: ortuData.parent_email.trim() || null,
+        parent_relation: ortuData.parent_relation || null,
+        status: 'active',
+        onboarding_complete: false,
+      }
+
+      Object.keys(payload).forEach(key => {
+        const k = key as keyof typeof payload
+        if (payload[k] === null || payload[k] === undefined) delete payload[k]
+      })
+
+      console.log('[ONBOARDING] 📦 Payload:', payload)
+
+      const response = await fetch('/api/students/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      console.log('[ONBOARDING] 📡 Response status:', response.status)
+      const result = await response.json()
+      console.log('[ONBOARDING] 📡 Response data:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`)
+      }
+
+      console.log('[ONBOARDING] ✅ Data berhasil disimpan!')
+      return true
+    } catch (err) {
+      console.error('[ONBOARDING] ❌ Error:', err)
+      throw err
     }
-
-    // Hapus null/undefined
-    Object.keys(payload).forEach(key => {
-      const k = key as keyof typeof payload
-      if (payload[k] === null || payload[k] === undefined) delete payload[k]
-    })
-
-    console.log('[ONBOARDING] 📦 Payload:', payload)
-
-    // Kirim tanpa Authorization header, cukup JSON
-    const response = await fetch('/api/students/onboarding', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-
-    console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const result = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`)
-    }
-
-    console.log('[ONBOARDING] ✅ Data berhasil disimpan!')
-    return true
-  } catch (err) {
-    console.error('[ONBOARDING] ❌ Error:', err)
-    throw err
   }
-}
 
   // ============================================================
   // SAVE STEP 2
   // ============================================================
   const saveStep2Data = async () => {
-  console.log('[ONBOARDING] 🔥 SAVE STEP 2 FIRED')
-  try {
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-    console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+    console.log('[ONBOARDING] 🔥 SAVE STEP 2 FIRED')
+    try {
+      if (!authUser) throw new Error('User tidak ditemukan di context')
+      console.log('[ONBOARDING] ✅ User ID:', authUser.id)
 
-    // Validasi tambahan (meskipun sudah divalidasi di handleNext)
-    if (!gradeLevel) throw new Error('Tingkat kelas wajib dipilih')
-    if (subjects.length === 0) throw new Error('Pilih minimal 1 mata pelajaran')
+      if (!gradeLevel) throw new Error('Tingkat kelas wajib dipilih')
+      if (subjects.length === 0) throw new Error('Pilih minimal 1 mata pelajaran')
 
-    const payload = {
-      user_id: authUser.id,
-      grade_level: gradeLevel,
-      subjects: subjects,
-      learning_goals: learningGoals.trim() || null,
+      const payload = {
+        user_id: authUser.id,
+        grade_level: gradeLevel,
+        subjects: subjects,
+        learning_goals: learningGoals.trim() || null,
+      }
+
+      Object.keys(payload).forEach(key => {
+        const k = key as keyof typeof payload
+        if (payload[k] === null || payload[k] === undefined) delete payload[k]
+      })
+
+      console.log('[ONBOARDING] 📦 Payload Step 2:', payload)
+
+      const response = await fetch('/api/students/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      console.log('[ONBOARDING] 📡 Response status:', response.status)
+      const result = await response.json()
+      console.log('[ONBOARDING] 📡 Response data:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`)
+      }
+
+      console.log('[ONBOARDING] ✅ Step 2 berhasil disimpan!')
+      return true
+    } catch (err) {
+      console.error('[ONBOARDING] ❌ Error Step 2:', err)
+      throw err
     }
-
-    // Hapus null/undefined
-    Object.keys(payload).forEach(key => {
-      const k = key as keyof typeof payload
-      if (payload[k] === null || payload[k] === undefined) delete payload[k]
-    })
-
-    console.log('[ONBOARDING] 📦 Payload Step 2:', payload)
-
-    const response = await fetch('/api/students/onboarding', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-
-    console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const result = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`)
-    }
-
-    console.log('[ONBOARDING] ✅ Step 2 berhasil disimpan!')
-    return true
-  } catch (err) {
-    console.error('[ONBOARDING] ❌ Error Step 2:', err)
-    throw err
   }
-}
 
   // ============================================================
   // SAVE STEP 3
   // ============================================================
   const saveStep3Data = async () => {
-  console.log('[ONBOARDING] 🔥 SAVE STEP 3 FIRED')
-  try {
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-    console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+    console.log('[ONBOARDING] 🔥 SAVE STEP 3 FIRED')
+    try {
+      if (!authUser) throw new Error('User tidak ditemukan di context')
+      console.log('[ONBOARDING] ✅ User ID:', authUser.id)
 
-    // Validasi (meski sudah divalidasi di handleNext)
-    if (!schedule) throw new Error('Jadwal belajar wajib dipilih')
-    if (!budgetPerMonth || Number(budgetPerMonth) < 50000) {
-      throw new Error('Budget minimum Rp 50.000')
+      if (!schedule) throw new Error('Jadwal belajar wajib dipilih')
+      if (!budgetPerMonth || Number(budgetPerMonth) < 50000) {
+        throw new Error('Budget minimum Rp 50.000')
+      }
+      if (!sessionsPerMonth) throw new Error('Jumlah pertemuan wajib dipilih')
+
+      const payload = {
+        user_id: authUser.id,
+        preferred_schedule: schedule,
+        budget_per_month: Number(budgetPerMonth),
+        sessions_per_month: Number(sessionsPerMonth),
+      }
+
+      Object.keys(payload).forEach(key => {
+        const k = key as keyof typeof payload
+        if (payload[k] === null || payload[k] === undefined) delete payload[k]
+      })
+
+      console.log('[ONBOARDING] 📦 Payload Step 3:', payload)
+
+      const response = await fetch('/api/students/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      console.log('[ONBOARDING] 📡 Response status:', response.status)
+      const result = await response.json()
+      console.log('[ONBOARDING] 📡 Response data:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`)
+      }
+
+      console.log('[ONBOARDING] ✅ Step 3 berhasil disimpan!')
+      return true
+    } catch (err) {
+      console.error('[ONBOARDING] ❌ Error Step 3:', err)
+      throw err
     }
-    if (!sessionsPerMonth) throw new Error('Jumlah pertemuan wajib dipilih')
-
-    const payload = {
-      user_id: authUser.id,
-      preferred_schedule: schedule,
-      budget_per_month: Number(budgetPerMonth),
-      sessions_per_month: Number(sessionsPerMonth),
-    }
-
-    // Hapus null/undefined
-    Object.keys(payload).forEach(key => {
-      const k = key as keyof typeof payload
-      if (payload[k] === null || payload[k] === undefined) delete payload[k]
-    })
-
-    console.log('[ONBOARDING] 📦 Payload Step 3:', payload)
-
-    const response = await fetch('/api/students/onboarding', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-
-    console.log('[ONBOARDING] 📡 Response status:', response.status)
-    const result = await response.json()
-    console.log('[ONBOARDING] 📡 Response data:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`)
-    }
-
-    console.log('[ONBOARDING] ✅ Step 3 berhasil disimpan!')
-    return true
-  } catch (err) {
-    console.error('[ONBOARDING] ❌ Error Step 3:', err)
-    throw err
   }
-}
 
   // ============================================================
-  // FINALIZE ONBOARDING
+  // SAVE STEP 4 (Payment Method)
+  // ============================================================
+  const saveStep4Data = async () => {
+    console.log('[ONBOARDING] 🔥 SAVE STEP 4 FIRED')
+    try {
+      if (!authUser) throw new Error('User tidak ditemukan di context')
+      console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+
+      if (!selectedPayment) {
+        throw new Error('Metode pembayaran wajib dipilih')
+      }
+
+      const payload = {
+        user_id: authUser.id,
+        payment_method: selectedPayment,
+        transfer_notes: transferProof.trim() || null,
+        deposit_amount: budgetPerMonth ? Number(budgetPerMonth) : null,
+      }
+
+      Object.keys(payload).forEach(key => {
+        const k = key as keyof typeof payload
+        if (payload[k] === null || payload[k] === undefined) delete payload[k]
+      })
+
+      console.log('[ONBOARDING] 📦 Payload Step 4:', payload)
+
+      const response = await fetch('/api/students/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      console.log('[ONBOARDING] 📡 Response status:', response.status)
+      const result = await response.json()
+      console.log('[ONBOARDING] 📡 Response data:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`)
+      }
+
+      console.log('[ONBOARDING] ✅ Step 4 berhasil disimpan!')
+      return true
+    } catch (err) {
+      console.error('[ONBOARDING] ❌ Error Step 4:', err)
+      throw err
+    }
+  }
+
+  // ============================================================
+  // FINALIZE ONBOARDING (update onboarding_complete & process payment)
   // ============================================================
   const finalizeOnboarding = async () => {
     const currentUserId = await resolveUserId()
@@ -515,7 +550,11 @@ useEffect(() => {
         setStep(4)
       } else if (step === 4) {
         console.log('[Onboarding] Menyelesaikan onboarding...')
+        // 1. Simpan data payment ke students
+        await saveStep4Data()
+        // 2. Update onboarding_complete dan proses payment
         await finalizeOnboarding()
+        // 3. Redirect ke dashboard
         router.push('/dashboard/student')
       }
     } catch (err: any) {
@@ -535,7 +574,7 @@ useEffect(() => {
   }
 
   // ============================================================
-  // RENDER (semua input siswa sudah bisa diedit)
+  // RENDER
   // ============================================================
   const depositAmount = budgetPerMonth ? Number(budgetPerMonth) : 0
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === selectedPayment)
@@ -633,7 +672,7 @@ useEffect(() => {
                 })}
               </div>
 
-              {/* Tab Siswa – semua input bisa diedit */}
+              {/* Tab Siswa */}
               {profileTab === 'siswa' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -683,7 +722,7 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Tab Sekolah (sama) */}
+              {/* Tab Sekolah */}
               {profileTab === 'sekolah' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -738,7 +777,7 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Tab Orang Tua (sama) */}
+              {/* Tab Orang Tua */}
               {profileTab === 'ortu' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -54,6 +54,11 @@ export async function POST(request: NextRequest) {
     if (body.budget_per_month !== undefined) payload.budget_per_month = body.budget_per_month
     if (body.sessions_per_month !== undefined) payload.sessions_per_month = body.sessions_per_month
 
+    // Step 4 – Deposit / Pembayaran
+    if (body.payment_method !== undefined) payload.payment_method = body.payment_method || null
+    if (body.transfer_notes !== undefined) payload.transfer_notes = body.transfer_notes?.trim() || null
+    if (body.deposit_amount !== undefined) payload.deposit_amount = body.deposit_amount
+
     // Status
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
