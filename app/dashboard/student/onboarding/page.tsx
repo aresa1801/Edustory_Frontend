@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -222,7 +222,6 @@ export default function StudentOnboardingPage() {
         setUserId(currentUser.id)
         setUserEmail(currentUser.email || '')
         console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
-        await loadStudentData(currentUser.id)
       }
     } catch (err) {
       console.error('[ONBOARDING] Init error:', err)
@@ -238,6 +237,13 @@ export default function StudentOnboardingPage() {
   init()
   return () => { isMounted.current = false }
 }, [router, authUser, authLoading])
+
+useEffect(() => {
+  if (userId) {
+    console.log('[ONBOARDING] 🔄 useEffect userId changed, loading data for:', userId)
+    loadStudentData(userId)
+  }
+}, [userId])
 
   // ============================================================
   // VALIDASI
