@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     // Siapkan payload untuk upsert
     const payload: Record<string, any> = {
       user_id: userId,
+      // Step 1
       name: body.name || null,
       phone: body.phone || null,
       gender: body.gender || null,
@@ -40,8 +41,16 @@ export async function POST(request: NextRequest) {
       parent_phone: body.parent_phone || null,
       parent_email: body.parent_email || null,
       parent_relation: body.parent_relation || null,
-      status: 'active',
-      onboarding_complete: false,
+      // Step 2 – TAMBAHKAN INI
+      grade_level: body.grade_level || null,
+      subjects: body.subjects || [],
+      learning_goals: body.learning_goals?.trim() || null,
+      // Step 3 – nanti ditambahkan
+      // preferred_schedule: body.preferred_schedule || null,
+      // budget_per_month: body.budget_per_month || null,
+      // sessions_per_month: body.sessions_per_month || null,
+      status: body.status || 'active',
+      onboarding_complete: body.onboarding_complete ?? false,
     }
 
     // Hapus null/undefined
