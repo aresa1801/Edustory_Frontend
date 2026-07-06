@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
       subjects: body.subjects || [],
       learning_goals: body.learning_goals?.trim() || null,
       // Step 3 – nanti ditambahkan
-      // preferred_schedule: body.preferred_schedule || null,
-      // budget_per_month: body.budget_per_month || null,
-      // sessions_per_month: body.sessions_per_month || null,
+      preferred_schedule: body.preferred_schedule || null,
+      budget_per_month: body.budget_per_month || null,
+      sessions_per_month: body.sessions_per_month || null,
       status: body.status || 'active',
       onboarding_complete: body.onboarding_complete ?? false,
     }

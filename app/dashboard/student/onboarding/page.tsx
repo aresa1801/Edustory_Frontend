@@ -400,22 +400,56 @@ useEffect(() => {
   // SAVE STEP 3
   // ============================================================
   const saveStep3Data = async () => {
-    const currentUserId = await resolveUserId()
-    const supabase = createClient()
-    const payload: Record<string, any> = {
-      user_id: currentUserId,
-      preferred_schedule: schedule || null,
-      budget_per_month: budgetPerMonth ? Number(budgetPerMonth) : null,
-      sessions_per_month: sessionsPerMonth ? Number(sessionsPerMonth) : null,
+  console.log('[ONBOARDING] 🔥 SAVE STEP 3 FIRED')
+  try {
+    if (!authUser) throw new Error('User tidak ditemukan di context')
+    console.log('[ONBOARDING] ✅ User ID:', authUser.id)
+
+    // Validasi (meski sudah divalidasi di handleNext)
+    if (!schedule) throw new Error('Jadwal belajar wajib dipilih')
+    if (!budgetPerMonth || Number(budgetPerMonth) < 50000) {
+      throw new Error('Budget minimum Rp 50.000')
     }
+    if (!sessionsPerMonth) throw new Error('Jumlah pertemuan wajib dipilih')
+
+    const payload = {
+      user_id: authUser.id,
+      preferred_schedule: schedule,
+      budget_per_month: Number(budgetPerMonth),
+      sessions_per_month: Number(sessionsPerMonth),
+    }
+
+    // Hapus null/undefined
     Object.keys(payload).forEach(key => {
-      if (key !== 'user_id' && (payload[key] === null || payload[key] === undefined)) {
-        delete payload[key]
-      }
+      const k = key as keyof typeof payload
+      if (payload[k] === null || payload[k] === undefined) delete payload[k]
     })
-    const { error } = await supabase.from('students').upsert(payload, { onConflict: 'user_id' })
-    if (error) throw new Error(`Gagal simpan rencana belajar: ${error.message}`)
+
+    console.log('[ONBOARDING] 📦 Payload Step 3:', payload)
+
+    const response = await fetch('/api/students/onboarding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    console.log('[ONBOARDING] 📡 Response status:', response.status)
+    const result = await response.json()
+    console.log('[ONBOARDING] 📡 Response data:', result)
+
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`)
+    }
+
+    console.log('[ONBOARDING] ✅ Step 3 berhasil disimpan!')
+    return true
+  } catch (err) {
+    console.error('[ONBOARDING] ❌ Error Step 3:', err)
+    throw err
   }
+}
 
   // ============================================================
   // FINALIZE ONBOARDING
