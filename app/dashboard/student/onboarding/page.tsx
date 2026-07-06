@@ -142,101 +142,102 @@ export default function StudentOnboardingPage() {
   // LOAD DATA – HANYA DARI TABEL students
   // ============================================================
   const loadStudentData = async (uid: string) => {
-    try {
-      const supabase = createClient()
-      // Ambil semua data dari students
-      const { data: student, error: studentErr } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', uid)
-        .maybeSingle()
+  console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
+  try {
+    const supabase = createClient()
+    const { data: student, error: studentErr } = await supabase
+      .from('students')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle()
 
-      if (studentErr) {
-        console.warn('[Onboarding] Load student error:', studentErr)
-        return
-      }
-
-      if (student) {
-        // Data Siswa (kolom baru di students)
-        setSiswaData({
-          name: student.name || '',
-          phone: student.phone || '',
-          gender: student.gender || '',
-          bio: student.bio || '',
-        })
-        // Data Sekolah
-        setSekolahData({
-          school_name: student.school_name || '',
-          school_type: student.school_type || '',
-          school_city: student.school_city || '',
-          school_address: student.school_address || '',
-        })
-        // Data Orang Tua
-        setOrtuData({
-          parent_name: student.parent_name || '',
-          parent_phone: student.parent_phone || '',
-          parent_email: student.parent_email || '',
-          parent_relation: student.parent_relation || '',
-        })
-        // Step 2
-        setGradeLevel(student.grade_level || '')
-        setSubjects(student.subjects || [])
-        setLearningGoals(student.learning_goals || '')
-        // Step 3
-        setSchedule(student.preferred_schedule || '')
-        setBudgetPerMonth(student.budget_per_month?.toString() || '')
-        setSessionsPerMonth(student.sessions_per_month?.toString() || '')
-      }
-    } catch (err) {
-      console.error('[Onboarding] Load data error:', err)
+    if (studentErr) {
+      console.warn('[ONBOARDING] ⚠️ Error loading student:', studentErr)
+      return
     }
+
+    if (student) {
+      console.log('[ONBOARDING] ✅ Data ditemukan:', student)
+
+      // Isi semua state dengan data dari database
+      setSiswaData({
+        name: student.name || '',
+        phone: student.phone || '',
+        gender: student.gender || '',
+        bio: student.bio || '',
+      })
+      setSekolahData({
+        school_name: student.school_name || '',
+        school_type: student.school_type || '',
+        school_city: student.school_city || '',
+        school_address: student.school_address || '',
+      })
+      setOrtuData({
+        parent_name: student.parent_name || '',
+        parent_phone: student.parent_phone || '',
+        parent_email: student.parent_email || '',
+        parent_relation: student.parent_relation || '',
+      })
+      setGradeLevel(student.grade_level || '')
+      setSubjects(student.subjects || [])
+      setLearningGoals(student.learning_goals || '')
+      setSchedule(student.preferred_schedule || '')
+      setBudgetPerMonth(student.budget_per_month?.toString() || '')
+      setSessionsPerMonth(student.sessions_per_month?.toString() || '')
+    } else {
+      console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
+    }
+  } catch (err) {
+    console.error('[ONBOARDING] ❌ Load data error:', err)
   }
+}
 
   // ============================================================
   // INISIALISASI
   // ============================================================
   useEffect(() => {
-    isMounted.current = true
-    const init = async () => {
-      try {
-        const supabase = createClient()
-        let currentUser = null
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (user) {
-          currentUser = user
+  isMounted.current = true
+  const init = async () => {
+    try {
+      const supabase = createClient()
+      let currentUser = null
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (user) {
+        currentUser = user
+      } else {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) currentUser = session.user
+      }
+      if (!currentUser) {
+        if (authUser) {
+          currentUser = authUser
+        } else if (!authLoading) {
+          router.push('/auth/login')
+          return
         } else {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user) currentUser = session.user
-        }
-        if (!currentUser) {
-          if (authUser) {
-            currentUser = authUser
-          } else if (!authLoading) {
-            router.push('/auth/login')
-            return
-          } else {
-            return
-          }
-        }
-        if (isMounted.current) {
-          setUserId(currentUser.id)
-          setUserEmail(currentUser.email || '')
-          await loadStudentData(currentUser.id)
-        }
-      } catch (err) {
-        console.error('[Onboarding] Init error:', err)
-        if (authUser && isMounted.current) {
-          setUserId(authUser.id)
-          setUserEmail(authUser.email || '')
-          await loadStudentData(authUser.id)
-        } else {
-          setError('Gagal memuat data user.')
+          return
         }
       }
+      if (isMounted.current) {
+        setUserId(currentUser.id)
+        setUserEmail(currentUser.email || '')
+        console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
+        await loadStudentData(currentUser.id)
+      }
+    } catch (err) {
+      console.error('[ONBOARDING] Init error:', err)
+      if (authUser && isMounted.current) {
+        setUserId(authUser.id)
+        setUserEmail(authUser.email || '')
+        await loadStudentData(authUser.id)
+      } else {
+        setError('Gagal memuat data user.')
+      }
     }
-    init()
-    return () => { isMounted.current = false }
-  }, [router, authUser, authLoading])
+  }
+  init()
+  return () => { isMounted.current = false }
+}, [router, authUser, authLoading])
 
   // ============================================================
   // VALIDASI
