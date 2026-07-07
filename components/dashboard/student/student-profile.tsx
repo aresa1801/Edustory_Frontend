@@ -75,7 +75,7 @@ export default function StudentProfile() {
     school_address: '',
   })
 
-  // Profile completion score (0–100)
+  // Profile completion score (0–100) and completion check
   const completionScore = useMemo(() => {
     const fields = [
       studentData.name.trim(),
@@ -93,6 +93,24 @@ export default function StudentProfile() {
     ]
     const filled = fields.filter(Boolean).length
     return Math.round((filled / fields.length) * 100)
+  }, [studentData])
+
+  // Check if profile is complete (all required fields filled)
+  const isProfileComplete = useMemo(() => {
+    return (
+      studentData.name.trim() !== '' &&
+      studentData.phone.trim() !== '' &&
+      studentData.gender !== '' &&
+      studentData.bio.trim() !== '' &&
+      studentData.grade_level !== '' &&
+      studentData.subjects.length > 0 &&
+      studentData.learning_goals.trim() !== '' &&
+      studentData.preferred_schedule !== '' &&
+      studentData.address.trim() !== '' &&
+      studentData.city !== '' &&
+      studentData.parent_name.trim() !== '' &&
+      studentData.parent_phone.trim() !== ''
+    )
   }, [studentData])
 
   const fetchProfile = useCallback(async () => {
@@ -204,7 +222,8 @@ export default function StudentProfile() {
         school_type: studentData.school_type || null,
         school_city: studentData.school_city.trim() || null,
         school_address: studentData.school_address.trim() || null,
-        onboarding_complete: true,
+        // Set onboarding_complete based on profile completion
+        onboarding_complete: isProfileComplete,
       }
 
       // Hapus null/undefined
@@ -303,20 +322,137 @@ export default function StudentProfile() {
 
           {/* Profile completion */}
           <Separator className="my-4" />
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Kelengkapan Profil</span>
-              <span className={`font-semibold ${completionColor}`}>{completionScore}%</span>
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Kelengkapan Profil</span>
+                <span className={`font-semibold ${completionColor}`}>{completionScore}%</span>
+              </div>
+              <Progress value={completionScore} className="h-1.5" />
+              {completionScore < 100 && (
+                <p className="text-xs text-muted-foreground">Lengkapi profil Anda agar lebih mudah dicocokkan dengan pengajar.</p>
+              )}
             </div>
-            <Progress value={completionScore} className="h-1.5" />
-            {completionScore < 100 && (
-              <p className="text-xs text-muted-foreground">Lengkapi profil Anda agar lebih mudah dicocokkan dengan pengajar.</p>
+            {completionScore === 100 && (
+              <p className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Profil Anda sudah lengkap! Siap mencari tutor.
+              </p>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* ===== TABS ===== */}
+      {/* Profile Summary (Read-only view of all fields) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Ringkasan Profil</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Data Siswa */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Nama Lengkap</p>
+              <p className="text-sm text-foreground font-medium">{studentData.name || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Nomor Telepon</p>
+              <p className="text-sm text-foreground font-medium">{studentData.phone || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Jenis Kelamin</p>
+              <p className="text-sm text-foreground font-medium">{studentData.gender || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Tentang Saya</p>
+              <p className="text-sm text-foreground font-medium line-clamp-2">{studentData.bio || 'Kosong'}</p>
+            </div>
+
+            {/* Learning Info */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Tingkat Kelas</p>
+              <p className="text-sm text-foreground font-medium">{studentData.grade_level || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Jadwal Belajar</p>
+              <p className="text-sm text-foreground font-medium">{studentData.preferred_schedule || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Mata Pelajaran</p>
+              <div className="flex flex-wrap gap-1">
+                {studentData.subjects.length > 0 ? (
+                  studentData.subjects.map(s => (
+                    <Badge key={s} variant="secondary" className="text-xs">
+                      {s}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-foreground font-medium">Kosong</p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Tujuan Belajar</p>
+              <p className="text-sm text-foreground font-medium line-clamp-2">{studentData.learning_goals || 'Kosong'}</p>
+            </div>
+
+            {/* Location & Budget */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Alamat Lengkap</p>
+              <p className="text-sm text-foreground font-medium line-clamp-2">{studentData.address || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Kota / Kabupaten</p>
+              <p className="text-sm text-foreground font-medium">{studentData.city || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Budget/Bulan</p>
+              <p className="text-sm text-foreground font-medium">
+                {studentData.budget_per_month ? `Rp ${Number(studentData.budget_per_month).toLocaleString('id-ID')}` : 'Kosong'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Pertemuan/Bulan</p>
+              <p className="text-sm text-foreground font-medium">{studentData.sessions_per_month ? `${studentData.sessions_per_month}× per bulan` : 'Kosong'}</p>
+            </div>
+
+            {/* School Info */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Nama Sekolah</p>
+              <p className="text-sm text-foreground font-medium">{studentData.school_name || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Jenjang Sekolah</p>
+              <p className="text-sm text-foreground font-medium">{studentData.school_type || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Kota Sekolah</p>
+              <p className="text-sm text-foreground font-medium">{studentData.school_city || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Alamat Sekolah</p>
+              <p className="text-sm text-foreground font-medium line-clamp-2">{studentData.school_address || 'Kosong'}</p>
+            </div>
+
+            {/* Parent Info */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Nama Orang Tua/Wali</p>
+              <p className="text-sm text-foreground font-medium">{studentData.parent_name || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Hubungan</p>
+              <p className="text-sm text-foreground font-medium">{studentData.parent_relation || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Email Orang Tua/Wali</p>
+              <p className="text-sm text-foreground font-medium">{studentData.parent_email || 'Kosong'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Telepon Orang Tua/Wali</p>
+              <p className="text-sm text-foreground font-medium">{studentData.parent_phone || 'Kosong'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <div>
         {/* Tab bar */}
         <div className="flex gap-1 border-b border-border mb-6">
