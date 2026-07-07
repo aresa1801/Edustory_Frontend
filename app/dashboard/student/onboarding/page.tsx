@@ -139,7 +139,7 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // LOAD DATA – HANYA DARI TABEL students
+  // LOAD DATA – DARI TABEL students (termasuk data payment)
   // ============================================================
   const loadStudentData = async (uid: string) => {
     console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
@@ -189,8 +189,10 @@ export default function StudentOnboardingPage() {
         setBudgetPerMonth(student.budget_per_month?.toString() || '')
         setSessionsPerMonth(student.sessions_per_month?.toString() || '')
 
-        // Step 4 – Deposit (tidak di-set karena tidak di-render di onboarding)
-        // Jika ingin muncul di profil nanti, bisa disimpan di state terpisah
+        // Step 4 – Deposit / Payment (tambahkan ini agar persist)
+        if (student.payment_method) setSelectedPayment(student.payment_method)
+        if (student.transfer_notes) setTransferProof(student.transfer_notes)
+        // deposit_amount tidak perlu di-set karena tidak ada input untuk itu di Step 4
       } else {
         console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
       }
@@ -229,6 +231,8 @@ export default function StudentOnboardingPage() {
           setUserId(currentUser.id)
           setUserEmail(currentUser.email || '')
           console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
+          // 🔥 PERBAIKAN: panggil loadStudentData langsung setelah setUserId
+          await loadStudentData(currentUser.id)
         }
       } catch (err) {
         console.error('[ONBOARDING] Init error:', err)
@@ -245,6 +249,7 @@ export default function StudentOnboardingPage() {
     return () => { isMounted.current = false }
   }, [router, authUser, authLoading])
 
+  // useEffect untuk memuat ulang data jika userId berubah (misal setelah login ulang)
   useEffect(() => {
     if (userId) {
       console.log('[ONBOARDING] 🔄 useEffect userId changed, loading data for:', userId)
