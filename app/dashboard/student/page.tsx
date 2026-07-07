@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,94 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
+  // Fetch profile data (can be called multiple times)
+  const fetchProfileData = async () => {
+    try {
+      console.log('[Dashboard] 🔄 Fetching data...')
+      const supabase = createClient()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      if (!user) throw new Error('User tidak ditemukan')
+
+      // Ambil user_profiles (maybeSingle)
+      const { data: up, error: upError } = await supabase
+        .from('user_profiles')
+        .select('name, email')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (upError) throw upError
+
+      const profileData = up || { name: user.user_metadata?.full_name || user.email, email: user.email }
+
+      // Ambil students
+      const { data: sd, error: sdError } = await supabase
+        .from('students')
+        .select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (sdError) throw sdError
+
+      if (!isMounted.current) return
+
+      // Gabungkan profile dan student
+      setProfile({ ...profileData, ...sd })
+
+      if (sd?.id) {
+        // Ambil matches
+        const { data: md, error: mdError } = await supabase
+          .from('matches')
+          .select(`
+            id, status, subject, start_date, lesson_frequency,
+            tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
+          `)
+          .eq('student_id', sd.id)
+          .order('start_date', { ascending: false })
+          .limit(5)
+        if (mdError) throw mdError
+
+        // Ambil tutor offers
+        const { data: offers, error: offersError } = await supabase
+          .from('matches')
+          .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
+          .eq('student_id', sd.id)
+          .eq('initiated_by', 'tutor')
+          .eq('status', 'pending')
+        if (offersError) throw offersError
+
+        if (isMounted.current) {
+          setMatches(md || [])
+          setTutorOffers(offers || [])
+        }
+      }
+
+      // Jika data berhasil, hapus error dan loading
+      if (isMounted.current) {
+        setError(null)
+        setLoading(false)
+      }
+      console.log('[Dashboard] ✅ Data siap')
+
+    } catch (err: any) {
+      console.error('[Dashboard] ❌ Fetch error:', err)
+      if (isMounted.current) {
+        setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
+        // Jangan set loading false di sini, nanti timeout yang akan mengatur
+      }
+    } finally {
+      // Jika fetch selesai sebelum timeout, kita tetap set loading false
+      if (isMounted.current && timeoutId.current) {
+        clearTimeout(timeoutId.current)
+        // Hanya set loading false jika belum false
+        setLoading(prev => {
+          if (prev) {
+            console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
+          }
+          return false
+        })
+      }
+    }
+  }
+
   useEffect(() => {
     if (fetchDone.current) return
     fetchDone.current = true
@@ -51,94 +139,7 @@ export default function StudentDashboard() {
       }
     }, 3000)
 
-    const fetchData = async () => {
-      try {
-        console.log('[Dashboard] 🔄 Fetching data...')
-        const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) throw new Error('User tidak ditemukan')
-
-        // Ambil user_profiles (maybeSingle)
-        const { data: up, error: upError } = await supabase
-          .from('user_profiles')
-          .select('name, email')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (upError) throw upError
-
-        const profileData = up || { name: user.user_metadata?.full_name || user.email, email: user.email }
-
-        // Ambil students
-        const { data: sd, error: sdError } = await supabase
-          .from('students')
-          .select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if (sdError) throw sdError
-
-        if (!isMounted.current) return
-
-        // Gabungkan profile dan student
-        setProfile({ ...profileData, ...sd })
-
-        if (sd?.id) {
-          // Ambil matches
-          const { data: md, error: mdError } = await supabase
-            .from('matches')
-            .select(`
-              id, status, subject, start_date, lesson_frequency,
-              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
-            `)
-            .eq('student_id', sd.id)
-            .order('start_date', { ascending: false })
-            .limit(5)
-          if (mdError) throw mdError
-
-          // Ambil tutor offers
-          const { data: offers, error: offersError } = await supabase
-            .from('matches')
-            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', sd.id)
-            .eq('initiated_by', 'tutor')
-            .eq('status', 'pending')
-          if (offersError) throw offersError
-
-          if (isMounted.current) {
-            setMatches(md || [])
-            setTutorOffers(offers || [])
-          }
-        }
-
-        // Jika data berhasil, hapus error dan loading
-        if (isMounted.current) {
-          setError(null)
-          setLoading(false)
-        }
-        console.log('[Dashboard] ✅ Data siap')
-
-      } catch (err: any) {
-        console.error('[Dashboard] ❌ Fetch error:', err)
-        if (isMounted.current) {
-          setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
-          // Jangan set loading false di sini, nanti timeout yang akan mengatur
-        }
-      } finally {
-        // Jika fetch selesai sebelum timeout, kita tetap set loading false
-        if (isMounted.current && timeoutId.current) {
-          clearTimeout(timeoutId.current)
-          // Hanya set loading false jika belum false
-          setLoading(prev => {
-            if (prev) {
-              console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
-            }
-            return false
-          })
-        }
-      }
-    }
-
-    fetchData()
+    fetchProfileData()
 
     return () => {
       isMounted.current = false
@@ -146,10 +147,16 @@ export default function StudentDashboard() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Create stable callback for profile saved event
+  const handleProfileSavedStable = useCallback(() => {
+    console.log('[Dashboard] ✅ Profile saved, refreshing onboarding status...')
+    fetchProfileData()
+  }, [])
+
   // Memoisasi komponen turunan agar stabil
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
-  const profileTab = useMemo(() => <StudentProfile />, [])
+  const profileTab = useMemo(() => <StudentProfile onProfileSaved={handleProfileSavedStable} />, [handleProfileSavedStable])
 
   // --- RENDER ---
   if (loading) {

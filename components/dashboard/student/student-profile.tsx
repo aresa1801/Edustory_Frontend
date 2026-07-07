@@ -29,8 +29,12 @@ const SUBJECTS = [
 ]
 
 const SCHEDULE_OPTIONS = [
-  'Senin – Jumat (Pagi)', 'Senin – Jumat (Siang)', 'Senin – Jumat (Sore)',
-  'Sabtu – Minggu (Pagi)', 'Sabtu – Minggu (Siang)', 'Sabtu – Minggu (Sore)',
+  'Senin – Jumat (Pagi 07.00–12.00)',
+  'Senin – Jumat (Siang 12.00–15.00)',
+  'Senin – Jumat (Sore 15.00–19.00)',
+  'Sabtu – Minggu (Pagi)',
+  'Sabtu – Minggu (Siang)',
+  'Sabtu – Minggu (Sore)',
   'Fleksibel',
 ]
 
@@ -40,7 +44,7 @@ const CITIES = [
   'Makassar', 'Semarang', 'Yogyakarta', 'Palembang', 'Lainnya',
 ]
 
-export default function StudentProfile() {
+export default function StudentProfile({ onProfileSaved }: { onProfileSaved?: () => void }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -254,6 +258,11 @@ export default function StudentProfile() {
 
       setSuccess('Profil berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
+
+      // Notify parent component that profile was saved
+      if (onProfileSaved) {
+        onProfileSaved()
+      }
     } catch (err) {
       console.error('Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
