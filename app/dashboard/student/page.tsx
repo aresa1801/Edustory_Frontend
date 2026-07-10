@@ -13,7 +13,7 @@ import StudentProfile from '@/components/dashboard/student/student-profile'
 import { createClient } from '@/lib/auth'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
-  ArrowRight, Calendar, Star
+  ArrowRight, Calendar, Star, Mail, Edit, User as UserIcon
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -42,7 +42,6 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
-    // ⏱️ PASTIKAN LOADING BERHENTI MAKSIMAL 3 DETIK
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('[Dashboard] ⏱️ Timeout 3 detik, force loading=false')
@@ -59,7 +58,6 @@ export default function StudentDashboard() {
         if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
 
-        // Ambil user_profiles (maybeSingle)
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('name, email')
@@ -69,7 +67,6 @@ export default function StudentDashboard() {
 
         const profileData = up || { name: user.user_metadata?.full_name || user.email, email: user.email }
 
-        // Ambil students
         const { data: sd, error: sdError } = await supabase
           .from('students')
           .select('id, grade_level, subjects, status, budget_per_month, sessions_per_month, onboarding_complete')
@@ -79,11 +76,9 @@ export default function StudentDashboard() {
 
         if (!isMounted.current) return
 
-        // Gabungkan profile dan student
         setProfile({ ...profileData, ...sd })
 
         if (sd?.id) {
-          // Ambil matches
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
@@ -95,7 +90,6 @@ export default function StudentDashboard() {
             .limit(5)
           if (mdError) throw mdError
 
-          // Ambil tutor offers
           const { data: offers, error: offersError } = await supabase
             .from('matches')
             .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
@@ -110,7 +104,6 @@ export default function StudentDashboard() {
           }
         }
 
-        // Jika data berhasil, hapus error dan loading
         if (isMounted.current) {
           setError(null)
           setLoading(false)
@@ -121,17 +114,12 @@ export default function StudentDashboard() {
         console.error('[Dashboard] ❌ Fetch error:', err)
         if (isMounted.current) {
           setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
-          // Jangan set loading false di sini, nanti timeout yang akan mengatur
         }
       } finally {
-        // Jika fetch selesai sebelum timeout, kita tetap set loading false
         if (isMounted.current && timeoutId.current) {
           clearTimeout(timeoutId.current)
-          // Hanya set loading false jika belum false
           setLoading(prev => {
-            if (prev) {
-              console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
-            }
+            if (prev) console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
             return false
           })
         }
@@ -146,12 +134,10 @@ export default function StudentDashboard() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Memoisasi komponen turunan agar stabil
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
   const profileTab = useMemo(() => <StudentProfile />, [])
 
-  // --- RENDER ---
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -162,7 +148,6 @@ export default function StudentDashboard() {
     )
   }
 
-  // Hitung statistik
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
@@ -170,7 +155,6 @@ export default function StudentDashboard() {
 
   return (
     <div>
-      {/* Tampilkan error kecil jika ada, tapi tidak mengganggu UI */}
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
@@ -274,67 +258,83 @@ export default function StudentDashboard() {
 
           {/* Info & Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Informasi Akun</CardTitle>
+            {/* ======= KARTU PELAJAR ======= */}
+            <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="bg-primary/10 p-1.5 rounded-full">
+                    <UserIcon className="w-4 h-4 text-primary" />
+                  </span>
+                  Kartu Pelajar
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center text-xl font-bold text-primary flex-shrink-0">
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary ring-2 ring-primary/30 flex-shrink-0">
                     {profile?.name?.[0]?.toUpperCase() || '?'}
                   </div>
-                  <div>
-                    <p className="font-semibold">{profile?.name}</p>
-                    <p className="text-sm text-muted-foreground">{profile?.email}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-lg leading-tight truncate">
+                      {profile?.name || 'Nama belum diisi'}
+                    </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5 flex items-center gap-1">
+                      <span className={`inline-block w-2 h-2 rounded-full ${profile?.status === 'active' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                      {profile?.status === 'active' ? 'Akun Aktif' : profile?.status || 'Belum diatur'}
+                    </p>
                   </div>
                 </div>
-                {profile?.grade_level && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tingkat Kelas</span>
-                    <span className="font-medium">{profile.grade_level}</span>
+
+                <hr className="border-border" />
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Tingkat Kelas</p>
+                    <p className="font-medium">{profile?.grade_level || '—'}</p>
                   </div>
-                )}
-                {profile?.budget_per_month && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Budget/Bulan</span>
-                    <span className="font-medium">Rp {Number(profile.budget_per_month).toLocaleString('id-ID')}</span>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Pertemuan/Bulan</p>
+                    <p className="font-medium">{profile?.sessions_per_month ? `${profile.sessions_per_month}×` : '—'}</p>
                   </div>
-                )}
-                {profile?.sessions_per_month && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Pertemuan/Bulan</span>
-                    <span className="font-medium">{profile.sessions_per_month}× sesi</span>
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground text-xs">Budget per Bulan</p>
+                    <p className="font-medium">
+                      {profile?.budget_per_month ? `Rp ${Number(profile.budget_per_month).toLocaleString('id-ID')}` : '—'}
+                    </p>
                   </div>
-                )}
-                {profile?.status && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Status</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      profile.status === 'active' ? 'bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-slate-500/15 text-slate-600 dark:text-slate-300'
-                    }`}>
-                      {profile.status === 'active' ? 'Aktif' : profile.status}
-                    </span>
-                  </div>
-                )}
+                </div>
+
                 {profile?.subjects?.length > 0 && (
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">Mata Pelajaran:</p>
+                    <p className="text-muted-foreground text-xs mb-1">Mata Pelajaran</p>
                     <div className="flex flex-wrap gap-1">
-                      {profile.subjects.slice(0, 5).map((s: string) => (
+                      {profile.subjects.slice(0, 6).map((s: string) => (
                         <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
                       ))}
-                      {profile.subjects.length > 5 && (
-                        <Badge variant="outline" className="text-xs">+{profile.subjects.length - 5}</Badge>
+                      {profile.subjects.length > 6 && (
+                        <Badge variant="outline" className="text-xs">+{profile.subjects.length - 6}</Badge>
                       )}
                     </div>
                   </div>
                 )}
-                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setActiveTab('profile')}>
-                  Edit Profil
-                </Button>
+
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab('profile')}>
+                    Lihat Profil Lengkap
+                  </Button>
+                  <Link href="/dashboard/student/onboarding" className="flex-1">
+                    <Button size="sm" className="w-full bg-primary hover:bg-primary/90">
+                      <Edit className="w-3.5 h-3.5 mr-1.5" /> Ubah Data
+                    </Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
 
+            {/* Card Aksi Cepat (tetap) */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Aksi Cepat</CardTitle>
