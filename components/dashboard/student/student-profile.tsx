@@ -3,52 +3,25 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/auth'
-import { User, BookOpen, MapPin, Save, Mail, Phone, ShieldCheck, Target, Calendar, Wallet, CheckCircle2, Users, School } from 'lucide-react'
-
-const GRADE_LEVELS = [
-  'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
-  'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
-  'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
-  'Mahasiswa', 'Umum',
-]
-
-const SUBJECTS = [
-  'Matematika', 'Bahasa Inggris', 'Bahasa Indonesia', 'Sains', 'Fisika', 'Kimia', 'Biologi',
-  'Sejarah', 'Geografi', 'IPA', 'IPS', 'Ekonomi', 'Pemrograman', 'Desain Grafis', 'Musik',
-]
-
-const SCHEDULE_OPTIONS = [
-  'Senin – Jumat (Pagi)', 'Senin – Jumat (Siang)', 'Senin – Jumat (Sore)',
-  'Sabtu – Minggu (Pagi)', 'Sabtu – Minggu (Siang)', 'Sabtu – Minggu (Sore)',
-  'Fleksibel',
-]
-
-const CITIES = [
-  'Jakarta Selatan', 'Jakarta Barat', 'Jakarta Timur', 'Jakarta Utara', 'Jakarta Pusat',
-  'Bogor', 'Depok', 'Tangerang', 'Bekasi', 'Bandung', 'Surabaya', 'Medan',
-  'Makassar', 'Semarang', 'Yogyakarta', 'Palembang', 'Lainnya',
-]
+import {
+  User, BookOpen, MapPin, Mail, Phone, ShieldCheck,
+  Target, Calendar, Wallet, CheckCircle2, Users, School, Edit
+} from 'lucide-react'
+import Link from 'next/link'
 
 export default function StudentProfile() {
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [activeProfileTab, setActiveProfileTab] = useState('siswa')
   const [userEmail, setUserEmail] = useState('')
 
-  // SEMUA data siswa ada di students table
+  // Data lengkap dari students
   const [studentData, setStudentData] = useState({
     id: '',
     user_id: '',
@@ -73,9 +46,37 @@ export default function StudentProfile() {
     school_type: '',
     school_city: '',
     school_address: '',
+    onboarding_complete: false,
   })
 
-  // Profile completion score (0–100)
+  // Helper untuk fallback "kosong"
+  const displayValue = (value: any): string => {
+    if (value === null || value === undefined || value === '') return 'kosong'
+    if (Array.isArray(value) && value.length === 0) return 'kosong'
+    if (typeof value === 'string') return value
+    if (typeof value === 'number') return value.toString()
+    return 'kosong'
+  }
+
+  const displaySubjects = (subjects: string[]) => {
+    if (!subjects || subjects.length === 0) {
+      return <span className="text-muted-foreground">kosong</span>
+    }
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {subjects.map(s => (
+          <Badge key={s} variant="secondary">{s}</Badge>
+        ))}
+      </div>
+    )
+  }
+
+  const displayBudget = (amount: string) => {
+    if (!amount) return 'kosong'
+    return `Rp ${Number(amount).toLocaleString('id-ID')}`
+  }
+
+  // Hitung kelengkapan profil (hanya untuk ditampilkan)
   const completionScore = useMemo(() => {
     const fields = [
       studentData.name.trim(),
@@ -95,6 +96,7 @@ export default function StudentProfile() {
     return Math.round((filled / fields.length) * 100)
   }, [studentData])
 
+  // Fetch data dari Supabase
   const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
@@ -106,7 +108,6 @@ export default function StudentProfile() {
       }
       setUserEmail(user.email || '')
 
-      // Ambil semua data dari students (sudah termasuk name, phone, gender, bio)
       const { data: sd, error: sdErr } = await supabase
         .from('students')
         .select('*')
@@ -140,12 +141,12 @@ export default function StudentProfile() {
           school_type: sd.school_type || '',
           school_city: sd.school_city || '',
           school_address: sd.school_address || '',
+          onboarding_complete: sd.onboarding_complete || false,
         })
       } else {
-        // Jika belum ada data, set default dengan user_id
+        // Jika belum ada data, set default
         setStudentData(prev => ({ ...prev, user_id: user.id }))
       }
-
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat profil')
@@ -158,97 +159,21 @@ export default function StudentProfile() {
     fetchProfile()
   }, [fetchProfile])
 
-  const handleSubjectToggle = (subject: string) => {
-    setStudentData(prev => ({
-      ...prev,
-      subjects: prev.subjects.includes(subject)
-        ? prev.subjects.filter(s => s !== subject)
-        : [...prev.subjects, subject],
-    }))
-  }
-
-  const handleSave = async () => {
-    if (!studentData.name.trim()) {
-      setError('Nama lengkap tidak boleh kosong')
-      return
-    }
-
-    setSaving(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Anda harus login terlebih dahulu')
-
-      // Payload lengkap untuk students (semua field)
-      const payload: Record<string, any> = {
-        user_id: user.id,
-        name: studentData.name.trim() || null,
-        phone: studentData.phone.trim() || null,
-        gender: studentData.gender || null,
-        bio: studentData.bio.trim() || null,
-        grade_level: studentData.grade_level || null,
-        subjects: studentData.subjects || [],
-        learning_goals: studentData.learning_goals.trim() || null,
-        preferred_schedule: studentData.preferred_schedule || null,
-        budget_per_month: studentData.budget_per_month ? Number(studentData.budget_per_month) : null,
-        sessions_per_month: studentData.sessions_per_month ? Number(studentData.sessions_per_month) : null,
-        address: studentData.address.trim() || null,
-        city: studentData.city || null,
-        status: studentData.status || 'active',
-        parent_name: studentData.parent_name.trim() || null,
-        parent_email: studentData.parent_email.trim() || null,
-        parent_phone: studentData.parent_phone.trim() || null,
-        parent_relation: studentData.parent_relation || null,
-        school_name: studentData.school_name.trim() || null,
-        school_type: studentData.school_type || null,
-        school_city: studentData.school_city.trim() || null,
-        school_address: studentData.school_address.trim() || null,
-        onboarding_complete: true,
-      }
-
-      // Hapus null/undefined
-      Object.keys(payload).forEach(key => {
-        if (payload[key] === null || payload[key] === undefined) {
-          delete payload[key]
-        }
-      })
-
-      console.log('Saving student data:', payload)
-
-      const { data: savedSd, error: sdErr } = await supabase
-        .from('students')
-        .upsert(payload, { onConflict: 'user_id' })
-        .select()
-        .single()
-
-      if (sdErr) {
-        console.error('Error saving students:', sdErr)
-        throw sdErr
-      }
-
-      console.log('Student saved successfully:', savedSd)
-
-      if (savedSd && !studentData.id) {
-        setStudentData(prev => ({ ...prev, id: savedSd.id }))
-      }
-
-      setSuccess('Profil berhasil disimpan!')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      console.error('Save error:', err)
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+  // --- State loading ---
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <Spinner className="h-8 w-8 text-primary" />
         <p className="text-sm text-muted-foreground">Memuat profil…</p>
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     )
   }
 
@@ -261,23 +186,10 @@ export default function StudentProfile() {
     completionScore >= 50 ? 'text-yellow-300' :
     'text-red-500'
 
+  // --- Tampilan read-only ---
   return (
     <div className="max-w-2xl space-y-6">
-      {/* Alerts */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="flex items-center gap-2 text-green-300">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {success}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Profile Header Card */}
+      {/* Header Profile Card */}
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="pt-6 pb-5">
           <div className="flex items-center gap-4">
@@ -285,7 +197,9 @@ export default function StudentProfile() {
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-lg leading-tight truncate">{studentData.name || 'Nama belum diisi'}</p>
+              <p className="font-semibold text-lg leading-tight truncate">
+                {displayValue(studentData.name)}
+              </p>
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{userEmail}</span>
@@ -295,13 +209,19 @@ export default function StudentProfile() {
                   studentData.status === 'active' ? 'bg-green-100 text-green-300' : 'bg-slate-500/20 text-slate-300'
                 }`}>
                   <ShieldCheck className="w-3 h-3" />
-                  {studentData.status === 'active' ? 'Akun Aktif' : studentData.status}
+                  {studentData.status === 'active' ? 'Akun Aktif' : displayValue(studentData.status)}
                 </span>
               )}
             </div>
+            {/* Tombol Ubah Data → redirect ke onboarding */}
+            <Link href="/dashboard/student/onboarding">
+              <Button variant="outline" size="sm" className="gap-1">
+                <Edit className="w-4 h-4" /> Ubah Data
+              </Button>
+            </Link>
           </div>
 
-          {/* Profile completion */}
+          {/* Progress kelengkapan profil (read-only) */}
           <Separator className="my-4" />
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
@@ -310,7 +230,9 @@ export default function StudentProfile() {
             </div>
             <Progress value={completionScore} className="h-1.5" />
             {completionScore < 100 && (
-              <p className="text-xs text-muted-foreground">Lengkapi profil Anda agar lebih mudah dicocokkan dengan pengajar.</p>
+              <p className="text-xs text-muted-foreground">
+                Lengkapi profil Anda agar lebih mudah dicocokkan dengan pengajar.
+              </p>
             )}
           </div>
         </CardContent>
@@ -318,7 +240,6 @@ export default function StudentProfile() {
 
       {/* ===== TABS ===== */}
       <div>
-        {/* Tab bar */}
         <div className="flex gap-1 border-b border-border mb-6">
           {[
             { id: 'siswa', label: 'Data Siswa', icon: User },
@@ -343,378 +264,166 @@ export default function StudentProfile() {
           })}
         </div>
 
-        {/* Tab: Data Siswa */}
+        {/* ===== TAB: Data Siswa ===== */}
         {activeProfileTab === 'siswa' && (
           <div className="space-y-6">
-            {/* Personal Info */}
+            {/* Informasi Pribadi */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-blue-300" />
-                  </div>
-                  Informasi Pribadi
+                  <User className="w-4 h-4 text-primary" /> Informasi Pribadi
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name">
-                      Nama Lengkap <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="name"
-                      value={studentData.name}
-                      onChange={e => setStudentData(p => ({ ...p, name: e.target.value }))}
-                      placeholder="Nama lengkap Anda"
-                    />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nama Lengkap</p>
+                    <p className="font-medium">{displayValue(studentData.name)}</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="flex items-center gap-1">
-                      Email
-                      <span className="text-xs text-muted-foreground font-normal">(dari akun login)</span>
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="email"
-                        value={userEmail}
-                        readOnly
-                        className="pl-9 bg-muted/40 cursor-not-allowed text-muted-foreground"
-                      />
-                    </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <p className="font-medium">{userEmail}</p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="phone" className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-muted-foreground" /> Nomor Telepon
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={studentData.phone}
-                      onChange={e => setStudentData(p => ({ ...p, phone: e.target.value }))}
-                      placeholder="08xxxxxxxxxx"
-                    />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nomor Telepon</p>
+                    <p className="font-medium">{displayValue(studentData.phone)}</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="gender">Jenis Kelamin</Label>
-                    <Select value={studentData.gender} onValueChange={v => setStudentData(p => ({ ...p, gender: v }))}>
-                      <SelectTrigger id="gender">
-                        <SelectValue placeholder="Pilih jenis kelamin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="laki-laki">Laki-laki</SelectItem>
-                        <SelectItem value="perempuan">Perempuan</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Jenis Kelamin</p>
+                    <p className="font-medium">{displayValue(studentData.gender)}</p>
                   </div>
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="bio">Tentang Saya</Label>
-                  <Textarea
-                    id="bio"
-                    value={studentData.bio}
-                    onChange={e => setStudentData(p => ({ ...p, bio: e.target.value }))}
-                    placeholder="Ceritakan sedikit tentang diri Anda…"
-                    rows={3}
-                    className="resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground text-right">{studentData.bio.length} karakter</p>
+                <div>
+                  <p className="text-sm text-muted-foreground">Tentang Saya</p>
+                  <p className="font-medium whitespace-pre-wrap">{displayValue(studentData.bio)}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Learning Info */}
+            {/* Informasi Pembelajaran */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="w-4 h-4 text-purple-300" />
-                  </div>
-                  Informasi Pembelajaran
+                  <BookOpen className="w-4 h-4 text-primary" /> Informasi Pembelajaran
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="gradeLevel">Tingkat Kelas</Label>
-                    <Select value={studentData.grade_level} onValueChange={v => setStudentData(p => ({ ...p, grade_level: v }))}>
-                      <SelectTrigger id="gradeLevel">
-                        <SelectValue placeholder="Pilih tingkat kelas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GRADE_LEVELS.map(level => (
-                          <SelectItem key={level} value={level}>{level}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tingkat Kelas</p>
+                    <p className="font-medium">{displayValue(studentData.grade_level)}</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="schedule" className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Jadwal Belajar
-                    </Label>
-                    <Select value={studentData.preferred_schedule} onValueChange={v => setStudentData(p => ({ ...p, preferred_schedule: v }))}>
-                      <SelectTrigger id="schedule">
-                        <SelectValue placeholder="Pilih jadwal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SCHEDULE_OPTIONS.map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Jadwal Belajar</p>
+                    <p className="font-medium">{displayValue(studentData.preferred_schedule)}</p>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>
-                    Mata Pelajaran
-                    {studentData.subjects.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                        {studentData.subjects.length} dipilih
-                      </Badge>
-                    )}
-                  </Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border border-input bg-muted/20">
-                    {SUBJECTS.map(subject => (
-                      <label
-                        key={subject}
-                        htmlFor={`subj-${subject}`}
-                        className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-background transition-colors"
-                      >
-                        <Checkbox
-                          id={`subj-${subject}`}
-                          checked={studentData.subjects.includes(subject)}
-                          onCheckedChange={() => handleSubjectToggle(subject)}
-                        />
-                        <span className="text-sm leading-none">{subject}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {studentData.subjects.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {studentData.subjects.map(s => (
-                        <Badge
-                          key={s}
-                          variant="secondary"
-                          className="text-xs cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          onClick={() => handleSubjectToggle(s)}
-                        >
-                          {s} ×
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Mata Pelajaran</p>
+                  {displaySubjects(studentData.subjects)}
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="learningGoals" className="flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5 text-muted-foreground" /> Tujuan Belajar
-                  </Label>
-                  <Textarea
-                    id="learningGoals"
-                    value={studentData.learning_goals}
-                    onChange={e => setStudentData(p => ({ ...p, learning_goals: e.target.value }))}
-                    placeholder="Jelaskan tujuan belajar Anda, misalnya: persiapan ujian, meningkatkan nilai, dll."
-                    rows={3}
-                    className="resize-none"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Tujuan Belajar</p>
+                  <p className="font-medium whitespace-pre-wrap">{displayValue(studentData.learning_goals)}</p>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="budget" className="flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-muted-foreground" /> Budget/Bulan (Rp)
-                    </Label>
-                    <Input
-                      id="budget"
-                      type="number"
-                      min={0}
-                      value={studentData.budget_per_month}
-                      onChange={e => setStudentData(p => ({ ...p, budget_per_month: e.target.value }))}
-                      placeholder="500000"
-                    />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Budget per Bulan</p>
+                    <p className="font-medium">{displayBudget(studentData.budget_per_month)}</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sessions">Pertemuan/Bulan</Label>
-                    <Select value={studentData.sessions_per_month} onValueChange={v => setStudentData(p => ({ ...p, sessions_per_month: v }))}>
-                      <SelectTrigger id="sessions">
-                        <SelectValue placeholder="Pilih jumlah" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['2', '4', '6', '8', '10', '12', '16', '20'].map(n => (
-                          <SelectItem key={n} value={n}>{n}× per bulan</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pertemuan per Bulan</p>
+                    <p className="font-medium">
+                      {studentData.sessions_per_month ? `${studentData.sessions_per_month}× sesi` : 'kosong'}
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Address */}
+            {/* Lokasi */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  Lokasi
+                  <MapPin className="w-4 h-4 text-primary" /> Lokasi
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="address">Alamat Lengkap</Label>
-                  <Input
-                    id="address"
-                    value={studentData.address}
-                    onChange={e => setStudentData(p => ({ ...p, address: e.target.value }))}
-                    placeholder="Jl. Contoh No. 1, RT/RW, Kelurahan, Kecamatan"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Alamat Lengkap</p>
+                  <p className="font-medium">{displayValue(studentData.address)}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="city">Kota / Kabupaten</Label>
-                  <Select value={studentData.city} onValueChange={v => setStudentData(p => ({ ...p, city: v }))}>
-                    <SelectTrigger id="city">
-                      <SelectValue placeholder="Pilih kota" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CITIES.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <p className="text-sm text-muted-foreground">Kota / Kabupaten</p>
+                  <p className="font-medium">{displayValue(studentData.city)}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Tab: Data Sekolah */}
+        {/* ===== TAB: Data Sekolah ===== */}
         {activeProfileTab === 'sekolah' && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <School className="w-4 h-4 text-indigo-600" />
-                </div>
-                Data Sekolah
+                <School className="w-4 h-4 text-primary" /> Data Sekolah
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="schoolName">Nama Sekolah</Label>
-                  <Input
-                    id="schoolName"
-                    value={studentData.school_name}
-                    onChange={e => setStudentData(p => ({ ...p, school_name: e.target.value }))}
-                    placeholder="Contoh: SMA Negeri 1 Jakarta"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Nama Sekolah</p>
+                  <p className="font-medium">{displayValue(studentData.school_name)}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="schoolType">Jenjang Sekolah</Label>
-                  <Select value={studentData.school_type} onValueChange={v => setStudentData(p => ({ ...p, school_type: v }))}>
-                    <SelectTrigger id="schoolType">
-                      <SelectValue placeholder="Pilih jenjang" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SD">SD (Sekolah Dasar)</SelectItem>
-                      <SelectItem value="SMP">SMP (Sekolah Menengah Pertama)</SelectItem>
-                      <SelectItem value="SMA">SMA / SMK</SelectItem>
-                      <SelectItem value="PT">Perguruan Tinggi</SelectItem>
-                      <SelectItem value="other">Lainnya</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <p className="text-sm text-muted-foreground">Jenjang Sekolah</p>
+                  <p className="font-medium">{displayValue(studentData.school_type)}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="schoolCity">Kota Sekolah</Label>
-                  <Input
-                    id="schoolCity"
-                    value={studentData.school_city}
-                    onChange={e => setStudentData(p => ({ ...p, school_city: e.target.value }))}
-                    placeholder="Contoh: Jakarta Selatan"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Kota Sekolah</p>
+                  <p className="font-medium">{displayValue(studentData.school_city)}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="schoolAddress">Alamat Sekolah</Label>
-                  <Input
-                    id="schoolAddress"
-                    value={studentData.school_address}
-                    onChange={e => setStudentData(p => ({ ...p, school_address: e.target.value }))}
-                    placeholder="Jl. ..."
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Alamat Sekolah</p>
+                  <p className="font-medium">{displayValue(studentData.school_address)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Tab: Data Orang Tua */}
+        {/* ===== TAB: Data Orang Tua ===== */}
         {activeProfileTab === 'ortu' && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                  <Users className="w-4 h-4 text-orange-600" />
-                </div>
-                Informasi Orang Tua / Wali
+                <Users className="w-4 h-4 text-primary" /> Informasi Orang Tua / Wali
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="parentName">Nama Orang Tua / Wali</Label>
-                  <Input
-                    id="parentName"
-                    value={studentData.parent_name}
-                    onChange={e => setStudentData(p => ({ ...p, parent_name: e.target.value }))}
-                    placeholder="Nama lengkap orang tua / wali"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Nama</p>
+                  <p className="font-medium">{displayValue(studentData.parent_name)}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="parentRelation">Hubungan</Label>
-                  <Select value={studentData.parent_relation} onValueChange={v => setStudentData(p => ({ ...p, parent_relation: v }))}>
-                    <SelectTrigger id="parentRelation">
-                      <SelectValue placeholder="Pilih hubungan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ayah">Ayah</SelectItem>
-                      <SelectItem value="ibu">Ibu</SelectItem>
-                      <SelectItem value="wali">Wali</SelectItem>
-                      <SelectItem value="other">Lainnya</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <p className="text-sm text-muted-foreground">Hubungan</p>
+                  <p className="font-medium">{displayValue(studentData.parent_relation)}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="parentEmail" className="flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-muted-foreground" /> Email Orang Tua / Wali
-                  </Label>
-                  <Input
-                    id="parentEmail"
-                    type="email"
-                    value={studentData.parent_email}
-                    onChange={e => setStudentData(p => ({ ...p, parent_email: e.target.value }))}
-                    placeholder="email@contoh.com"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{displayValue(studentData.parent_email)}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="parentPhone" className="flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-muted-foreground" /> Telepon Orang Tua / Wali
-                  </Label>
-                  <Input
-                    id="parentPhone"
-                    value={studentData.parent_phone}
-                    onChange={e => setStudentData(p => ({ ...p, parent_phone: e.target.value }))}
-                    placeholder="08xxxxxxxxxx"
-                  />
+                <div>
+                  <p className="text-sm text-muted-foreground">Telepon</p>
+                  <p className="font-medium">{displayValue(studentData.parent_phone)}</p>
                 </div>
               </div>
             </CardContent>
@@ -722,18 +431,14 @@ export default function StudentProfile() {
         )}
       </div>
 
-      <Button
-        onClick={handleSave}
-        disabled={saving}
-        size="lg"
-        className="w-full"
-      >
-        {saving ? (
-          <><Spinner className="mr-2 h-4 w-4" />Menyimpan…</>
-        ) : (
-          <><Save className="mr-2 h-4 w-4" />Simpan Perubahan</>
-        )}
-      </Button>
+      {/* Tombol ubah data di bagian bawah (opsional, sudah ada di header) */}
+      <div className="flex justify-end">
+        <Link href="/dashboard/student/onboarding">
+          <Button variant="outline" className="gap-1">
+            <Edit className="w-4 h-4" /> Ubah Data (via Onboarding)
+          </Button>
+        </Link>
+      </div>
     </div>
   )
 }
