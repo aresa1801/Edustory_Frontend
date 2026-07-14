@@ -495,35 +495,40 @@ export default function StudentOnboardingPage() {
   // FINALIZE ONBOARDING (update onboarding_complete & process payment)
   // ============================================================
   const finalizeOnboarding = async () => {
-    const currentUserId = await resolveUserId()
-    const supabase = createClient()
-    const { error: completeErr } = await supabase
-      .from('students')
-      .update({ onboarding_complete: true })
-      .eq('user_id', currentUserId)
-    if (completeErr) throw new Error(`Gagal update status: ${completeErr.message}`)
+  const currentUserId = await resolveUserId()
+  const supabase = createClient()
+  
+  // 1. Update onboarding_complete
+  const { error: completeErr } = await supabase
+    .from('students')
+    .update({ onboarding_complete: true })
+    .eq('user_id', currentUserId)
+  if (completeErr) throw new Error(`Gagal update status: ${completeErr.message}`)
 
+  // 2. Panggil payment API, tapi jangan gagalkan redirect jika error
+  try {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('Sesi tidak ditemukan')
-    const amount = budgetPerMonth ? Number(budgetPerMonth) : 0
-    const res = await fetch('/api/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token
-      },
-      body: JSON.stringify({
-        amount,
-        paymentMethod: selectedPayment,
-        isOnboardingDeposit: true,
-        transactionRef: transferProof.trim() || null,
-      }),
-    })
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}))
-      throw new Error(json.error || 'Gagal memproses pembayaran')
+    if (session) {
+      const amount = budgetPerMonth ? Number(budgetPerMonth) : 0
+      await fetch('/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + session.access_token
+        },
+        body: JSON.stringify({
+          amount,
+          paymentMethod: selectedPayment,
+          isOnboardingDeposit: true,
+          transactionRef: transferProof.trim() || null,
+        }),
+      })
     }
+  } catch (paymentErr) {
+    // Log error tapi tetap lanjutkan redirect
+    console.warn('[Onboarding] Payment API error (non-critical):', paymentErr)
   }
+}
 
   // ============================================================
   // HANDLE NEXT

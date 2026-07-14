@@ -16,15 +16,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   const [error, setError] = useState('')
 
   const handleSelectRole = async (role: 'student' | 'tutor') => {
-    if (role === 'tutor') {
-      setError('🚧 Fitur tutor sedang dalam pengembangan. Silakan pilih "Siap belajar!"')
-      return
-    }
-
-    setIsLoading('student')
+    setIsLoading(role)
     setError('')
 
-    console.log('[SelectRole] 📝 Memilih student, User ID:', userId)
+    console.log(`[SelectRole] 📝 Memilih ${role}, User ID:`, userId)
 
     try {
       console.log('[SelectRole] 🔍 Mengirim request ke API...')
@@ -38,7 +33,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         },
         body: JSON.stringify({ 
           userId: userId, 
-          role: 'student',
+          role: role, // <-- kirim role yang dipilih
           email: userEmail,
           name: userName
         }),
@@ -58,9 +53,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       console.log('[SelectRole] ✅ Role berhasil disimpan via API:', result)
 
-      // Redirect ke dashboard student
-      console.log('[SelectRole] 🎯 Redirecting ke /dashboard/student')
-      window.location.replace('/dashboard/student')
+      // Redirect sesuai role
+      const dashboardPath = role === 'student' ? '/dashboard/student' : '/dashboard/tutor'
+      console.log(`[SelectRole] 🎯 Redirecting ke ${dashboardPath}`)
+      window.location.replace(dashboardPath)
 
     } catch (err) {
       console.error('[SelectRole] ❌ Error:', err)
@@ -73,7 +69,6 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     }
   }
 
-  // UI (sama seperti sebelumnya)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
       <div className="max-w-5xl w-full">
@@ -99,7 +94,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          {/* Student Card */}
+          {/* Student Card - SAMA SEPERTI SEBELUMNYA */}
           <Card 
             className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
               ${isLoading === 'student' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
@@ -139,31 +134,42 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             </CardContent>
           </Card>
 
-          {/* Tutor Card (Dinonaktifkan) */}
+          {/* Tutor Card - SEKARANG AKTIF */}
           <Card 
-            className="relative overflow-hidden border-2 opacity-60 cursor-not-allowed"
+            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
+              ${isLoading === 'tutor' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
+            `}
+            onClick={() => !isLoading && handleSelectRole('tutor')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400 to-gray-300" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-400" />
             <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
-                <UserCog className="w-10 h-10 text-gray-500 dark:text-gray-400" />
+              <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mx-auto mb-4">
+                <UserCog className="w-10 h-10 text-purple-600 dark:text-purple-400" />
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-500">Saya Tutor</CardTitle>
-              <CardDescription className="text-base text-gray-400">
-                🚧 Segera hadir! Fitur tutor sedang dalam pengembangan
+              <CardTitle className="text-2xl font-bold">Saya Tutor</CardTitle>
+              <CardDescription className="text-base">
+                Saya ingin mengajar dan berbagi ilmu dengan siswa
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center pb-8">
-              <ul className="text-sm text-gray-400 space-y-2 mb-6 text-left max-w-xs mx-auto">
+              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
                 <li>✓ Temukan siswa yang cocok dengan keahlian Anda</li>
                 <li>✓ Atur jadwal dan pilih student sendiri</li>
                 <li>✓ Dapatkan penghasilan tambahan</li>
               </ul>
               <Button 
-                className="w-full bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
-                disabled={true}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                disabled={isLoading === 'tutor'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectRole('tutor')
+                }}
               >
-                Segera hadir
+                {isLoading === 'tutor' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Menyimpan...</>
+                ) : (
+                  'Saya ingin mengajar'
+                )}
               </Button>
             </CardContent>
           </Card>

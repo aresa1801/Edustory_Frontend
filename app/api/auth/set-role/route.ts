@@ -5,7 +5,6 @@ export async function POST(request: NextRequest) {
   console.log('[API] 📥 Received POST request to /api/auth/set-role')
 
   try {
-    // Ambil data dari body
     const { userId, role, email, name } = await request.json()
     console.log('[API] 📝 Payload:', { userId, role, email, name })
 
@@ -19,18 +18,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
+    // Mapping: student → 'siswa', tutor → 'tutor'
     const dbRole = role === 'student' ? 'siswa' : role
     console.log('[API] 📝 Mapping role to dbRole:', dbRole)
 
-    // Initialize Supabase admin client (bypass RLS)
-    console.log('[API] 🔧 Initializing Supabase admin client...')
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Opsional: verifikasi bahwa userId benar-benar ada di auth.users
-    // (gunakan admin API untuk memastikan)
+    // Verifikasi user di auth
     console.log('[API] 🔍 Verifikasi user ID di auth...')
     const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(userId)
     if (authError || !authUser) {
@@ -39,7 +36,6 @@ export async function POST(request: NextRequest) {
     }
     console.log('[API] ✅ User verified:', authUser.user?.email)
 
-    // Gunakan email dan name dari auth jika tidak disediakan
     const userEmail = email || authUser.user?.email
     const userName = name || authUser.user?.user_metadata?.full_name || userEmail
 
@@ -50,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // Upsert ke user_profiles
+    // 1. Upsert ke user_profiles
     console.log('[API] 💾 Upserting to user_profiles...')
     const { error: upsertError } = await adminSupabase
       .from('user_profiles')
@@ -67,8 +63,52 @@ export async function POST(request: NextRequest) {
       console.error('[API] ❌ Upsert failed:', upsertError)
       return NextResponse.json({ error: upsertError.message }, { status: 500 })
     }
+    console.log('[API] ✅ user_profiles upsert succeeded')
 
-    console.log('[API] ✅ Upsert succeeded')
+    // 2. Jika role = tutor, pastikan ada baris di tabel tutors
+    if (role === 'tutor') {
+      console.log('[API] 👨‍🏫 Checking tutors table for user_id:', userId)
+
+      // Cek apakah sudah ada
+      const { data: existingTutor, error: checkError } = await adminSupabase
+        .from('tutors')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('[API] ❌ Error checking tutors:', checkError)
+        return NextResponse.json({ error: checkError.message }, { status: 500 })
+      }
+
+      if (!existingTutor) {
+        console.log('[API] 📝 Creating new tutor record...')
+        const { error: insertError } = await adminSupabase
+          .from('tutors')
+          .insert({
+            user_id: userId,
+            specializations: [],
+            experience_years: null,
+            hourly_rate: null,
+            qualifications: null,
+            rating: 0,
+            total_reviews: 0,
+            verified_grade_levels: [],
+            target_grade_level: null,
+            created_at: now,
+            updated_at: now,
+          })
+
+        if (insertError) {
+          console.error('[API] ❌ Insert tutor failed:', insertError)
+          return NextResponse.json({ error: insertError.message }, { status: 500 })
+        }
+        console.log('[API] ✅ Tutor record created')
+      } else {
+        console.log('[API] ℹ️ Tutor record already exists, skipping insert')
+      }
+    }
+
     console.log('[API] 🎉 Role saved successfully')
     return NextResponse.json({ success: true, role: dbRole })
   } catch (error) {
