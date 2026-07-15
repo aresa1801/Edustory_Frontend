@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
-import Link from 'next/link'
 import {
   UserCircle,
   Save,
@@ -52,11 +51,13 @@ const STATUS_CONFIG = {
   },
 }
 
-export default function ProfilePage() {
+export default function TutorProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  
+  // Form state – semua data disimpan di tabel tutors
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -67,6 +68,7 @@ export default function ProfilePage() {
     qualifications: '',
     specializations: [] as string[],
   })
+  
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [approvalStatus, setApprovalStatus] = useState<string>('pending')
   const [verified, setVerified] = useState(false)
@@ -81,15 +83,18 @@ export default function ProfilePage() {
 
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
       if (!user) {
-        if (isMounted.current) setError('User tidak ditemukan')
+        setError('User tidak ditemukan')
+        setLoading(false)
         return
       }
 
+      // 1. Ambil email dari user_profiles (atau dari user.email)
       const { data: profileData, error: profileErr } = await supabase
         .from('user_profiles')
-        .select('name, email, phone, bio')
+        .select('email')
         .eq('id', user.id)
         .maybeSingle()
 
@@ -97,9 +102,10 @@ export default function ProfilePage() {
         console.error('[Profile] Profile fetch error:', profileErr)
       }
 
+      // 2. Ambil semua data tutor dari tabel tutors
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
-        .select('id, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+        .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -108,19 +114,37 @@ export default function ProfilePage() {
       }
 
       if (isMounted.current) {
-        setForm({
-          name: profileData?.name || '',
-          email: profileData?.email || user.email || '',
-          phone: profileData?.phone || '',
-          bio: profileData?.bio || '',
-          experience_years: tutorData?.experience_years?.toString() || '',
-          hourly_rate: tutorData?.hourly_rate?.toString() || '',
-          qualifications: tutorData?.qualifications || '',
-          specializations: tutorData?.specializations || [],
-        })
-        setTutorId(tutorData?.id || null)
-        setApprovalStatus(tutorData?.approval_status || 'pending')
-        setVerified(tutorData?.verified || false)
+        const email = profileData?.email || user.email || ''
+        if (tutorData) {
+          setForm({
+            name: tutorData.name || '',
+            email: email,
+            phone: tutorData.phone || '',
+            bio: tutorData.bio || '',
+            experience_years: tutorData.experience_years?.toString() || '',
+            hourly_rate: tutorData.hourly_rate?.toString() || '',
+            qualifications: tutorData.qualifications || '',
+            specializations: tutorData.specializations || [],
+          })
+          setTutorId(tutorData.id)
+          setApprovalStatus(tutorData.approval_status || 'pending')
+          setVerified(tutorData.verified || false)
+        } else {
+          // Belum ada data tutor, set form kosong dengan email
+          setForm({
+            name: '',
+            email: email,
+            phone: '',
+            bio: '',
+            experience_years: '',
+            hourly_rate: '',
+            qualifications: '',
+            specializations: [],
+          })
+          setTutorId(null)
+          setApprovalStatus('pending')
+          setVerified(false)
+        }
         setError(null)
       }
     } catch (err) {
@@ -161,39 +185,35 @@ export default function ProfilePage() {
     setSuccess(null)
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
       if (!user) throw new Error('Tidak terautentikasi')
 
-      const { error: profileErr } = await supabase
-        .from('user_profiles')
-        .update({
-          name: form.name,
-          phone: form.phone,
-          bio: form.bio,
-        })
-        .eq('id', user.id)
-
-      if (profileErr) throw profileErr
+      // Siapkan payload untuk tutors
+      const tutorPayload = {
+        user_id: user.id,
+        name: form.name.trim() || null,
+        phone: form.phone.trim() || null,
+        bio: form.bio.trim() || null,
+        experience_years: parseInt(form.experience_years) || 0,
+        hourly_rate: parseFloat(form.hourly_rate) || 0,
+        qualifications: form.qualifications.trim() || null,
+        // specializations tidak diubah di sini (diatur di halaman teaching-interest)
+      }
 
       if (tutorId) {
-        const { error: tutorErr } = await supabase
+        // Update existing tutor
+        const { error: updateErr } = await supabase
           .from('tutors')
-          .update({
-            experience_years: parseInt(form.experience_years) || 0,
-            hourly_rate: parseFloat(form.hourly_rate) || 0,
-            qualifications: form.qualifications,
-          })
+          .update(tutorPayload)
           .eq('id', tutorId)
-
-        if (tutorErr) throw tutorErr
+        if (updateErr) throw updateErr
       } else {
-        const { error: insertErr } = await supabase
+        // Insert new tutor dengan approval_status default 'pending'
+        const { data: newTutor, error: insertErr } = await supabase
           .from('tutors')
           .insert({
-            user_id: user.id,
-            experience_years: parseInt(form.experience_years) || 0,
-            hourly_rate: parseFloat(form.hourly_rate) || 0,
-            qualifications: form.qualifications,
+            ...tutorPayload,
             specializations: [],
             approval_status: 'pending',
             verified: false,
@@ -204,8 +224,9 @@ export default function ProfilePage() {
           })
           .select('id')
           .single()
-
         if (insertErr) throw insertErr
+        setTutorId(newTutor.id)
+        // Refresh data agar status terbaru
         fetchDone.current = false
         await fetchProfile()
       }
@@ -213,6 +234,7 @@ export default function ProfilePage() {
       setSuccess('Profil berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
+      console.error('[Profile] Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
     } finally {
       setSaving(false)
@@ -236,8 +258,8 @@ export default function ProfilePage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Profil Saya</h1>
-          <p className="text-slate-500 text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
+          <h1 className="text-2xl font-bold text-foreground">Profil Saya</h1>
+          <p className="text-muted-foreground text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
         </div>
         {isProfileComplete ? (
           <Badge className="bg-green-500/20 text-green-300 border-green-500/30 gap-1.5 px-3 py-1.5">
@@ -263,9 +285,10 @@ export default function ProfilePage() {
         </Alert>
       )}
 
+      {/* Status Akun */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Status Akun
           </CardTitle>
@@ -275,12 +298,12 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3">
               <StatusIcon className={`w-5 h-5 ${statusCfg.iconColor}`} />
               <div>
-                <p className="text-sm font-semibold text-slate-800">{statusCfg.label}</p>
+                <p className="text-sm font-semibold">{statusCfg.label}</p>
                 {approvalStatus === 'pending' && (
-                  <p className="text-xs text-slate-500">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
+                  <p className="text-xs text-muted-foreground">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
                 )}
                 {approvalStatus === 'approved' && (
-                  <p className="text-xs text-slate-500">Anda dapat menerima permintaan siswa</p>
+                  <p className="text-xs text-muted-foreground">Anda dapat menerima permintaan siswa</p>
                 )}
               </div>
             </div>
@@ -291,9 +314,10 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Informasi Pribadi */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Informasi Pribadi
           </CardTitle>
@@ -301,7 +325,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Nama Lengkap</Label>
               <Input
                 value={form.name}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -309,15 +333,15 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email
               </Label>
-              <Input value={form.email} disabled className="bg-slate-50 text-slate-500" />
+              <Input value={form.email} disabled className="bg-muted/40 text-muted-foreground" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <Phone className="w-3 h-3" /> Nomor WhatsApp
             </Label>
             <Input
@@ -328,7 +352,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600">Bio Singkat</Label>
+            <Label className="text-xs font-medium text-muted-foreground">Bio Singkat</Label>
             <Textarea
               value={form.bio}
               onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
@@ -340,9 +364,10 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Informasi Profesional */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Informasi Profesional
           </CardTitle>
@@ -350,7 +375,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Briefcase className="w-3 h-3" /> Pengalaman Mengajar (Tahun)
               </Label>
               <Input
@@ -363,7 +388,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Banknote className="w-3 h-3" /> Tarif Per Jam (Rp)
               </Label>
               <Input
@@ -378,7 +403,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <BookOpen className="w-3 h-3" /> Kualifikasi & Sertifikasi
             </Label>
             <Textarea
@@ -392,17 +417,17 @@ export default function ProfilePage() {
 
           {form.specializations.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Mata Pelajaran yang Diajarkan</Label>
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <Label className="text-xs font-medium text-muted-foreground">Mata Pelajaran yang Diajarkan</Label>
+              <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border">
                 {form.specializations.map((s: string) => (
                   <Badge key={s} variant="secondary" className="text-xs">
                     {s}
                   </Badge>
                 ))}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Kelola mata pelajaran di halaman{' '}
-                <a href="/dashboard/tutor/teaching-interest" className="text-blue-300 underline">
+                <a href="/dashboard/tutor/teaching-interest" className="text-primary underline">
                   Minat Mengajar
                 </a>
               </p>
@@ -414,7 +439,7 @@ export default function ProfilePage() {
       <Button
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 h-11"
+        className="w-full gap-2 h-11"
       >
         {saving ? (
           <>
