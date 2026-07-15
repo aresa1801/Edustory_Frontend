@@ -27,30 +27,10 @@ import {
 } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  pending: {
-    label: 'Menunggu Verifikasi',
-    icon: Clock,
-    color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    iconColor: 'text-amber-500',
-  },
-  approved: {
-    label: 'Disetujui',
-    icon: CheckCircle2,
-    color: 'bg-green-500/20 text-green-300 border-green-500/30',
-    iconColor: 'text-green-500',
-  },
-  rejected: {
-    label: 'Ditolak',
-    icon: XCircle,
-    color: 'bg-red-500/20 text-red-300 border-red-500/30',
-    iconColor: 'text-red-500',
-  },
-  suspended: {
-    label: 'Ditangguhkan',
-    icon: XCircle,
-    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-    iconColor: 'text-slate-400',
-  },
+  pending: { label: 'Menunggu Verifikasi', icon: Clock, iconColor: 'text-amber-500' },
+  approved: { label: 'Disetujui', icon: CheckCircle2, iconColor: 'text-green-500' },
+  rejected: { label: 'Ditolak', icon: XCircle, iconColor: 'text-red-500' },
+  suspended: { label: 'Ditangguhkan', icon: XCircle, iconColor: 'text-slate-400' },
 }
 
 export default function TutorProfilePage() {
@@ -61,9 +41,6 @@ export default function TutorProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // ============================================================
-  // STATE FORM – semua data disimpan di tabel tutors
-  // ============================================================
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -74,115 +51,137 @@ export default function TutorProfilePage() {
     qualifications: '',
   })
 
-  // State tambahan dari tabel tutors
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [approvalStatus, setApprovalStatus] = useState<string>('pending')
   const [verified, setVerified] = useState(false)
   const [specializations, setSpecializations] = useState<string[]>([])
 
   // ============================================================
-  // FUNGSI LOAD DATA – SAMA SEPERTI ONBOARDING STUDENT
+  // LOAD DATA – dengan logging untuk debug
   // ============================================================
   const loadTutorData = async (uid: string) => {
-  console.log('[TutorProfile] 🔍 loadTutorData untuk uid:', uid)
-  try {
-    const supabase = createClient()
+    console.log('[TutorProfile] 🔍 loadTutorData mulai untuk uid:', uid)
+    try {
+      const supabase = createClient()
+      console.log('[TutorProfile] ✅ Supabase client dibuat')
 
-    // 1. Ambil email dari user_profiles
-    const { data: profileData, error: profileErr } = await supabase
-      .from('user_profiles')
-      .select('email')
-      .eq('id', uid)
-      .maybeSingle()
+      // 1. Ambil email dari user_profiles
+      const { data: profileData, error: profileErr } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('id', uid)
+        .maybeSingle()
 
-    if (profileErr) {
-      console.warn('[TutorProfile] ⚠️ Error load user_profiles:', profileErr)
+      if (profileErr) {
+        console.warn('[TutorProfile] ⚠️ Error user_profiles:', profileErr)
+      }
+      console.log('[TutorProfile] 📧 Profile data:', profileData)
+
+      const email = profileData?.email || ''
+
+      // 2. Ambil data tutor
+      const { data: tutorData, error: tutorErr } = await supabase
+        .from('tutors')
+        .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+        .eq('user_id', uid)
+        .maybeSingle()
+
+      if (tutorErr) {
+        console.warn('[TutorProfile] ⚠️ Error tutor:', tutorErr)
+        throw tutorErr // Biarkan error terlempar agar masuk ke catch
+      }
+
+      console.log('[TutorProfile] 📚 Tutor data:', tutorData)
+
+      if (tutorData) {
+        console.log('[TutorProfile] ✅ Data tutor ditemukan')
+        setForm({
+          name: tutorData.name || '',
+          email: email,
+          phone: tutorData.phone || '',
+          bio: tutorData.bio || '',
+          experience_years: tutorData.experience_years?.toString() || '',
+          hourly_rate: tutorData.hourly_rate?.toString() || '',
+          qualifications: tutorData.qualifications || '',
+        })
+        setTutorId(tutorData.id)
+        setApprovalStatus(tutorData.approval_status || 'pending')
+        setVerified(tutorData.verified || false)
+        setSpecializations(tutorData.specializations || [])
+      } else {
+        console.log('[TutorProfile] ℹ️ Belum ada data tutor')
+        setForm({
+          name: '',
+          email: email,
+          phone: '',
+          bio: '',
+          experience_years: '',
+          hourly_rate: '',
+          qualifications: '',
+        })
+        setTutorId(null)
+        setApprovalStatus('pending')
+        setVerified(false)
+        setSpecializations([])
+      }
+      setError(null)
+    } catch (err) {
+      console.error('[TutorProfile] ❌ Load data error:', err)
+      setError('Gagal memuat data profil. Silakan refresh halaman.')
+      // Throw ulang agar init bisa menangkap
+      throw err
     }
-
-    const email = profileData?.email || ''
-
-    // 2. Ambil data tutor
-    const { data: tutorData, error: tutorErr } = await supabase
-      .from('tutors')
-      .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
-      .eq('user_id', uid)
-      .maybeSingle()
-
-    if (tutorErr) {
-      console.warn('[TutorProfile] ⚠️ Error load tutor:', tutorErr)
-      // Jangan throw, lanjutkan dengan data kosong
-    }
-
-    if (tutorData) {
-      console.log('[TutorProfile] ✅ Data tutor ditemukan:', tutorData)
-      setForm({
-        name: tutorData.name || '',
-        email: email,
-        phone: tutorData.phone || '',
-        bio: tutorData.bio || '',
-        experience_years: tutorData.experience_years?.toString() || '',
-        hourly_rate: tutorData.hourly_rate?.toString() || '',
-        qualifications: tutorData.qualifications || '',
-      })
-      setTutorId(tutorData.id)
-      setApprovalStatus(tutorData.approval_status || 'pending')
-      setVerified(tutorData.verified || false)
-      setSpecializations(tutorData.specializations || [])
-    } else {
-      console.log('[TutorProfile] ℹ️ Belum ada data tutor')
-      setForm({
-        name: '',
-        email: email,
-        phone: '',
-        bio: '',
-        experience_years: '',
-        hourly_rate: '',
-        qualifications: '',
-      })
-      setTutorId(null)
-      setApprovalStatus('pending')
-      setVerified(false)
-      setSpecializations([])
-    }
-    setError(null)
-  } catch (err) {
-    console.error('[TutorProfile] ❌ Load data error:', err)
-    setError('Gagal memuat data profil. Silakan refresh halaman.')
-    // Jangan throw, biarkan loading tetap selesai
   }
-  // Tidak ada finally di sini, karena loading diatur di useEffect
-}
 
   // ============================================================
-  // INISIALISASI – SAMA SEPERTI ONBOARDING STUDENT
+  // INISIALISASI – dengan timeout untuk memaksa loading berhenti
   // ============================================================
   useEffect(() => {
-  const init = async () => {
-    if (authLoading) return
+    let timeoutId: NodeJS.Timeout | null = null
+    let isMounted = true
 
-    if (!authUser) {
-      router.push('/auth/login')
-      return
+    const init = async () => {
+      if (authLoading) return
+
+      if (!authUser) {
+        router.push('/auth/login')
+        return
+      }
+
+      setLoading(true)
+      // Force loading stop setelah 5 detik
+      timeoutId = setTimeout(() => {
+        if (isMounted) {
+          console.warn('[TutorProfile] ⏱️ Timeout 5 detik, force loading=false')
+          setLoading(false)
+          setError('Waktu habis, coba refresh halaman.')
+        }
+      }, 5000)
+
+      try {
+        await loadTutorData(authUser.id)
+      } catch (err) {
+        console.error('[TutorProfile] Init error:', err)
+        // Error sudah di-set di loadTutorData
+      } finally {
+        if (isMounted) {
+          if (timeoutId) clearTimeout(timeoutId)
+          setLoading(false)
+          console.log('[TutorProfile] 🏁 Loading selesai')
+        }
+      }
     }
 
-    setLoading(true)
-    try {
-      await loadTutorData(authUser.id)
-    } catch (err) {
-      // Seharusnya tidak akan sampai sini karena loadTutorData tidak throw
-      console.error('[TutorProfile] Init error:', err)
-      setError('Terjadi kesalahan saat memuat profil')
-    } finally {
-      // PASTIKAN loading selalu berhenti
-      setLoading(false)
-    }
-  }
+    init()
 
-  init()
-}, [authUser, authLoading, router])
+    return () => {
+      isMounted = false
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [authUser, authLoading, router])
 
   // ============================================================
-  // HANDLE SAVE – SIMPAN KE TABEL tutors
+  // HANDLE SAVE – menggunakan API route atau langsung?
   // ============================================================
   const handleSave = async () => {
     // Validasi
@@ -217,7 +216,6 @@ export default function TutorProfilePage() {
       if (userError) throw userError
       if (!user) throw new Error('User tidak ditemukan')
 
-      // Payload untuk tutors
       const payload = {
         user_id: user.id,
         name: form.name.trim(),
@@ -230,22 +228,15 @@ export default function TutorProfilePage() {
 
       console.log('[TutorProfile] 📦 Payload:', payload)
 
-      let result
       if (tutorId) {
-        // UPDATE existing
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('tutors')
           .update(payload)
           .eq('id', tutorId)
-          .select('id')
-          .single()
-
         if (error) throw error
-        result = data
         console.log('[TutorProfile] ✅ Update berhasil')
       } else {
-        // INSERT baru
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('tutors')
           .insert({
             ...payload,
@@ -257,21 +248,15 @@ export default function TutorProfilePage() {
             verified_grade_levels: [],
             target_grade_level: null,
           })
-          .select('id')
-          .single()
-
         if (error) throw error
-        result = data
-        setTutorId(result.id)
         console.log('[TutorProfile] ✅ Insert berhasil')
       }
 
       setSuccess('Profil berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
 
-      // Refresh data agar status terbaru
+      // Refresh data
       await loadTutorData(user.id)
-
     } catch (err) {
       console.error('[TutorProfile] ❌ Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
@@ -317,7 +302,6 @@ export default function TutorProfilePage() {
         )}
       </div>
 
-      {/* Alert */}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
