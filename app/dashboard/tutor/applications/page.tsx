@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,7 +11,7 @@ import { createClient } from '@/lib/auth'
 import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-// Fallback sederhana untuk komponen yang belum ada
+// Fallback sederhana
 function TutorAssessmentStatusFallback() {
   return (
     <Card>
@@ -51,8 +51,25 @@ export default function ApplicationsPage() {
   const [tutor, setTutor] = useState<any>(null)
   const [curationProgress, setCurationProgress] = useState<any>(null)
 
+  const isMounted = useRef(true)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchDone = useRef(false)
+
   useEffect(() => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Applications] ⏱️ Timeout, force loading=false')
+        setLoading(false)
+      }
+    }, 3000)
+
     const fetchData = async () => {
+      if (fetchDone.current) return
+      fetchDone.current = true
+
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -73,10 +90,9 @@ export default function ApplicationsPage() {
             user_profiles!inner (name, email)
           `)
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle() // ✅ maybeSingle
 
         if (tutorError || !tutorData) {
-          // Tutor belum terdaftar – kita set tutor = null tapi tidak error
           setTutor(null)
           return
         }
@@ -101,24 +117,32 @@ export default function ApplicationsPage() {
           setCurationProgress(progress)
         }
       } catch (err) {
-        console.error('Error fetching application data:', err)
+        console.error('[Applications] Error:', err)
       } finally {
-        setLoading(false)
+        if (isMounted.current) {
+          setLoading(false)
+          if (timeoutId.current) clearTimeout(timeoutId.current)
+        }
       }
     }
 
     fetchData()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
   }, [])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Spinner className="h-8 w-8" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat data aplikasi...</p>
       </div>
     )
   }
 
-  // Jika tutor null → tampilkan pesan untuk melengkapi profil
   if (!tutor) {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
@@ -198,7 +222,6 @@ export default function ApplicationsPage() {
         </TabsList>
 
         <TabsContent value="curation">
-          {/* Ganti dengan komponen asli jika sudah ada, untuk sementara pakai fallback */}
           <TutorAssessmentStatusFallback />
         </TabsContent>
 

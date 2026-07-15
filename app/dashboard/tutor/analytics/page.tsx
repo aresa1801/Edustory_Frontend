@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -60,8 +60,27 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const isMounted = useRef(true)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchDone = useRef(false)
+
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    // Timeout 3 detik untuk memaksa loading selesai
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Analytics] ⏱️ Timeout, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
+    const fetchData = async () => {
+      if (fetchDone.current) return
+      fetchDone.current = true
+
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -82,10 +101,10 @@ export default function AnalyticsPage() {
             specializations
           `)
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle() // ✅ pakai maybeSingle
 
         if (tutorError || !tutorData) {
-          // Tidak ada data tutor → tampilkan pesan "data tidak ditemukan" tapi bukan error
+          // Data kosong, tetap set data default agar tampilan muncul
           setData({
             totalStudents: 0,
             activeStudents: 0,
@@ -129,25 +148,36 @@ export default function AnalyticsPage() {
           experienceYears: tutorData.experience_years || 0,
           satisfactionScore,
         })
+        setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Gagal memuat analitik')
+        console.error('[Analytics] ❌ Error:', err)
+        setError('Gagal memuat data analitik')
       } finally {
-        setLoading(false)
+        if (isMounted.current) {
+          setLoading(false)
+          if (timeoutId.current) clearTimeout(timeoutId.current)
+        }
       }
     }
 
-    fetchAnalytics()
+    fetchData()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
   }, [])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat data analitik...</p>
       </div>
     )
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <Alert variant="destructive">
         <AlertDescription>{error}</AlertDescription>
@@ -163,7 +193,7 @@ export default function AnalyticsPage() {
     )
   }
 
-  // ========== RENDER ==========
+  // === RENDER (sama seperti sebelumnya, hanya statCards dan konten) ===
   const statCards = [
     { label: 'Total Siswa', value: data.totalStudents, icon: Users, color: 'text-blue-300', bg: 'bg-blue-500/20' },
     { label: 'Siswa Aktif', value: data.activeStudents, icon: TrendingUp, color: 'text-green-300', bg: 'bg-green-500/20' },
@@ -204,7 +234,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Analitik Performa</h1>
         <p className="text-slate-500 text-sm mt-1">
@@ -212,7 +241,6 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="border shadow-sm">
@@ -230,7 +258,6 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Satisfaction Score Card */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -289,7 +316,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Performance Overview */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -354,7 +380,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Subjects */}
         <Card className="border shadow-sm lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">

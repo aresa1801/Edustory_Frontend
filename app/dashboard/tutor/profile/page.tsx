@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,21 +71,22 @@ export default function ProfilePage() {
   const [approvalStatus, setApprovalStatus] = useState<string>('pending')
   const [verified, setVerified] = useState(false)
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
+  const isMounted = useRef(true)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchDone = useRef(false)
 
-  const fetchProfile = async () => {
-    setLoading(true)
+  const fetchProfile = useCallback(async () => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        setError('User tidak ditemukan')
+        if (isMounted.current) setError('User tidak ditemukan')
         return
       }
 
-      // Ambil user_profiles
       const { data: profileData, error: profileErr } = await supabase
         .from('user_profiles')
         .select('name, email, phone, bio')
@@ -93,10 +94,9 @@ export default function ProfilePage() {
         .maybeSingle()
 
       if (profileErr) {
-        console.error('Profile fetch error:', profileErr)
+        console.error('[Profile] Profile fetch error:', profileErr)
       }
 
-      // Ambil tutors
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
         .select('id, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
@@ -104,29 +104,56 @@ export default function ProfilePage() {
         .maybeSingle()
 
       if (tutorErr && tutorErr.code !== 'PGRST116') {
-        console.error('Tutor fetch error:', tutorErr)
+        console.error('[Profile] Tutor fetch error:', tutorErr)
       }
 
-      setForm({
-        name: profileData?.name || '',
-        email: profileData?.email || user.email || '',
-        phone: profileData?.phone || '',
-        bio: profileData?.bio || '',
-        experience_years: tutorData?.experience_years?.toString() || '',
-        hourly_rate: tutorData?.hourly_rate?.toString() || '',
-        qualifications: tutorData?.qualifications || '',
-        specializations: tutorData?.specializations || [],
-      })
-      setTutorId(tutorData?.id || null)
-      setApprovalStatus(tutorData?.approval_status || 'pending')
-      setVerified(tutorData?.verified || false)
-      setError(null)
+      if (isMounted.current) {
+        setForm({
+          name: profileData?.name || '',
+          email: profileData?.email || user.email || '',
+          phone: profileData?.phone || '',
+          bio: profileData?.bio || '',
+          experience_years: tutorData?.experience_years?.toString() || '',
+          hourly_rate: tutorData?.hourly_rate?.toString() || '',
+          qualifications: tutorData?.qualifications || '',
+          specializations: tutorData?.specializations || [],
+        })
+        setTutorId(tutorData?.id || null)
+        setApprovalStatus(tutorData?.approval_status || 'pending')
+        setVerified(tutorData?.verified || false)
+        setError(null)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat profil')
+      console.error('[Profile] Error:', err)
+      if (isMounted.current) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat profil')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        if (timeoutId.current) clearTimeout(timeoutId.current)
+      }
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Profile] ⏱️ Timeout, force loading=false')
+        setLoading(false)
+      }
+    }, 3000)
+
+    fetchProfile()
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
+  }, [fetchProfile])
 
   const handleSave = async () => {
     setSaving(true)
@@ -137,7 +164,6 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Tidak terautentikasi')
 
-      // Update user_profiles
       const { error: profileErr } = await supabase
         .from('user_profiles')
         .update({
@@ -149,7 +175,6 @@ export default function ProfilePage() {
 
       if (profileErr) throw profileErr
 
-      // Jika tutorId ada, update tutors; jika tidak, insert baru
       if (tutorId) {
         const { error: tutorErr } = await supabase
           .from('tutors')
@@ -162,7 +187,6 @@ export default function ProfilePage() {
 
         if (tutorErr) throw tutorErr
       } else {
-        // Insert tutor baru (seharusnya sudah ada dari select-role, tapi fallback)
         const { error: insertErr } = await supabase
           .from('tutors')
           .insert({
@@ -182,7 +206,7 @@ export default function ProfilePage() {
           .single()
 
         if (insertErr) throw insertErr
-        // Refresh data
+        fetchDone.current = false
         await fetchProfile()
       }
 
@@ -197,26 +221,19 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat profil...</p>
       </div>
     )
   }
 
   const statusCfg = STATUS_CONFIG[approvalStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
   const StatusIcon = statusCfg.icon
-
-  const isProfileComplete = !!(
-    form.name &&
-    form.phone &&
-    form.experience_years &&
-    form.hourly_rate &&
-    form.qualifications
-  )
+  const isProfileComplete = !!(form.name && form.phone && form.experience_years && form.hourly_rate && form.qualifications)
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Profil Saya</h1>
@@ -246,7 +263,6 @@ export default function ProfilePage() {
         </Alert>
       )}
 
-      {/* Verification Status */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -269,15 +285,12 @@ export default function ProfilePage() {
               </div>
             </div>
             {verified && (
-              <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-                ✓ Terverifikasi
-              </Badge>
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200">✓ Terverifikasi</Badge>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Personal Info */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -327,7 +340,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Professional Info */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -399,7 +411,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
       <Button
         onClick={handleSave}
         disabled={saving}
