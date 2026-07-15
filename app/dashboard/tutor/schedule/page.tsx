@@ -81,7 +81,7 @@ export default function SchedulePage() {
             lesson_frequency,
             start_date,
             status,
-            students!inner (
+            students (
               grade_level,
               user_profiles!user_id (
                 name,
@@ -176,11 +176,11 @@ export default function SchedulePage() {
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Calendar className="w-4 h-4" />
                           <span>
-                            Mulai: {new Date(item.startDate).toLocaleDateString('id-ID', {
+                            Mulai: {item.startDate ? new Date(item.startDate).toLocaleDateString('id-ID', {
                               day: 'numeric',
                               month: 'long',
                               year: 'numeric',
-                            })}
+                            }) : 'Belum diatur'}
                           </span>
                         </div>
                       </div>

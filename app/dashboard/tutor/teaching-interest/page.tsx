@@ -66,39 +66,41 @@ export default function TeachingInterestPage() {
     fetchData()
   }, [])
 
-  const fetchData = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('Anda harus login')
-        setLoading(false)
-        return
-      }
-
-      const { data: tutorData, error: tutorErr } = await supabase
-        .from('tutors')
-        .select('id, specializations, verified_grade_levels')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (tutorErr) throw tutorErr
-
-      if (tutorData) {
-        setTutorId(tutorData.id)
-        setSelectedLevels(tutorData.verified_grade_levels || [])
-        setSelectedSubjects(tutorData.specializations || [])
-      } else {
-        // Jika tutor belum punya data, kita bisa buat record baru nanti saat save
-        // Untuk sekarang, biarkan kosong
-        setTutorId(null)
-      }
-    } catch (err) {
-      setError('Gagal memuat data minat mengajar')
-    } finally {
+  // Bagian fetchData yang sudah diperbaiki
+const fetchData = async () => {
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setError('Anda harus login')
       setLoading(false)
+      return
     }
+
+    const { data: tutorData, error: tutorErr } = await supabase
+      .from('tutors')
+      .select('id, specializations, verified_grade_levels')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (tutorErr) throw tutorErr
+
+    if (tutorData) {
+      setTutorId(tutorData.id)
+      setSelectedLevels(tutorData.verified_grade_levels || [])
+      setSelectedSubjects(tutorData.specializations || [])
+    } else {
+      // Tutor belum punya data, biarkan kosong
+      setTutorId(null)
+      setSelectedLevels([])
+      setSelectedSubjects([])
+    }
+  } catch (err) {
+    setError('Gagal memuat data minat mengajar')
+  } finally {
+    setLoading(false)
   }
+}
 
   const toggleLevel = (level: string) => {
     const newLevels = selectedLevels.includes(level)
