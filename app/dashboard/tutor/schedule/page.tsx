@@ -51,14 +51,15 @@ export default function SchedulePage() {
     const fetchSchedule = async () => {
       try {
         const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError) throw userError
         if (!user) {
           setError('Anda harus login terlebih dahulu')
           setLoading(false)
           return
         }
 
-        // Ambil data tutor
+        // 1. Ambil data tutor
         const { data: tutorData, error: tutorErr } = await supabase
           .from('tutors')
           .select('id')
@@ -66,13 +67,14 @@ export default function SchedulePage() {
           .maybeSingle()
 
         if (tutorErr) throw tutorErr
+
         if (!tutorData) {
-          setError('Data tutor tidak ditemukan')
+          setError('Anda belum terdaftar sebagai tutor. Silakan daftar terlebih dahulu.')
           setLoading(false)
           return
         }
 
-        // Ambil data matches dengan relasi yang benar
+        // 2. Ambil data matches dengan relasi yang benar
         const { data: matches, error: matchError } = await supabase
           .from('matches')
           .select(`
@@ -81,9 +83,9 @@ export default function SchedulePage() {
             lesson_frequency,
             start_date,
             status,
-            students (
+            students:student_id (
               grade_level,
-              user_profiles!user_id (
+              user_profiles:user_id (
                 name,
                 phone
               )
@@ -95,6 +97,7 @@ export default function SchedulePage() {
 
         if (matchError) throw matchError
 
+        // 3. Mapping data
         const items: ScheduleItem[] = (matches || []).map((m: any) => ({
           id: m.id,
           studentName: m.students?.user_profiles?.name || 'Siswa',
@@ -108,6 +111,7 @@ export default function SchedulePage() {
 
         setSchedule(items)
       } catch (err) {
+        console.error('[Schedule] Error:', err)
         setError(err instanceof Error ? err.message : 'Gagal memuat jadwal')
       } finally {
         setLoading(false)
