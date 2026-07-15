@@ -59,7 +59,7 @@ export default function SchedulePage() {
           return
         }
 
-        // 1. Ambil data tutor
+        // 1. Cari tutor ID
         const { data: tutorData, error: tutorErr } = await supabase
           .from('tutors')
           .select('id')
@@ -74,7 +74,7 @@ export default function SchedulePage() {
           return
         }
 
-        // 2. Ambil data matches dengan relasi yang benar
+        // 2. Ambil matches dengan relasi yang benar
         const { data: matches, error: matchError } = await supabase
           .from('matches')
           .select(`
@@ -83,9 +83,9 @@ export default function SchedulePage() {
             lesson_frequency,
             start_date,
             status,
-            students:student_id (
+            students!inner (
               grade_level,
-              user_profiles:user_id (
+              user_profiles!user_id (
                 name,
                 phone
               )

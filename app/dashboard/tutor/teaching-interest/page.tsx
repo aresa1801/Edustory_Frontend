@@ -12,10 +12,7 @@ import { CheckCircle2, Save, BookOpen, GraduationCap, Info } from 'lucide-react'
 const GRADE_GROUPS = [
   {
     label: 'Sekolah Dasar (SD)',
-    levels: [
-      'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3',
-      'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
-    ],
+    levels: ['SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6'],
   },
   {
     label: 'Sekolah Menengah Pertama (SMP)',
@@ -28,19 +25,9 @@ const GRADE_GROUPS = [
 ]
 
 const SUBJECTS_BY_LEVEL: Record<string, string[]> = {
-  SD: [
-    'Matematika', 'Bahasa Indonesia', 'IPA', 'IPS',
-    'Bahasa Inggris', 'PKN', 'Seni Budaya', 'Penjaskes',
-  ],
-  SMP: [
-    'Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'IPA',
-    'IPS', 'PKN', 'Seni Budaya', 'Penjaskes', 'Informatika',
-  ],
-  SMA: [
-    'Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika',
-    'Kimia', 'Biologi', 'Ekonomi', 'Geografi', 'Sejarah',
-    'Sosiologi', 'Informatika', 'PKN', 'Seni Budaya',
-  ],
+  SD: ['Matematika', 'Bahasa Indonesia', 'IPA', 'IPS', 'Bahasa Inggris', 'PKN', 'Seni Budaya', 'Penjaskes'],
+  SMP: ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'IPA', 'IPS', 'PKN', 'Seni Budaya', 'Penjaskes', 'Informatika'],
+  SMA: ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi', 'Ekonomi', 'Geografi', 'Sejarah', 'Sosiologi', 'Informatika', 'PKN', 'Seni Budaya'],
 }
 
 function getSubjectsForLevels(levels: string[]): string[] {
@@ -66,48 +53,49 @@ export default function TeachingInterestPage() {
     fetchData()
   }, [])
 
-  // Bagian fetchData yang sudah diperbaiki
-const fetchData = async () => {
-  try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError('Anda harus login')
+  const fetchData = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      if (!user) {
+        setError('Anda harus login terlebih dahulu')
+        setLoading(false)
+        return
+      }
+
+      // Ambil data tutor dari tabel tutors
+      const { data: tutorData, error: tutorErr } = await supabase
+        .from('tutors')
+        .select('id, specializations, verified_grade_levels')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (tutorErr) throw tutorErr
+
+      if (tutorData) {
+        setTutorId(tutorData.id)
+        setSelectedLevels(tutorData.verified_grade_levels || [])
+        setSelectedSubjects(tutorData.specializations || [])
+      } else {
+        // Tutor belum terdaftar, set kosong
+        setTutorId(null)
+        setSelectedLevels([])
+        setSelectedSubjects([])
+      }
+    } catch (err) {
+      console.error('[TeachingInterest] Fetch error:', err)
+      setError('Gagal memuat data minat mengajar')
+    } finally {
       setLoading(false)
-      return
     }
-
-    const { data: tutorData, error: tutorErr } = await supabase
-      .from('tutors')
-      .select('id, specializations, verified_grade_levels')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (tutorErr) throw tutorErr
-
-    if (tutorData) {
-      setTutorId(tutorData.id)
-      setSelectedLevels(tutorData.verified_grade_levels || [])
-      setSelectedSubjects(tutorData.specializations || [])
-    } else {
-      // Tutor belum punya data, biarkan kosong
-      setTutorId(null)
-      setSelectedLevels([])
-      setSelectedSubjects([])
-    }
-  } catch (err) {
-    setError('Gagal memuat data minat mengajar')
-  } finally {
-    setLoading(false)
   }
-}
 
   const toggleLevel = (level: string) => {
     const newLevels = selectedLevels.includes(level)
       ? selectedLevels.filter(l => l !== level)
       : [...selectedLevels, level]
     setSelectedLevels(newLevels)
-    // Remove subjects that are no longer applicable after level change
     const availableSubjects = getSubjectsForLevels(newLevels)
     setSelectedSubjects(prev => prev.filter(s => availableSubjects.includes(s)))
   }
@@ -144,11 +132,12 @@ const fetchData = async () => {
     setError(null)
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
       if (!user) throw new Error('User tidak ditemukan')
 
-      // Jika tutorId belum ada, kita buat record baru
       let targetTutorId = tutorId
+
       if (!targetTutorId) {
         // Buat record tutor baru
         const { data: newTutor, error: insertErr } = await supabase
@@ -157,10 +146,11 @@ const fetchData = async () => {
             user_id: user.id,
             specializations: selectedSubjects,
             verified_grade_levels: selectedLevels,
-            approval_status: 'pending', // atau sesuai alur
+            approval_status: 'pending',
           })
           .select('id')
           .single()
+
         if (insertErr) throw insertErr
         targetTutorId = newTutor.id
         setTutorId(targetTutorId)
@@ -173,12 +163,14 @@ const fetchData = async () => {
             verified_grade_levels: selectedLevels,
           })
           .eq('id', targetTutorId)
+
         if (updateErr) throw updateErr
       }
 
       setSuccess('Minat mengajar berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
+      console.error('[TeachingInterest] Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
     } finally {
       setSaving(false)
@@ -201,8 +193,8 @@ const fetchData = async () => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Minat Mengajar</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-foreground">Minat Mengajar</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             Pilih kelas dan mata pelajaran yang ingin Anda ajarkan
           </p>
         </div>
@@ -212,7 +204,7 @@ const fetchData = async () => {
             Sudah Diisi
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-slate-500 border-slate-200 px-3 py-1.5">
+          <Badge variant="outline" className="text-muted-foreground border-border px-3 py-1.5">
             Belum Diisi
           </Badge>
         )}
@@ -244,26 +236,24 @@ const fetchData = async () => {
       </Alert>
 
       {/* Grade Levels */}
-      <Card className="border shadow-sm">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Tingkat Kelas yang Ingin Diajarkan
-            <span className="text-slate-400 font-normal">({selectedLevels.length} dipilih)</span>
+            <span className="text-muted-foreground font-normal">({selectedLevels.length} dipilih)</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {GRADE_GROUPS.map(group => {
             const allGroupSelected = group.levels.every(l => selectedLevels.includes(l))
-            const someGroupSelected = group.levels.some(l => selectedLevels.includes(l))
-
             return (
               <div key={group.label}>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{group.label}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{group.label}</p>
                   <button
                     onClick={() => toggleAllInGroup(group.label, group.levels)}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-primary hover:underline"
                   >
                     {allGroupSelected ? 'Hapus Semua' : 'Pilih Semua'}
                   </button>
@@ -277,8 +267,8 @@ const fetchData = async () => {
                         onClick={() => toggleLevel(level)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                           selected
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-background text-foreground border-border hover:border-primary/50 hover:text-primary'
                         }`}
                       >
                         {selected && <span className="mr-1">✓</span>}
@@ -294,17 +284,17 @@ const fetchData = async () => {
       </Card>
 
       {/* Subjects */}
-      <Card className={`border shadow-sm transition-opacity ${selectedLevels.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+      <Card className={`transition-opacity ${selectedLevels.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Mata Pelajaran yang Ingin Diajarkan
-            <span className="text-slate-400 font-normal">({selectedSubjects.length} dipilih)</span>
+            <span className="text-muted-foreground font-normal">({selectedSubjects.length} dipilih)</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {selectedLevels.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">
+            <p className="text-sm text-muted-foreground text-center py-4">
               Pilih kelas terlebih dahulu untuk melihat mata pelajaran yang tersedia
             </p>
           ) : (
@@ -319,7 +309,7 @@ const fetchData = async () => {
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                         selected
                           ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-green-300 hover:text-green-600'
+                          : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
                       }`}
                     >
                       {selected && <span className="mr-1">✓</span>}
@@ -331,14 +321,14 @@ const fetchData = async () => {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setSelectedSubjects(availableSubjects)}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-primary hover:underline"
                 >
                   Pilih Semua
                 </button>
-                <span className="text-slate-300 text-xs">|</span>
+                <span className="text-muted-foreground text-xs">|</span>
                 <button
                   onClick={() => setSelectedSubjects([])}
-                  className="text-xs text-slate-500 hover:underline"
+                  className="text-xs text-muted-foreground hover:underline"
                 >
                   Hapus Semua
                 </button>
@@ -350,25 +340,25 @@ const fetchData = async () => {
 
       {/* Summary */}
       {isComplete && (
-        <Card className="border-blue-200 bg-blue-50/50 shadow-sm">
+        <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold text-blue-700 mb-2">Ringkasan Pilihan Anda</p>
+            <p className="text-xs font-semibold text-primary mb-2">Ringkasan Pilihan Anda</p>
             <div className="space-y-2">
               <div>
-                <p className="text-xs text-blue-600 mb-1">Kelas ({selectedLevels.length}):</p>
+                <p className="text-xs text-muted-foreground mb-1">Kelas ({selectedLevels.length}):</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedLevels.sort().map(l => (
-                    <Badge key={l} className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+                    <Badge key={l} variant="secondary" className="text-[10px]">
                       {l}
                     </Badge>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-xs text-blue-600 mb-1">Mata Pelajaran ({selectedSubjects.length}):</p>
+                <p className="text-xs text-muted-foreground mb-1">Mata Pelajaran ({selectedSubjects.length}):</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedSubjects.sort().map(s => (
-                    <Badge key={s} className="text-[10px] bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
+                    <Badge key={s} variant="secondary" className="text-[10px]">
                       {s}
                     </Badge>
                   ))}
@@ -379,11 +369,11 @@ const fetchData = async () => {
         </Card>
       )}
 
-      {/* Save */}
+      {/* Save Button */}
       <Button
         onClick={handleSave}
         disabled={saving || !isComplete}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 h-11"
+        className="w-full gap-2 h-11"
       >
         {saving ? (
           <>
