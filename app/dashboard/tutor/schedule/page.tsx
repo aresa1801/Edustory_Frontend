@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -52,16 +52,27 @@ export default function SchedulePage() {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) {
+          setError('Anda harus login terlebih dahulu')
+          setLoading(false)
+          return
+        }
 
-        const { data: tutorData } = await supabase
+        // Ambil data tutor
+        const { data: tutorData, error: tutorErr } = await supabase
           .from('tutors')
           .select('id')
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
 
-        if (!tutorData) return
+        if (tutorErr) throw tutorErr
+        if (!tutorData) {
+          setError('Data tutor tidak ditemukan')
+          setLoading(false)
+          return
+        }
 
+        // Ambil data matches dengan relasi yang benar
         const { data: matches, error: matchError } = await supabase
           .from('matches')
           .select(`
@@ -70,9 +81,12 @@ export default function SchedulePage() {
             lesson_frequency,
             start_date,
             status,
-            students:student_id(
+            students!inner (
               grade_level,
-              users_profile:user_id(full_name, phone)
+              user_profiles!user_id (
+                name,
+                phone
+              )
             )
           `)
           .eq('tutor_id', tutorData.id)
@@ -83,13 +97,13 @@ export default function SchedulePage() {
 
         const items: ScheduleItem[] = (matches || []).map((m: any) => ({
           id: m.id,
-          studentName: m.students?.users_profile?.full_name || 'Siswa',
+          studentName: m.students?.user_profiles?.name || 'Siswa',
           subject: m.subject || '-',
           gradeLevel: m.students?.grade_level || '-',
           frequency: m.lesson_frequency || 'flexible',
           startDate: m.start_date,
           status: m.status,
-          phone: m.students?.users_profile?.phone,
+          phone: m.students?.user_profiles?.phone,
         }))
 
         setSchedule(items)

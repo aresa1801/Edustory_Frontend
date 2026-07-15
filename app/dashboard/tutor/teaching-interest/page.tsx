@@ -70,20 +70,28 @@ export default function TeachingInterestPage() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setError('Anda harus login')
+        setLoading(false)
+        return
+      }
 
-      const { data: tutorData } = await supabase
+      const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
-        .select('id, specializations, verified_grade_levels, target_grade_level')
+        .select('id, specializations, verified_grade_levels')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
+
+      if (tutorErr) throw tutorErr
 
       if (tutorData) {
         setTutorId(tutorData.id)
-        const savedLevels: string[] = tutorData.verified_grade_levels || []
-        const savedSubjects: string[] = tutorData.specializations || []
-        setSelectedLevels(savedLevels)
-        setSelectedSubjects(savedSubjects)
+        setSelectedLevels(tutorData.verified_grade_levels || [])
+        setSelectedSubjects(tutorData.specializations || [])
+      } else {
+        // Jika tutor belum punya data, kita bisa buat record baru nanti saat save
+        // Untuk sekarang, biarkan kosong
+        setTutorId(null)
       }
     } catch (err) {
       setError('Gagal memuat data minat mengajar')
@@ -134,15 +142,37 @@ export default function TeachingInterestPage() {
     setError(null)
     try {
       const supabase = createClient()
-      const { error: updateErr } = await supabase
-        .from('tutors')
-        .update({
-          specializations: selectedSubjects,
-          verified_grade_levels: selectedLevels,
-        })
-        .eq('id', tutorId)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User tidak ditemukan')
 
-      if (updateErr) throw updateErr
+      // Jika tutorId belum ada, kita buat record baru
+      let targetTutorId = tutorId
+      if (!targetTutorId) {
+        // Buat record tutor baru
+        const { data: newTutor, error: insertErr } = await supabase
+          .from('tutors')
+          .insert({
+            user_id: user.id,
+            specializations: selectedSubjects,
+            verified_grade_levels: selectedLevels,
+            approval_status: 'pending', // atau sesuai alur
+          })
+          .select('id')
+          .single()
+        if (insertErr) throw insertErr
+        targetTutorId = newTutor.id
+        setTutorId(targetTutorId)
+      } else {
+        // Update existing
+        const { error: updateErr } = await supabase
+          .from('tutors')
+          .update({
+            specializations: selectedSubjects,
+            verified_grade_levels: selectedLevels,
+          })
+          .eq('id', targetTutorId)
+        if (updateErr) throw updateErr
+      }
 
       setSuccess('Minat mengajar berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
