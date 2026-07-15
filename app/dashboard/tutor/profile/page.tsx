@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
+import Link from 'next/link'
 import {
   UserCircle,
   Save,
@@ -79,21 +80,32 @@ export default function ProfilePage() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setError('User tidak ditemukan')
+        return
+      }
 
-      const { data: profileData } = await supabase
+      // Ambil user_profiles
+      const { data: profileData, error: profileErr } = await supabase
         .from('user_profiles')
         .select('name, email, phone, bio')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
+      if (profileErr) {
+        console.error('Profile fetch error:', profileErr)
+      }
+
+      // Ambil tutors
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
         .select('id, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (tutorErr && tutorErr.code !== 'PGRST116') throw tutorErr
+      if (tutorErr && tutorErr.code !== 'PGRST116') {
+        console.error('Tutor fetch error:', tutorErr)
+      }
 
       setForm({
         name: profileData?.name || '',
@@ -119,6 +131,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true)
     setError(null)
+    setSuccess(null)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -136,7 +149,7 @@ export default function ProfilePage() {
 
       if (profileErr) throw profileErr
 
-      // Update tutors
+      // Jika tutorId ada, update tutors; jika tidak, insert baru
       if (tutorId) {
         const { error: tutorErr } = await supabase
           .from('tutors')
@@ -148,6 +161,29 @@ export default function ProfilePage() {
           .eq('id', tutorId)
 
         if (tutorErr) throw tutorErr
+      } else {
+        // Insert tutor baru (seharusnya sudah ada dari select-role, tapi fallback)
+        const { error: insertErr } = await supabase
+          .from('tutors')
+          .insert({
+            user_id: user.id,
+            experience_years: parseInt(form.experience_years) || 0,
+            hourly_rate: parseFloat(form.hourly_rate) || 0,
+            qualifications: form.qualifications,
+            specializations: [],
+            approval_status: 'pending',
+            verified: false,
+            rating: 0,
+            total_reviews: 0,
+            verified_grade_levels: [],
+            target_grade_level: null,
+          })
+          .select('id')
+          .single()
+
+        if (insertErr) throw insertErr
+        // Refresh data
+        await fetchProfile()
       }
 
       setSuccess('Profil berhasil disimpan!')

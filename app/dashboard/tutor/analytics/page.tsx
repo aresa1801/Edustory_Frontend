@@ -65,7 +65,10 @@ export default function AnalyticsPage() {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) {
+          setError('User tidak ditemukan')
+          return
+        }
 
         const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
@@ -82,7 +85,20 @@ export default function AnalyticsPage() {
           .single()
 
         if (tutorError || !tutorData) {
-          setError('Data pengajar tidak ditemukan.')
+          // Tidak ada data tutor → tampilkan pesan "data tidak ditemukan" tapi bukan error
+          setData({
+            totalStudents: 0,
+            activeStudents: 0,
+            completedSessions: 0,
+            pendingRequests: 0,
+            rating: 0,
+            totalReviews: 0,
+            subjects: {},
+            approvalStatus: 'pending',
+            verified: false,
+            experienceYears: 0,
+            satisfactionScore: 0,
+          })
           return
         }
 
@@ -98,7 +114,6 @@ export default function AnalyticsPage() {
           }
         })
 
-        // satisfaction score = rating (1-5 scale)
         const satisfactionScore = tutorData.rating || 0
 
         setData({
@@ -132,14 +147,23 @@ export default function AnalyticsPage() {
     )
   }
 
-  if (error || !data) {
+  if (error) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>{error || 'Gagal memuat data analitik'}</AlertDescription>
+        <AlertDescription>{error}</AlertDescription>
       </Alert>
     )
   }
 
+  if (!data) {
+    return (
+      <Alert>
+        <AlertDescription>Data analitik belum tersedia. Silakan lengkapi profil Anda terlebih dahulu.</AlertDescription>
+      </Alert>
+    )
+  }
+
+  // ========== RENDER ==========
   const statCards = [
     { label: 'Total Siswa', value: data.totalStudents, icon: Users, color: 'text-blue-300', bg: 'bg-blue-500/20' },
     { label: 'Siswa Aktif', value: data.activeStudents, icon: TrendingUp, color: 'text-green-300', bg: 'bg-green-500/20' },
@@ -217,7 +241,6 @@ export default function AnalyticsPage() {
           <CardContent>
             {data.rating > 0 ? (
               <div className="space-y-4">
-                {/* Big score display */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <SatisfactionIcon score={data.satisfactionScore} />
                   <div>
@@ -228,16 +251,12 @@ export default function AnalyticsPage() {
                     <p className={`text-sm font-semibold ${satisfactionColor}`}>{satisfactionLabel}</p>
                   </div>
                 </div>
-
-                {/* Stars */}
                 <div className="flex items-center gap-3">
                   <StarRating value={data.rating} />
                   <span className="text-sm text-slate-500">
                     dari {data.totalReviews} ulasan siswa
                   </span>
                 </div>
-
-                {/* Score breakdown bars */}
                 {[5, 4, 3, 2, 1].map(star => (
                   <div key={star} className="flex items-center gap-3">
                     <div className="flex items-center gap-1 text-xs text-slate-500 w-12">
@@ -248,14 +267,12 @@ export default function AnalyticsPage() {
                       <div
                         className="h-full bg-amber-400 rounded-full"
                         style={{
-                          // Approximate bar width: 100% for the star closest to rating, decreasing for others
                           width: `${Math.max(0, 100 - Math.abs(star - data.rating) * 35)}%`,
                         }}
                       />
                     </div>
                   </div>
                 ))}
-
                 <p className="text-xs text-slate-400">
                   * Skor ini merupakan rata-rata penilaian kepuasan dari seluruh siswa yang pernah Anda ajar.
                 </p>

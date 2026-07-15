@@ -7,11 +7,36 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
-import TutorAssessmentStatus from '@/components/dashboard/tutor/assessment-status'
-import TutorProfile from '@/components/dashboard/tutor/tutor-profile'
 import { createClient } from '@/lib/auth'
 import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+// Fallback sederhana untuk komponen yang belum ada
+function TutorAssessmentStatusFallback() {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-slate-500">Status kurasi akan tampil di sini setelah Anda menyelesaikan profil.</p>
+        <Link href="/dashboard/tutor/profile">
+          <Button variant="outline" className="mt-3">Lengkapi Profil</Button>
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TutorProfileFallback() {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-slate-500">Profil Anda dapat dilengkapi di halaman profil.</p>
+        <Link href="/dashboard/tutor/profile">
+          <Button variant="outline" className="mt-3">Ke Halaman Profil</Button>
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
 
 const STATUS_CONFIG = {
   pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
@@ -31,9 +56,12 @@ export default function ApplicationsPage() {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) {
+          setLoading(false)
+          return
+        }
 
-        const { data: tutorData } = await supabase
+        const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
           .select(`
             id,
@@ -42,19 +70,25 @@ export default function ApplicationsPage() {
             specializations,
             experience_years,
             hourly_rate,
-            users_profile:user_id(full_name, email)
+            user_profiles!inner (name, email)
           `)
           .eq('user_id', user.id)
           .single()
 
+        if (tutorError || !tutorData) {
+          // Tutor belum terdaftar – kita set tutor = null tapi tidak error
+          setTutor(null)
+          return
+        }
+
         setTutor(tutorData)
 
-        if (tutorData?.id) {
+        if (tutorData.id) {
           const { data: appData } = await supabase
             .from('tutor_applications')
             .select('*')
             .eq('tutor_id', tutorData.id)
-            .single()
+            .maybeSingle()
 
           setApplication(appData)
 
@@ -62,7 +96,7 @@ export default function ApplicationsPage() {
             .from('curation_progress')
             .select('*')
             .eq('tutor_id', tutorData.id)
-            .single()
+            .maybeSingle()
 
           setCurationProgress(progress)
         }
@@ -84,20 +118,40 @@ export default function ApplicationsPage() {
     )
   }
 
+  // Jika tutor null → tampilkan pesan untuk melengkapi profil
+  if (!tutor) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Aplikasi Pengajar</h1>
+          <p className="text-slate-500 text-sm mt-1">Anda belum terdaftar sebagai pengajar.</p>
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-slate-600 mb-4">Silakan lengkapi profil Anda terlebih dahulu untuk memulai proses aplikasi.</p>
+            <Link href="/dashboard/tutor/profile">
+              <Button className="bg-blue-600 hover:bg-blue-700">Lengkapi Profil</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const completedSteps: string[] = curationProgress?.completed_steps || []
-  const curationPercent = Math.round((completedSteps.length / 5) * 100)
-  const statusConfig = STATUS_CONFIG[tutor?.approval_status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
+  const curationPercent = Math.min(Math.round((completedSteps.length / 5) * 100), 100)
+  const statusConfig = STATUS_CONFIG[tutor.approval_status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Aplikasi Pengajar</h1>
-        <p className="text-muted-foreground">
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Aplikasi Pengajar</h1>
+        <p className="text-slate-500 text-sm mt-1">
           Pantau status aplikasi dan kurasi Anda sebagai pengajar di EduStory.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5">
           <p className="text-sm text-muted-foreground mb-1">Status Aplikasi</p>
           <Badge variant="outline" className={`${statusConfig.color} border text-sm`}>
@@ -113,7 +167,7 @@ export default function ApplicationsPage() {
 
         <Card className="p-5">
           <p className="text-sm text-muted-foreground mb-1">Verifikasi</p>
-          {tutor?.verified ? (
+          {tutor.verified ? (
             <Badge className="bg-green-500 hover:bg-green-600">✓ Terverifikasi</Badge>
           ) : (
             <Badge variant="outline" className="text-muted-foreground">Belum Terverifikasi</Badge>
@@ -124,12 +178,12 @@ export default function ApplicationsPage() {
       {application?.status === 'rejected' && (
         <Alert variant="destructive" className="mb-6">
           <AlertDescription>
-            Aplikasi Anda ditolak. Alasan: {application?.rejection_reason || 'Tidak ada keterangan.'}
+            Aplikasi Anda ditolak. Alasan: {application.rejection_reason || 'Tidak ada keterangan.'}
           </AlertDescription>
         </Alert>
       )}
 
-      {tutor?.approval_status === 'approved' && (
+      {tutor.approval_status === 'approved' && (
         <Alert className="mb-6 bg-green-50 border-green-200">
           <AlertDescription className="text-green-800">
             🎉 Selamat! Aplikasi Anda telah disetujui. Anda sekarang dapat menerima permintaan dari siswa.
@@ -144,11 +198,12 @@ export default function ApplicationsPage() {
         </TabsList>
 
         <TabsContent value="curation">
-          <TutorAssessmentStatus />
+          {/* Ganti dengan komponen asli jika sudah ada, untuk sementara pakai fallback */}
+          <TutorAssessmentStatusFallback />
         </TabsContent>
 
         <TabsContent value="profile">
-          <TutorProfile />
+          <TutorProfileFallback />
         </TabsContent>
       </Tabs>
     </div>
