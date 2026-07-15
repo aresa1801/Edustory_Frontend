@@ -84,90 +84,102 @@ export default function TutorProfilePage() {
   // FUNGSI LOAD DATA – SAMA SEPERTI ONBOARDING STUDENT
   // ============================================================
   const loadTutorData = async (uid: string) => {
-    console.log('[TutorProfile] 🔍 loadTutorData untuk uid:', uid)
-    try {
-      const supabase = createClient()
+  console.log('[TutorProfile] 🔍 loadTutorData untuk uid:', uid)
+  try {
+    const supabase = createClient()
 
-      // 1. Ambil email dari user_profiles
-      const { data: profileData, error: profileErr } = await supabase
-        .from('user_profiles')
-        .select('email')
-        .eq('id', uid)
-        .maybeSingle()
+    // 1. Ambil email dari user_profiles
+    const { data: profileData, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('email')
+      .eq('id', uid)
+      .maybeSingle()
 
-      if (profileErr) {
-        console.warn('[TutorProfile] ⚠️ Error load user_profiles:', profileErr)
-      }
-
-      const email = profileData?.email || ''
-
-      // 2. Ambil data tutor
-      const { data: tutorData, error: tutorErr } = await supabase
-        .from('tutors')
-        .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
-        .eq('user_id', uid)
-        .maybeSingle()
-
-      if (tutorErr) {
-        console.warn('[TutorProfile] ⚠️ Error load tutor:', tutorErr)
-        return
-      }
-
-      if (tutorData) {
-        console.log('[TutorProfile] ✅ Data tutor ditemukan:', tutorData)
-        setForm({
-          name: tutorData.name || '',
-          email: email,
-          phone: tutorData.phone || '',
-          bio: tutorData.bio || '',
-          experience_years: tutorData.experience_years?.toString() || '',
-          hourly_rate: tutorData.hourly_rate?.toString() || '',
-          qualifications: tutorData.qualifications || '',
-        })
-        setTutorId(tutorData.id)
-        setApprovalStatus(tutorData.approval_status || 'pending')
-        setVerified(tutorData.verified || false)
-        setSpecializations(tutorData.specializations || [])
-      } else {
-        console.log('[TutorProfile] ℹ️ Belum ada data tutor')
-        setForm({
-          name: '',
-          email: email,
-          phone: '',
-          bio: '',
-          experience_years: '',
-          hourly_rate: '',
-          qualifications: '',
-        })
-        setTutorId(null)
-        setApprovalStatus('pending')
-        setVerified(false)
-        setSpecializations([])
-      }
-    } catch (err) {
-      console.error('[TutorProfile] ❌ Load data error:', err)
+    if (profileErr) {
+      console.warn('[TutorProfile] ⚠️ Error load user_profiles:', profileErr)
     }
+
+    const email = profileData?.email || ''
+
+    // 2. Ambil data tutor
+    const { data: tutorData, error: tutorErr } = await supabase
+      .from('tutors')
+      .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+      .eq('user_id', uid)
+      .maybeSingle()
+
+    if (tutorErr) {
+      console.warn('[TutorProfile] ⚠️ Error load tutor:', tutorErr)
+      // Jangan throw, lanjutkan dengan data kosong
+    }
+
+    if (tutorData) {
+      console.log('[TutorProfile] ✅ Data tutor ditemukan:', tutorData)
+      setForm({
+        name: tutorData.name || '',
+        email: email,
+        phone: tutorData.phone || '',
+        bio: tutorData.bio || '',
+        experience_years: tutorData.experience_years?.toString() || '',
+        hourly_rate: tutorData.hourly_rate?.toString() || '',
+        qualifications: tutorData.qualifications || '',
+      })
+      setTutorId(tutorData.id)
+      setApprovalStatus(tutorData.approval_status || 'pending')
+      setVerified(tutorData.verified || false)
+      setSpecializations(tutorData.specializations || [])
+    } else {
+      console.log('[TutorProfile] ℹ️ Belum ada data tutor')
+      setForm({
+        name: '',
+        email: email,
+        phone: '',
+        bio: '',
+        experience_years: '',
+        hourly_rate: '',
+        qualifications: '',
+      })
+      setTutorId(null)
+      setApprovalStatus('pending')
+      setVerified(false)
+      setSpecializations([])
+    }
+    setError(null)
+  } catch (err) {
+    console.error('[TutorProfile] ❌ Load data error:', err)
+    setError('Gagal memuat data profil. Silakan refresh halaman.')
+    // Jangan throw, biarkan loading tetap selesai
   }
+  // Tidak ada finally di sini, karena loading diatur di useEffect
+}
 
   // ============================================================
   // INISIALISASI – SAMA SEPERTI ONBOARDING STUDENT
   // ============================================================
   useEffect(() => {
-    const init = async () => {
-      if (authLoading) return
+  const init = async () => {
+    if (authLoading) return
 
-      if (!authUser) {
-        router.push('/auth/login')
-        return
-      }
-
-      setLoading(true)
-      await loadTutorData(authUser.id)
-      setLoading(false)
+    if (!authUser) {
+      router.push('/auth/login')
+      return
     }
 
-    init()
-  }, [authUser, authLoading, router])
+    setLoading(true)
+    try {
+      await loadTutorData(authUser.id)
+    } catch (err) {
+      // Seharusnya tidak akan sampai sini karena loadTutorData tidak throw
+      console.error('[TutorProfile] Init error:', err)
+      setError('Terjadi kesalahan saat memuat profil')
+    } finally {
+      // PASTIKAN loading selalu berhenti
+      setLoading(false)
+    }
+  }
+
+  init()
+}, [authUser, authLoading, router])
 
   // ============================================================
   // HANDLE SAVE – SIMPAN KE TABEL tutors
