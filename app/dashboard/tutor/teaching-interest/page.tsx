@@ -50,46 +50,67 @@ export default function TeachingInterestPage() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
 
   useEffect(() => {
+    let isMounted = true
+    const fetchData = async () => {
+      try {
+        console.log('[TeachingInterest] Fetching data...')
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError) {
+          console.error('[TeachingInterest] Auth error:', userError)
+          throw userError
+        }
+        if (!user) {
+          throw new Error('Anda harus login terlebih dahulu')
+        }
+        console.log('[TeachingInterest] User:', user.id)
+
+        // Coba ambil data tutor
+        const { data: tutorData, error: tutorErr } = await supabase
+          .from('tutors')
+          .select('id, specializations, verified_grade_levels')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (tutorErr) {
+          console.error('[TeachingInterest] Tutor fetch error:', tutorErr)
+          throw tutorErr
+        }
+
+        if (tutorData) {
+          console.log('[TeachingInterest] Tutor found:', tutorData)
+          if (isMounted) {
+            setTutorId(tutorData.id)
+            setSelectedLevels(tutorData.verified_grade_levels || [])
+            setSelectedSubjects(tutorData.specializations || [])
+          }
+        } else {
+          console.log('[TeachingInterest] No tutor record found, setting empty')
+          if (isMounted) {
+            setTutorId(null)
+            setSelectedLevels([])
+            setSelectedSubjects([])
+          }
+        }
+      } catch (err) {
+        console.error('[TeachingInterest] Fetch error:', err)
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
     fetchData()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
-  const fetchData = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      if (!user) {
-        setError('Anda harus login terlebih dahulu')
-        setLoading(false)
-        return
-      }
-
-      // Ambil data tutor dari tabel tutors
-      const { data: tutorData, error: tutorErr } = await supabase
-        .from('tutors')
-        .select('id, specializations, verified_grade_levels')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (tutorErr) throw tutorErr
-
-      if (tutorData) {
-        setTutorId(tutorData.id)
-        setSelectedLevels(tutorData.verified_grade_levels || [])
-        setSelectedSubjects(tutorData.specializations || [])
-      } else {
-        // Tutor belum terdaftar, set kosong
-        setTutorId(null)
-        setSelectedLevels([])
-        setSelectedSubjects([])
-      }
-    } catch (err) {
-      console.error('[TeachingInterest] Fetch error:', err)
-      setError('Gagal memuat data minat mengajar')
-    } finally {
-      setLoading(false)
-    }
-  }
+  // ... toggle functions same as before ...
 
   const toggleLevel = (level: string) => {
     const newLevels = selectedLevels.includes(level)
@@ -139,7 +160,7 @@ export default function TeachingInterestPage() {
       let targetTutorId = tutorId
 
       if (!targetTutorId) {
-        // Buat record tutor baru
+        // Insert new tutor record
         const { data: newTutor, error: insertErr } = await supabase
           .from('tutors')
           .insert({
@@ -181,6 +202,7 @@ export default function TeachingInterestPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
+        <p className="ml-2 text-muted-foreground">Memuat...</p>
       </div>
     )
   }

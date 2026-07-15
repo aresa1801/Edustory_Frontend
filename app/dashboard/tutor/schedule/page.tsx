@@ -48,16 +48,21 @@ export default function SchedulePage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchSchedule = async () => {
       try {
+        console.log('[Schedule] Fetching data...')
         const supabase = createClient()
         const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) {
-          setError('Anda harus login terlebih dahulu')
-          setLoading(false)
-          return
+        if (userError) {
+          console.error('[Schedule] Auth error:', userError)
+          throw userError
         }
+        if (!user) {
+          throw new Error('Anda harus login terlebih dahulu')
+        }
+        console.log('[Schedule] User:', user.id)
 
         // 1. Cari tutor ID
         const { data: tutorData, error: tutorErr } = await supabase
@@ -66,15 +71,21 @@ export default function SchedulePage() {
           .eq('user_id', user.id)
           .maybeSingle()
 
-        if (tutorErr) throw tutorErr
-
-        if (!tutorData) {
-          setError('Anda belum terdaftar sebagai tutor. Silakan daftar terlebih dahulu.')
-          setLoading(false)
-          return
+        if (tutorErr) {
+          console.error('[Schedule] Tutor fetch error:', tutorErr)
+          throw tutorErr
         }
 
-        // 2. Ambil matches dengan relasi yang benar
+        if (!tutorData) {
+          console.log('[Schedule] No tutor record found')
+          if (isMounted) {
+            setError('Anda belum terdaftar sebagai tutor. Silakan daftar terlebih dahulu.')
+          }
+          return
+        }
+        console.log('[Schedule] Tutor found:', tutorData)
+
+        // 2. Ambil matches
         const { data: matches, error: matchError } = await supabase
           .from('matches')
           .select(`
@@ -95,9 +106,13 @@ export default function SchedulePage() {
           .in('status', ['matched', 'active', 'pending'])
           .order('start_date', { ascending: true })
 
-        if (matchError) throw matchError
+        if (matchError) {
+          console.error('[Schedule] Matches fetch error:', matchError)
+          throw matchError
+        }
 
-        // 3. Mapping data
+        console.log('[Schedule] Matches count:', matches?.length || 0)
+
         const items: ScheduleItem[] = (matches || []).map((m: any) => ({
           id: m.id,
           studentName: m.students?.user_profiles?.name || 'Siswa',
@@ -109,22 +124,34 @@ export default function SchedulePage() {
           phone: m.students?.user_profiles?.phone,
         }))
 
-        setSchedule(items)
+        if (isMounted) {
+          setSchedule(items)
+          setError(null)
+        }
       } catch (err) {
         console.error('[Schedule] Error:', err)
-        setError(err instanceof Error ? err.message : 'Gagal memuat jadwal')
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Gagal memuat jadwal')
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     fetchSchedule()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Spinner className="h-8 w-8" />
+        <p className="ml-2 text-muted-foreground">Memuat...</p>
       </div>
     )
   }
