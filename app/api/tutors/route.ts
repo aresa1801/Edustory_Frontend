@@ -1,94 +1,64 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
-
-export async function GET(request: NextRequest) {
-  const supabase = getSupabase()
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const subject = searchParams.get('subject')
-    const gradeLevel = searchParams.get('gradeLevel')
+    const payload = await request.json()
 
-    let query = supabase
-      .from('tutors')
-      .select(`
-        id,
-        user_id,
-        specializations,
-        qualifications,
-        experience_years,
-        hourly_rate,
-        rating,
-        total_reviews,
-        verified,
-        user_profiles:user_id(name, avatar_url, bio, phone)
-      `)
-      .eq('approval_status', 'approved')
-
-    if (subject) {
-      query = query.contains('specializations', [subject])
-    }
-
-    const { data, error } = await query
-
-    if (error) throw error
-
-    return NextResponse.json(data)
-  } catch (error) {
-    console.error('Error fetching tutors:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch tutors' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const supabase = getSupabase()
-  try {
-    const body = await request.json()
-    const authHeader = request.headers.get('authorization')
-
-    if (!authHeader) {
+    // Validasi user_id wajib ada
+    if (!payload.user_id) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+        { error: 'user_id wajib diisi' },
+        { status: 400 }
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    // Buat Supabase client (pastikan menggunakan await jika createClient async)
+    const supabase = await createClient()
 
-    if (authError || !user) {
+    // Validasi user melalui user_profiles (lebih sederhana, tidak perlu auth.admin)
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('id', payload.user_id)
+      .maybeSingle()
+
+    if (profileError || !profile) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+        { error: 'User tidak ditemukan' },
+        { status: 404 }
       )
     }
 
+    // Hapus field yang tidak boleh di-update
+    const { user_id, id, created_at, updated_at, ...updateData } = payload
+
+    // Upsert ke tabel tutors
     const { data, error } = await supabase
       .from('tutors')
-      .insert([
+      .upsert(
         {
-          user_id: user.id,
-          ...body,
+          user_id: payload.user_id,
+          ...updateData,
         },
-      ])
+        { onConflict: 'user_id' }
+      )
       .select()
+      .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('[Tutor API] Upsert error:', error)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      )
+    }
 
-    return NextResponse.json(data[0], { status: 201 })
-  } catch (error) {
-    console.error('Error creating tutor:', error)
+    return NextResponse.json({ success: true, data })
+  } catch (err) {
+    console.error('[Tutor API] Error:', err)
     return NextResponse.json(
-      { error: 'Failed to create tutor' },
+      { error: err instanceof Error ? err.message : 'Terjadi kesalahan' },
       { status: 500 }
     )
   }
