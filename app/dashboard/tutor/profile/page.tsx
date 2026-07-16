@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
-import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
 import {
   UserCircle,
   Save,
@@ -55,6 +55,7 @@ const STATUS_CONFIG = {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { user: authUser, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,49 +79,28 @@ export default function ProfilePage() {
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
   const fetchDone = useRef(false)
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (currentUserId: string) => {
     if (fetchDone.current) return
     fetchDone.current = true
 
     try {
-      console.log('[Profile] 🔄 Fetching profile...')
+      console.log('[Profile] 🔄 Fetching profile for user:', currentUserId)
       const supabase = createClient()
-      
-      // 🔥 Coba getUser, fallback ke getSession jika gagal
-      let user = null
-      try {
-        const { data: { user: u }, error } = await supabase.auth.getUser()
-        if (error) throw error
-        user = u
-      } catch (authErr) {
-        console.warn('[Profile] getUser failed, trying getSession...', authErr)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          user = session.user
-        }
-      }
 
-      if (!user) {
-        setError('User tidak ditemukan. Silakan login ulang.')
-        setLoading(false)
-        return
-      }
-
-      setUserId(user.id)
-      console.log('[Profile] ✅ User ID:', user.id)
+      setUserId(currentUserId)
 
       // Ambil email dari user_profiles
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('email')
-        .eq('id', user.id)
+        .eq('id', currentUserId)
         .maybeSingle()
 
       // Ambil data tutor
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
         .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
         .maybeSingle()
 
       if (tutorErr && tutorErr.code !== 'PGRST116') {
@@ -129,7 +109,7 @@ export default function ProfilePage() {
 
       setForm({
         full_name: tutorData?.full_name || '',
-        email: profileData?.email || user.email || '',
+        email: profileData?.email || authUser?.email || '',
         phone: tutorData?.phone || '',
         bio: tutorData?.bio || '',
         experience_years: tutorData?.experience_years?.toString() || '',
@@ -156,6 +136,15 @@ export default function ProfilePage() {
     isMounted.current = true
     fetchDone.current = false
 
+    // Wait for auth context to finish loading
+    if (authLoading) return
+
+    if (!authUser) {
+      setError('User tidak ditemukan. Silakan login ulang.')
+      setLoading(false)
+      return
+    }
+
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('[Profile] ⏱️ Timeout, force loading=false')
@@ -163,13 +152,13 @@ export default function ProfilePage() {
       }
     }, 5000)
 
-    fetchProfile()
+    fetchProfile(authUser.id)
 
     return () => {
       isMounted.current = false
       if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, [])
+  }, [authLoading, authUser])
 
   const handleSave = async () => {
     console.log('[Profile] 🔥 handleSave START')
@@ -183,8 +172,9 @@ export default function ProfilePage() {
     }, 10000)
 
     try {
-      // 🔥 PAKAI userId DARI STATE
-      if (!userId) {
+      // Use userId from state, fallback to authUser from context
+      const currentUserId = userId || authUser?.id
+      if (!currentUserId) {
         throw new Error('User ID tidak ditemukan. Silakan refresh halaman.')
       }
 
@@ -192,7 +182,7 @@ export default function ProfilePage() {
         throw new Error('Nama lengkap wajib diisi')
       }
 
-      console.log('[Profile] 1. Mengirim ke API /api/tutors/profile...')
+      console.log('[Profile] 1. Mengirim ke API /api/tutors/profile... userId:', currentUserId)
 
       const response = await fetch('/api/tutors/profile', {
         method: 'POST',
@@ -200,7 +190,7 @@ export default function ProfilePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: userId,
+          user_id: currentUserId,
           full_name: form.full_name.trim(),
           phone: form.phone.trim() || null,
           bio: form.bio.trim() || null,
@@ -222,7 +212,7 @@ export default function ProfilePage() {
 
       // Refresh data
       fetchDone.current = false
-      await fetchProfile()
+      await fetchProfile(currentUserId)
 
       // Redirect to teaching interest page after successful save
       router.push('/dashboard/tutor/teaching-interest')
@@ -237,7 +227,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
