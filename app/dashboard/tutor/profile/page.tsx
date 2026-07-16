@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/lib/auth-context'
+import { useState, useEffect, useRef } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { Textarea } from '@/components/ui/textarea'
+import { createClient } from '@/lib/auth'
+import Link from 'next/link'
 import {
   UserCircle,
   Save,
@@ -27,219 +26,167 @@ import {
 } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', icon: Clock, iconColor: 'text-amber-500' },
-  approved: { label: 'Disetujui', icon: CheckCircle2, iconColor: 'text-green-500' },
-  rejected: { label: 'Ditolak', icon: XCircle, iconColor: 'text-red-500' },
-  suspended: { label: 'Ditangguhkan', icon: XCircle, iconColor: 'text-slate-400' },
+  pending: {
+    label: 'Menunggu Verifikasi',
+    icon: Clock,
+    color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    iconColor: 'text-amber-500',
+  },
+  approved: {
+    label: 'Disetujui',
+    icon: CheckCircle2,
+    color: 'bg-green-500/20 text-green-300 border-green-500/30',
+    iconColor: 'text-green-500',
+  },
+  rejected: {
+    label: 'Ditolak',
+    icon: XCircle,
+    color: 'bg-red-500/20 text-red-300 border-red-500/30',
+    iconColor: 'text-red-500',
+  },
+  suspended: {
+    label: 'Ditangguhkan',
+    color: 'bg-slate-50 text-slate-600 border-slate-200',
+    icon: XCircle,
+    iconColor: 'text-slate-400',
+  },
 }
 
-export default function TutorProfilePage() {
-  const router = useRouter()
-  const { user: authUser, loading: authLoading } = useAuth()
+export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
   const [form, setForm] = useState({
-    name: '',
+    full_name: '',
     email: '',
     phone: '',
     bio: '',
     experience_years: '',
     hourly_rate: '',
     qualifications: '',
+    specializations: [] as string[],
   })
-
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [approvalStatus, setApprovalStatus] = useState<string>('pending')
   const [verified, setVerified] = useState(false)
-  const [specializations, setSpecializations] = useState<string[]>([])
 
-  // ============================================================
-  // LOAD DATA – dengan logging untuk debug
-  // ============================================================
-  const loadTutorData = async (uid: string) => {
-    console.log('[TutorProfile] 🔍 loadTutorData mulai untuk uid:', uid)
+  const isMounted = useRef(true)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchDone = useRef(false)
+
+  const fetchProfile = async () => {
+    if (fetchDone.current) return
+    fetchDone.current = true
+
     try {
       const supabase = createClient()
-      console.log('[TutorProfile] ✅ Supabase client dibuat')
-
-      // 1. Ambil email dari user_profiles
-      const { data: profileData, error: profileErr } = await supabase
-        .from('user_profiles')
-        .select('email')
-        .eq('id', uid)
-        .maybeSingle()
-
-      if (profileErr) {
-        console.warn('[TutorProfile] ⚠️ Error user_profiles:', profileErr)
-      }
-      console.log('[TutorProfile] 📧 Profile data:', profileData)
-
-      const email = profileData?.email || ''
-
-      // 2. Ambil data tutor
-      const { data: tutorData, error: tutorErr } = await supabase
-        .from('tutors')
-        .select('id, name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
-        .eq('user_id', uid)
-        .maybeSingle()
-
-      if (tutorErr) {
-        console.warn('[TutorProfile] ⚠️ Error tutor:', tutorErr)
-        throw tutorErr // Biarkan error terlempar agar masuk ke catch
-      }
-
-      console.log('[TutorProfile] 📚 Tutor data:', tutorData)
-
-      if (tutorData) {
-        console.log('[TutorProfile] ✅ Data tutor ditemukan')
-        setForm({
-          name: tutorData.name || '',
-          email: email,
-          phone: tutorData.phone || '',
-          bio: tutorData.bio || '',
-          experience_years: tutorData.experience_years?.toString() || '',
-          hourly_rate: tutorData.hourly_rate?.toString() || '',
-          qualifications: tutorData.qualifications || '',
-        })
-        setTutorId(tutorData.id)
-        setApprovalStatus(tutorData.approval_status || 'pending')
-        setVerified(tutorData.verified || false)
-        setSpecializations(tutorData.specializations || [])
-      } else {
-        console.log('[TutorProfile] ℹ️ Belum ada data tutor')
-        setForm({
-          name: '',
-          email: email,
-          phone: '',
-          bio: '',
-          experience_years: '',
-          hourly_rate: '',
-          qualifications: '',
-        })
-        setTutorId(null)
-        setApprovalStatus('pending')
-        setVerified(false)
-        setSpecializations([])
-      }
-      setError(null)
-    } catch (err) {
-      console.error('[TutorProfile] ❌ Load data error:', err)
-      setError('Gagal memuat data profil. Silakan refresh halaman.')
-      // Throw ulang agar init bisa menangkap
-      throw err
-    }
-  }
-
-  // ============================================================
-  // INISIALISASI – dengan timeout untuk memaksa loading berhenti
-  // ============================================================
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null
-    let isMounted = true
-
-    const init = async () => {
-      if (authLoading) return
-
-      if (!authUser) {
-        router.push('/auth/login')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('User tidak ditemukan')
         return
       }
 
-      setLoading(true)
-      // Force loading stop setelah 5 detik
-      timeoutId = setTimeout(() => {
-        if (isMounted) {
-          console.warn('[TutorProfile] ⏱️ Timeout 5 detik, force loading=false')
-          setLoading(false)
-          setError('Waktu habis, coba refresh halaman.')
-        }
-      }, 5000)
+      // Ambil email dari user_profiles (atau dari auth user)
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('id', user.id)
+        .maybeSingle()
 
-      try {
-        await loadTutorData(authUser.id)
-      } catch (err) {
-        console.error('[TutorProfile] Init error:', err)
-        // Error sudah di-set di loadTutorData
-      } finally {
-        if (isMounted) {
-          if (timeoutId) clearTimeout(timeoutId)
-          setLoading(false)
-          console.log('[TutorProfile] 🏁 Loading selesai')
-        }
+      // Ambil semua data tutor dari tabel tutors
+      const { data: tutorData, error: tutorErr } = await supabase
+        .from('tutors')
+        .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (tutorErr && tutorErr.code !== 'PGRST116') {
+        console.error('[Profile] Tutor fetch error:', tutorErr)
+      }
+
+      setForm({
+        full_name: tutorData?.full_name || '',
+        email: profileData?.email || user.email || '',
+        phone: tutorData?.phone || '',
+        bio: tutorData?.bio || '',
+        experience_years: tutorData?.experience_years?.toString() || '',
+        hourly_rate: tutorData?.hourly_rate?.toString() || '',
+        qualifications: tutorData?.qualifications || '',
+        specializations: tutorData?.specializations || [],
+      })
+      setTutorId(tutorData?.id || null)
+      setApprovalStatus(tutorData?.approval_status || 'pending')
+      setVerified(tutorData?.verified || false)
+      setError(null)
+    } catch (err) {
+      console.error('[Profile] Error:', err)
+      setError(err instanceof Error ? err.message : 'Gagal memuat profil')
+    } finally {
+      if (isMounted.current) {
+        setLoading(false)
+        if (timeoutId.current) clearTimeout(timeoutId.current)
       }
     }
+  }
 
-    init()
+  useEffect(() => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Profile] ⏱️ Timeout, force loading=false')
+        setLoading(false)
+      }
+    }, 3000)
+
+    fetchProfile()
 
     return () => {
-      isMounted = false
-      if (timeoutId) clearTimeout(timeoutId)
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, [authUser, authLoading, router])
+  }, [])
 
-  // ============================================================
-  // HANDLE SAVE – menggunakan API route atau langsung?
-  // ============================================================
   const handleSave = async () => {
-    // Validasi
-    if (!form.name.trim()) {
-      setError('Nama lengkap wajib diisi')
-      return
-    }
-    if (!form.phone.trim()) {
-      setError('Nomor telepon/WA wajib diisi')
-      return
-    }
-    if (!form.experience_years || parseInt(form.experience_years) < 0) {
-      setError('Pengalaman mengajar harus diisi dengan angka ≥ 0')
-      return
-    }
-    if (!form.hourly_rate || parseFloat(form.hourly_rate) <= 0) {
-      setError('Tarif per jam harus diisi dengan angka > 0')
-      return
-    }
-    if (!form.qualifications.trim()) {
-      setError('Kualifikasi & sertifikasi wajib diisi')
-      return
-    }
-
     setSaving(true)
     setError(null)
     setSuccess(null)
-
     try {
       const supabase = createClient()
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      if (!user) throw new Error('User tidak ditemukan')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Tidak terautentikasi')
 
-      const payload = {
-        user_id: user.id,
-        name: form.name.trim(),
-        phone: form.phone.trim(),
-        bio: form.bio.trim() || null,
-        experience_years: parseInt(form.experience_years) || 0,
-        hourly_rate: parseFloat(form.hourly_rate) || 0,
-        qualifications: form.qualifications.trim(),
-      }
-
-      console.log('[TutorProfile] 📦 Payload:', payload)
-
+      // ✅ Data profil disimpan ke tabel tutors (bukan user_profiles)
       if (tutorId) {
-        const { error } = await supabase
+        // Update existing tutor
+        const { error: tutorErr } = await supabase
           .from('tutors')
-          .update(payload)
+          .update({
+            full_name: form.full_name.trim() || null,
+            phone: form.phone.trim() || null,
+            bio: form.bio.trim() || null,
+            experience_years: parseInt(form.experience_years) || 0,
+            hourly_rate: parseFloat(form.hourly_rate) || 0,
+            qualifications: form.qualifications.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', tutorId)
-        if (error) throw error
-        console.log('[TutorProfile] ✅ Update berhasil')
+
+        if (tutorErr) throw tutorErr
       } else {
-        const { error } = await supabase
+        // Insert new tutor
+        const { error: insertErr } = await supabase
           .from('tutors')
           .insert({
-            ...payload,
+            user_id: user.id,
+            full_name: form.full_name.trim() || null,
+            phone: form.phone.trim() || null,
+            bio: form.bio.trim() || null,
+            experience_years: parseInt(form.experience_years) || 0,
+            hourly_rate: parseFloat(form.hourly_rate) || 0,
+            qualifications: form.qualifications.trim() || null,
             specializations: [],
             approval_status: 'pending',
             verified: false,
@@ -247,28 +194,31 @@ export default function TutorProfilePage() {
             total_reviews: 0,
             verified_grade_levels: [],
             target_grade_level: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
-        if (error) throw error
-        console.log('[TutorProfile] ✅ Insert berhasil')
+          .select('id')
+          .single()
+
+        if (insertErr) throw insertErr
       }
 
       setSuccess('Profil berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
 
-      // Refresh data
-      await loadTutorData(user.id)
+      // Refresh data setelah simpan
+      fetchDone.current = false
+      await fetchProfile()
+
     } catch (err) {
-      console.error('[TutorProfile] ❌ Save error:', err)
+      console.error('[Profile] Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
     } finally {
       setSaving(false)
     }
   }
 
-  // ============================================================
-  // RENDER
-  // ============================================================
-  if (loading || authLoading) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
@@ -279,15 +229,21 @@ export default function TutorProfilePage() {
 
   const statusCfg = STATUS_CONFIG[approvalStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
   const StatusIcon = statusCfg.icon
-  const isProfileComplete = !!(form.name && form.phone && form.experience_years && form.hourly_rate && form.qualifications)
+
+  const isProfileComplete = !!(
+    form.full_name &&
+    form.phone &&
+    form.experience_years &&
+    form.hourly_rate &&
+    form.qualifications
+  )
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Profil Saya</h1>
-          <p className="text-muted-foreground text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
+          <h1 className="text-2xl font-bold text-slate-900">Profil Saya</h1>
+          <p className="text-slate-500 text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
         </div>
         {isProfileComplete ? (
           <Badge className="bg-green-500/20 text-green-300 border-green-500/30 gap-1.5 px-3 py-1.5">
@@ -313,10 +269,9 @@ export default function TutorProfilePage() {
         </Alert>
       )}
 
-      {/* Status Akun */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Status Akun
           </CardTitle>
@@ -326,26 +281,27 @@ export default function TutorProfilePage() {
             <div className="flex items-center gap-3">
               <StatusIcon className={`w-5 h-5 ${statusCfg.iconColor}`} />
               <div>
-                <p className="text-sm font-semibold">{statusCfg.label}</p>
+                <p className="text-sm font-semibold text-slate-800">{statusCfg.label}</p>
                 {approvalStatus === 'pending' && (
-                  <p className="text-xs text-muted-foreground">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
+                  <p className="text-xs text-slate-500">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
                 )}
                 {approvalStatus === 'approved' && (
-                  <p className="text-xs text-muted-foreground">Anda dapat menerima permintaan siswa</p>
+                  <p className="text-xs text-slate-500">Anda dapat menerima permintaan siswa</p>
                 )}
               </div>
             </div>
             {verified && (
-              <Badge className="bg-blue-50 text-blue-700 border-blue-200">✓ Terverifikasi</Badge>
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                ✓ Terverifikasi
+              </Badge>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Informasi Pribadi */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <UserCircle className="w-4 h-4" />
             Informasi Pribadi
           </CardTitle>
@@ -353,26 +309,24 @@ export default function TutorProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Nama Lengkap <span className="text-red-500">*</span>
-              </Label>
+              <Label className="text-xs font-medium text-slate-600">Nama Lengkap</Label>
               <Input
-                value={form.name}
-                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                value={form.full_name}
+                onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))}
                 placeholder="Nama lengkap Anda"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email
               </Label>
-              <Input value={form.email} disabled className="bg-muted/40 text-muted-foreground" />
+              <Input value={form.email} disabled className="bg-slate-50 text-slate-500" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <Phone className="w-3 h-3" /> Nomor WhatsApp <span className="text-red-500">*</span>
+            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Phone className="w-3 h-3" /> Nomor WhatsApp
             </Label>
             <Input
               value={form.phone}
@@ -382,7 +336,7 @@ export default function TutorProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Bio Singkat</Label>
+            <Label className="text-xs font-medium text-slate-600">Bio Singkat</Label>
             <Textarea
               value={form.bio}
               onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
@@ -394,10 +348,9 @@ export default function TutorProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Informasi Profesional */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Informasi Profesional
           </CardTitle>
@@ -405,8 +358,8 @@ export default function TutorProfilePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Briefcase className="w-3 h-3" /> Pengalaman Mengajar (Tahun) <span className="text-red-500">*</span>
+              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                <Briefcase className="w-3 h-3" /> Pengalaman Mengajar (Tahun)
               </Label>
               <Input
                 type="number"
@@ -416,9 +369,10 @@ export default function TutorProfilePage() {
                 placeholder="0"
               />
             </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Banknote className="w-3 h-3" /> Tarif Per Jam (Rp) <span className="text-red-500">*</span>
+              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                <Banknote className="w-3 h-3" /> Tarif Per Jam (Rp)
               </Label>
               <Input
                 type="number"
@@ -432,8 +386,8 @@ export default function TutorProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <BookOpen className="w-3 h-3" /> Kualifikasi & Sertifikasi <span className="text-red-500">*</span>
+            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <BookOpen className="w-3 h-3" /> Kualifikasi & Sertifikasi
             </Label>
             <Textarea
               value={form.qualifications}
@@ -444,19 +398,19 @@ export default function TutorProfilePage() {
             />
           </div>
 
-          {specializations.length > 0 && (
+          {form.specializations.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Mata Pelajaran yang Diajarkan</Label>
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border">
-                {specializations.map((s: string) => (
+              <Label className="text-xs font-medium text-slate-600">Mata Pelajaran yang Diajarkan</Label>
+              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                {form.specializations.map((s: string) => (
                   <Badge key={s} variant="secondary" className="text-xs">
                     {s}
                   </Badge>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-400">
                 Kelola mata pelajaran di halaman{' '}
-                <a href="/dashboard/tutor/teaching-interest" className="text-primary underline">
+                <a href="/dashboard/tutor/teaching-interest" className="text-blue-300 underline">
                   Minat Mengajar
                 </a>
               </p>
@@ -465,11 +419,10 @@ export default function TutorProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Tombol Simpan */}
       <Button
         onClick={handleSave}
         disabled={saving}
-        className="w-full gap-2 h-11"
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 h-11"
       >
         {saving ? (
           <>
