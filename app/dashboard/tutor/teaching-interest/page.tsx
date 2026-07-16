@@ -157,35 +157,26 @@ export default function TeachingInterestPage() {
       if (userError) throw userError
       if (!user) throw new Error('User tidak ditemukan')
 
-      let targetTutorId = tutorId
+      const response = await fetch('/api/tutors/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          specializations: selectedSubjects,
+          verified_grade_levels: selectedLevels,
+        }),
+      })
 
-      if (!targetTutorId) {
-        // Insert new tutor record
-        const { data: newTutor, error: insertErr } = await supabase
-          .from('tutors')
-          .insert({
-            user_id: user.id,
-            specializations: selectedSubjects,
-            verified_grade_levels: selectedLevels,
-            approval_status: 'pending',
-          })
-          .select('id')
-          .single()
+      const result = await response.json()
 
-        if (insertErr) throw insertErr
-        targetTutorId = newTutor.id
-        setTutorId(targetTutorId)
-      } else {
-        // Update existing
-        const { error: updateErr } = await supabase
-          .from('tutors')
-          .update({
-            specializations: selectedSubjects,
-            verified_grade_levels: selectedLevels,
-          })
-          .eq('id', targetTutorId)
+      if (!response.ok) {
+        throw new Error(result.error || 'Gagal menyimpan minat mengajar')
+      }
 
-        if (updateErr) throw updateErr
+      if (result.data?.id) {
+        setTutorId(result.data.id)
       }
 
       setSuccess('Minat mengajar berhasil disimpan!')

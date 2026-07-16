@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,6 +54,7 @@ const STATUS_CONFIG = {
 }
 
 export default function ProfilePage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -216,12 +218,16 @@ export default function ProfilePage() {
         throw new Error(result.error || 'Gagal menyimpan profil')
       }
 
-      setSuccess('Profil berhasil disimpan!')
-      setTimeout(() => setSuccess(null), 3000)
+      setSuccess('Profil berhasil disimpan! Mengarahkan ke halaman Minat Mengajar...')
 
       // Refresh data
       fetchDone.current = false
       await fetchProfile()
+
+      // Redirect to teaching interest page after successful save
+      setTimeout(() => {
+        router.push('/dashboard/tutor/teaching-interest')
+      }, 1500)
 
     } catch (err) {
       console.error('[Profile] ❌ Error:', err)
