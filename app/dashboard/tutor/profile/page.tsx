@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
 import { createBrowserClient } from '@supabase/ssr'
+const [userId, setUserId] = useState<string | null>(null)
 import Link from 'next/link'
 import {
   UserCircle,
@@ -156,46 +157,29 @@ export default function ProfilePage() {
   setError(null)
   setSuccess(null)
 
-  // 🔥 Timeout 10 detik untuk force stop
   const forceStopTimeout = setTimeout(() => {
-    console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout, memaksa setSaving(false)')
+    console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout')
     setSaving(false)
   }, 10000)
 
   try {
-    // 🔥 Gunakan createBrowserClient langsung, tanpa lib/auth
-    console.log('[Profile] 1. Membuat Supabase client langsung...')
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    console.log('[Profile] 2. Mendapatkan session...')
-    
-    // 🔥 Coba ambil session dulu, lalu getUser
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) {
-      console.error('[Profile] ❌ Session error:', sessionError)
-      throw new Error('Gagal mendapatkan session: ' + sessionError.message)
+    // 🔥 LANGSUNG PAKAI userId DARI STATE (sudah didapat dari fetchProfile)
+    if (!userId) {
+      throw new Error('User ID tidak ditemukan. Silakan refresh halaman.')
     }
-    if (!session) {
-      console.error('[Profile] ❌ Tidak ada session')
-      throw new Error('Anda belum login. Silakan login ulang.')
-    }
-    console.log('[Profile] ✅ Session valid, user:', session.user.id)
 
-    // Validasi form
     if (!form.full_name.trim()) {
       throw new Error('Nama lengkap wajib diisi')
     }
 
-    console.log('[Profile] 3. Mengirim ke API /api/tutors/profile...')
+    console.log('[Profile] 1. Mengirim ke API /api/tutors/profile...')
     const response = await fetch('/api/tutors/profile', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        user_id: session.user.id,
+        user_id: userId, // <-- pakai userId dari state
         full_name: form.full_name.trim(),
         phone: form.phone.trim() || null,
         bio: form.bio.trim() || null,
@@ -205,9 +189,9 @@ export default function ProfilePage() {
       }),
     })
 
-    console.log('[Profile] 4. Response status:', response.status)
+    console.log('[Profile] 2. Response status:', response.status)
     const result = await response.json()
-    console.log('[Profile] 5. Response body:', result)
+    console.log('[Profile] 3. Response body:', result)
 
     if (!response.ok) {
       throw new Error(result.error || 'Gagal menyimpan profil')
@@ -217,18 +201,16 @@ export default function ProfilePage() {
     setTimeout(() => setSuccess(null), 3000)
 
     // Refresh data
-    console.log('[Profile] 6. Refresh data...')
     fetchDone.current = false
     await fetchProfile()
-    console.log('[Profile] 7. Refresh selesai')
 
   } catch (err) {
-    console.error('[Profile] ❌ Save error:', err)
+    console.error('[Profile] ❌ Error:', err)
     setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
   } finally {
-    console.log('[Profile] 🏁 FINALLY: setSaving(false)')
     clearTimeout(forceStopTimeout)
     setSaving(false)
+    console.log('[Profile] 🏁 Selesai')
   }
 }
 
