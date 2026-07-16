@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
-import { createClient } from '@/lib/auth'
 import { useAuth } from '@/lib/auth-context'
 import {
   UserCircle,
@@ -85,31 +84,22 @@ export default function ProfilePage() {
 
     try {
       console.log('[Profile] 🔄 Fetching profile for user:', currentUserId)
-      const supabase = createClient()
 
       setUserId(currentUserId)
 
-      // Ambil email dari user_profiles
-      const { data: profileData } = await supabase
-        .from('user_profiles')
-        .select('email')
-        .eq('id', currentUserId)
-        .maybeSingle()
-
-      // Ambil data tutor
-      const { data: tutorData, error: tutorErr } = await supabase
-        .from('tutors')
-        .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
-        .eq('user_id', currentUserId)
-        .maybeSingle()
-
-      if (tutorErr && tutorErr.code !== 'PGRST116') {
-        console.error('[Profile] Tutor fetch error:', tutorErr)
+      // Fetch profile data via API route (uses service role key, bypasses RLS)
+      const params = new URLSearchParams({ user_id: currentUserId })
+      const response = await fetch(`/api/tutors/profile?${params.toString()}`)
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Gagal memuat profil')
       }
+
+      const { tutor: tutorData, email } = await response.json()
 
       setForm({
         full_name: tutorData?.full_name || '',
-        email: profileData?.email || authUser?.email || '',
+        email: email || authUser?.email || '',
         phone: tutorData?.phone || '',
         bio: tutorData?.bio || '',
         experience_years: tutorData?.experience_years?.toString() || '',
