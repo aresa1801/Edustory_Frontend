@@ -150,22 +150,35 @@ export default function ProfilePage() {
   }, [])
 
   const handleSave = async () => {
-  console.log('[Profile] 🔥 handleSave dipanggil')
-  setSaving(true)
-  setError(null)
-  setSuccess(null)
+  console.log('[Profile] 🔥🔥🔥 handleSave START')
+
+  // 🔥 PAKSA: setSaving(false) pasti dipanggil dalam 10 detik
+  const forceStopTimeout = setTimeout(() => {
+    console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout, memaksa setSaving(false)')
+    setSaving(false)
+  }, 10000)
 
   try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Tidak terautentikasi')
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
 
-    // Validasi sederhana
+    console.log('[Profile] 1. Membuat supabase client...')
+    const supabase = createClient()
+    console.log('[Profile] 2. Mendapatkan user...')
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error('[Profile] ❌ User error:', userError)
+      throw new Error('Tidak terautentikasi')
+    }
+    console.log('[Profile] ✅ User ID:', user.id)
+
     if (!form.full_name.trim()) {
       throw new Error('Nama lengkap wajib diisi')
     }
 
-    // 🔥 Kirim ke API Route (sama seperti student onboarding)
+    console.log('[Profile] 3. Mengirim ke API /api/tutors/profile...')
     const response = await fetch('/api/tutors/profile', {
       method: 'POST',
       headers: {
@@ -179,12 +192,12 @@ export default function ProfilePage() {
         experience_years: parseInt(form.experience_years) || 0,
         hourly_rate: parseFloat(form.hourly_rate) || 0,
         qualifications: form.qualifications.trim() || null,
-        // specializations tidak diubah di sini (di halaman teaching-interest)
       }),
     })
 
+    console.log('[Profile] 4. Response status:', response.status)
     const result = await response.json()
-    console.log('[Profile] API Response:', result)
+    console.log('[Profile] 5. Response body:', result)
 
     if (!response.ok) {
       throw new Error(result.error || 'Gagal menyimpan profil')
@@ -193,15 +206,18 @@ export default function ProfilePage() {
     setSuccess('Profil berhasil disimpan!')
     setTimeout(() => setSuccess(null), 3000)
 
-    // Refresh data setelah simpan
+    // Refresh data
+    console.log('[Profile] 6. Refresh data...')
     fetchDone.current = false
     await fetchProfile()
+    console.log('[Profile] 7. Refresh selesai')
 
   } catch (err) {
     console.error('[Profile] ❌ Save error:', err)
     setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
   } finally {
-    console.log('[Profile] 🏁 Saving selesai, setSaving(false)')
+    console.log('[Profile] 🏁 FINALLY: setSaving(false)')
+    clearTimeout(forceStopTimeout)
     setSaving(false)
   }
 }
