@@ -225,9 +225,7 @@ export default function ProfilePage() {
       await fetchProfile()
 
       // Redirect to teaching interest page after successful save
-      setTimeout(() => {
-        router.push('/dashboard/tutor/teaching-interest')
-      }, 1500)
+      router.push('/dashboard/tutor/teaching-interest')
 
     } catch (err) {
       console.error('[Profile] ❌ Error:', err)

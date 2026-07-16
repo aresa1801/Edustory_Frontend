@@ -169,11 +169,12 @@ export default function TeachingInterestPage() {
         }),
       })
 
-      const result = await response.json()
-
       if (!response.ok) {
+        const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
         throw new Error(result.error || 'Gagal menyimpan minat mengajar')
       }
+
+      const result = await response.json()
 
       if (result.data?.id) {
         setTutorId(result.data.id)
