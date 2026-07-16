@@ -10,8 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
-import { createBrowserClient } from '@supabase/ssr'
-const [userId, setUserId] = useState<string | null>(null)
 import Link from 'next/link'
 import {
   UserCircle,
@@ -59,6 +57,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -82,21 +81,40 @@ export default function ProfilePage() {
     fetchDone.current = true
 
     try {
+      console.log('[Profile] 🔄 Fetching profile...')
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      
+      // 🔥 Coba getUser, fallback ke getSession jika gagal
+      let user = null
+      try {
+        const { data: { user: u }, error } = await supabase.auth.getUser()
+        if (error) throw error
+        user = u
+      } catch (authErr) {
+        console.warn('[Profile] getUser failed, trying getSession...', authErr)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          user = session.user
+        }
+      }
+
       if (!user) {
-        setError('User tidak ditemukan')
+        setError('User tidak ditemukan. Silakan login ulang.')
+        setLoading(false)
         return
       }
 
-      // Ambil email dari user_profiles (atau dari auth user)
+      setUserId(user.id)
+      console.log('[Profile] ✅ User ID:', user.id)
+
+      // Ambil email dari user_profiles
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('email')
         .eq('id', user.id)
         .maybeSingle()
 
-      // Ambil semua data tutor dari tabel tutors
+      // Ambil data tutor
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
         .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
@@ -122,7 +140,7 @@ export default function ProfilePage() {
       setVerified(tutorData?.verified || false)
       setError(null)
     } catch (err) {
-      console.error('[Profile] Error:', err)
+      console.error('[Profile] ❌ Error:', err)
       setError(err instanceof Error ? err.message : 'Gagal memuat profil')
     } finally {
       if (isMounted.current) {
@@ -141,7 +159,7 @@ export default function ProfilePage() {
         console.warn('[Profile] ⏱️ Timeout, force loading=false')
         setLoading(false)
       }
-    }, 3000)
+    }, 5000)
 
     fetchProfile()
 
@@ -151,74 +169,89 @@ export default function ProfilePage() {
     }
   }, [])
 
-    const handleSave = async () => {
-  console.log('[Profile] 🔥 handleSave START')
-  setSaving(true)
-  setError(null)
-  setSuccess(null)
+  const handleSave = async () => {
+    console.log('[Profile] 🔥 handleSave START')
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
 
-  const forceStopTimeout = setTimeout(() => {
-    console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout')
-    setSaving(false)
-  }, 10000)
+    const forceStopTimeout = setTimeout(() => {
+      console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout')
+      setSaving(false)
+    }, 10000)
 
-  try {
-    // 🔥 LANGSUNG PAKAI userId DARI STATE (sudah didapat dari fetchProfile)
-    if (!userId) {
-      throw new Error('User ID tidak ditemukan. Silakan refresh halaman.')
+    try {
+      // 🔥 PAKAI userId DARI STATE
+      if (!userId) {
+        throw new Error('User ID tidak ditemukan. Silakan refresh halaman.')
+      }
+
+      if (!form.full_name.trim()) {
+        throw new Error('Nama lengkap wajib diisi')
+      }
+
+      console.log('[Profile] 1. Mengirim ke API /api/tutors/profile...')
+
+      const response = await fetch('/api/tutors/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          full_name: form.full_name.trim(),
+          phone: form.phone.trim() || null,
+          bio: form.bio.trim() || null,
+          experience_years: parseInt(form.experience_years) || 0,
+          hourly_rate: parseFloat(form.hourly_rate) || 0,
+          qualifications: form.qualifications.trim() || null,
+        }),
+      })
+
+      console.log('[Profile] 2. Response status:', response.status)
+      const result = await response.json()
+      console.log('[Profile] 3. Response body:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Gagal menyimpan profil')
+      }
+
+      setSuccess('Profil berhasil disimpan!')
+      setTimeout(() => setSuccess(null), 3000)
+
+      // Refresh data
+      fetchDone.current = false
+      await fetchProfile()
+
+    } catch (err) {
+      console.error('[Profile] ❌ Error:', err)
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
+    } finally {
+      clearTimeout(forceStopTimeout)
+      setSaving(false)
+      console.log('[Profile] 🏁 Selesai')
     }
-
-    if (!form.full_name.trim()) {
-      throw new Error('Nama lengkap wajib diisi')
-    }
-
-    console.log('[Profile] 1. Mengirim ke API /api/tutors/profile...')
-    const response = await fetch('/api/tutors/profile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_id: userId, // <-- pakai userId dari state
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim() || null,
-        bio: form.bio.trim() || null,
-        experience_years: parseInt(form.experience_years) || 0,
-        hourly_rate: parseFloat(form.hourly_rate) || 0,
-        qualifications: form.qualifications.trim() || null,
-      }),
-    })
-
-    console.log('[Profile] 2. Response status:', response.status)
-    const result = await response.json()
-    console.log('[Profile] 3. Response body:', result)
-
-    if (!response.ok) {
-      throw new Error(result.error || 'Gagal menyimpan profil')
-    }
-
-    setSuccess('Profil berhasil disimpan!')
-    setTimeout(() => setSuccess(null), 3000)
-
-    // Refresh data
-    fetchDone.current = false
-    await fetchProfile()
-
-  } catch (err) {
-    console.error('[Profile] ❌ Error:', err)
-    setError(err instanceof Error ? err.message : 'Gagal menyimpan profil')
-  } finally {
-    clearTimeout(forceStopTimeout)
-    setSaving(false)
-    console.log('[Profile] 🏁 Selesai')
   }
-}
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat profil...</p>
+      </div>
+    )
+  }
+
+  // 🔥 Jika error dan loading sudah selesai, tampilkan pesan error
+  if (error && !loading) {
+    return (
+      <div className="max-w-3xl mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          Refresh Halaman
+        </Button>
       </div>
     )
   }
@@ -254,11 +287,6 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
       {success && (
         <Alert className="bg-green-50 border-green-200">
           <AlertDescription className="text-green-300">{success}</AlertDescription>
