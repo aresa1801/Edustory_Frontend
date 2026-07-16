@@ -150,99 +150,52 @@ export default function ProfilePage() {
   }, [])
 
   const handleSave = async () => {
-  console.log('[Profile] 🔥 handleSave dimulai')
-  
-  // Reset state
+  console.log('[Profile] 🔥 handleSave dipanggil')
+  setSaving(true)
   setError(null)
   setSuccess(null)
-  setSaving(true)
 
   try {
-    console.log('[Profile] 1. Membuat Supabase client...')
     const supabase = createClient()
-    
-    console.log('[Profile] 2. Mendapatkan user...')
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error('[Profile] ❌ User error:', userError)
-      throw new Error('Tidak terautentikasi. Silakan login ulang.')
-    }
-    console.log('[Profile] ✅ User ditemukan:', user.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Tidak terautentikasi')
 
     // Validasi sederhana
     if (!form.full_name.trim()) {
       throw new Error('Nama lengkap wajib diisi')
     }
 
-    console.log('[Profile] 3. Menyimpan data ke tutors...')
-    
-    // Siapkan data yang akan disimpan
-    const tutorData = {
-      full_name: form.full_name.trim(),
-      phone: form.phone.trim() || null,
-      bio: form.bio.trim() || null,
-      experience_years: parseInt(form.experience_years) || 0,
-      hourly_rate: parseFloat(form.hourly_rate) || 0,
-      qualifications: form.qualifications.trim() || null,
-      updated_at: new Date().toISOString(),
+    // 🔥 Kirim ke API Route (sama seperti student onboarding)
+    const response = await fetch('/api/tutors/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: user.id,
+        full_name: form.full_name.trim(),
+        phone: form.phone.trim() || null,
+        bio: form.bio.trim() || null,
+        experience_years: parseInt(form.experience_years) || 0,
+        hourly_rate: parseFloat(form.hourly_rate) || 0,
+        qualifications: form.qualifications.trim() || null,
+        // specializations tidak diubah di sini (di halaman teaching-interest)
+      }),
+    })
+
+    const result = await response.json()
+    console.log('[Profile] API Response:', result)
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Gagal menyimpan profil')
     }
 
-    let result
-
-    if (tutorId) {
-      console.log('[Profile] 🔄 Update tutor ID:', tutorId)
-      // Update existing tutor
-      const { data, error } = await supabase
-        .from('tutors')
-        .update(tutorData)
-        .eq('id', tutorId)
-        .select('id')
-        .single()
-
-      if (error) {
-        console.error('[Profile] ❌ Update error:', error)
-        throw error
-      }
-      result = data
-      console.log('[Profile] ✅ Update berhasil')
-    } else {
-      console.log('[Profile] 📝 Insert new tutor untuk user:', user.id)
-      // Insert new tutor
-      const { data, error } = await supabase
-        .from('tutors')
-        .insert({
-          user_id: user.id,
-          ...tutorData,
-          specializations: [],
-          approval_status: 'pending',
-          verified: false,
-          rating: 0,
-          total_reviews: 0,
-          verified_grade_levels: [],
-          target_grade_level: null,
-          created_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single()
-
-      if (error) {
-        console.error('[Profile] ❌ Insert error:', error)
-        throw error
-      }
-      result = data
-      console.log('[Profile] ✅ Insert berhasil, ID:', result?.id)
-      setTutorId(result?.id || null)
-    }
-
-    // Tampilkan pesan sukses
     setSuccess('Profil berhasil disimpan!')
     setTimeout(() => setSuccess(null), 3000)
 
-    // Refresh data setelah simpan (tapi jangan pakai await yang bisa blocking)
-    console.log('[Profile] 🔄 Refresh data...')
+    // Refresh data setelah simpan
     fetchDone.current = false
     await fetchProfile()
-    console.log('[Profile] ✅ Refresh selesai')
 
   } catch (err) {
     console.error('[Profile] ❌ Save error:', err)
