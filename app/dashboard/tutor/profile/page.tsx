@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/auth'
+import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
 import {
   UserCircle,
@@ -149,31 +150,40 @@ export default function ProfilePage() {
     }
   }, [])
 
-  const handleSave = async () => {
-  console.log('[Profile] 🔥🔥🔥 handleSave START')
+    const handleSave = async () => {
+  console.log('[Profile] 🔥 handleSave START')
+  setSaving(true)
+  setError(null)
+  setSuccess(null)
 
-  // 🔥 PAKSA: setSaving(false) pasti dipanggil dalam 10 detik
+  // 🔥 Timeout 10 detik untuk force stop
   const forceStopTimeout = setTimeout(() => {
     console.warn('[Profile] ⏱️ FORCE STOP: 10 detik timeout, memaksa setSaving(false)')
     setSaving(false)
   }, 10000)
 
   try {
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    console.log('[Profile] 1. Membuat supabase client...')
-    const supabase = createClient()
-    console.log('[Profile] 2. Mendapatkan user...')
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      console.error('[Profile] ❌ User error:', userError)
-      throw new Error('Tidak terautentikasi')
+    // 🔥 Gunakan createBrowserClient langsung, tanpa lib/auth
+    console.log('[Profile] 1. Membuat Supabase client langsung...')
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    console.log('[Profile] 2. Mendapatkan session...')
+    
+    // 🔥 Coba ambil session dulu, lalu getUser
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      console.error('[Profile] ❌ Session error:', sessionError)
+      throw new Error('Gagal mendapatkan session: ' + sessionError.message)
     }
-    console.log('[Profile] ✅ User ID:', user.id)
+    if (!session) {
+      console.error('[Profile] ❌ Tidak ada session')
+      throw new Error('Anda belum login. Silakan login ulang.')
+    }
+    console.log('[Profile] ✅ Session valid, user:', session.user.id)
 
+    // Validasi form
     if (!form.full_name.trim()) {
       throw new Error('Nama lengkap wajib diisi')
     }
@@ -185,7 +195,7 @@ export default function ProfilePage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        user_id: user.id,
+        user_id: session.user.id,
         full_name: form.full_name.trim(),
         phone: form.phone.trim() || null,
         bio: form.bio.trim() || null,
