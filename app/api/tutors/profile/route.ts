@@ -1,13 +1,60 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('user_id')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
+    }
+
+    const supabase = getSupabase()
+
+    // Fetch tutor data
+    const { data: tutorData, error: tutorErr } = await supabase
+      .from('tutors')
+      .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (tutorErr && tutorErr.code !== 'PGRST116') {
+      console.error('[API] Tutor fetch error:', tutorErr)
+      return NextResponse.json({ error: tutorErr.message }, { status: 500 })
+    }
+
+    // Fetch email from user_profiles
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('email')
+      .eq('id', userId)
+      .maybeSingle()
+
+    return NextResponse.json({
+      tutor: tutorData || null,
+      email: profileData?.email || null,
+    })
+  } catch (err) {
+    console.error('[API] Unexpected error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   console.log('[API] Received POST /api/tutors/profile')
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = getSupabase()
     const body = await request.json()
     console.log('[API] Body:', body)
 
