@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +43,7 @@ function getSubjectsForLevels(levels: string[]): { sd: string[], smp: string[], 
 }
 
 export default function TeachingInterestPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -233,8 +235,10 @@ export default function TeachingInterestPage() {
       const result = await response.json()
       if (result.data?.id) setTutorId(result.data.id)
 
-      setSuccess('Minat mengajar berhasil disimpan!')
-      setTimeout(() => setSuccess(null), 3000)
+      setSuccess('Minat mengajar berhasil disimpan! Mengalihkan ke halaman kurasi...')
+      setTimeout(() => {
+        router.push('/curation/progress')
+      }, 1500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
     } finally {
