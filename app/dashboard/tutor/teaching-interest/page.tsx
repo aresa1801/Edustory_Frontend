@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,7 @@ function getSubjectsForLevels(levels: string[]): { sd: string[], smp: string[], 
 
 export default function TeachingInterestPage() {
   const router = useRouter()
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -128,6 +129,13 @@ export default function TeachingInterestPage() {
 
     fetchData()
     return () => { isMounted = false }
+  }, [])
+
+  // Cleanup redirect timer on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current)
+    }
   }, [])
 
   // Toggle tingkat kelas
@@ -236,7 +244,7 @@ export default function TeachingInterestPage() {
       if (result.data?.id) setTutorId(result.data.id)
 
       setSuccess('Minat mengajar berhasil disimpan! Mengalihkan ke halaman kurasi...')
-      setTimeout(() => {
+      redirectTimerRef.current = setTimeout(() => {
         router.push('/curation/progress')
       }, 1500)
     } catch (err) {
