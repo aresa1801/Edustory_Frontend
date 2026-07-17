@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
       'full_name', 'phone', 'bio',
       'experience_years', 'hourly_rate', 'qualifications',
       'specializations', 'approval_status', 'verified',
-      'rating', 'total_reviews', 'verified_grade_levels', 'target_grade_level'
+      'rating', 'total_reviews', 'verified_grade_levels', 'target_grade_level',
+      'specializations_sd', 'specializations_smp', 'specializations_sma'
     ]
 
     fields.forEach(field => {
