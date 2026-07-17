@@ -19,10 +19,24 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabase()
 
-    // Fetch tutor data
+    // Fetch tutor data - tambahkan field baru
     const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
-      .select('id, full_name, phone, bio, experience_years, hourly_rate, qualifications, specializations, approval_status, verified')
+      .select(`
+        id, 
+        full_name, 
+        phone, 
+        bio, 
+        experience_years, 
+        hourly_rate, 
+        qualifications, 
+        approval_status, 
+        verified,
+        verified_grade_levels,
+        specializations_sd,
+        specializations_smp,
+        specializations_sma
+      `)
       .eq('user_id', userId)
       .maybeSingle()
 
@@ -75,17 +89,22 @@ export async function POST(request: NextRequest) {
       user_id: userId,
     }
 
-    // Field yang boleh di-update
+    // Field yang boleh di-update (tambahkan field baru, hapus 'specializations')
     const fields = [
       'full_name', 'phone', 'bio',
       'experience_years', 'hourly_rate', 'qualifications',
-      'specializations', 'approval_status', 'verified',
-      'rating', 'total_reviews', 'verified_grade_levels', 'target_grade_level'
+      'approval_status', 'verified',
+      'rating', 'total_reviews', 
+      'verified_grade_levels', 
+      'specializations_sd', 
+      'specializations_smp', 
+      'specializations_sma'
     ]
 
     fields.forEach(field => {
       if (body[field] !== undefined) {
-        payload[field] = body[field] ?? null
+        // Jangan set null untuk array, biarkan array kosong
+        payload[field] = body[field] ?? (Array.isArray(body[field]) ? [] : null)
       }
     })
 
