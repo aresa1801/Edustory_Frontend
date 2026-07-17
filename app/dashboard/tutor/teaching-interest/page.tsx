@@ -50,65 +50,91 @@ export default function TeachingInterestPage() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
 
   useEffect(() => {
-    let isMounted = true
-    const fetchData = async () => {
-      try {
-        console.log('[TeachingInterest] Fetching data...')
-        const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) {
-          console.error('[TeachingInterest] Auth error:', userError)
-          throw userError
-        }
-        if (!user) {
-          throw new Error('Anda harus login terlebih dahulu')
-        }
-        console.log('[TeachingInterest] User:', user.id)
+  let isMounted = true;
+  const TIMEOUT_MS = 10000; // 10 detik
 
-        // Coba ambil data tutor
-        const { data: tutorData, error: tutorErr } = await supabase
-          .from('tutors')
-          .select('id, specializations, verified_grade_levels')
-          .eq('user_id', user.id)
-          .maybeSingle()
+  const fetchData = async () => {
+    try {
+      console.log('[TeachingInterest] Fetching data...');
 
-        if (tutorErr) {
-          console.error('[TeachingInterest] Tutor fetch error:', tutorErr)
-          throw tutorErr
-        }
+      // 1. Buat client
+      const supabase = createClient();
+      if (!supabase || typeof supabase.from !== 'function') {
+        throw new Error('Supabase client tidak valid');
+      }
 
-        if (tutorData) {
-          console.log('[TeachingInterest] Tutor found:', tutorData)
-          if (isMounted) {
-            setTutorId(tutorData.id)
-            setSelectedLevels(tutorData.verified_grade_levels || [])
-            setSelectedSubjects(tutorData.specializations || [])
-          }
-        } else {
-          console.log('[TeachingInterest] No tutor record found, setting empty')
-          if (isMounted) {
-            setTutorId(null)
-            setSelectedLevels([])
-            setSelectedSubjects([])
-          }
-        }
-      } catch (err) {
-        console.error('[TeachingInterest] Fetch error:', err)
+      // 2. Timeout untuk auth.getUser
+      const authPromise = supabase.auth.getUser();
+      const authResult = await Promise.race([
+        authPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), TIMEOUT_MS)
+        ),
+      ]) as any;
+
+      const { data: { user }, error: userError } = authResult;
+      if (userError) {
+        console.error('[TeachingInterest] Auth error:', userError);
+        throw userError;
+      }
+      if (!user) {
+        throw new Error('Anda harus login terlebih dahulu');
+      }
+      console.log('[TeachingInterest] User:', user.id);
+
+      // 3. Timeout untuk query tutor
+      const tutorPromise = supabase
+        .from('tutors')
+        .select('id, specializations, verified_grade_levels')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const tutorResult = await Promise.race([
+        tutorPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout: query tutor terlalu lama')), TIMEOUT_MS)
+        ),
+      ]) as any;
+
+      const { data: tutorData, error: tutorErr } = tutorResult;
+      if (tutorErr) {
+        console.error('[TeachingInterest] Tutor fetch error:', tutorErr);
+        throw tutorErr;
+      }
+
+      if (tutorData) {
+        console.log('[TeachingInterest] Tutor found:', tutorData);
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar')
+          setTutorId(tutorData.id);
+          setSelectedLevels(tutorData.verified_grade_levels || []);
+          setSelectedSubjects(tutorData.specializations || []);
         }
-      } finally {
+      } else {
+        console.log('[TeachingInterest] No tutor record found, setting empty');
         if (isMounted) {
-          setLoading(false)
+          setTutorId(null);
+          setSelectedLevels([]);
+          setSelectedSubjects([]);
         }
       }
+    } catch (err) {
+      console.error('[TeachingInterest] Fetch error:', err);
+      if (isMounted) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar');
+      }
+    } finally {
+      if (isMounted) {
+        setLoading(false);
+      }
     }
+  };
 
-    fetchData()
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  fetchData();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   // ... toggle functions same as before ...
 

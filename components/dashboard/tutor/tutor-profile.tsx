@@ -43,22 +43,10 @@ export default function TutorProfile() {
       const { data, error } = await supabase
         .from('tutors')
         .select(`
-          id,
-          specializations,
-          qualifications,
-          experience_years,
-          hourly_rate,
-          rating,
-          total_reviews,
-          verified,
-          approval_status,
-          user_profiles:user_id(
-            name,
-            email,
-            phone,
-            bio,
-            avatar_url
-          )
+          id, specializations, qualifications, experience_years, hourly_rate,
+          rating, total_reviews, verified, approval_status,
+          full_name, phone, bio,
+          user_profiles:user_id( email, avatar_url )
         `)
         .eq('user_id', user.id)
         .single()
