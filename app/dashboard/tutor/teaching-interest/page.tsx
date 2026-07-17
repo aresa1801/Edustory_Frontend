@@ -30,14 +30,15 @@ const SUBJECTS_BY_LEVEL: Record<string, string[]> = {
   SMA: ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi', 'Ekonomi', 'Geografi', 'Sejarah', 'Sosiologi', 'Informatika', 'PKN', 'Seni Budaya'],
 }
 
-function getSubjectsForLevels(levels: string[]): string[] {
-  const subjects = new Set<string>()
+// Fungsi untuk mendapatkan daftar mata pelajaran untuk setiap jenjang yang dipilih
+function getSubjectsForLevels(levels: string[]): { sd: string[], smp: string[], sma: string[] } {
+  const result = { sd: [] as string[], smp: [] as string[], sma: [] as string[] }
   levels.forEach(lvl => {
-    if (lvl.startsWith('SD')) SUBJECTS_BY_LEVEL['SD'].forEach(s => subjects.add(s))
-    else if (lvl.startsWith('SMP')) SUBJECTS_BY_LEVEL['SMP'].forEach(s => subjects.add(s))
-    else if (lvl.startsWith('SMA')) SUBJECTS_BY_LEVEL['SMA'].forEach(s => subjects.add(s))
+    if (lvl.startsWith('SD')) result.sd = SUBJECTS_BY_LEVEL['SD']
+    else if (lvl.startsWith('SMP')) result.smp = SUBJECTS_BY_LEVEL['SMP']
+    else if (lvl.startsWith('SMA')) result.sma = SUBJECTS_BY_LEVEL['SMA']
   })
-  return Array.from(subjects).sort()
+  return result
 }
 
 export default function TeachingInterestPage() {
@@ -47,131 +48,160 @@ export default function TeachingInterestPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+  // State untuk mata pelajaran per jenjang
+  const [selectedSubjects, setSelectedSubjects] = useState<{ sd: string[], smp: string[], sma: string[] }>({
+    sd: [],
+    smp: [],
+    sma: []
+  })
 
   useEffect(() => {
-  let isMounted = true;
-  const TIMEOUT_MS = 10000; // 10 detik
+    let isMounted = true
+    const TIMEOUT_MS = 10000
 
-  const fetchData = async () => {
-    try {
-      console.log('[TeachingInterest] Fetching data...');
-
-      // 1. Buat client
-      const supabase = createClient();
-      if (!supabase || typeof supabase.from !== 'function') {
-        throw new Error('Supabase client tidak valid');
-      }
-
-      // 2. Timeout untuk auth.getUser
-      const authPromise = supabase.auth.getUser();
-      const authResult = await Promise.race([
-        authPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), TIMEOUT_MS)
-        ),
-      ]) as any;
-
-      const { data: { user }, error: userError } = authResult;
-      if (userError) {
-        console.error('[TeachingInterest] Auth error:', userError);
-        throw userError;
-      }
-      if (!user) {
-        throw new Error('Anda harus login terlebih dahulu');
-      }
-      console.log('[TeachingInterest] User:', user.id);
-
-      // 3. Timeout untuk query tutor
-      const tutorPromise = supabase
-        .from('tutors')
-        .select('id, specializations, verified_grade_levels')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const tutorResult = await Promise.race([
-        tutorPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout: query tutor terlalu lama')), TIMEOUT_MS)
-        ),
-      ]) as any;
-
-      const { data: tutorData, error: tutorErr } = tutorResult;
-      if (tutorErr) {
-        console.error('[TeachingInterest] Tutor fetch error:', tutorErr);
-        throw tutorErr;
-      }
-
-      if (tutorData) {
-        console.log('[TeachingInterest] Tutor found:', tutorData);
-        if (isMounted) {
-          setTutorId(tutorData.id);
-          setSelectedLevels(tutorData.verified_grade_levels || []);
-          setSelectedSubjects(tutorData.specializations || []);
+    const fetchData = async () => {
+      try {
+        const supabase = createClient()
+        if (!supabase || typeof supabase.from !== 'function') {
+          throw new Error('Supabase client tidak valid')
         }
-      } else {
-        console.log('[TeachingInterest] No tutor record found, setting empty');
-        if (isMounted) {
-          setTutorId(null);
-          setSelectedLevels([]);
-          setSelectedSubjects([]);
+
+        // Auth
+        const authPromise = supabase.auth.getUser()
+        const authResult = await Promise.race([
+          authPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), TIMEOUT_MS)
+          ),
+        ]) as any
+
+        const { data: { user }, error: userError } = authResult
+        if (userError) throw userError
+        if (!user) throw new Error('Anda harus login terlebih dahulu')
+
+        // Query tutor dengan kolom baru
+        const tutorPromise = supabase
+          .from('tutors')
+          .select('id, verified_grade_levels, specializations_sd, specializations_smp, specializations_sma')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        const tutorResult = await Promise.race([
+          tutorPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout: query tutor terlalu lama')), TIMEOUT_MS)
+          ),
+        ]) as any
+
+        const { data: tutorData, error: tutorErr } = tutorResult
+        if (tutorErr) throw tutorErr
+
+        if (tutorData) {
+          if (isMounted) {
+            setTutorId(tutorData.id)
+            setSelectedLevels(tutorData.verified_grade_levels || [])
+            setSelectedSubjects({
+              sd: tutorData.specializations_sd || [],
+              smp: tutorData.specializations_smp || [],
+              sma: tutorData.specializations_sma || [],
+            })
+          }
+        } else {
+          if (isMounted) {
+            setTutorId(null)
+            setSelectedLevels([])
+            setSelectedSubjects({ sd: [], smp: [], sma: [] })
+          }
         }
-      }
-    } catch (err) {
-      console.error('[TeachingInterest] Fetch error:', err);
-      if (isMounted) {
-        setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar');
-      }
-    } finally {
-      if (isMounted) {
-        setLoading(false);
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
-  };
 
-  fetchData();
+    fetchData()
+    return () => { isMounted = false }
+  }, [])
 
-  return () => {
-    isMounted = false;
-  };
-}, []);
-
-  // ... toggle functions same as before ...
-
+  // Toggle tingkat kelas
   const toggleLevel = (level: string) => {
     const newLevels = selectedLevels.includes(level)
       ? selectedLevels.filter(l => l !== level)
       : [...selectedLevels, level]
     setSelectedLevels(newLevels)
-    const availableSubjects = getSubjectsForLevels(newLevels)
-    setSelectedSubjects(prev => prev.filter(s => availableSubjects.includes(s)))
+
+    // Jika suatu jenjang tidak dipilih sama sekali, kosongkan mata pelajaran untuk jenjang tersebut
+    const hasSD = newLevels.some(l => l.startsWith('SD'))
+    const hasSMP = newLevels.some(l => l.startsWith('SMP'))
+    const hasSMA = newLevels.some(l => l.startsWith('SMA'))
+
+    setSelectedSubjects(prev => ({
+      sd: hasSD ? prev.sd : [],
+      smp: hasSMP ? prev.smp : [],
+      sma: hasSMA ? prev.sma : [],
+    }))
   }
 
-  const toggleSubject = (subject: string) => {
-    setSelectedSubjects(prev =>
-      prev.includes(subject) ? prev.filter(s => s !== subject) : [...prev, subject]
-    )
+  // Toggle mata pelajaran untuk jenjang tertentu
+  const toggleSubject = (levelKey: 'sd' | 'smp' | 'sma', subject: string) => {
+    setSelectedSubjects(prev => {
+      const current = prev[levelKey]
+      const updated = current.includes(subject)
+        ? current.filter(s => s !== subject)
+        : [...current, subject]
+      return { ...prev, [levelKey]: updated }
+    })
   }
 
-  const toggleAllInGroup = (group: string, levels: string[]) => {
+  // Pilih semua mata pelajaran pada jenjang tertentu
+  const toggleAllSubjects = (levelKey: 'sd' | 'smp' | 'sma') => {
+    const allSubjects = SUBJECTS_BY_LEVEL[levelKey.toUpperCase()]
+    const current = selectedSubjects[levelKey]
+    const allSelected = allSubjects.every(s => current.includes(s))
+    setSelectedSubjects(prev => ({
+      ...prev,
+      [levelKey]: allSelected ? [] : allSubjects
+    }))
+  }
+
+  // Pilih semua tingkat dalam grup
+  const toggleAllInGroup = (groupLabel: string, levels: string[]) => {
     const allSelected = levels.every(l => selectedLevels.includes(l))
     if (allSelected) {
-      setSelectedLevels(prev => prev.filter(l => !levels.includes(l)))
-      const remainingLevels = selectedLevels.filter(l => !levels.includes(l))
-      const availableSubjects = getSubjectsForLevels(remainingLevels)
-      setSelectedSubjects(prev => prev.filter(s => availableSubjects.includes(s)))
+      // Hapus semua level di grup ini
+      const newLevels = selectedLevels.filter(l => !levels.includes(l))
+      setSelectedLevels(newLevels)
+      // Kosongkan mata pelajaran untuk jenjang yang dihapus
+      const hasSD = newLevels.some(l => l.startsWith('SD'))
+      const hasSMP = newLevels.some(l => l.startsWith('SMP'))
+      const hasSMA = newLevels.some(l => l.startsWith('SMA'))
+      setSelectedSubjects(prev => ({
+        sd: hasSD ? prev.sd : [],
+        smp: hasSMP ? prev.smp : [],
+        sma: hasSMA ? prev.sma : [],
+      }))
     } else {
-      setSelectedLevels(prev => Array.from(new Set([...prev, ...levels])))
+      // Pilih semua level di grup ini
+      const newLevels = Array.from(new Set([...selectedLevels, ...levels]))
+      setSelectedLevels(newLevels)
     }
   }
+
+  // Hitung total mata pelajaran yang dipilih
+  const totalSubjects = selectedSubjects.sd.length + selectedSubjects.smp.length + selectedSubjects.sma.length
 
   const handleSave = async () => {
     if (selectedLevels.length === 0) {
       setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
       return
     }
-    if (selectedSubjects.length === 0) {
-      setError('Pilih minimal satu mata pelajaran')
+    if (totalSubjects === 0) {
+      setError('Pilih minimal satu mata pelajaran pada salah satu jenjang')
       return
     }
 
@@ -185,12 +215,12 @@ export default function TeachingInterestPage() {
 
       const response = await fetch('/api/tutors/profile', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
-          specializations: selectedSubjects,
+          specializations_sd: selectedSubjects.sd,
+          specializations_smp: selectedSubjects.smp,
+          specializations_sma: selectedSubjects.sma,
           verified_grade_levels: selectedLevels,
         }),
       })
@@ -201,15 +231,11 @@ export default function TeachingInterestPage() {
       }
 
       const result = await response.json()
-
-      if (result.data?.id) {
-        setTutorId(result.data.id)
-      }
+      if (result.data?.id) setTutorId(result.data.id)
 
       setSuccess('Minat mengajar berhasil disimpan!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
-      console.error('[TeachingInterest] Save error:', err)
       setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
     } finally {
       setSaving(false)
@@ -225,8 +251,12 @@ export default function TeachingInterestPage() {
     )
   }
 
-  const availableSubjects = getSubjectsForLevels(selectedLevels)
-  const isComplete = selectedLevels.length > 0 && selectedSubjects.length > 0
+  // Cek jenjang mana yang dipilih
+  const hasSD = selectedLevels.some(l => l.startsWith('SD'))
+  const hasSMP = selectedLevels.some(l => l.startsWith('SMP'))
+  const hasSMA = selectedLevels.some(l => l.startsWith('SMA'))
+
+  const isComplete = selectedLevels.length > 0 && totalSubjects > 0
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -264,7 +294,6 @@ export default function TeachingInterestPage() {
         </Alert>
       )}
 
-      {/* Info */}
       <Alert className="bg-blue-500/10 border-blue-500/30">
         <AlertDescription className="text-blue-300 text-sm flex items-start gap-2">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -323,56 +352,123 @@ export default function TeachingInterestPage() {
         </CardContent>
       </Card>
 
-      {/* Subjects */}
-      <Card className={`transition-opacity ${selectedLevels.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+      {/* Subjects - Per Jenjang */}
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Mata Pelajaran yang Ingin Diajarkan
-            <span className="text-muted-foreground font-normal">({selectedSubjects.length} dipilih)</span>
+            <span className="text-muted-foreground font-normal">({totalSubjects} dipilih)</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {selectedLevels.length === 0 ? (
+        <CardContent className="space-y-6">
+          {!hasSD && !hasSMP && !hasSMA ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               Pilih kelas terlebih dahulu untuk melihat mata pelajaran yang tersedia
             </p>
           ) : (
             <>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {availableSubjects.map(subject => {
-                  const selected = selectedSubjects.includes(subject)
-                  return (
+              {/* SD */}
+              {hasSD && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-foreground">SD</h4>
                     <button
-                      key={subject}
-                      onClick={() => toggleSubject(subject)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                        selected
-                          ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                          : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
-                      }`}
+                      onClick={() => toggleAllSubjects('sd')}
+                      className="text-xs text-primary hover:underline"
                     >
-                      {selected && <span className="mr-1">✓</span>}
-                      {subject}
+                      {selectedSubjects.sd.length === SUBJECTS_BY_LEVEL['SD'].length ? 'Hapus Semua' : 'Pilih Semua'}
                     </button>
-                  )
-                })}
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setSelectedSubjects(availableSubjects)}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Pilih Semua
-                </button>
-                <span className="text-muted-foreground text-xs">|</span>
-                <button
-                  onClick={() => setSelectedSubjects([])}
-                  className="text-xs text-muted-foreground hover:underline"
-                >
-                  Hapus Semua
-                </button>
-              </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBJECTS_BY_LEVEL['SD'].map(subject => {
+                      const selected = selectedSubjects.sd.includes(subject)
+                      return (
+                        <button
+                          key={subject}
+                          onClick={() => toggleSubject('sd', subject)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                            selected
+                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                          }`}
+                        >
+                          {selected && <span className="mr-1">✓</span>}
+                          {subject}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SMP */}
+              {hasSMP && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-foreground">SMP</h4>
+                    <button
+                      onClick={() => toggleAllSubjects('smp')}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {selectedSubjects.smp.length === SUBJECTS_BY_LEVEL['SMP'].length ? 'Hapus Semua' : 'Pilih Semua'}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBJECTS_BY_LEVEL['SMP'].map(subject => {
+                      const selected = selectedSubjects.smp.includes(subject)
+                      return (
+                        <button
+                          key={subject}
+                          onClick={() => toggleSubject('smp', subject)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                            selected
+                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                          }`}
+                        >
+                          {selected && <span className="mr-1">✓</span>}
+                          {subject}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SMA */}
+              {hasSMA && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-foreground">SMA</h4>
+                    <button
+                      onClick={() => toggleAllSubjects('sma')}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {selectedSubjects.sma.length === SUBJECTS_BY_LEVEL['SMA'].length ? 'Hapus Semua' : 'Pilih Semua'}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBJECTS_BY_LEVEL['SMA'].map(subject => {
+                      const selected = selectedSubjects.sma.includes(subject)
+                      return (
+                        <button
+                          key={subject}
+                          onClick={() => toggleSubject('sma', subject)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                            selected
+                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                          }`}
+                        >
+                          {selected && <span className="mr-1">✓</span>}
+                          {subject}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
@@ -394,22 +490,47 @@ export default function TeachingInterestPage() {
                   ))}
                 </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Mata Pelajaran ({selectedSubjects.length}):</p>
-                <div className="flex flex-wrap gap-1">
-                  {selectedSubjects.sort().map(s => (
-                    <Badge key={s} variant="secondary" className="text-[10px]">
-                      {s}
-                    </Badge>
-                  ))}
+              {selectedSubjects.sd.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">SD ({selectedSubjects.sd.length}):</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubjects.sd.sort().map(s => (
+                      <Badge key={s} variant="secondary" className="text-[10px]">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+              {selectedSubjects.smp.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">SMP ({selectedSubjects.smp.length}):</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubjects.smp.sort().map(s => (
+                      <Badge key={s} variant="secondary" className="text-[10px]">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedSubjects.sma.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">SMA ({selectedSubjects.sma.length}):</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubjects.sma.sort().map(s => (
+                      <Badge key={s} variant="secondary" className="text-[10px]">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Save Button */}
       <Button
         onClick={handleSave}
         disabled={saving || !isComplete}
