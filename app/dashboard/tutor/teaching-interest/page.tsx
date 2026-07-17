@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { CheckCircle2, Save, BookOpen, GraduationCap, Info } from 'lucide-react'
 
 const GRADE_GROUPS = [
@@ -30,103 +30,87 @@ const SUBJECTS_BY_LEVEL: Record<string, string[]> = {
   SMA: ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi', 'Ekonomi', 'Geografi', 'Sejarah', 'Sosiologi', 'Informatika', 'PKN', 'Seni Budaya'],
 }
 
-// Fungsi untuk mendapatkan daftar mata pelajaran untuk setiap jenjang yang dipilih
-function getSubjectsForLevels(levels: string[]): { sd: string[], smp: string[], sma: string[] } {
-  const result = { sd: [] as string[], smp: [] as string[], sma: [] as string[] }
-  levels.forEach(lvl => {
-    if (lvl.startsWith('SD')) result.sd = SUBJECTS_BY_LEVEL['SD']
-    else if (lvl.startsWith('SMP')) result.smp = SUBJECTS_BY_LEVEL['SMP']
-    else if (lvl.startsWith('SMA')) result.sma = SUBJECTS_BY_LEVEL['SMA']
-  })
-  return result
-}
-
 export default function TeachingInterestPage() {
+  const { user: authUser, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [tutorId, setTutorId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
-  // State untuk mata pelajaran per jenjang
   const [selectedSubjects, setSelectedSubjects] = useState<{ sd: string[], smp: string[], sma: string[] }>({
     sd: [],
     smp: [],
     sma: []
   })
 
-  useEffect(() => {
-    let isMounted = true
-    const TIMEOUT_MS = 10000
+  const isMounted = useRef(true)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchDone = useRef(false)
 
-    const fetchData = async () => {
-      try {
-        const supabase = createClient()
-        if (!supabase || typeof supabase.from !== 'function') {
-          throw new Error('Supabase client tidak valid')
-        }
+  const fetchData = async (currentUserId: string) => {
+    if (fetchDone.current) return
+    fetchDone.current = true
 
-        // Auth
-        const authPromise = supabase.auth.getUser()
-        const authResult = await Promise.race([
-          authPromise,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), TIMEOUT_MS)
-          ),
-        ]) as any
+    try {
+      const params = new URLSearchParams({ user_id: currentUserId })
+      const response = await fetch(`/api/tutors/profile?${params.toString()}`)
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Gagal memuat data minat mengajar')
+      }
 
-        const { data: { user }, error: userError } = authResult
-        if (userError) throw userError
-        if (!user) throw new Error('Anda harus login terlebih dahulu')
+      const { tutor: tutorData } = await response.json()
 
-        // Query tutor dengan kolom baru
-        const tutorPromise = supabase
-          .from('tutors')
-          .select('id, verified_grade_levels, specializations_sd, specializations_smp, specializations_sma')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        const tutorResult = await Promise.race([
-          tutorPromise,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout: query tutor terlalu lama')), TIMEOUT_MS)
-          ),
-        ]) as any
-
-        const { data: tutorData, error: tutorErr } = tutorResult
-        if (tutorErr) throw tutorErr
-
-        if (tutorData) {
-          if (isMounted) {
-            setTutorId(tutorData.id)
-            setSelectedLevels(tutorData.verified_grade_levels || [])
-            setSelectedSubjects({
-              sd: tutorData.specializations_sd || [],
-              smp: tutorData.specializations_smp || [],
-              sma: tutorData.specializations_sma || [],
-            })
-          }
-        } else {
-          if (isMounted) {
-            setTutorId(null)
-            setSelectedLevels([])
-            setSelectedSubjects({ sd: [], smp: [], sma: [] })
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar')
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+      if (isMounted.current) {
+        setUserId(currentUserId)
+        setSelectedLevels(tutorData?.verified_grade_levels || [])
+        setSelectedSubjects({
+          sd: tutorData?.specializations_sd || [],
+          smp: tutorData?.specializations_smp || [],
+          sma: tutorData?.specializations_sma || [],
+        })
+        setError(null)
+      }
+    } catch (err) {
+      console.error('[TeachingInterest] Fetch error:', err)
+      if (isMounted.current) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat data minat mengajar')
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false)
+        if (timeoutId.current) clearTimeout(timeoutId.current)
       }
     }
+  }
 
-    fetchData()
-    return () => { isMounted = false }
-  }, [])
+  useEffect(() => {
+    isMounted.current = true
+    fetchDone.current = false
+
+    if (authLoading) return
+
+    if (!authUser) {
+      setError('User tidak ditemukan. Silakan login ulang.')
+      setLoading(false)
+      return
+    }
+
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[TeachingInterest] ⏱️ Timeout, force loading=false')
+        setLoading(false)
+      }
+    }, 5000)
+
+    fetchData(authUser.id)
+
+    return () => {
+      isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
+    }
+  }, [authLoading, authUser])
 
   // Toggle tingkat kelas
   const toggleLevel = (level: string) => {
@@ -135,7 +119,6 @@ export default function TeachingInterestPage() {
       : [...selectedLevels, level]
     setSelectedLevels(newLevels)
 
-    // Jika suatu jenjang tidak dipilih sama sekali, kosongkan mata pelajaran untuk jenjang tersebut
     const hasSD = newLevels.some(l => l.startsWith('SD'))
     const hasSMP = newLevels.some(l => l.startsWith('SMP'))
     const hasSMA = newLevels.some(l => l.startsWith('SMA'))
@@ -173,10 +156,8 @@ export default function TeachingInterestPage() {
   const toggleAllInGroup = (groupLabel: string, levels: string[]) => {
     const allSelected = levels.every(l => selectedLevels.includes(l))
     if (allSelected) {
-      // Hapus semua level di grup ini
       const newLevels = selectedLevels.filter(l => !levels.includes(l))
       setSelectedLevels(newLevels)
-      // Kosongkan mata pelajaran untuk jenjang yang dihapus
       const hasSD = newLevels.some(l => l.startsWith('SD'))
       const hasSMP = newLevels.some(l => l.startsWith('SMP'))
       const hasSMA = newLevels.some(l => l.startsWith('SMA'))
@@ -186,92 +167,97 @@ export default function TeachingInterestPage() {
         sma: hasSMA ? prev.sma : [],
       }))
     } else {
-      // Pilih semua level di grup ini
       const newLevels = Array.from(new Set([...selectedLevels, ...levels]))
       setSelectedLevels(newLevels)
     }
   }
 
-  // Hitung total mata pelajaran yang dipilih
   const totalSubjects = selectedSubjects.sd.length + selectedSubjects.smp.length + selectedSubjects.sma.length
 
   const handleSave = async () => {
-  if (selectedLevels.length === 0) {
-    setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
-    return
-  }
-  if (totalSubjects === 0) {
-    setError('Pilih minimal satu mata pelajaran pada salah satu jenjang')
-    return
-  }
-
-  setSaving(true)
-  setError(null)
-
-  try {
-    const supabase = createClient()
-    if (!supabase || typeof supabase.from !== 'function') {
-      throw new Error('Supabase client tidak valid')
+    if (selectedLevels.length === 0) {
+      setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
+      return
+    }
+    if (totalSubjects === 0) {
+      setError('Pilih minimal satu mata pelajaran pada salah satu jenjang')
+      return
     }
 
-    // --- 1. Auth dengan timeout ---
-    const authPromise = supabase.auth.getUser()
-    const authResult = await Promise.race([
-      authPromise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), 10000)
-      ),
-    ]) as any
-
-    const { data: { user }, error: userError } = authResult
-    if (userError) throw userError
-    if (!user) throw new Error('User tidak ditemukan')
-
-    // --- 2. Kirim data ke API ---
-    const response = await fetch('/api/tutors/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: user.id,
-        specializations_sd: selectedSubjects.sd,
-        specializations_smp: selectedSubjects.smp,
-        specializations_sma: selectedSubjects.sma,
-        verified_grade_levels: selectedLevels,
-      }),
-    })
-
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
-      throw new Error(result.error || 'Gagal menyimpan minat mengajar')
+    const currentUserId = userId || authUser?.id
+    if (!currentUserId) {
+      setError('User ID tidak ditemukan. Silakan refresh halaman.')
+      return
     }
 
-    const result = await response.json()
-    if (result.data?.id) setTutorId(result.data.id)
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
 
-    setSuccess('Minat mengajar berhasil disimpan!')
-    setTimeout(() => setSuccess(null), 3000)
-  } catch (err) {
-    console.error('[TeachingInterest] Save error:', err)
-    setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
-  } finally {
-    setSaving(false)
+    const forceStopTimeout = setTimeout(() => {
+      console.warn('[TeachingInterest] ⏱️ FORCE STOP: 10 detik timeout')
+      setSaving(false)
+    }, 10000)
+
+    try {
+      const response = await fetch('/api/tutors/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          verified_grade_levels: selectedLevels,
+          specializations_sd: selectedSubjects.sd,
+          specializations_smp: selectedSubjects.smp,
+          specializations_sma: selectedSubjects.sma,
+        }),
+      })
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
+        throw new Error(result.error || 'Gagal menyimpan minat mengajar')
+      }
+
+      await response.json()
+      setSuccess('Minat mengajar berhasil disimpan!')
+      setTimeout(() => setSuccess(null), 3000)
+
+      // Refresh data after save
+      fetchDone.current = false
+      await fetchData(currentUserId)
+    } catch (err) {
+      console.error('[TeachingInterest] Save error:', err)
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
+    } finally {
+      clearTimeout(forceStopTimeout)
+      setSaving(false)
+    }
   }
-}
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
-        <p className="ml-2 text-muted-foreground">Memuat...</p>
+        <p className="mt-4 text-sm text-muted-foreground">Memuat data minat mengajar...</p>
       </div>
     )
   }
 
-  // Cek jenjang mana yang dipilih
+  if (error && !loading) {
+    return (
+      <div className="max-w-3xl mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          Refresh Halaman
+        </Button>
+      </div>
+    )
+  }
+
   const hasSD = selectedLevels.some(l => l.startsWith('SD'))
   const hasSMP = selectedLevels.some(l => l.startsWith('SMP'))
   const hasSMA = selectedLevels.some(l => l.startsWith('SMA'))
-
   const isComplete = selectedLevels.length > 0 && totalSubjects > 0
 
   return (
