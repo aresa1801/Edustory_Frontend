@@ -196,51 +196,67 @@ export default function TeachingInterestPage() {
   const totalSubjects = selectedSubjects.sd.length + selectedSubjects.smp.length + selectedSubjects.sma.length
 
   const handleSave = async () => {
-    if (selectedLevels.length === 0) {
-      setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
-      return
-    }
-    if (totalSubjects === 0) {
-      setError('Pilih minimal satu mata pelajaran pada salah satu jenjang')
-      return
-    }
-
-    setSaving(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      if (!user) throw new Error('User tidak ditemukan')
-
-      const response = await fetch('/api/tutors/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          specializations_sd: selectedSubjects.sd,
-          specializations_smp: selectedSubjects.smp,
-          specializations_sma: selectedSubjects.sma,
-          verified_grade_levels: selectedLevels,
-        }),
-      })
-
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
-        throw new Error(result.error || 'Gagal menyimpan minat mengajar')
-      }
-
-      const result = await response.json()
-      if (result.data?.id) setTutorId(result.data.id)
-
-      setSuccess('Minat mengajar berhasil disimpan!')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
-    } finally {
-      setSaving(false)
-    }
+  if (selectedLevels.length === 0) {
+    setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
+    return
   }
+  if (totalSubjects === 0) {
+    setError('Pilih minimal satu mata pelajaran pada salah satu jenjang')
+    return
+  }
+
+  setSaving(true)
+  setError(null)
+
+  try {
+    const supabase = createClient()
+    if (!supabase || typeof supabase.from !== 'function') {
+      throw new Error('Supabase client tidak valid')
+    }
+
+    // --- 1. Auth dengan timeout ---
+    const authPromise = supabase.auth.getUser()
+    const authResult = await Promise.race([
+      authPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: auth.getUser() terlalu lama')), 10000)
+      ),
+    ]) as any
+
+    const { data: { user }, error: userError } = authResult
+    if (userError) throw userError
+    if (!user) throw new Error('User tidak ditemukan')
+
+    // --- 2. Kirim data ke API ---
+    const response = await fetch('/api/tutors/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user.id,
+        specializations_sd: selectedSubjects.sd,
+        specializations_smp: selectedSubjects.smp,
+        specializations_sma: selectedSubjects.sma,
+        verified_grade_levels: selectedLevels,
+      }),
+    })
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
+      throw new Error(result.error || 'Gagal menyimpan minat mengajar')
+    }
+
+    const result = await response.json()
+    if (result.data?.id) setTutorId(result.data.id)
+
+    setSuccess('Minat mengajar berhasil disimpan!')
+    setTimeout(() => setSuccess(null), 3000)
+  } catch (err) {
+    console.error('[TeachingInterest] Save error:', err)
+    setError(err instanceof Error ? err.message : 'Gagal menyimpan minat mengajar')
+  } finally {
+    setSaving(false)
+  }
+}
 
   if (loading) {
     return (
