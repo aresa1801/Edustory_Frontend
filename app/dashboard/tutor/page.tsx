@@ -23,7 +23,6 @@ import {
   Star,
   AlertTriangle,
   FileText,
-  Inbox,
   GraduationCap,
 } from 'lucide-react'
 
@@ -53,14 +52,11 @@ interface DashboardStats {
   totalReviews: number
 }
 
-// Grade level hierarchy from lowest to highest
 const GRADE_LEVEL_ORDER = [
   'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
   'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
   'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
 ]
-
-const ACTIVE_MATCH_STATUSES = ['accepted', 'active', 'matched'] as const
 
 export default function TutorDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -83,37 +79,72 @@ export default function TutorDashboard() {
   const [targetLevel, setTargetLevel] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchData = async () => {
       try {
         const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!supabase || typeof supabase.from !== 'function') {
+          throw new Error('Supabase client tidak valid')
+        }
 
-        const { data: profileData } = await supabase
-          .from('user_profiles')
-          .select('name')
-          .eq('id', user.id)
-          .single()
+        // Helper timeout dengan tipe yang aman
+        const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) =>
+              setTimeout(() => reject(new Error('Timeout')), ms)
+            ),
+          ])
+        }
 
-        if (profileData?.name) setTutorName(profileData.name)
+        // 1. Ambil user
+        const authResult = await withTimeout(supabase.auth.getUser(), 5000)
+        const { data: authData, error: authError } = authResult
+        if (authError || !authData?.user) {
+          setLoading(false)
+          return
+        }
+        const user = authData.user
 
-        const { data: tutorData } = await supabase
-          .from('tutors')
-          .select(`
-            id,
-            specializations,
-            experience_years,
-            hourly_rate,
-            qualifications,
-            rating,
-            total_reviews,
-            verified_grade_levels,
-            target_grade_level
-          `)
-          .eq('user_id', user.id)
-          .single()
+        // 2. Profil & tutor secara paralel (bungkus query dengan Promise.resolve)
+        const [profileResult, tutorResult] = await Promise.all([
+          withTimeout(
+            Promise.resolve(
+              supabase
+                .from('user_profiles')
+                .select('name')
+                .eq('id', user.id)
+                .maybeSingle()
+            ),
+            5000
+          ),
+          withTimeout(
+            Promise.resolve(
+              supabase
+                .from('tutors')
+                .select(
+                  'id, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level'
+                )
+                .eq('user_id', user.id)
+                .maybeSingle()
+            ),
+            5000
+          ),
+        ])
 
-        if (!tutorData) return
+        if (!isMounted) return
+
+        // Nama
+        if (profileResult.data?.name) {
+          setTutorName(profileResult.data.name)
+        }
+
+        const tutorData = tutorResult.data
+        if (!tutorData) {
+          setLoading(false)
+          return
+        }
 
         setVerifiedLevels(tutorData.verified_grade_levels || [])
         setTargetLevel(tutorData.target_grade_level || null)
@@ -128,17 +159,33 @@ export default function TutorDashboard() {
           tutorData.verified_grade_levels?.length > 0
         )
 
-        // Fetch curation progress
+        // 3. Progress kurasi & matches paralel
         let curationDone = 0
         let curationScore = 0
+        let activeStudents = 0
+        let pendingRequests = 0
+        let completedSessions = 0
+
         try {
-          const progressRes = await fetch('/api/assessments/progress')
+          const [progressRes, matchResult] = await Promise.all([
+            withTimeout(fetch('/api/assessments/progress'), 5000),
+            withTimeout(
+              Promise.resolve(
+                supabase
+                  .from('matches')
+                  .select('id, status')
+                  .eq('tutor_id', tutorData.id)
+              ),
+              5000
+            ),
+          ])
+
+          // Progress
           if (progressRes.ok) {
             const progressData = await progressRes.json()
             const completedSteps: string[] = progressData.progress?.completed_steps || []
             curationDone = completedSteps.length
 
-            // Calculate weighted score
             const weights: Record<string, number> = {
               psychology: 20,
               academic: 30,
@@ -146,13 +193,11 @@ export default function TutorDashboard() {
               handwriting: 15,
               interview: 10,
             }
-            const assessmentKeys = ['psychology', 'academic', 'microteaching', 'handwriting', 'interview']
+            const keys = ['psychology', 'academic', 'microteaching', 'handwriting', 'interview']
             let total = 0
             let totalWeight = 0
-            assessmentKeys.forEach(key => {
-              const score =
-                progressData[key]?.score ??
-                progressData[key]?.overall_score
+            keys.forEach(key => {
+              const score = progressData[key]?.score ?? progressData[key]?.overall_score
               if (score !== undefined) {
                 total += (score * weights[key]) / 100
                 totalWeight += weights[key]
@@ -160,16 +205,23 @@ export default function TutorDashboard() {
             })
             if (totalWeight > 0) curationScore = Math.round(total)
           }
-        } catch {}
+
+          // Matches
+          if (!matchResult.error && matchResult.data) {
+            const matches = matchResult.data
+            const activeStatuses = ['accepted', 'active', 'matched']
+            activeStudents = matches.filter((m: { status: string }) => activeStatuses.includes(m.status)).length
+            pendingRequests = matches.filter((m: { status: string }) => m.status === 'pending').length
+            completedSessions = matches.filter((m: { status: string }) => m.status === 'completed').length
+          }
+        } catch (err) {
+          console.warn('Gagal mengambil data sekunder:', err)
+        }
+
+        if (!isMounted) return
 
         const curationComplete = curationDone >= 5
         const curationPassed = curationComplete && curationScore > 80
-
-        // Fetch matches
-        const { data: matchData } = await supabase
-          .from('matches')
-          .select('id, status')
-          .eq('tutor_id', tutorData.id)
 
         setStats({
           profileComplete,
@@ -179,19 +231,25 @@ export default function TutorDashboard() {
           curationTotal: 5,
           curationComplete,
           curationPassed,
-          activeStudents: (matchData || []).filter(m => (ACTIVE_MATCH_STATUSES as readonly string[]).includes(m.status)).length,
-          pendingRequests: (matchData || []).filter(m => m.status === 'pending').length,
-          completedSessions: (matchData || []).filter(m => m.status === 'completed').length,
+          activeStudents,
+          pendingRequests,
+          completedSessions,
           rating: tutorData.rating || 0,
           totalReviews: tutorData.total_reviews || 0,
         })
       } catch (error) {
-        console.error('Failed to fetch data:', error)
+        console.error('Gagal memuat data:', error)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
+
     fetchData()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   if (loading) {
@@ -225,7 +283,6 @@ export default function TutorDashboard() {
           </Alert>
         )}
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="p-5">
             <div className="flex items-center gap-3">
@@ -274,7 +331,6 @@ export default function TutorDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Curation Progress */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -303,7 +359,6 @@ export default function TutorDashboard() {
             </CardContent>
           </Card>
 
-          {/* Grade Level Verification */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -441,7 +496,6 @@ export default function TutorDashboard() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">
           Selamat datang, {tutorName}! 👋
@@ -451,7 +505,6 @@ export default function TutorDashboard() {
         </p>
       </div>
 
-      {/* Overall Progress */}
       <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -478,7 +531,6 @@ export default function TutorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
       {stats.curationPassed && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
@@ -502,7 +554,6 @@ export default function TutorDashboard() {
         </div>
       )}
 
-      {/* Roadmap Steps */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-4">Roadmap Pengajar</h2>
         <div className="space-y-3">
