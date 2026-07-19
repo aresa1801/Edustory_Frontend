@@ -28,6 +28,7 @@ import {
   DollarSign,
   School,
   BookMarked,
+  Clock,
 } from 'lucide-react'
 
 interface RoadmapStep {
@@ -62,6 +63,21 @@ const GRADE_LEVEL_ORDER = [
   'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
 ]
 
+// Fungsi untuk menentukan warna berdasarkan jenjang
+const getLevelColor = (level: string): string => {
+  if (level.startsWith('SD')) return 'text-green-400'       // hijau lemon
+  if (level.startsWith('SMP')) return 'text-orange-400'     // jingga
+  if (level.startsWith('SMA')) return 'text-red-400'        // merah
+  return 'text-muted-foreground'
+}
+
+const getSubjectColor = (subject: string, allSubjects: { sd: string[], smp: string[], sma: string[] }): string => {
+  if (allSubjects.sd.includes(subject)) return 'text-green-400'
+  if (allSubjects.smp.includes(subject)) return 'text-orange-400'
+  if (allSubjects.sma.includes(subject)) return 'text-red-400'
+  return 'text-muted-foreground'
+}
+
 export default function TutorDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     profileComplete: false,
@@ -81,9 +97,14 @@ export default function TutorDashboard() {
   const [loading, setLoading] = useState(true)
   const [verifiedLevels, setVerifiedLevels] = useState<string[]>([])
   const [targetLevel, setTargetLevel] = useState<string | null>(null)
-  const [allSubjects, setAllSubjects] = useState<string[]>([])
+  const [allSubjects, setAllSubjects] = useState<{ sd: string[], smp: string[], sma: string[] }>({
+    sd: [],
+    smp: [],
+    sma: [],
+  })
   const [hourlyRate, setHourlyRate] = useState<number | null>(null)
   const [qualifications, setQualifications] = useState<string | null>(null)
+  const [experienceYears, setExperienceYears] = useState<number | null>(null)
   const [showCurationInfo, setShowCurationInfo] = useState(false)
 
   useEffect(() => {
@@ -154,21 +175,14 @@ export default function TutorDashboard() {
         setTargetLevel(tutorData.target_grade_level || null)
         setHourlyRate(tutorData.hourly_rate || null)
         setQualifications(tutorData.qualifications || null)
+        setExperienceYears(tutorData.experience_years || null)
 
-        const subjectsSet = new Set<string>()
-        if (tutorData.specializations_sd) {
-          tutorData.specializations_sd.forEach((s: string) => subjectsSet.add(s))
-        }
-        if (tutorData.specializations_smp) {
-          tutorData.specializations_smp.forEach((s: string) => subjectsSet.add(s))
-        }
-        if (tutorData.specializations_sma) {
-          tutorData.specializations_sma.forEach((s: string) => subjectsSet.add(s))
-        }
-        if (tutorData.specializations) {
-          tutorData.specializations.forEach((s: string) => subjectsSet.add(s))
-        }
-        setAllSubjects(Array.from(subjectsSet))
+        // Simpan per jenjang untuk pewarnaan
+        setAllSubjects({
+          sd: tutorData.specializations_sd || [],
+          smp: tutorData.specializations_smp || [],
+          sma: tutorData.specializations_sma || [],
+        })
 
         const profileComplete = !!(
           tutorData.experience_years &&
@@ -178,7 +192,9 @@ export default function TutorDashboard() {
         const teachingInterestSet = !!(
           tutorData.specializations?.length > 0 ||
           tutorData.verified_grade_levels?.length > 0 ||
-          subjectsSet.size > 0
+          (tutorData.specializations_sd?.length > 0) ||
+          (tutorData.specializations_smp?.length > 0) ||
+          (tutorData.specializations_sma?.length > 0)
         )
 
         let curationDone = 0
@@ -279,22 +295,45 @@ export default function TutorDashboard() {
     )
   }
 
-  const formatSubjects = (subjects: string[]) => {
-    if (subjects.length === 0) return 'Belum ada mata pelajaran'
-    if (subjects.length <= 3) return subjects.join(', ')
-    return subjects.slice(0, 3).join(', ') + ` +${subjects.length - 3} lagi`
+  // Helper untuk format teks
+  const formatCurrency = (value: number | null) => {
+    if (value === null) return 'Belum diatur'
+    return `Rp ${value.toLocaleString('id-ID')}/jam`
   }
 
-  // Namecard (kiri) dengan badge dan tooltip
+  const formatExperience = (years: number | null) => {
+    if (years === null || years === 0) return 'Belum ada pengalaman'
+    if (years === 1) return '1 tahun'
+    return `${years} tahun`
+  }
+
+  // Helper untuk menampilkan daftar mata pelajaran dengan warna sesuai jenjang
+  const renderSubjects = (subjects: { sd: string[], smp: string[], sma: string[] }) => {
+    const all = [...subjects.sd, ...subjects.smp, ...subjects.sma]
+    if (all.length === 0) return <span className="text-muted-foreground">Belum ada mata pelajaran</span>
+
+    return all.map((subject, idx) => {
+      let color = 'text-muted-foreground'
+      if (subjects.sd.includes(subject)) color = 'text-green-400'
+      else if (subjects.smp.includes(subject)) color = 'text-orange-400'
+      else if (subjects.sma.includes(subject)) color = 'text-red-400'
+      return (
+        <span key={idx} className={`${color} text-sm`}>
+          {subject}
+          {idx < all.length - 1 && <span className="text-muted-foreground">, </span>}
+        </span>
+      )
+    })
+  }
+
+  // Render Namecard
   const renderNameCard = () => {
     const initial = tutorName.charAt(0).toUpperCase()
-    const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
-    const qual = qualifications || 'Belum diisi'
     const isCurationComplete = stats.curationComplete
 
     return (
       <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
-        {/* Badge di pojok kanan atas */}
+        {/* Badge */}
         <div className="absolute top-3 right-3 flex items-center gap-1">
           <Badge 
             className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
@@ -324,24 +363,27 @@ export default function TutorDashboard() {
         </div>
 
         <CardContent className="p-5">
-          {/* Bagian atas: foto + nama sejajar */}
+          {/* Foto + Nama (diperbesar) */}
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
               {initial}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-foreground">{tutorName}</h3>
+              <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
             </div>
           </div>
 
-          {/* Garis pemisah */}
           <div className="border-t border-border/50 my-3" />
 
-          {/* Biaya dan rating di bawah garis */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+          {/* Baris: Tarif per jam + Pengalaman + Rating */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
             <span className="flex items-center text-sm text-muted-foreground">
               <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-              {rate}
+              {formatCurrency(hourlyRate)}
+            </span>
+            <span className="flex items-center text-sm text-muted-foreground">
+              <Clock className="w-4 h-4 mr-1 text-blue-400" />
+              {formatExperience(experienceYears)}
             </span>
             <span className="flex items-center text-sm text-muted-foreground">
               <Star className="w-4 h-4 mr-1 text-yellow-500" />
@@ -349,25 +391,38 @@ export default function TutorDashboard() {
             </span>
           </div>
 
-          {/* Informasi pelengkap lainnya */}
+          {/* Kualifikasi */}
           <div className="space-y-1.5">
             <p className="text-sm text-muted-foreground flex items-start gap-2">
               <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-              <span className="break-words">{qual}</span>
+              <span className="break-words">{qualifications || 'Belum diisi'}</span>
             </p>
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
+
+            {/* Kelas dengan warna */}
+            <p className="text-sm flex items-start gap-2">
               <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
               <span>
-                {verifiedLevels.length > 0
-                  ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
-                  : targetLevel
-                  ? `Target: ${targetLevel} (belum diverifikasi)`
-                  : 'Kelas belum ditentukan'}
+                {verifiedLevels.length > 0 ? (
+                  verifiedLevels.sort().map((lvl, idx) => (
+                    <span key={idx} className={`${getLevelColor(lvl)}`}>
+                      {lvl}
+                      {idx < verifiedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
+                    </span>
+                  ))
+                ) : targetLevel ? (
+                  <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
+                ) : (
+                  <span className="text-muted-foreground">Kelas belum ditentukan</span>
+                )}
               </span>
             </p>
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
+
+            {/* Mata pelajaran dengan warna sesuai jenjang */}
+            <p className="text-sm flex items-start gap-2">
               <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-              <span>{formatSubjects(allSubjects)}</span>
+              <span>
+                {renderSubjects(allSubjects)}
+              </span>
             </p>
           </div>
 
@@ -380,7 +435,7 @@ export default function TutorDashboard() {
     )
   }
 
-  // Progress Kurasi + Kelas Diverifikasi (kanan)
+  // Render Progress Kurasi
   const renderCurationProgress = () => {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
@@ -427,7 +482,7 @@ export default function TutorDashboard() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {GRADE_LEVEL_ORDER.filter(lvl => verifiedLevels.includes(lvl)).map(lvl => (
-                    <Badge key={lvl} className="bg-green-500/20 text-green-300 border-green-500/30">
+                    <Badge key={lvl} className={`${getLevelColor(lvl)} bg-opacity-20 border`}>
                       ✓ {lvl}
                     </Badge>
                   ))}
@@ -460,7 +515,7 @@ export default function TutorDashboard() {
     )
   }
 
-  // Roadmap steps (sama seperti sebelumnya, tidak diubah)
+  // Roadmap steps
   const getRoadmapSteps = (): RoadmapStep[] => {
     const s1Active = true
     const s2Active = stats.profileComplete
