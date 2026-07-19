@@ -84,6 +84,7 @@ export default function TutorDashboard() {
   const [allSubjects, setAllSubjects] = useState<string[]>([])
   const [hourlyRate, setHourlyRate] = useState<number | null>(null)
   const [qualifications, setQualifications] = useState<string | null>(null)
+  const [showCurationInfo, setShowCurationInfo] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -284,68 +285,100 @@ export default function TutorDashboard() {
     return subjects.slice(0, 3).join(', ') + ` +${subjects.length - 3} lagi`
   }
 
-  // Namecard (kiri)
-const renderNameCard = () => {
-  const initial = tutorName.charAt(0).toUpperCase()
-  const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
-  const qual = qualifications || 'Belum diisi'
+  // Namecard (kiri) dengan badge dan tooltip
+  const renderNameCard = () => {
+    const initial = tutorName.charAt(0).toUpperCase()
+    const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
+    const qual = qualifications || 'Belum diisi'
+    const isCurationComplete = stats.curationComplete
 
-  return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow h-full">
-      <CardContent className="p-5">
-        {/* Bagian atas: foto + nama sejajar */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
-            {initial}
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-foreground">{tutorName}</h3>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-              <span className="flex items-center text-sm text-muted-foreground">
-                <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-                {rate}
-              </span>
-              <span className="flex items-center text-sm text-muted-foreground">
-                <Star className="w-4 h-4 mr-1 text-yellow-500" />
-                {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
-              </span>
+    return (
+      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
+        {/* Badge di pojok kanan atas */}
+        <div className="absolute top-3 right-3 flex items-center gap-1">
+          <Badge 
+            className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
+          >
+            {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
+          </Badge>
+          <button
+            onClick={() => setShowCurationInfo(!showCurationInfo)}
+            className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span className="text-xs font-bold">i</span>
+          </button>
+          {showCurationInfo && (
+            <div className="absolute top-8 right-0 w-64 bg-popover border rounded-lg shadow-lg p-3 z-10 text-sm">
+              <p className="text-foreground">
+                {isCurationComplete 
+                  ? 'Anda telah kurasi untuk mendapatkan kepercayaan lebih baik dari student.' 
+                  : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
+              </p>
+              {!isCurationComplete && (
+                <Link href="/curation/progress" className="mt-2 inline-block w-full">
+                  <Button size="sm" className="w-full">Kurasi</Button>
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+
+        <CardContent className="p-5">
+          {/* Bagian atas: foto + nama sejajar */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
+              {initial}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-foreground">{tutorName}</h3>
             </div>
           </div>
-        </div>
 
-        {/* Garis pemisah */}
-        <div className="border-t border-border/50 my-3" />
+          {/* Garis pemisah */}
+          <div className="border-t border-border/50 my-3" />
 
-        {/* Informasi pelengkap di bawah */}
-        <div className="space-y-1.5">
-          <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-            <span className="break-words">{qual}</span>
-          </p>
-          <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
-            <span>
-              {verifiedLevels.length > 0
-                ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
-                : targetLevel
-                ? `Target: ${targetLevel} (belum diverifikasi)`
-                : 'Kelas belum ditentukan'}
+          {/* Biaya dan rating di bawah garis */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+            <span className="flex items-center text-sm text-muted-foreground">
+              <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+              {rate}
             </span>
-          </p>
-          <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-            <span>{formatSubjects(allSubjects)}</span>
-          </p>
-        </div>
+            <span className="flex items-center text-sm text-muted-foreground">
+              <Star className="w-4 h-4 mr-1 text-yellow-500" />
+              {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
+            </span>
+          </div>
 
-        {/* Label namecard */}
-        <div className="mt-3 text-xs text-muted-foreground border-t border-border/50 pt-2">
-          <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">Namecard untuk ditampilkan ke siswa</span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+          {/* Informasi pelengkap lainnya */}
+          <div className="space-y-1.5">
+            <p className="text-sm text-muted-foreground flex items-start gap-2">
+              <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+              <span className="break-words">{qual}</span>
+            </p>
+            <p className="text-sm text-muted-foreground flex items-start gap-2">
+              <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+              <span>
+                {verifiedLevels.length > 0
+                  ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
+                  : targetLevel
+                  ? `Target: ${targetLevel} (belum diverifikasi)`
+                  : 'Kelas belum ditentukan'}
+              </span>
+            </p>
+            <p className="text-sm text-muted-foreground flex items-start gap-2">
+              <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+              <span>{formatSubjects(allSubjects)}</span>
+            </p>
+          </div>
+
+          {/* Label namecard */}
+          <div className="mt-3 text-xs text-muted-foreground border-t border-border/50 pt-2">
+            <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">Namecard untuk ditampilkan ke siswa</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   // Progress Kurasi + Kelas Diverifikasi (kanan)
   const renderCurationProgress = () => {
@@ -361,7 +394,6 @@ const renderNameCard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Progress bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tahapan selesai</span>
@@ -371,7 +403,6 @@ const renderNameCard = () => {
             <p className="text-sm text-muted-foreground">{percent}% selesai</p>
           </div>
 
-          {/* Tombol / status */}
           {isComplete ? (
             <Badge className="bg-green-500 hover:bg-green-600">✓ Kurasi Selesai</Badge>
           ) : (
@@ -388,7 +419,6 @@ const renderNameCard = () => {
             </p>
           )}
 
-          {/* Informasi kelas yang diverifikasi */}
           <div className="border-t border-border/50 pt-3 mt-2">
             {verifiedLevels.length > 0 ? (
               <div className="space-y-2">
