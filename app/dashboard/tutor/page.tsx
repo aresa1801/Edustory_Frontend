@@ -71,6 +71,7 @@ const getLevelColor = (level: string): string => {
   return 'text-muted-foreground'
 }
 
+// Fungsi untuk menentukan warna mata pelajaran berdasarkan jenjang
 const getSubjectColor = (subject: string, allSubjects: { sd: string[], smp: string[], sma: string[] }): string => {
   if (allSubjects.sd.includes(subject)) return 'text-green-400'
   if (allSubjects.smp.includes(subject)) return 'text-orange-400'
@@ -161,6 +162,7 @@ export default function TutorDashboard() {
 
         if (!isMounted) return
 
+        // Set nama dari user_profiles
         if (profileResult.data?.name) {
           setTutorName(profileResult.data.name)
         }
@@ -171,6 +173,7 @@ export default function TutorDashboard() {
           return
         }
 
+        // Isi semua state dari tutorData
         setVerifiedLevels(tutorData.verified_grade_levels || [])
         setTargetLevel(tutorData.target_grade_level || null)
         setHourlyRate(tutorData.hourly_rate || null)
@@ -375,20 +378,22 @@ export default function TutorDashboard() {
 
           <div className="border-t border-border/50 my-3" />
 
-          {/* Baris: Tarif per jam + Pengalaman + Rating */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+          {/* Baris: Tarif per jam + Rating (pengalaman di bawah) */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
             <span className="flex items-center text-sm text-muted-foreground">
               <DollarSign className="w-4 h-4 mr-1 text-green-500" />
               {formatCurrency(hourlyRate)}
             </span>
             <span className="flex items-center text-sm text-muted-foreground">
-              <Clock className="w-4 h-4 mr-1 text-blue-400" />
-              {formatExperience(experienceYears)}
-            </span>
-            <span className="flex items-center text-sm text-muted-foreground">
               <Star className="w-4 h-4 mr-1 text-yellow-500" />
               {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
             </span>
+          </div>
+
+          {/* Pengalaman (di bawah tarif) */}
+          <div className="flex items-center text-sm text-muted-foreground mb-2">
+            <Clock className="w-4 h-4 mr-1 text-blue-400" />
+            {formatExperience(experienceYears)}
           </div>
 
           {/* Kualifikasi */}
