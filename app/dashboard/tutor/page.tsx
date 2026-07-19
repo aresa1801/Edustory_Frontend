@@ -24,6 +24,10 @@ import {
   AlertTriangle,
   FileText,
   GraduationCap,
+  Award,
+  DollarSign,
+  School,
+  BookMarked,
 } from 'lucide-react'
 
 interface RoadmapStep {
@@ -77,6 +81,9 @@ export default function TutorDashboard() {
   const [loading, setLoading] = useState(true)
   const [verifiedLevels, setVerifiedLevels] = useState<string[]>([])
   const [targetLevel, setTargetLevel] = useState<string | null>(null)
+  const [allSubjects, setAllSubjects] = useState<string[]>([])
+  const [hourlyRate, setHourlyRate] = useState<number | null>(null)
+  const [qualifications, setQualifications] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -88,7 +95,6 @@ export default function TutorDashboard() {
           throw new Error('Supabase client tidak valid')
         }
 
-        // Helper timeout dengan tipe yang aman
         const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
           return Promise.race([
             promise,
@@ -98,7 +104,6 @@ export default function TutorDashboard() {
           ])
         }
 
-        // 1. Ambil user
         const authResult = await withTimeout(supabase.auth.getUser(), 5000)
         const { data: authData, error: authError } = authResult
         if (authError || !authData?.user) {
@@ -107,7 +112,6 @@ export default function TutorDashboard() {
         }
         const user = authData.user
 
-        // 2. Profil & tutor secara paralel (bungkus query dengan Promise.resolve)
         const [profileResult, tutorResult] = await Promise.all([
           withTimeout(
             Promise.resolve(
@@ -124,7 +128,7 @@ export default function TutorDashboard() {
               supabase
                 .from('tutors')
                 .select(
-                  'id, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level'
+                  'id, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
                 )
                 .eq('user_id', user.id)
                 .maybeSingle()
@@ -135,7 +139,6 @@ export default function TutorDashboard() {
 
         if (!isMounted) return
 
-        // Nama
         if (profileResult.data?.name) {
           setTutorName(profileResult.data.name)
         }
@@ -148,6 +151,24 @@ export default function TutorDashboard() {
 
         setVerifiedLevels(tutorData.verified_grade_levels || [])
         setTargetLevel(tutorData.target_grade_level || null)
+        setHourlyRate(tutorData.hourly_rate || null)
+        setQualifications(tutorData.qualifications || null)
+
+        // Gabungkan semua spesialisasi dari SD, SMP, SMA dengan tipe eksplisit
+        const subjectsSet = new Set<string>()
+        if (tutorData.specializations_sd) {
+          tutorData.specializations_sd.forEach((s: string) => subjectsSet.add(s))
+        }
+        if (tutorData.specializations_smp) {
+          tutorData.specializations_smp.forEach((s: string) => subjectsSet.add(s))
+        }
+        if (tutorData.specializations_sma) {
+          tutorData.specializations_sma.forEach((s: string) => subjectsSet.add(s))
+        }
+        if (tutorData.specializations) {
+          tutorData.specializations.forEach((s: string) => subjectsSet.add(s))
+        }
+        setAllSubjects(Array.from(subjectsSet))
 
         const profileComplete = !!(
           tutorData.experience_years &&
@@ -156,10 +177,10 @@ export default function TutorDashboard() {
         )
         const teachingInterestSet = !!(
           tutorData.specializations?.length > 0 ||
-          tutorData.verified_grade_levels?.length > 0
+          tutorData.verified_grade_levels?.length > 0 ||
+          subjectsSet.size > 0
         )
 
-        // 3. Progress kurasi & matches paralel
         let curationDone = 0
         let curationScore = 0
         let activeStudents = 0
@@ -180,7 +201,6 @@ export default function TutorDashboard() {
             ),
           ])
 
-          // Progress
           if (progressRes.ok) {
             const progressData = await progressRes.json()
             const completedSteps: string[] = progressData.progress?.completed_steps || []
@@ -196,7 +216,7 @@ export default function TutorDashboard() {
             const keys = ['psychology', 'academic', 'microteaching', 'handwriting', 'interview']
             let total = 0
             let totalWeight = 0
-            keys.forEach(key => {
+            keys.forEach((key: string) => {
               const score = progressData[key]?.score ?? progressData[key]?.overall_score
               if (score !== undefined) {
                 total += (score * weights[key]) / 100
@@ -206,7 +226,6 @@ export default function TutorDashboard() {
             if (totalWeight > 0) curationScore = Math.round(total)
           }
 
-          // Matches
           if (!matchResult.error && matchResult.data) {
             const matches = matchResult.data
             const activeStatuses = ['accepted', 'active', 'matched']
@@ -260,151 +279,107 @@ export default function TutorDashboard() {
     )
   }
 
-  if (!stats.curationComplete) {
+  // Helper untuk format mata pelajaran
+  const formatSubjects = (subjects: string[]) => {
+    if (subjects.length === 0) return 'Belum ada mata pelajaran'
+    if (subjects.length <= 3) return subjects.join(', ')
+    return subjects.slice(0, 3).join(', ') + ` +${subjects.length - 3} lagi`
+  }
+
+  // Bagian Namecard
+  const renderNameCard = () => {
+    const initial = tutorName.charAt(0).toUpperCase()
+    const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
+    const qual = qualifications || 'Belum diisi'
+
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
-            Dashboard Pengajar
-          </h1>
-          <p className="text-muted-foreground">
-            Selamat datang, {tutorName}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.
-          </p>
-        </div>
-
-        {!stats.curationComplete && (
-          <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
-            <AlertDescription className="text-amber-300">
-              ⚠️ Harap selesaikan semua tahapan kurasi agar bisa menerima permintaan dari siswa.{' '}
-              <Link href="/curation/progress" className="font-medium underline">
-                Lihat status kurasi →
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-300" />
+      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 shadow-md">
+              {initial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-bold text-foreground truncate">{tutorName}</h3>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                <span className="flex items-center text-sm text-muted-foreground">
+                  <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+                  {rate}
+                </span>
+                <span className="flex items-center text-sm text-muted-foreground">
+                  <Star className="w-4 h-4 mr-1 text-yellow-500" />
+                  {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
+                </span>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Siswa Aktif</p>
-                <p className="text-2xl font-bold text-foreground">{stats.activeStudents}</p>
+              <div className="mt-2 space-y-1">
+                <p className="text-sm text-muted-foreground flex items-start gap-1">
+                  <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+                  <span className="break-words">{qual}</span>
+                </p>
+                <p className="text-sm text-muted-foreground flex items-start gap-1">
+                  <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+                  <span>
+                    {verifiedLevels.length > 0
+                      ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
+                      : targetLevel
+                      ? `Target: ${targetLevel} (belum diverifikasi)`
+                      : 'Kelas belum ditentukan'}
+                  </span>
+                </p>
+                <p className="text-sm text-muted-foreground flex items-start gap-1">
+                  <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+                  <span>{formatSubjects(allSubjects)}</span>
+                </p>
               </div>
             </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-yellow-300" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Permintaan Masuk</p>
-                <p className="text-2xl font-bold text-foreground">{stats.pendingRequests}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-green-300" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Sesi Selesai</p>
-                <p className="text-2xl font-bold text-foreground">{stats.completedSessions}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-purple-300" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Status Kurasi</p>
-                <p className="text-2xl font-bold text-foreground">{stats.curationDone}/{stats.curationTotal}</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                Progress Kurasi
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Tahapan selesai</span>
-                  <span className="font-medium">{stats.curationDone} dari {stats.curationTotal}</span>
-                </div>
-                <Progress value={Math.round((stats.curationDone / stats.curationTotal) * 100)} className="h-2" />
-                <p className="text-sm text-muted-foreground">{Math.round((stats.curationDone / stats.curationTotal) * 100)}% selesai</p>
-                {stats.curationComplete ? (
-                  <Badge className="bg-green-500 hover:bg-green-600">✓ Kurasi Selesai</Badge>
-                ) : (
-                  <Link href="/curation/progress">
-                    <Button size="sm" variant="outline" className="mt-2">
-                      Lanjutkan Kurasi <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5" />
-                Kelas yang Diverifikasi
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {verifiedLevels.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Anda terverifikasi mengajar kelas-kelas berikut:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {GRADE_LEVEL_ORDER.filter(lvl => verifiedLevels.includes(lvl)).map(lvl => (
-                      <Badge key={lvl} className="bg-green-500/20 text-green-300 border-green-500/30">
-                        ✓ {lvl}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Selesaikan semua 5 tahap kurasi untuk mendapatkan verifikasi mengajar.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Kelas yang Anda targetkan:{' '}
-                    <span className="font-semibold text-foreground">
-                      {targetLevel ?? '(pilih pada tes kemampuan akademik)'}
-                    </span>
-                  </p>
-                  <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
-                    💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
-                    semua kelas di bawahnya.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          </div>
+          <div className="mt-3 text-xs text-muted-foreground border-t border-border/50 pt-2">
+            <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">Namecard untuk ditampilkan ke siswa</span>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
-  // ====== CURATION COMPLETE: SHOW ROADMAP ======
+  // Bagian Progress Kurasi
+  const renderCurationProgress = () => {
+    const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
+    const isComplete = stats.curationComplete
+    return (
+      <Card className="border shadow-sm h-full">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ClipboardList className="w-5 h-5" />
+            Progress Kurasi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Tahapan selesai</span>
+            <span className="font-medium">{stats.curationDone} dari {stats.curationTotal}</span>
+          </div>
+          <Progress value={percent} className="h-2" />
+          <p className="text-sm text-muted-foreground">{percent}% selesai</p>
+          {isComplete ? (
+            <Badge className="bg-green-500 hover:bg-green-600">✓ Kurasi Selesai</Badge>
+          ) : (
+            <Link href="/curation/progress">
+              <Button size="sm" variant="outline" className="mt-1">
+                Lanjutkan Kurasi <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          )}
+          {stats.curationComplete && stats.curationScore > 0 && (
+            <p className="text-sm font-medium text-blue-400">
+              Skor: {stats.curationScore}/100 {stats.curationPassed ? '✅ Lulus' : '❌ Tidak Lulus (min. 80)'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Roadmap steps
   const getRoadmapSteps = (): RoadmapStep[] => {
     const s1Active = true
     const s2Active = stats.profileComplete
@@ -495,193 +470,264 @@ export default function TutorDashboard() {
   const nextStep = findNextActiveStep()
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Selamat datang, {tutorName}! 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Ikuti roadmap berikut untuk mulai mengajar di EduStory.
+        <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard Pengajar</h1>
+        <p className="text-muted-foreground">
+          Selamat datang, {tutorName}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.
         </p>
       </div>
 
-      <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-blue-100 text-sm font-medium">Progress Keseluruhan</p>
-              <p className="text-4xl font-bold mt-1">{overallProgress}%</p>
-            </div>
-            <div className="text-right">
-              <p className="text-blue-100 text-sm">Tahap Selesai</p>
-              <p className="text-4xl font-bold mt-1">{completedCount}/{steps.length}</p>
-            </div>
-          </div>
-          <div className="w-full h-2 bg-blue-500/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-white rounded-full transition-all duration-500"
-              style={{ width: `${overallProgress}%` }}
-            />
-          </div>
-          {nextStep && !stats.curationComplete && (
-            <p className="text-blue-100 text-sm mt-3">
-              Langkah selanjutnya: <span className="font-semibold text-white">{nextStep.title}</span>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {stats.curationPassed && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Siswa Aktif', value: stats.activeStudents, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/20' },
-            { label: 'Permintaan Baru', value: stats.pendingRequests, icon: Handshake, color: 'text-amber-400', bg: 'bg-amber-500/20' },
-            { label: 'Sesi Selesai', value: stats.completedSessions, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/20' },
-            { label: 'Rating', value: stats.rating > 0 ? `★ ${stats.rating.toFixed(1)}` : '—', icon: Star, color: 'text-purple-400', bg: 'bg-purple-500/20' },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <Card key={label} className="border-0 shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-xl font-bold text-foreground">{value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* Alert jika kurasi belum complete */}
+      {!stats.curationComplete && (
+        <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
+          <AlertDescription className="text-amber-300">
+            ⚠️ Harap selesaikan semua tahapan kurasi agar bisa menerima permintaan dari siswa.{' '}
+            <Link href="/curation/progress" className="font-medium underline">
+              Lihat status kurasi →
+            </Link>
+          </AlertDescription>
+        </Alert>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Roadmap Pengajar</h2>
-        <div className="space-y-3">
-          {steps.map((step, index) => {
-            const Icon = step.icon
-            const isCompleted = step.status === 'completed'
-            const isLocked = step.status === 'locked'
-            const isActive = step.status === 'active'
+      {/* Stat Cards (4) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Siswa Aktif</p>
+              <p className="text-2xl font-bold text-foreground">{stats.activeStudents}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-yellow-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Permintaan Masuk</p>
+              <p className="text-2xl font-bold text-foreground">{stats.pendingRequests}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-green-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
+              <p className="text-2xl font-bold text-foreground">{stats.completedSessions}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-purple-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Status Kurasi</p>
+              <p className="text-2xl font-bold text-foreground">{stats.curationDone}/{stats.curationTotal}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
-            return (
-              <div key={step.id} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
-                      isCompleted
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : isActive
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-card border-border/50 text-muted-foreground'
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : isLocked ? (
-                      <Lock className="w-4 h-4" />
-                    ) : (
-                      <span className="text-sm font-bold">{step.step}</span>
-                    )}
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div
-                      className={`w-0.5 flex-1 mt-1 min-h-[24px] ${
-                        isCompleted ? 'bg-green-500/50' : 'bg-border'
-                      }`}
-                    />
-                  )}
+      {/* Progress Kurasi + Namecard (2 kolom) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {renderCurationProgress()}
+        {renderNameCard()}
+      </div>
+
+      {/* Roadmap - hanya jika kurasi complete */}
+      {stats.curationComplete && (
+        <>
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Progress Keseluruhan</p>
+                  <p className="text-4xl font-bold mt-1">{overallProgress}%</p>
                 </div>
+                <div className="text-right">
+                  <p className="text-blue-100 text-sm">Tahap Selesai</p>
+                  <p className="text-4xl font-bold mt-1">{completedCount}/{steps.length}</p>
+                </div>
+              </div>
+              <div className="w-full h-2 bg-blue-500/50 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white rounded-full transition-all duration-500"
+                  style={{ width: `${overallProgress}%` }}
+                />
+              </div>
+              {nextStep && (
+                <p className="text-blue-100 text-sm mt-3">
+                  Langkah selanjutnya: <span className="font-semibold text-white">{nextStep.title}</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-                <Card
-                  className={`flex-1 mb-3 border shadow-sm transition-all ${
-                    isCompleted
-                      ? 'border-green-500/30 bg-green-500/10'
-                      : isActive
-                      ? 'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:shadow-md'
-                      : 'border-border/30 bg-card/50 opacity-60'
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div
-                          className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            isCompleted ? 'bg-green-500/20' : isActive ? 'bg-blue-500/20' : 'bg-muted/30'
-                          }`}
-                        >
-                          <Icon
-                            className={`w-5 h-5 ${
-                              isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-muted-foreground'
-                            }`}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3
-                              className={`font-semibold text-sm ${
-                                isLocked ? 'text-muted-foreground' : 'text-foreground'
-                              }`}
-                            >
-                              {step.title}
-                            </h3>
-                            {isCompleted && (
-                              <Badge className="text-[10px] bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/20">
-                                ✓ Selesai
-                              </Badge>
-                            )}
-                            {isLocked && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
-                                Terkunci
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
-                          {step.detail && (
-                            <p
-                              className={`text-xs mt-1.5 font-medium ${
-                                isCompleted
-                                  ? 'text-green-400'
-                                  : isActive
-                                  ? 'text-blue-400'
-                                  : 'text-muted-foreground'
-                              }`}
-                            >
-                              {step.detail}
-                            </p>
-                          )}
-                          {step.id === 'curation' && !stats.curationPassed && stats.curationComplete && (
-                            <div className="flex items-center gap-1 mt-2 text-amber-400">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              <span className="text-xs font-medium">Skor belum mencapai 80. Hubungi admin untuk info lebih lanjut.</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {!isLocked && (
-                        <Link href={step.href} className="flex-shrink-0">
-                          <Button
-                            size="sm"
-                            variant={isCompleted ? 'outline' : 'default'}
-                            className={`text-xs gap-1.5 ${
-                              isCompleted
-                                ? 'border-green-500/30 text-green-300 hover:bg-green-500/10'
-                                : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                            }`}
-                          >
-                            {isCompleted ? 'Lihat' : 'Mulai'}
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Button>
-                        </Link>
-                      )}
+          {stats.curationPassed && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Siswa Aktif', value: stats.activeStudents, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/20' },
+                { label: 'Permintaan Baru', value: stats.pendingRequests, icon: Handshake, color: 'text-amber-400', bg: 'bg-amber-500/20' },
+                { label: 'Sesi Selesai', value: stats.completedSessions, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/20' },
+                { label: 'Rating', value: stats.rating > 0 ? `★ ${stats.rating.toFixed(1)}` : '—', icon: Star, color: 'text-purple-400', bg: 'bg-purple-500/20' },
+              ].map(({ label, value, icon: Icon, color, bg }) => (
+                <Card key={label} className="border-0 shadow-sm">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-5 h-5 ${color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="text-xl font-bold text-foreground">{value}</p>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+              ))}
+            </div>
+          )}
+
+          {/* Roadmap Steps */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Roadmap Pengajar</h2>
+            <div className="space-y-3">
+              {steps.map((step, index) => {
+                const Icon = step.icon
+                const isCompleted = step.status === 'completed'
+                const isLocked = step.status === 'locked'
+                const isActive = step.status === 'active'
+
+                return (
+                  <div key={step.id} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                          isCompleted
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : isActive
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'bg-card border-border/50 text-muted-foreground'
+                        }`}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="w-5 h-5" />
+                        ) : isLocked ? (
+                          <Lock className="w-4 h-4" />
+                        ) : (
+                          <span className="text-sm font-bold">{step.step}</span>
+                        )}
+                      </div>
+                      {index < steps.length - 1 && (
+                        <div
+                          className={`w-0.5 flex-1 mt-1 min-h-[24px] ${
+                            isCompleted ? 'bg-green-500/50' : 'bg-border'
+                          }`}
+                        />
+                      )}
+                    </div>
+
+                    <Card
+                      className={`flex-1 mb-3 border shadow-sm transition-all ${
+                        isCompleted
+                          ? 'border-green-500/30 bg-green-500/10'
+                          : isActive
+                          ? 'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:shadow-md'
+                          : 'border-border/30 bg-card/50 opacity-60'
+                      }`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div
+                              className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                isCompleted ? 'bg-green-500/20' : isActive ? 'bg-blue-500/20' : 'bg-muted/30'
+                              }`}
+                            >
+                              <Icon
+                                className={`w-5 h-5 ${
+                                  isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-muted-foreground'
+                                }`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3
+                                  className={`font-semibold text-sm ${
+                                    isLocked ? 'text-muted-foreground' : 'text-foreground'
+                                  }`}
+                                >
+                                  {step.title}
+                                </h3>
+                                {isCompleted && (
+                                  <Badge className="text-[10px] bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/20">
+                                    ✓ Selesai
+                                  </Badge>
+                                )}
+                                {isLocked && (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
+                                    Terkunci
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+                              {step.detail && (
+                                <p
+                                  className={`text-xs mt-1.5 font-medium ${
+                                    isCompleted
+                                      ? 'text-green-400'
+                                      : isActive
+                                      ? 'text-blue-400'
+                                      : 'text-muted-foreground'
+                                  }`}
+                                >
+                                  {step.detail}
+                                </p>
+                              )}
+                              {step.id === 'curation' && !stats.curationPassed && stats.curationComplete && (
+                                <div className="flex items-center gap-1 mt-2 text-amber-400">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <span className="text-xs font-medium">Skor belum mencapai 80. Hubungi admin untuk info lebih lanjut.</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {!isLocked && (
+                            <Link href={step.href} className="flex-shrink-0">
+                              <Button
+                                size="sm"
+                                variant={isCompleted ? 'outline' : 'default'}
+                                className={`text-xs gap-1.5 ${
+                                  isCompleted
+                                    ? 'border-green-500/30 text-green-300 hover:bg-green-500/10'
+                                    : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                                }`}
+                              >
+                                {isCompleted ? 'Lihat' : 'Mulai'}
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
