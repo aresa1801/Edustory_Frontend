@@ -285,59 +285,67 @@ export default function TutorDashboard() {
   }
 
   // Namecard (kiri)
-  const renderNameCard = () => {
-    const initial = tutorName.charAt(0).toUpperCase()
-    const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
-    const qual = qualifications || 'Belum diisi'
+const renderNameCard = () => {
+  const initial = tutorName.charAt(0).toUpperCase()
+  const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
+  const qual = qualifications || 'Belum diisi'
 
-    return (
-      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full">
-        <CardContent className="p-5">
-          <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 shadow-md">
-              {initial}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-foreground truncate">{tutorName}</h3>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                <span className="flex items-center text-sm text-muted-foreground">
-                  <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-                  {rate}
-                </span>
-                <span className="flex items-center text-sm text-muted-foreground">
-                  <Star className="w-4 h-4 mr-1 text-yellow-500" />
-                  {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
-                </span>
-              </div>
-              <div className="mt-2 space-y-1">
-                <p className="text-sm text-muted-foreground flex items-start gap-1">
-                  <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-                  <span className="break-words">{qual}</span>
-                </p>
-                <p className="text-sm text-muted-foreground flex items-start gap-1">
-                  <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
-                  <span>
-                    {verifiedLevels.length > 0
-                      ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
-                      : targetLevel
-                      ? `Target: ${targetLevel} (belum diverifikasi)`
-                      : 'Kelas belum ditentukan'}
-                  </span>
-                </p>
-                <p className="text-sm text-muted-foreground flex items-start gap-1">
-                  <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-                  <span>{formatSubjects(allSubjects)}</span>
-                </p>
-              </div>
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow h-full">
+      <CardContent className="p-5">
+        {/* Bagian atas: foto + nama sejajar */}
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
+            {initial}
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-foreground">{tutorName}</h3>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+              <span className="flex items-center text-sm text-muted-foreground">
+                <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+                {rate}
+              </span>
+              <span className="flex items-center text-sm text-muted-foreground">
+                <Star className="w-4 h-4 mr-1 text-yellow-500" />
+                {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
+              </span>
             </div>
           </div>
-          <div className="mt-3 text-xs text-muted-foreground border-t border-border/50 pt-2">
-            <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">Namecard untuk ditampilkan ke siswa</span>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+        </div>
+
+        {/* Garis pemisah */}
+        <div className="border-t border-border/50 my-3" />
+
+        {/* Informasi pelengkap di bawah */}
+        <div className="space-y-1.5">
+          <p className="text-sm text-muted-foreground flex items-start gap-2">
+            <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+            <span className="break-words">{qual}</span>
+          </p>
+          <p className="text-sm text-muted-foreground flex items-start gap-2">
+            <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+            <span>
+              {verifiedLevels.length > 0
+                ? `Mengajar: ${verifiedLevels.sort().join(', ')}`
+                : targetLevel
+                ? `Target: ${targetLevel} (belum diverifikasi)`
+                : 'Kelas belum ditentukan'}
+            </span>
+          </p>
+          <p className="text-sm text-muted-foreground flex items-start gap-2">
+            <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+            <span>{formatSubjects(allSubjects)}</span>
+          </p>
+        </div>
+
+        {/* Label namecard */}
+        <div className="mt-3 text-xs text-muted-foreground border-t border-border/50 pt-2">
+          <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">Namecard untuk ditampilkan ke siswa</span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
   // Progress Kurasi + Kelas Diverifikasi (kanan)
   const renderCurationProgress = () => {
