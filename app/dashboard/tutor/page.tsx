@@ -71,14 +71,6 @@ const getLevelColor = (level: string): string => {
   return 'text-muted-foreground'
 }
 
-// Fungsi untuk menentukan warna mata pelajaran berdasarkan jenjang
-const getSubjectColor = (subject: string, allSubjects: { sd: string[], smp: string[], sma: string[] }): string => {
-  if (allSubjects.sd.includes(subject)) return 'text-green-400'
-  if (allSubjects.smp.includes(subject)) return 'text-orange-400'
-  if (allSubjects.sma.includes(subject)) return 'text-red-400'
-  return 'text-muted-foreground'
-}
-
 export default function TutorDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     profileComplete: false,
@@ -151,7 +143,7 @@ export default function TutorDashboard() {
               supabase
                 .from('tutors')
                 .select(
-                  'id, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
+                  'id, full_name, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
                 )
                 .eq('user_id', user.id)
                 .maybeSingle()
@@ -162,18 +154,23 @@ export default function TutorDashboard() {
 
         if (!isMounted) return
 
-        // Set nama dari user_profiles
-        if (profileResult.data?.name) {
-          setTutorName(profileResult.data.name)
+        // Ambil nama: prioritas dari tutors.full_name, fallback ke user_profiles.name, lalu 'Pengajar'
+        const tutorData = tutorResult.data
+        const profileName = profileResult.data?.name || null
+
+        if (tutorData?.full_name) {
+          setTutorName(tutorData.full_name)
+        } else if (profileName) {
+          setTutorName(profileName)
+        } else {
+          setTutorName('Pengajar')
         }
 
-        const tutorData = tutorResult.data
         if (!tutorData) {
           setLoading(false)
           return
         }
 
-        // Isi semua state dari tutorData
         setVerifiedLevels(tutorData.verified_grade_levels || [])
         setTargetLevel(tutorData.target_grade_level || null)
         setHourlyRate(tutorData.hourly_rate || null)
@@ -311,15 +308,16 @@ export default function TutorDashboard() {
   }
 
   // Helper untuk menampilkan daftar mata pelajaran dengan warna sesuai jenjang
-  const renderSubjects = (subjects: { sd: string[], smp: string[], sma: string[] }) => {
-    const all = [...subjects.sd, ...subjects.smp, ...subjects.sma]
+  const renderSubjects = () => {
+    const { sd, smp, sma } = allSubjects
+    const all = [...sd, ...smp, ...sma]
     if (all.length === 0) return <span className="text-muted-foreground">Belum ada mata pelajaran</span>
 
     return all.map((subject, idx) => {
       let color = 'text-muted-foreground'
-      if (subjects.sd.includes(subject)) color = 'text-green-400'
-      else if (subjects.smp.includes(subject)) color = 'text-orange-400'
-      else if (subjects.sma.includes(subject)) color = 'text-red-400'
+      if (sd.includes(subject)) color = 'text-green-400'
+      else if (smp.includes(subject)) color = 'text-orange-400'
+      else if (sma.includes(subject)) color = 'text-red-400'
       return (
         <span key={idx} className={`${color} text-sm`}>
           {subject}
@@ -378,22 +376,20 @@ export default function TutorDashboard() {
 
           <div className="border-t border-border/50 my-3" />
 
-          {/* Baris: Tarif per jam + Rating (pengalaman di bawah) */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
+          {/* Baris: Tarif per jam + Pengalaman + Rating */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
             <span className="flex items-center text-sm text-muted-foreground">
               <DollarSign className="w-4 h-4 mr-1 text-green-500" />
               {formatCurrency(hourlyRate)}
             </span>
             <span className="flex items-center text-sm text-muted-foreground">
+              <Clock className="w-4 h-4 mr-1 text-blue-400" />
+              {formatExperience(experienceYears)}
+            </span>
+            <span className="flex items-center text-sm text-muted-foreground">
               <Star className="w-4 h-4 mr-1 text-yellow-500" />
               {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
             </span>
-          </div>
-
-          {/* Pengalaman (di bawah tarif) */}
-          <div className="flex items-center text-sm text-muted-foreground mb-2">
-            <Clock className="w-4 h-4 mr-1 text-blue-400" />
-            {formatExperience(experienceYears)}
           </div>
 
           {/* Kualifikasi */}
@@ -409,7 +405,7 @@ export default function TutorDashboard() {
               <span>
                 {verifiedLevels.length > 0 ? (
                   verifiedLevels.sort().map((lvl, idx) => (
-                    <span key={idx} className={`${getLevelColor(lvl)}`}>
+                    <span key={idx} className={getLevelColor(lvl)}>
                       {lvl}
                       {idx < verifiedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
                     </span>
@@ -426,7 +422,7 @@ export default function TutorDashboard() {
             <p className="text-sm flex items-start gap-2">
               <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
               <span>
-                {renderSubjects(allSubjects)}
+                {renderSubjects()}
               </span>
             </p>
           </div>
@@ -440,7 +436,7 @@ export default function TutorDashboard() {
     )
   }
 
-  // Render Progress Kurasi
+  // Render Progress Kurasi (sama seperti sebelumnya)
   const renderCurationProgress = () => {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
