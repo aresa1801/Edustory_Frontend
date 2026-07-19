@@ -154,7 +154,6 @@ export default function TutorDashboard() {
         setHourlyRate(tutorData.hourly_rate || null)
         setQualifications(tutorData.qualifications || null)
 
-        // Gabungkan semua spesialisasi dari SD, SMP, SMA dengan tipe eksplisit
         const subjectsSet = new Set<string>()
         if (tutorData.specializations_sd) {
           tutorData.specializations_sd.forEach((s: string) => subjectsSet.add(s))
@@ -279,21 +278,20 @@ export default function TutorDashboard() {
     )
   }
 
-  // Helper untuk format mata pelajaran
   const formatSubjects = (subjects: string[]) => {
     if (subjects.length === 0) return 'Belum ada mata pelajaran'
     if (subjects.length <= 3) return subjects.join(', ')
     return subjects.slice(0, 3).join(', ') + ` +${subjects.length - 3} lagi`
   }
 
-  // Bagian Namecard
+  // Namecard (kiri)
   const renderNameCard = () => {
     const initial = tutorName.charAt(0).toUpperCase()
     const rate = hourlyRate ? `Rp ${hourlyRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'
     const qual = qualifications || 'Belum diisi'
 
     return (
-      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full">
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 shadow-md">
@@ -341,10 +339,11 @@ export default function TutorDashboard() {
     )
   }
 
-  // Bagian Progress Kurasi
+  // Progress Kurasi + Kelas Diverifikasi (kanan)
   const renderCurationProgress = () => {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
+
     return (
       <Card className="border shadow-sm h-full">
         <CardHeader className="pb-3">
@@ -353,13 +352,18 @@ export default function TutorDashboard() {
             Progress Kurasi
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tahapan selesai</span>
-            <span className="font-medium">{stats.curationDone} dari {stats.curationTotal}</span>
+        <CardContent className="space-y-4">
+          {/* Progress bar */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tahapan selesai</span>
+              <span className="font-medium">{stats.curationDone} dari {stats.curationTotal}</span>
+            </div>
+            <Progress value={percent} className="h-2" />
+            <p className="text-sm text-muted-foreground">{percent}% selesai</p>
           </div>
-          <Progress value={percent} className="h-2" />
-          <p className="text-sm text-muted-foreground">{percent}% selesai</p>
+
+          {/* Tombol / status */}
           {isComplete ? (
             <Badge className="bg-green-500 hover:bg-green-600">✓ Kurasi Selesai</Badge>
           ) : (
@@ -369,17 +373,56 @@ export default function TutorDashboard() {
               </Button>
             </Link>
           )}
+
           {stats.curationComplete && stats.curationScore > 0 && (
             <p className="text-sm font-medium text-blue-400">
               Skor: {stats.curationScore}/100 {stats.curationPassed ? '✅ Lulus' : '❌ Tidak Lulus (min. 80)'}
             </p>
           )}
+
+          {/* Informasi kelas yang diverifikasi */}
+          <div className="border-t border-border/50 pt-3 mt-2">
+            {verifiedLevels.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Anda terverifikasi mengajar kelas-kelas berikut:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {GRADE_LEVEL_ORDER.filter(lvl => verifiedLevels.includes(lvl)).map(lvl => (
+                    <Badge key={lvl} className="bg-green-500/20 text-green-300 border-green-500/30">
+                      ✓ {lvl}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                  💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
+                  semua kelas di bawahnya.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Selesaikan semua 5 tahap kurasi untuk mendapatkan verifikasi mengajar.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Kelas yang Anda targetkan:{' '}
+                  <span className="font-semibold text-foreground">
+                    {targetLevel ?? '(pilih pada tes kemampuan akademik)'}
+                  </span>
+                </p>
+                <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                  💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
+                  semua kelas di bawahnya.
+                </p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     )
   }
 
-  // Roadmap steps
+  // Roadmap steps (sama seperti sebelumnya, tidak diubah)
   const getRoadmapSteps = (): RoadmapStep[] => {
     const s1Active = true
     const s2Active = stats.profileComplete
@@ -539,10 +582,10 @@ export default function TutorDashboard() {
         </Card>
       </div>
 
-      {/* Progress Kurasi + Namecard (2 kolom) */}
+      {/* Namecard (kiri) + Progress Kurasi (kanan) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {renderCurationProgress()}
         {renderNameCard()}
+        {renderCurationProgress()}
       </div>
 
       {/* Roadmap - hanya jika kurasi complete */}
