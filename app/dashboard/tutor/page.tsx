@@ -63,22 +63,12 @@ const GRADE_LEVEL_ORDER = [
   'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
 ]
 
-// Fungsi untuk menentukan warna berdasarkan jenjang
 const getLevelColor = (level: string): string => {
-  if (level.startsWith('SD')) return 'text-green-400'       // hijau lemon
-  if (level.startsWith('SMP')) return 'text-orange-400'     // jingga
-  if (level.startsWith('SMA')) return 'text-red-400'        // merah
+  if (level.startsWith('SD')) return 'text-green-400'
+  if (level.startsWith('SMP')) return 'text-orange-400'
+  if (level.startsWith('SMA')) return 'text-red-400'
   return 'text-muted-foreground'
 }
-
-// Fungsi untuk menentukan warna mata pelajaran berdasarkan jenjang
-const getSubjectColor = (subject: string, allSubjects: { sd: string[], smp: string[], sma: string[] }): string => {
-  if (allSubjects.sd.includes(subject)) return 'text-green-400'
-  if (allSubjects.smp.includes(subject)) return 'text-orange-400'
-  if (allSubjects.sma.includes(subject)) return 'text-red-400'
-  return 'text-muted-foreground'
-}
-
 
 export default function TutorDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -136,37 +126,23 @@ export default function TutorDashboard() {
         }
         const user = authData.user
 
-        const [profileResult, tutorResult] = await Promise.all([
-          withTimeout(
-            Promise.resolve(
-              supabase
-                .from('user_profiles')
-                .select('name')
-                .eq('id', user.id)
-                .maybeSingle()
-            ),
-            5000
-          ),
-          withTimeout(
-            Promise.resolve(
-              supabase
-                .from('tutors')
-                .select(
-                  'id, specializations, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
-                )
-                .eq('user_id', user.id)
-                .maybeSingle()
-            ),
-            5000
-          ),
-        ])
+        // Ambil data tutor dari tabel tutors (termasuk full_name)
+        const tutorResult = await withTimeout(
+          (async () => {
+            const { data, error } = await supabase
+              .from('tutors')
+              .select(
+                'id, full_name, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
+              )
+              .eq('user_id', user.id)
+              .maybeSingle()
+            if (error) throw error
+            return { data, error: null }
+          })(),
+          5000
+        )
 
         if (!isMounted) return
-
-        // Set nama dari user_profiles
-        if (profileResult.data?.name) {
-          setTutorName(profileResult.data.name)
-        }
 
         const tutorData = tutorResult.data
         if (!tutorData) {
@@ -174,14 +150,15 @@ export default function TutorDashboard() {
           return
         }
 
-        // Isi semua state dari tutorData
+        // Set nama dari tutors.full_name
+        setTutorName(tutorData.full_name || 'Pengajar')
+
+        // Set state lainnya
         setVerifiedLevels(tutorData.verified_grade_levels || [])
         setTargetLevel(tutorData.target_grade_level || null)
         setHourlyRate(tutorData.hourly_rate || null)
         setQualifications(tutorData.qualifications || null)
         setExperienceYears(tutorData.experience_years || null)
-
-        // Simpan per jenjang untuk pewarnaan
         setAllSubjects({
           sd: tutorData.specializations_sd || [],
           smp: tutorData.specializations_smp || [],
@@ -194,8 +171,7 @@ export default function TutorDashboard() {
           tutorData.qualifications
         )
         const teachingInterestSet = !!(
-          tutorData.specializations?.length > 0 ||
-          tutorData.verified_grade_levels?.length > 0 ||
+          (tutorData.verified_grade_levels?.length > 0) ||
           (tutorData.specializations_sd?.length > 0) ||
           (tutorData.specializations_smp?.length > 0) ||
           (tutorData.specializations_sma?.length > 0)
@@ -211,12 +187,14 @@ export default function TutorDashboard() {
           const [progressRes, matchResult] = await Promise.all([
             withTimeout(fetch('/api/assessments/progress'), 5000),
             withTimeout(
-              Promise.resolve(
-                supabase
+              (async () => {
+                const { data, error } = await supabase
                   .from('matches')
                   .select('id, status')
                   .eq('tutor_id', tutorData.id)
-              ),
+                if (error) throw error
+                return { data, error: null }
+              })(),
               5000
             ),
           ])
@@ -299,7 +277,7 @@ export default function TutorDashboard() {
     )
   }
 
-  // Helper untuk format teks
+  // Helper functions
   const formatCurrency = (value: number | null) => {
     if (value === null) return 'Belum diatur'
     return `Rp ${value.toLocaleString('id-ID')}/jam`
@@ -311,7 +289,6 @@ export default function TutorDashboard() {
     return `${years} tahun`
   }
 
-  // Helper untuk menampilkan daftar mata pelajaran dengan warna sesuai jenjang
   const renderSubjects = (subjects: { sd: string[], smp: string[], sma: string[] }) => {
     const all = [...subjects.sd, ...subjects.smp, ...subjects.sma]
     if (all.length === 0) return <span className="text-muted-foreground">Belum ada mata pelajaran</span>
@@ -331,131 +308,129 @@ export default function TutorDashboard() {
   }
 
   // Render Namecard
-const renderNameCard = () => {
-  const initial = tutorName.charAt(0).toUpperCase()
-  const isCurationComplete = stats.curationComplete
+  const renderNameCard = () => {
+    const initial = tutorName.charAt(0).toUpperCase()
+    const isCurationComplete = stats.curationComplete
 
-  return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
-      {/* Badge */}
-      <div className="absolute top-3 right-3 flex items-center gap-1">
-        <Badge 
-          className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
-        >
-          {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
-        </Badge>
-        <button
-          onClick={() => setShowCurationInfo(!showCurationInfo)}
-          className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <span className="text-xs font-bold">i</span>
-        </button>
-        {showCurationInfo && (
-          <div className="absolute top-8 right-0 w-64 bg-popover border rounded-lg shadow-lg p-3 z-10 text-sm">
-            <p className="text-foreground">
-              {isCurationComplete 
-                ? 'Anda telah kurasi untuk mendapatkan kepercayaan lebih baik dari student.' 
-                : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
-            </p>
-            {!isCurationComplete && (
-              <Link href="/curation/progress" className="mt-2 inline-block w-full">
-                <Button size="sm" className="w-full">Kurasi</Button>
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-
-      <CardContent className="p-5">
-        {/* Foto + Nama (diperbesar) */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
-            {initial}
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
-          </div>
-        </div>
-
-        <div className="border-t border-border/50 my-3" />
-
-        {/* Baris: Tarif per jam + Rating (pengalaman di bawah) */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
-          <span className="flex items-center text-sm text-muted-foreground">
-            <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-            {formatCurrency(hourlyRate)}
-          </span>
-          <span className="flex items-center text-sm text-muted-foreground">
-            <Star className="w-4 h-4 mr-1 text-yellow-500" />
-            {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
-          </span>
-        </div>
-
-        {/* Pengalaman (di bawah tarif) */}
-        <div className="flex items-center text-sm text-muted-foreground mb-2">
-          <Clock className="w-4 h-4 mr-1 text-blue-400" />
-          {formatExperience(experienceYears)}
-        </div>
-
-        {/* Kualifikasi */}
-        <div className="space-y-1.5">
-          <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-            <span className="break-words">{qualifications || 'Belum diisi'}</span>
-          </p>
-
-          {/* Kelas dengan warna */}
-          <p className="text-sm flex items-start gap-2">
-            <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
-            <span>
-              {verifiedLevels.length > 0 ? (
-                verifiedLevels.sort().map((lvl, idx) => (
-                  <span key={idx} className={`${getLevelColor(lvl)}`}>
-                    {lvl}
-                    {idx < verifiedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
-                  </span>
-                ))
-              ) : targetLevel ? (
-                <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
-              ) : (
-                <span className="text-muted-foreground">Kelas belum ditentukan</span>
+    return (
+      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
+        {/* Badge */}
+        <div className="absolute top-3 right-3 flex items-center gap-1">
+          <Badge 
+            className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
+          >
+            {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
+          </Badge>
+          <button
+            onClick={() => setShowCurationInfo(!showCurationInfo)}
+            className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span className="text-xs font-bold">i</span>
+          </button>
+          {showCurationInfo && (
+            <div className="absolute top-8 right-0 w-64 bg-popover border rounded-lg shadow-lg p-3 z-10 text-sm">
+              <p className="text-foreground">
+                {isCurationComplete 
+                  ? 'Anda telah kurasi untuk mendapatkan kepercayaan lebih baik dari student.' 
+                  : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
+              </p>
+              {!isCurationComplete && (
+                <Link href="/curation/progress" className="mt-2 inline-block w-full">
+                  <Button size="sm" className="w-full">Kurasi</Button>
+                </Link>
               )}
-            </span>
-          </p>
-
-          {/* Mata pelajaran dengan warna sesuai jenjang */}
-          <p className="text-sm flex items-start gap-2">
-            <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-            <span>
-              {renderSubjects(allSubjects)}
-            </span>
-          </p>
+            </div>
+          )}
         </div>
 
-        {/* Label namecard + Tombol Edit */}
-        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
-          <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
-            Namecard untuk ditampilkan ke siswa
-          </span>
-          <div className="flex gap-2">
-            <Link href="/dashboard/tutor/profile">
-              <Button size="sm" variant="outline" className="h-7 text-xs">
-                Edit Profil
-              </Button>
-            </Link>
-            <Link href="/dashboard/tutor/teaching-interest">
-              <Button size="sm" variant="outline" className="h-7 text-xs">
-                Edit Minat Mengajar
-              </Button>
-            </Link>
+        <CardContent className="p-5">
+          {/* Foto + Nama */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
+              {initial}
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
-  // Render Progress Kurasi
+          <div className="border-t border-border/50 my-3" />
+
+          {/* Tarif & Rating */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
+            <span className="flex items-center text-sm text-muted-foreground">
+              <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+              {formatCurrency(hourlyRate)}
+            </span>
+            <span className="flex items-center text-sm text-muted-foreground">
+              <Star className="w-4 h-4 mr-1 text-yellow-500" />
+              {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
+            </span>
+          </div>
+
+          {/* Pengalaman */}
+          <div className="flex items-center text-sm text-muted-foreground mb-2">
+            <Clock className="w-4 h-4 mr-1 text-blue-400" />
+            {formatExperience(experienceYears)}
+          </div>
+
+          {/* Kualifikasi & Kelas & Mata Pelajaran */}
+          <div className="space-y-1.5">
+            <p className="text-sm text-muted-foreground flex items-start gap-2">
+              <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+              <span className="break-words">{qualifications || 'Belum diisi'}</span>
+            </p>
+
+            <p className="text-sm flex items-start gap-2">
+              <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+              <span>
+                {verifiedLevels.length > 0 ? (
+                  verifiedLevels.sort().map((lvl, idx) => (
+                    <span key={idx} className={getLevelColor(lvl)}>
+                      {lvl}
+                      {idx < verifiedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
+                    </span>
+                  ))
+                ) : targetLevel ? (
+                  <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
+                ) : (
+                  <span className="text-muted-foreground">Kelas belum ditentukan</span>
+                )}
+              </span>
+            </p>
+
+            <p className="text-sm flex items-start gap-2">
+              <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+              <span>
+                {renderSubjects(allSubjects)}
+              </span>
+            </p>
+          </div>
+
+          {/* Tombol Edit */}
+          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
+            <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
+              Namecard untuk ditampilkan ke siswa
+            </span>
+            <div className="flex gap-2">
+              <Link href="/dashboard/tutor/profile">
+                <Button size="sm" variant="outline" className="h-7 text-xs">
+                  Edit Profil
+                </Button>
+              </Link>
+              <Link href="/dashboard/tutor/teaching-interest">
+                <Button size="sm" variant="outline" className="h-7 text-xs">
+                  Edit Minat Mengajar
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Render Progress Kurasi (tidak diubah)
   const renderCurationProgress = () => {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
@@ -535,7 +510,7 @@ const renderNameCard = () => {
     )
   }
 
-  // Roadmap steps
+  // Roadmap steps (tidak diubah)
   const getRoadmapSteps = (): RoadmapStep[] => {
     const s1Active = true
     const s2Active = stats.profileComplete
@@ -627,7 +602,6 @@ const renderNameCard = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard Pengajar</h1>
         <p className="text-muted-foreground">
@@ -635,7 +609,6 @@ const renderNameCard = () => {
         </p>
       </div>
 
-      {/* Alert jika kurasi belum complete */}
       {!stats.curationComplete && (
         <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
           <AlertDescription className="text-amber-300">
@@ -647,7 +620,6 @@ const renderNameCard = () => {
         </Alert>
       )}
 
-      {/* Stat Cards (4) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3">
@@ -695,13 +667,11 @@ const renderNameCard = () => {
         </Card>
       </div>
 
-      {/* Namecard (kiri) + Progress Kurasi (kanan) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {renderNameCard()}
         {renderCurationProgress()}
       </div>
 
-      {/* Roadmap - hanya jika kurasi complete */}
       {stats.curationComplete && (
         <>
           <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white">
@@ -753,7 +723,6 @@ const renderNameCard = () => {
             </div>
           )}
 
-          {/* Roadmap Steps */}
           <div>
             <h2 className="text-lg font-semibold text-foreground mb-4">Roadmap Pengajar</h2>
             <div className="space-y-3">
