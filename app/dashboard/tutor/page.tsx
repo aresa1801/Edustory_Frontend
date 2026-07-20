@@ -70,6 +70,22 @@ const getLevelColor = (level: string): string => {
   return 'text-muted-foreground'
 }
 
+// Helper untuk tooltip kelas
+const getLevelTooltip = (level: string): string => {
+  if (level.startsWith('SD')) return 'Kelas SD'
+  if (level.startsWith('SMP')) return 'Kelas SMP'
+  if (level.startsWith('SMA')) return 'Kelas SMA'
+  return ''
+}
+
+// Helper untuk tooltip mata pelajaran berdasarkan jenjang
+const getSubjectTooltip = (subject: string, subjects: { sd: string[], smp: string[], sma: string[] }): string => {
+  if (subjects.sd.includes(subject)) return 'Mata pelajaran SD'
+  if (subjects.smp.includes(subject)) return 'Mata pelajaran SMP'
+  if (subjects.sma.includes(subject)) return 'Mata pelajaran SMA'
+  return ''
+}
+
 export default function TutorDashboard() {
   const { user: authUser, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -161,16 +177,11 @@ export default function TutorDashboard() {
       )
 
       // --- Ambil data sekunder (kurasi & matches) via API jika perlu, atau langsung pakai nilai default ---
-      // Di sini saya tetap pakai timeout pendek, tapi karena data sekunder tidak krusial, kita bisa set default 0
       let curationDone = 0
       let curationScore = 0
       let activeStudents = 0
       let pendingRequests = 0
       let completedSessions = 0
-
-      // Untuk sementara kita tidak perlu meminta data sekunder agar cepat
-      // Nanti bisa diintegrasikan dengan API jika diperlukan
-      // Tapi untuk demo, kita set nilai default
 
       // --- Set stats ---
       const curationComplete = curationDone >= 5
@@ -233,9 +244,8 @@ export default function TutorDashboard() {
     return `${years} tahun`
   }
 
-  // Render mata pelajaran dengan urutan hardcode: SD → SMP → SMA
+  // Render mata pelajaran dengan urutan hardcode: SD → SMP → SMA dan tooltip
   const renderSubjects = (subjects: { sd: string[], smp: string[], sma: string[] }) => {
-    // Buat daftar sesuai urutan hardcode
     const sd = subjects.sd.slice().sort()
     const smp = subjects.smp.slice().sort()
     const sma = subjects.sma.slice().sort()
@@ -247,8 +257,15 @@ export default function TutorDashboard() {
       if (subjects.sd.includes(subject)) color = 'text-green-400'
       else if (subjects.smp.includes(subject)) color = 'text-orange-400'
       else if (subjects.sma.includes(subject)) color = 'text-red-400'
+
+      const tooltip = getSubjectTooltip(subject, subjects)
+
       return (
-        <span key={idx} className={`${color} text-sm`}>
+        <span
+          key={idx}
+          className={`${color} text-sm`}
+          title={tooltip}
+        >
           {subject}
           {idx < all.length - 1 && <span className="text-muted-foreground">, </span>}
         </span>
@@ -337,17 +354,20 @@ export default function TutorDashboard() {
               <span className="break-words">{qualifications || 'Belum diisi'}</span>
             </p>
 
-            {/* Kelas dengan urutan hardcode */}
+            {/* Kelas dengan urutan hardcode dan tooltip */}
             <p className="text-sm flex items-start gap-2">
               <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
               <span>
                 {sortedLevels.length > 0 ? (
-                  sortedLevels.map((lvl, idx) => (
-                    <span key={idx} className={getLevelColor(lvl)}>
-                      {lvl}
-                      {idx < sortedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
-                    </span>
-                  ))
+                  sortedLevels.map((lvl, idx) => {
+                    const tooltip = getLevelTooltip(lvl)
+                    return (
+                      <span key={idx} className={getLevelColor(lvl)} title={tooltip}>
+                        {lvl}
+                        {idx < sortedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
+                      </span>
+                    )
+                  })
                 ) : targetLevel ? (
                   <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
                 ) : (
@@ -356,7 +376,7 @@ export default function TutorDashboard() {
               </span>
             </p>
 
-            {/* Mata pelajaran dengan urutan hardcode SD→SMP→SMA */}
+            {/* Mata pelajaran dengan urutan hardcode SD→SMP→SMA dan tooltip */}
             <p className="text-sm flex items-start gap-2">
               <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
               <span>
@@ -388,12 +408,11 @@ export default function TutorDashboard() {
     )
   }
 
-  // Render Progress Kurasi (sama seperti sebelumnya)
+  // Render Progress Kurasi (sama seperti sebelumnya, tambahkan tooltip di badge)
   const renderCurationProgress = () => {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
 
-    // Urutkan verifiedLevels untuk badge di sini juga
     const sortedLevels = verifiedLevels.slice().sort((a, b) => {
       const idxA = GRADE_LEVEL_ORDER.indexOf(a)
       const idxB = GRADE_LEVEL_ORDER.indexOf(b)
@@ -441,11 +460,18 @@ export default function TutorDashboard() {
                   Anda terverifikasi mengajar kelas-kelas berikut:
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {sortedLevels.map(lvl => (
-                    <Badge key={lvl} className={`${getLevelColor(lvl)} bg-opacity-20 border`}>
-                      ✓ {lvl}
-                    </Badge>
-                  ))}
+                  {sortedLevels.map(lvl => {
+                    const tooltip = getLevelTooltip(lvl)
+                    return (
+                      <Badge
+                        key={lvl}
+                        className={`${getLevelColor(lvl)} bg-opacity-20 border`}
+                        title={tooltip}
+                      >
+                        ✓ {lvl}
+                      </Badge>
+                    )
+                  })}
                 </div>
                 <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
                   💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
