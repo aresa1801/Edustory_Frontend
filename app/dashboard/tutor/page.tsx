@@ -9,6 +9,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
+import { Camera } from 'lucide-react'
+import { AvatarUploader } from '@/components/AvatarUploader'
 import {
   UserCircle,
   BookOpen,
@@ -93,6 +95,7 @@ export default function TutorDashboard() {
 
   // State untuk namecard
   const [tutorName, setTutorName] = useState<string>('Pengajar')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [verifiedLevels, setVerifiedLevels] = useState<string[]>([])
   const [targetLevel, setTargetLevel] = useState<string | null>(null)
   const [allSubjects, setAllSubjects] = useState<{ sd: string[], smp: string[], sma: string[] }>({
@@ -104,6 +107,9 @@ export default function TutorDashboard() {
   const [qualifications, setQualifications] = useState<string | null>(null)
   const [experienceYears, setExperienceYears] = useState<number | null>(null)
   const [showCurationInfo, setShowCurationInfo] = useState(false)
+
+  // State untuk avatar upload
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
 
   // State untuk stats (profil, kurasi, dll)
   const [stats, setStats] = useState<DashboardStats>({
@@ -152,6 +158,7 @@ export default function TutorDashboard() {
 
       // --- Set state untuk namecard ---
       setTutorName(tutorData.full_name || 'Pengajar')
+      setAvatarUrl(tutorData.avatar_url || null)
       setVerifiedLevels(tutorData.verified_grade_levels || [])
       setTargetLevel(tutorData.target_grade_level || null)
       setHourlyRate(tutorData.hourly_rate ?? null)
@@ -317,10 +324,25 @@ export default function TutorDashboard() {
         </div>
 
         <CardContent className="p-5">
-          {/* Foto + Nama */}
+          {/* Foto + Nama dengan klik untuk upload */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
-              {initial}
+            <div
+              className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+              onClick={() => setIsAvatarModalOpen(true)}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={tutorName}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                initial
+              )}
+              {/* Overlay kamera saat hover */}
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
             </div>
             <div>
               <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
@@ -874,6 +896,17 @@ export default function TutorDashboard() {
           </div>
         </>
       )}
+
+      {/* Modal Avatar Upload */}
+      <AvatarUploader
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        onUploadComplete={(url) => {
+          setAvatarUrl(url)
+          setIsAvatarModalOpen(false)
+        }}
+        userId={authUser?.id || ''}
+      />
     </div>
   )
 }
