@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
         verified_grade_levels,
         specializations_sd,
         specializations_smp,
-        specializations_sma
+        specializations_sma,
+        avatar_url
       `)
       .eq('user_id', userId)
       .maybeSingle()
