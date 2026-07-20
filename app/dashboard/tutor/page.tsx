@@ -445,7 +445,7 @@ const renderNameCard = () => {
             </Link>
             <Link href="/dashboard/tutor/teaching-interest">
               <Button size="sm" variant="outline" className="h-7 text-xs">
-                Edit Minat Belajar
+                Edit Minat Mengajar
               </Button>
             </Link>
           </div>
