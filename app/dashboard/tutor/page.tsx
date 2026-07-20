@@ -109,25 +109,34 @@ export default function TutorDashboard() {
         throw new Error('Supabase client tidak valid')
       }
 
-      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+      // Timeout 10 detik untuk semua operasi
+      const TIMEOUT_MS = 10000
+
+      const withTimeout = <T,>(promise: Promise<T>, label: string, ms: number = TIMEOUT_MS): Promise<T> => {
         return Promise.race([
           promise,
           new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), ms)
+            setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms)
           ),
         ])
       }
 
-      const authResult = await withTimeout(supabase.auth.getUser(), 5000)
+      console.log('🔍 Mulai fetch data...')
+      
+      const authResult = await withTimeout(supabase.auth.getUser(), 'auth.getUser', TIMEOUT_MS)
       const { data: authData, error: authError } = authResult
       if (authError || !authData?.user) {
+        console.warn('❌ Auth gagal:', authError)
         setLoading(false)
         return
       }
       const user = authData.user
+      console.log('✅ Auth berhasil, user:', user.id)
 
+      // Ambil data tutor (dengan timeout 10 detik)
       const tutorResult = await withTimeout(
         (async () => {
+          console.log('⏳ Query tutors...')
           const { data, error } = await supabase
             .from('tutors')
             .select(
@@ -135,19 +144,18 @@ export default function TutorDashboard() {
             )
             .eq('user_id', user.id)
             .maybeSingle()
-          if (error) {
-            console.error('❌ Supabase error:', error)
-            throw error
-          }
+          if (error) throw error
+          console.log('✅ Query tutors selesai')
           return { data, error: null }
         })(),
-        5000
+        'tutors query',
+        TIMEOUT_MS
       )
 
       if (!isMounted) return
 
       const tutorData = tutorResult.data
-      console.log('📦 tutorData:', tutorData) // 🔍 DEBUG
+      console.log('📦 tutorData:', tutorData)
 
       if (!tutorData) {
         console.warn('⚠️ Tutor tidak ditemukan untuk user:', user.id)
@@ -156,10 +164,8 @@ export default function TutorDashboard() {
         return
       }
 
-      // Set nama dari tutors.full_name
+      // Set data dari tutors
       setTutorName(tutorData.full_name || 'Pengajar')
-
-      // Set state lainnya
       setVerifiedLevels(tutorData.verified_grade_levels || [])
       setTargetLevel(tutorData.target_grade_level || null)
       setHourlyRate(tutorData.hourly_rate ?? null)
@@ -171,11 +177,114 @@ export default function TutorDashboard() {
         sma: tutorData.specializations_sma || [],
       })
 
-      // ... lanjutkan dengan profileComplete, teachingInterestSet, dst.
+      const profileComplete = !!(
+        tutorData.experience_years &&
+        tutorData.hourly_rate &&
+        tutorData.qualifications
+      )
+      const teachingInterestSet = !!(
+        (tutorData.verified_grade_levels?.length > 0) ||
+        (tutorData.specializations_sd?.length > 0) ||
+        (tutorData.specializations_smp?.length > 0) ||
+        (tutorData.specializations_sma?.length > 0)
+      )
+
+      let curationDone = 0
+      let curationScore = 0
+      let activeStudents = 0
+      let pendingRequests = 0
+      let completedSessions = 0
+
+      // Data sekunder (kurasi, matches) dengan toleransi timeout
+      try {
+        const [progressRes, matchResult] = await Promise.all([
+          withTimeout(fetch('/api/assessments/progress'), 'fetch /progress', TIMEOUT_MS).catch(err => {
+            console.warn('⚠️ Progress fetch timeout, skip', err)
+            return null
+          }),
+          withTimeout(
+            (async () => {
+              console.log('⏳ Query matches...')
+              const { data, error } = await supabase
+                .from('matches')
+                .select('id, status')
+                .eq('tutor_id', tutorData.id)
+              if (error) throw error
+              console.log('✅ Query matches selesai')
+              return { data, error: null }
+            })(),
+            'matches query',
+            TIMEOUT_MS
+          ).catch(err => {
+            console.warn('⚠️ Matches query timeout, skip', err)
+            return { data: null, error: null }
+          })
+        ])
+
+        // Proses progress
+        if (progressRes && progressRes.ok) {
+          const progressData = await progressRes.json()
+          const completedSteps: string[] = progressData.progress?.completed_steps || []
+          curationDone = completedSteps.length
+
+          const weights: Record<string, number> = {
+            psychology: 20,
+            academic: 30,
+            microteaching: 25,
+            handwriting: 15,
+            interview: 10,
+          }
+          const keys = ['psychology', 'academic', 'microteaching', 'handwriting', 'interview']
+          let total = 0
+          let totalWeight = 0
+          keys.forEach((key: string) => {
+            const score = progressData[key]?.score ?? progressData[key]?.overall_score
+            if (score !== undefined) {
+              total += (score * weights[key]) / 100
+              totalWeight += weights[key]
+            }
+          })
+          if (totalWeight > 0) curationScore = Math.round(total)
+        }
+
+        // Proses matches
+        if (matchResult && !matchResult.error && matchResult.data) {
+          const matches = matchResult.data
+          const activeStatuses = ['accepted', 'active', 'matched']
+          activeStudents = matches.filter((m: { status: string }) => activeStatuses.includes(m.status)).length
+          pendingRequests = matches.filter((m: { status: string }) => m.status === 'pending').length
+          completedSessions = matches.filter((m: { status: string }) => m.status === 'completed').length
+        }
+      } catch (err) {
+        console.warn('⚠️ Gagal mengambil data sekunder:', err)
+        // Tetap lanjut, tidak perlu gagal total
+      }
+
+      if (!isMounted) return
+
+      const curationComplete = curationDone >= 5
+      const curationPassed = curationComplete && curationScore > 80
+
+      setStats({
+        profileComplete,
+        teachingInterestSet,
+        curationDone,
+        curationScore,
+        curationTotal: 5,
+        curationComplete,
+        curationPassed,
+        activeStudents,
+        pendingRequests,
+        completedSessions,
+        rating: tutorData.rating || 0,
+        totalReviews: tutorData.total_reviews || 0,
+      })
     } catch (error) {
       console.error('❌ Gagal memuat data:', error)
     } finally {
-      if (isMounted) setLoading(false)
+      if (isMounted) {
+        setLoading(false)
+      }
     }
   }
 
