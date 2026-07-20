@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
 import { Camera } from 'lucide-react'
 
 interface AvatarUploaderProps {
@@ -30,7 +29,6 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
   const [uploading, setUploading] = useState(false)
   const [step, setStep] = useState<'select' | 'crop'>('select')
   const imgRef = useRef<HTMLImageElement | null>(null)
-  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -85,105 +83,45 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
     }
 
     setUploading(true)
-    console.log('🚀 Starting upload...')
-
-    // Clear previous timeout if any
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current)
-      timeoutIdRef.current = null
-    }
-
-    // Set global timeout 30 detik
-    timeoutIdRef.current = setTimeout(() => {
-      console.warn('⏱️ Upload timeout, forcing completion')
-      setUploading(false)
-      alert('Upload timeout. Coba lagi nanti.')
-      timeoutIdRef.current = null
-    }, 30000)
+    console.log('🚀 Starting upload via API...')
 
     try {
-      // 1. Fetch blob
-      console.log('📥 Fetching blob from:', croppedImage)
+      // Fetch blob
       const response = await fetch(croppedImage)
       if (!response.ok) {
         throw new Error(`Gagal fetch blob: ${response.status}`)
       }
       const blob = await response.blob()
-      console.log('📦 Blob size:', blob.size, 'bytes')
 
-      // 2. Upload ke Supabase Storage
-      const supabase = createClient()
-      const fileExt = 'jpg'
-      const fileName = `${userId}/${Date.now()}.${fileExt}`
+      // Buat FormData
+      const formData = new FormData()
+      formData.append('file', blob, 'avatar.jpg')
+      formData.append('userId', userId)
 
-      console.log('⬆️ Uploading to avatars bucket:', fileName)
+      console.log('📤 Sending to API...')
 
-      // Coba cek apakah bucket ada
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-      if (listError) {
-        console.error('❌ List buckets error:', listError)
-        throw new Error(`Gagal list buckets: ${listError.message}`)
+      // Kirim ke API route
+      const uploadResponse = await fetch('/api/upload/avatar', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await uploadResponse.json()
+
+      if (!uploadResponse.ok) {
+        throw new Error(result.error || 'Upload failed')
       }
-      const bucketExists = buckets?.some(b => b.name === 'avatars')
-      if (!bucketExists) {
-        console.error('❌ Bucket "avatars" not found!')
-        throw new Error('Bucket "avatars" tidak ditemukan. Buat bucket di Supabase Storage.')
-      }
-      console.log('✅ Bucket "avatars" exists')
 
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          upsert: true,
-          cacheControl: '3600'
-        })
+      console.log('✅ Upload success via API:', result.url)
 
-      if (uploadError) {
-        console.error('❌ Upload error detail:', uploadError)
-        throw new Error(`Upload error: ${uploadError.message}`)
-      }
-      console.log('✅ Upload successful:', uploadData)
-
-      // 3. Dapatkan URL publik
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName)
-
-      const avatarUrl = urlData.publicUrl
-      console.log('🔗 Public URL:', avatarUrl)
-
-      // 4. Update avatar_url di tabel tutors
-      console.log('🔄 Updating tutors table...')
-      const { error: updateError } = await supabase
-        .from('tutors')
-        .update({ avatar_url: avatarUrl })
-        .eq('user_id', userId)
-
-      if (updateError) {
-        console.error('❌ Update error detail:', updateError)
-        throw new Error(`Update error: ${updateError.message}`)
-      }
-      console.log('✅ Update successful')
-
-      // Success
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current)
-        timeoutIdRef.current = null
-      }
-      onUploadComplete(avatarUrl)
+      onUploadComplete(result.url)
       onClose()
 
     } catch (error) {
       console.error('❌ Upload error:', error)
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current)
-        timeoutIdRef.current = null
-      }
       alert('Gagal upload foto: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setUploading(false)
-      console.log('🏁 Upload process finished')
     }
   }
 
@@ -197,11 +135,6 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
 
   const handleClose = () => {
     resetState()
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current)
-      timeoutIdRef.current = null
-    }
-    setUploading(false)
     onClose()
   }
 
