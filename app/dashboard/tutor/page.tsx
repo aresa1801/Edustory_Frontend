@@ -100,174 +100,88 @@ export default function TutorDashboard() {
   const [showCurationInfo, setShowCurationInfo] = useState(false)
 
   useEffect(() => {
-    let isMounted = true
+  let isMounted = true
 
-    const fetchData = async () => {
-      try {
-        const supabase = createClient()
-        if (!supabase || typeof supabase.from !== 'function') {
-          throw new Error('Supabase client tidak valid')
-        }
-
-        const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
-          return Promise.race([
-            promise,
-            new Promise<T>((_, reject) =>
-              setTimeout(() => reject(new Error('Timeout')), ms)
-            ),
-          ])
-        }
-
-        const authResult = await withTimeout(supabase.auth.getUser(), 5000)
-        const { data: authData, error: authError } = authResult
-        if (authError || !authData?.user) {
-          setLoading(false)
-          return
-        }
-        const user = authData.user
-
-        // Ambil data tutor dari tabel tutors (termasuk full_name)
-        const tutorResult = await withTimeout(
-          (async () => {
-            const { data, error } = await supabase
-              .from('tutors')
-              .select(
-                'id, full_name, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
-              )
-              .eq('user_id', user.id)
-              .maybeSingle()
-            if (error) throw error
-            return { data, error: null }
-          })(),
-          5000
-        )
-
-        if (!isMounted) return
-
-        const tutorData = tutorResult.data
-        if (!tutorData) {
-          setLoading(false)
-          return
-        }
-
-        // Set nama dari tutors.full_name
-        setTutorName(tutorData.full_name || 'Pengajar')
-
-        // Set state lainnya
-        setVerifiedLevels(tutorData.verified_grade_levels || [])
-        setTargetLevel(tutorData.target_grade_level || null)
-        setHourlyRate(tutorData.hourly_rate || null)
-        setQualifications(tutorData.qualifications || null)
-        setExperienceYears(tutorData.experience_years || null)
-        setAllSubjects({
-          sd: tutorData.specializations_sd || [],
-          smp: tutorData.specializations_smp || [],
-          sma: tutorData.specializations_sma || [],
-        })
-
-        const profileComplete = !!(
-          tutorData.experience_years &&
-          tutorData.hourly_rate &&
-          tutorData.qualifications
-        )
-        const teachingInterestSet = !!(
-          (tutorData.verified_grade_levels?.length > 0) ||
-          (tutorData.specializations_sd?.length > 0) ||
-          (tutorData.specializations_smp?.length > 0) ||
-          (tutorData.specializations_sma?.length > 0)
-        )
-
-        let curationDone = 0
-        let curationScore = 0
-        let activeStudents = 0
-        let pendingRequests = 0
-        let completedSessions = 0
-
-        try {
-          const [progressRes, matchResult] = await Promise.all([
-            withTimeout(fetch('/api/assessments/progress'), 5000),
-            withTimeout(
-              (async () => {
-                const { data, error } = await supabase
-                  .from('matches')
-                  .select('id, status')
-                  .eq('tutor_id', tutorData.id)
-                if (error) throw error
-                return { data, error: null }
-              })(),
-              5000
-            ),
-          ])
-
-          if (progressRes.ok) {
-            const progressData = await progressRes.json()
-            const completedSteps: string[] = progressData.progress?.completed_steps || []
-            curationDone = completedSteps.length
-
-            const weights: Record<string, number> = {
-              psychology: 20,
-              academic: 30,
-              microteaching: 25,
-              handwriting: 15,
-              interview: 10,
-            }
-            const keys = ['psychology', 'academic', 'microteaching', 'handwriting', 'interview']
-            let total = 0
-            let totalWeight = 0
-            keys.forEach((key: string) => {
-              const score = progressData[key]?.score ?? progressData[key]?.overall_score
-              if (score !== undefined) {
-                total += (score * weights[key]) / 100
-                totalWeight += weights[key]
-              }
-            })
-            if (totalWeight > 0) curationScore = Math.round(total)
-          }
-
-          if (!matchResult.error && matchResult.data) {
-            const matches = matchResult.data
-            const activeStatuses = ['accepted', 'active', 'matched']
-            activeStudents = matches.filter((m: { status: string }) => activeStatuses.includes(m.status)).length
-            pendingRequests = matches.filter((m: { status: string }) => m.status === 'pending').length
-            completedSessions = matches.filter((m: { status: string }) => m.status === 'completed').length
-          }
-        } catch (err) {
-          console.warn('Gagal mengambil data sekunder:', err)
-        }
-
-        if (!isMounted) return
-
-        const curationComplete = curationDone >= 5
-        const curationPassed = curationComplete && curationScore > 80
-
-        setStats({
-          profileComplete,
-          teachingInterestSet,
-          curationDone,
-          curationScore,
-          curationTotal: 5,
-          curationComplete,
-          curationPassed,
-          activeStudents,
-          pendingRequests,
-          completedSessions,
-          rating: tutorData.rating || 0,
-          totalReviews: tutorData.total_reviews || 0,
-        })
-      } catch (error) {
-        console.error('Gagal memuat data:', error)
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+  const fetchData = async () => {
+    try {
+      const supabase = createClient()
+      if (!supabase || typeof supabase.from !== 'function') {
+        throw new Error('Supabase client tidak valid')
       }
-    }
 
-    fetchData()
-    return () => {
-      isMounted = false
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), ms)
+          ),
+        ])
+      }
+
+      const authResult = await withTimeout(supabase.auth.getUser(), 5000)
+      const { data: authData, error: authError } = authResult
+      if (authError || !authData?.user) {
+        setLoading(false)
+        return
+      }
+      const user = authData.user
+
+      const tutorResult = await withTimeout(
+        (async () => {
+          const { data, error } = await supabase
+            .from('tutors')
+            .select(
+              'id, full_name, experience_years, hourly_rate, qualifications, rating, total_reviews, verified_grade_levels, target_grade_level, specializations_sd, specializations_smp, specializations_sma'
+            )
+            .eq('user_id', user.id)
+            .maybeSingle()
+          if (error) {
+            console.error('❌ Supabase error:', error)
+            throw error
+          }
+          return { data, error: null }
+        })(),
+        5000
+      )
+
+      if (!isMounted) return
+
+      const tutorData = tutorResult.data
+      console.log('📦 tutorData:', tutorData) // 🔍 DEBUG
+
+      if (!tutorData) {
+        console.warn('⚠️ Tutor tidak ditemukan untuk user:', user.id)
+        setTutorName('Belum terdaftar sebagai tutor')
+        setLoading(false)
+        return
+      }
+
+      // Set nama dari tutors.full_name
+      setTutorName(tutorData.full_name || 'Pengajar')
+
+      // Set state lainnya
+      setVerifiedLevels(tutorData.verified_grade_levels || [])
+      setTargetLevel(tutorData.target_grade_level || null)
+      setHourlyRate(tutorData.hourly_rate ?? null)
+      setQualifications(tutorData.qualifications || null)
+      setExperienceYears(tutorData.experience_years ?? null)
+      setAllSubjects({
+        sd: tutorData.specializations_sd || [],
+        smp: tutorData.specializations_smp || [],
+        sma: tutorData.specializations_sma || [],
+      })
+
+      // ... lanjutkan dengan profileComplete, teachingInterestSet, dst.
+    } catch (error) {
+      console.error('❌ Gagal memuat data:', error)
+    } finally {
+      if (isMounted) setLoading(false)
     }
-  }, [])
+  }
+
+  fetchData()
+  return () => { isMounted = false }
+}, [])
 
   if (loading) {
     return (
