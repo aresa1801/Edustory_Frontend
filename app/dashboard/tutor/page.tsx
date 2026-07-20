@@ -233,8 +233,13 @@ export default function TutorDashboard() {
     return `${years} tahun`
   }
 
+  // Render mata pelajaran dengan urutan hardcode: SD → SMP → SMA
   const renderSubjects = (subjects: { sd: string[], smp: string[], sma: string[] }) => {
-    const all = [...subjects.sd, ...subjects.smp, ...subjects.sma]
+    // Buat daftar sesuai urutan hardcode
+    const sd = subjects.sd.slice().sort()
+    const smp = subjects.smp.slice().sort()
+    const sma = subjects.sma.slice().sort()
+    const all = [...sd, ...smp, ...sma]
     if (all.length === 0) return <span className="text-muted-foreground">Belum ada mata pelajaran</span>
 
     return all.map((subject, idx) => {
@@ -255,6 +260,13 @@ export default function TutorDashboard() {
   const renderNameCard = () => {
     const initial = tutorName.charAt(0).toUpperCase()
     const isCurationComplete = stats.curationComplete
+
+    // Urutkan verifiedLevels berdasarkan GRADE_LEVEL_ORDER (SD→SMP→SMA)
+    const sortedLevels = verifiedLevels.slice().sort((a, b) => {
+      const idxA = GRADE_LEVEL_ORDER.indexOf(a)
+      const idxB = GRADE_LEVEL_ORDER.indexOf(b)
+      return idxA - idxB
+    })
 
     return (
       <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
@@ -325,14 +337,15 @@ export default function TutorDashboard() {
               <span className="break-words">{qualifications || 'Belum diisi'}</span>
             </p>
 
+            {/* Kelas dengan urutan hardcode */}
             <p className="text-sm flex items-start gap-2">
               <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
               <span>
-                {verifiedLevels.length > 0 ? (
-                  verifiedLevels.sort().map((lvl, idx) => (
+                {sortedLevels.length > 0 ? (
+                  sortedLevels.map((lvl, idx) => (
                     <span key={idx} className={getLevelColor(lvl)}>
                       {lvl}
-                      {idx < verifiedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
+                      {idx < sortedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
                     </span>
                   ))
                 ) : targetLevel ? (
@@ -343,6 +356,7 @@ export default function TutorDashboard() {
               </span>
             </p>
 
+            {/* Mata pelajaran dengan urutan hardcode SD→SMP→SMA */}
             <p className="text-sm flex items-start gap-2">
               <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
               <span>
@@ -379,6 +393,13 @@ export default function TutorDashboard() {
     const percent = Math.round((stats.curationDone / stats.curationTotal) * 100)
     const isComplete = stats.curationComplete
 
+    // Urutkan verifiedLevels untuk badge di sini juga
+    const sortedLevels = verifiedLevels.slice().sort((a, b) => {
+      const idxA = GRADE_LEVEL_ORDER.indexOf(a)
+      const idxB = GRADE_LEVEL_ORDER.indexOf(b)
+      return idxA - idxB
+    })
+
     return (
       <Card className="border shadow-sm h-full">
         <CardHeader className="pb-3">
@@ -414,13 +435,13 @@ export default function TutorDashboard() {
           )}
 
           <div className="border-t border-border/50 pt-3 mt-2">
-            {verifiedLevels.length > 0 ? (
+            {sortedLevels.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Anda terverifikasi mengajar kelas-kelas berikut:
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {GRADE_LEVEL_ORDER.filter(lvl => verifiedLevels.includes(lvl)).map(lvl => (
+                  {sortedLevels.map(lvl => (
                     <Badge key={lvl} className={`${getLevelColor(lvl)} bg-opacity-20 border`}>
                       ✓ {lvl}
                     </Badge>
