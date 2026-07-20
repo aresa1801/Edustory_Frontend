@@ -30,6 +30,7 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
   const [uploading, setUploading] = useState(false)
   const [step, setStep] = useState<'select' | 'crop'>('select')
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -86,8 +87,22 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
     setUploading(true)
     console.log('🚀 Starting upload...')
 
+    // Clear previous timeout if any
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current)
+      timeoutIdRef.current = null
+    }
+
+    // Set global timeout 30 detik
+    timeoutIdRef.current = setTimeout(() => {
+      console.warn('⏱️ Upload timeout, forcing completion')
+      setUploading(false)
+      alert('Upload timeout. Coba lagi nanti.')
+      timeoutIdRef.current = null
+    }, 30000)
+
     try {
-      // 1. Fetch blob dari croppedImage
+      // 1. Fetch blob
       console.log('📥 Fetching blob from:', croppedImage)
       const response = await fetch(croppedImage)
       if (!response.ok) {
@@ -102,12 +117,30 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
       const fileName = `${userId}/${Date.now()}.${fileExt}`
 
       console.log('⬆️ Uploading to avatars bucket:', fileName)
+
+      // Coba cek apakah bucket ada
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+      if (listError) {
+        console.error('❌ List buckets error:', listError)
+        throw new Error(`Gagal list buckets: ${listError.message}`)
+      }
+      const bucketExists = buckets?.some(b => b.name === 'avatars')
+      if (!bucketExists) {
+        console.error('❌ Bucket "avatars" not found!')
+        throw new Error('Bucket "avatars" tidak ditemukan. Buat bucket di Supabase Storage.')
+      }
+      console.log('✅ Bucket "avatars" exists')
+
       const { error: uploadError, data: uploadData } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true })
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+          cacheControl: '3600'
+        })
 
       if (uploadError) {
-        console.error('❌ Upload error:', uploadError)
+        console.error('❌ Upload error detail:', uploadError)
         throw new Error(`Upload error: ${uploadError.message}`)
       }
       console.log('✅ Upload successful:', uploadData)
@@ -128,16 +161,25 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
         .eq('user_id', userId)
 
       if (updateError) {
-        console.error('❌ Update error:', updateError)
+        console.error('❌ Update error detail:', updateError)
         throw new Error(`Update error: ${updateError.message}`)
       }
       console.log('✅ Update successful')
 
-      // 5. Panggil callback sukses
+      // Success
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current)
+        timeoutIdRef.current = null
+      }
       onUploadComplete(avatarUrl)
       onClose()
+
     } catch (error) {
-      console.error('❌ Upload avatar error:', error)
+      console.error('❌ Upload error:', error)
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current)
+        timeoutIdRef.current = null
+      }
       alert('Gagal upload foto: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setUploading(false)
@@ -155,6 +197,11 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
 
   const handleClose = () => {
     resetState()
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current)
+      timeoutIdRef.current = null
+    }
+    setUploading(false)
     onClose()
   }
 
