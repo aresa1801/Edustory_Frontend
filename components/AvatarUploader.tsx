@@ -78,48 +78,70 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
   }
 
   const handleUpload = async () => {
-    if (!croppedImage) return
+    if (!croppedImage) {
+      console.warn('No cropped image')
+      return
+    }
 
     setUploading(true)
+    console.log('🚀 Starting upload...')
 
     try {
-      // Fetch blob from croppedImage URL
+      // 1. Fetch blob dari croppedImage
+      console.log('📥 Fetching blob from:', croppedImage)
       const response = await fetch(croppedImage)
+      if (!response.ok) {
+        throw new Error(`Gagal fetch blob: ${response.status}`)
+      }
       const blob = await response.blob()
+      console.log('📦 Blob size:', blob.size, 'bytes')
 
+      // 2. Upload ke Supabase Storage
       const supabase = createClient()
       const fileExt = 'jpg'
       const fileName = `${userId}/${Date.now()}.${fileExt}`
 
-      // Upload ke Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      console.log('⬆️ Uploading to avatars bucket:', fileName)
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('avatars')
         .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true })
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError)
+        throw new Error(`Upload error: ${uploadError.message}`)
+      }
+      console.log('✅ Upload successful:', uploadData)
 
-      // Dapatkan URL publik
+      // 3. Dapatkan URL publik
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName)
 
       const avatarUrl = urlData.publicUrl
+      console.log('🔗 Public URL:', avatarUrl)
 
-      // Update kolom avatar_url di tabel tutors
+      // 4. Update avatar_url di tabel tutors
+      console.log('🔄 Updating tutors table...')
       const { error: updateError } = await supabase
         .from('tutors')
         .update({ avatar_url: avatarUrl })
         .eq('user_id', userId)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('❌ Update error:', updateError)
+        throw new Error(`Update error: ${updateError.message}`)
+      }
+      console.log('✅ Update successful')
 
+      // 5. Panggil callback sukses
       onUploadComplete(avatarUrl)
       onClose()
     } catch (error) {
-      console.error('Upload avatar error:', error)
-      alert('Gagal upload foto. Coba lagi.')
+      console.error('❌ Upload avatar error:', error)
+      alert('Gagal upload foto: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setUploading(false)
+      console.log('🏁 Upload process finished')
     }
   }
 
