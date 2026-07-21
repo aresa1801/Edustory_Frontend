@@ -294,7 +294,14 @@ export default function TutorDashboard() {
 
     return (
       <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
-        {/* Badge */}
+        {/* 🔥 LABEL KARTU PENGAJAR - Pojok Kiri Atas */}
+        <div className="absolute top-3 left-3">
+          <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+            Kartu Pengajar
+          </span>
+        </div>
+
+        {/* Badge - Pojok Kanan Atas (tetap) */}
         <div className="absolute top-3 right-3 flex items-center gap-1">
           <Badge 
             className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
