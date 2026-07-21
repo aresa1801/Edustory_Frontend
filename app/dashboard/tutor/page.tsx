@@ -285,7 +285,6 @@ const renderNameCard = () => {
   const initial = tutorName.charAt(0).toUpperCase()
   const isCurationComplete = stats.curationComplete
 
-  // Urutkan verifiedLevels berdasarkan GRADE_LEVEL_ORDER (SD→SMP→SMA)
   const sortedLevels = verifiedLevels.slice().sort((a, b) => {
     const idxA = GRADE_LEVEL_ORDER.indexOf(a)
     const idxB = GRADE_LEVEL_ORDER.indexOf(b)
@@ -323,15 +322,16 @@ const renderNameCard = () => {
         )}
       </div>
 
-      {/* 🔥 HEADER KARTU PENGAJAR - Besar seperti gambar referensi */}
-      <CardHeader className="pb-2 pt-4 border-b border-border/50">
+      {/* 🔥 HEADER KARTU PENGAJAR - dengan padding bawah minimum */}
+      <CardHeader className="pb-1 pt-4">
         <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
           <UserCircle className="w-5 h-5 text-primary" />
           Kartu Pengajar
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="p-5 pt-4">
+      {/* 🔥 KONTEN - padding atas diperkecil agar rapat */}
+      <CardContent className="p-5 pt-2">
         {/* Foto + Nama */}
         <div className="flex items-center gap-4">
           <div
@@ -347,7 +347,6 @@ const renderNameCard = () => {
             ) : (
               initial
             )}
-            {/* Overlay kamera saat hover */}
             <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Camera className="w-6 h-6 text-white" />
             </div>
@@ -357,6 +356,7 @@ const renderNameCard = () => {
           </div>
         </div>
 
+        {/* Sisa konten tetap sama */}
         <div className="border-t border-border/50 my-3" />
 
         {/* Tarif & Rating */}
@@ -434,7 +434,6 @@ const renderNameCard = () => {
       </CardContent>
     </Card>
   )
-  
 }
 
   // Render Progress Kurasi (sama seperti sebelumnya, tambahkan tooltip di badge)
