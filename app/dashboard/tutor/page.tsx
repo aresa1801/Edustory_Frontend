@@ -281,161 +281,161 @@ export default function TutorDashboard() {
   }
 
   // Render Namecard
-  const renderNameCard = () => {
-    const initial = tutorName.charAt(0).toUpperCase()
-    const isCurationComplete = stats.curationComplete
+const renderNameCard = () => {
+  const initial = tutorName.charAt(0).toUpperCase()
+  const isCurationComplete = stats.curationComplete
 
-    // Urutkan verifiedLevels berdasarkan GRADE_LEVEL_ORDER (SD→SMP→SMA)
-    const sortedLevels = verifiedLevels.slice().sort((a, b) => {
-      const idxA = GRADE_LEVEL_ORDER.indexOf(a)
-      const idxB = GRADE_LEVEL_ORDER.indexOf(b)
-      return idxA - idxB
-    })
+  // Urutkan verifiedLevels berdasarkan GRADE_LEVEL_ORDER (SD→SMP→SMA)
+  const sortedLevels = verifiedLevels.slice().sort((a, b) => {
+    const idxA = GRADE_LEVEL_ORDER.indexOf(a)
+    const idxB = GRADE_LEVEL_ORDER.indexOf(b)
+    return idxA - idxB
+  })
 
-    return (
-      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative">
-        {/* 🔥 LABEL KARTU PENGAJAR - Pojok Kiri Atas */}
-        <div className="absolute top-3 left-3">
-          <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-            Kartu Pengajar
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
+      {/* Badge status kurasi - pojok kanan atas */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
+        <Badge 
+          className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
+        >
+          {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
+        </Badge>
+        <button
+          onClick={() => setShowCurationInfo(!showCurationInfo)}
+          className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span className="text-xs font-bold">i</span>
+        </button>
+        {showCurationInfo && (
+          <div className="absolute top-8 right-0 w-64 bg-popover border rounded-lg shadow-lg p-3 z-10 text-sm">
+            <p className="text-foreground">
+              {isCurationComplete 
+                ? 'Anda telah kurasi untuk mendapatkan kepercayaan lebih baik dari student.' 
+                : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
+            </p>
+            {!isCurationComplete && (
+              <Link href="/curation/progress" className="mt-2 inline-block w-full">
+                <Button size="sm" className="w-full">Kurasi</Button>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 🔥 HEADER KARTU PENGAJAR - Besar seperti gambar referensi */}
+      <CardHeader className="pb-2 pt-4 border-b border-border/50">
+        <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+          <UserCircle className="w-5 h-5 text-primary" />
+          Kartu Pengajar
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="p-5 pt-4">
+        {/* Foto + Nama */}
+        <div className="flex items-center gap-4">
+          <div
+            className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+            onClick={() => setIsAvatarModalOpen(true)}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={tutorName}
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              initial
+            )}
+            {/* Overlay kamera saat hover */}
+            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Camera className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
+          </div>
+        </div>
+
+        <div className="border-t border-border/50 my-3" />
+
+        {/* Tarif & Rating */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
+          <span className="flex items-center text-sm text-muted-foreground">
+            <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+            {formatCurrency(hourlyRate)}
+          </span>
+          <span className="flex items-center text-sm text-muted-foreground">
+            <Star className="w-4 h-4 mr-1 text-yellow-500" />
+            {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
           </span>
         </div>
 
-        {/* Badge - Pojok Kanan Atas (tetap) */}
-        <div className="absolute top-3 right-3 flex items-center gap-1">
-          <Badge 
-            className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
-          >
-            {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
-          </Badge>
-          <button
-            onClick={() => setShowCurationInfo(!showCurationInfo)}
-            className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="text-xs font-bold">i</span>
-          </button>
-          {showCurationInfo && (
-            <div className="absolute top-8 right-0 w-64 bg-popover border rounded-lg shadow-lg p-3 z-10 text-sm">
-              <p className="text-foreground">
-                {isCurationComplete 
-                  ? 'Anda telah kurasi untuk mendapatkan kepercayaan lebih baik dari student.' 
-                  : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
-              </p>
-              {!isCurationComplete && (
-                <Link href="/curation/progress" className="mt-2 inline-block w-full">
-                  <Button size="sm" className="w-full">Kurasi</Button>
-                </Link>
-              )}
-            </div>
-          )}
+        {/* Pengalaman */}
+        <div className="flex items-center text-sm text-muted-foreground mb-2">
+          <Clock className="w-4 h-4 mr-1 text-blue-400" />
+          {formatExperience(experienceYears)}
         </div>
 
-        <CardContent className="p-5">
-          {/* Foto + Nama dengan klik untuk upload */}
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
-              onClick={() => setIsAvatarModalOpen(true)}
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={tutorName}
-                  className="w-full h-full object-cover rounded-full"
-                />
+        {/* Kualifikasi & Kelas & Mata Pelajaran */}
+        <div className="space-y-1.5">
+          <p className="text-sm text-muted-foreground flex items-start gap-2">
+            <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+            <span className="break-words">{qualifications || 'Belum diisi'}</span>
+          </p>
+
+          <p className="text-sm flex items-start gap-2">
+            <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+            <span>
+              {sortedLevels.length > 0 ? (
+                sortedLevels.map((lvl, idx) => {
+                  const tooltip = getLevelTooltip(lvl)
+                  return (
+                    <span key={idx} className={getLevelColor(lvl)} title={tooltip}>
+                      {lvl}
+                      {idx < sortedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
+                    </span>
+                  )
+                })
+              ) : targetLevel ? (
+                <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
               ) : (
-                initial
+                <span className="text-muted-foreground">Kelas belum ditentukan</span>
               )}
-              {/* Overlay kamera saat hover */}
-              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Camera className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-foreground">{tutorName}</h3>
-            </div>
-          </div>
-
-          <div className="border-t border-border/50 my-3" />
-
-          {/* Tarif & Rating */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
-            <span className="flex items-center text-sm text-muted-foreground">
-              <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-              {formatCurrency(hourlyRate)}
             </span>
-            <span className="flex items-center text-sm text-muted-foreground">
-              <Star className="w-4 h-4 mr-1 text-yellow-500" />
-              {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
+          </p>
+
+          <p className="text-sm flex items-start gap-2">
+            <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+            <span>
+              {renderSubjects(allSubjects)}
             </span>
+          </p>
+        </div>
+
+        {/* Label & Tombol Edit */}
+        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
+          <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
+            Namecard untuk ditampilkan ke siswa
+          </span>
+          <div className="flex gap-2">
+            <Link href="/dashboard/tutor/profile">
+              <Button size="sm" variant="outline" className="h-7 text-xs">
+                Edit Profil
+              </Button>
+            </Link>
+            <Link href="/dashboard/tutor/teaching-interest">
+              <Button size="sm" variant="outline" className="h-7 text-xs">
+                Edit Minat Mengajar
+              </Button>
+            </Link>
           </div>
-
-          {/* Pengalaman */}
-          <div className="flex items-center text-sm text-muted-foreground mb-2">
-            <Clock className="w-4 h-4 mr-1 text-blue-400" />
-            {formatExperience(experienceYears)}
-          </div>
-
-          {/* Kualifikasi & Kelas & Mata Pelajaran */}
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
-              <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-              <span className="break-words">{qualifications || 'Belum diisi'}</span>
-            </p>
-
-            {/* Kelas dengan urutan hardcode dan tooltip */}
-            <p className="text-sm flex items-start gap-2">
-              <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
-              <span>
-                {sortedLevels.length > 0 ? (
-                  sortedLevels.map((lvl, idx) => {
-                    const tooltip = getLevelTooltip(lvl)
-                    return (
-                      <span key={idx} className={getLevelColor(lvl)} title={tooltip}>
-                        {lvl}
-                        {idx < sortedLevels.length - 1 && <span className="text-muted-foreground">, </span>}
-                      </span>
-                    )
-                  })
-                ) : targetLevel ? (
-                  <span className="text-muted-foreground">Target: <span className="text-foreground">{targetLevel}</span> (belum diverifikasi)</span>
-                ) : (
-                  <span className="text-muted-foreground">Kelas belum ditentukan</span>
-                )}
-              </span>
-            </p>
-
-            {/* Mata pelajaran dengan urutan hardcode SD→SMP→SMA dan tooltip */}
-            <p className="text-sm flex items-start gap-2">
-              <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-              <span>
-                {renderSubjects(allSubjects)}
-              </span>
-            </p>
-          </div>
-
-          {/* Tombol Edit */}
-          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
-            <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
-              Namecard untuk ditampilkan ke siswa
-            </span>
-            <div className="flex gap-2">
-              <Link href="/dashboard/tutor/profile">
-                <Button size="sm" variant="outline" className="h-7 text-xs">
-                  Edit Profil
-                </Button>
-              </Link>
-              <Link href="/dashboard/tutor/teaching-interest">
-                <Button size="sm" variant="outline" className="h-7 text-xs">
-                  Edit Minat Mengajar
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+        </div>
+      </CardContent>
+    </Card>
+  )
+  
+}
 
   // Render Progress Kurasi (sama seperti sebelumnya, tambahkan tooltip di badge)
   const renderCurationProgress = () => {
