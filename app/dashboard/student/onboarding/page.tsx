@@ -142,64 +142,58 @@ export default function StudentOnboardingPage() {
   // LOAD DATA – DARI TABEL students (termasuk data payment)
   // ============================================================
   const loadStudentData = async (uid: string) => {
-    console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
-    try {
-      const supabase = createClient()
-      const { data: student, error: studentErr } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', uid)
-        .maybeSingle()
-
-      if (studentErr) {
-        console.warn('[ONBOARDING] ⚠️ Error loading student:', studentErr)
-        return
-      }
-
-      if (student) {
-        console.log('[ONBOARDING] ✅ Data ditemukan:', student)
-
-        // Step 1 – Profil Siswa
-        setSiswaData({
-          name: student.name || '',
-          phone: student.phone || '',
-          gender: student.gender || '',
-          bio: student.bio || '',
-        })
-        setSekolahData({
-          school_name: student.school_name || '',
-          school_type: student.school_type || '',
-          school_city: student.school_city || '',
-          school_address: student.school_address || '',
-        })
-        setOrtuData({
-          parent_name: student.parent_name || '',
-          parent_phone: student.parent_phone || '',
-          parent_email: student.parent_email || '',
-          parent_relation: student.parent_relation || '',
-        })
-
-        // Step 2 – Minat Belajar
-        setGradeLevel(student.grade_level || '')
-        setSubjects(student.subjects || [])
-        setLearningGoals(student.learning_goals || '')
-
-        // Step 3 – Rencana Belajar
-        setSchedule(student.preferred_schedule || '')
-        setBudgetPerMonth(student.budget_per_month?.toString() || '')
-        setSessionsPerMonth(student.sessions_per_month?.toString() || '')
-
-        // Step 4 – Deposit / Payment (tambahkan ini agar persist)
-        if (student.payment_method) setSelectedPayment(student.payment_method)
-        if (student.transfer_notes) setTransferProof(student.transfer_notes)
-        // deposit_amount tidak perlu di-set karena tidak ada input untuk itu di Step 4
-      } else {
-        console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
-      }
-    } catch (err) {
-      console.error('[ONBOARDING] ❌ Load data error:', err)
+  console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
+  try {
+    const response = await fetch(`/api/students/onboarding?user_id=${uid}`)
+    if (!response.ok) {
+      const errData = await response.json()
+      throw new Error(errData.error || 'Gagal memuat data')
     }
+    const { student } = await response.json()
+    console.log('[ONBOARDING] ✅ Data dari API:', student)
+
+    if (student) {
+      // Step 1 – Profil Siswa
+      setSiswaData({
+        name: student.name || '',
+        phone: student.phone || '',
+        gender: student.gender || '',
+        bio: student.bio || '',
+      })
+      setSekolahData({
+        school_name: student.school_name || '',
+        school_type: student.school_type || '',
+        school_city: student.school_city || '',
+        school_address: student.school_address || '',
+      })
+      setOrtuData({
+        parent_name: student.parent_name || '',
+        parent_phone: student.parent_phone || '',
+        parent_email: student.parent_email || '',
+        parent_relation: student.parent_relation || '',
+      })
+
+      // Step 2 – Minat Belajar
+      setGradeLevel(student.grade_level || '')
+      setSubjects(student.subjects || [])
+      setLearningGoals(student.learning_goals || '')
+
+      // Step 3 – Rencana Belajar
+      setSchedule(student.preferred_schedule || '')
+      setBudgetPerMonth(student.budget_per_month?.toString() || '')
+      setSessionsPerMonth(student.sessions_per_month?.toString() || '')
+
+      // Step 4 – Deposit / Payment
+      if (student.payment_method) setSelectedPayment(student.payment_method)
+      if (student.transfer_notes) setTransferProof(student.transfer_notes)
+      // deposit_amount tidak perlu di-set karena tidak ada input untuk itu di Step 4
+    } else {
+      console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
+    }
+  } catch (err) {
+    console.error('[ONBOARDING] ❌ Load data error:', err)
   }
+}
 
   // ============================================================
   // INISIALISASI
