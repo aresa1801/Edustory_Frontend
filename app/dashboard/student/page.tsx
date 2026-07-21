@@ -11,12 +11,12 @@ import StudentBrowseTutors from '@/components/dashboard/student/browse-tutors'
 import StudentMyMatches from '@/components/dashboard/student/my-matches'
 import StudentProfile from '@/components/dashboard/student/student-profile'
 import { createClient } from '@/lib/auth'
+import Link from 'next/link'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
-  ArrowRight, Calendar, Star, Mail, Edit, User as UserIcon,
-  School, BookMarked, MapPin, Clock as ClockIcon, Wifi
+  ArrowRight, Calendar, Star, Mail, Edit,
+  UserCircle, School, BookMarked, MapPin, DollarSign
 } from 'lucide-react'
-import Link from 'next/link'
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Menunggu', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border border-yellow-500/30' },
@@ -48,7 +48,6 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
-  // Fungsi untuk mengambil data via API (agar konsisten dengan onboarding)
   const fetchStudentData = async (userId: string) => {
     try {
       const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
@@ -93,7 +92,7 @@ export default function StudentDashboard() {
           .maybeSingle()
         if (upError) throw upError
 
-        // Ambil data siswa via API (lebih baik)
+        // Ambil data siswa via API
         const studentData = await fetchStudentData(user.id)
 
         if (!isMounted.current) return
@@ -183,13 +182,11 @@ export default function StudentDashboard() {
   const completedMatches = matches.filter(m => m.status === 'completed')
   const onboardingComplete = profile?.onboarding_complete
 
-  // Hitung estimasi biaya per sesi (untuk ditampilkan sebagai "Tarif per jam")
   const costPerSession = profile?.budget_per_month && profile?.sessions_per_month
     ? Math.round(profile.budget_per_month / profile.sessions_per_month)
     : 0
 
-  // Status belajar (online/offline) – default "Online" jika belum ada data
-  const learningMode = 'Online' // bisa ditambahkan field nanti
+  const learningMode = 'Online' // Bisa ditambahkan field nanti
 
   return (
     <div>
@@ -246,7 +243,7 @@ export default function StudentDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Stats */}
+          {/* Stat Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-5">
               <div className="flex items-center gap-3">
@@ -296,66 +293,78 @@ export default function StudentDashboard() {
 
           {/* Info & Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* ======= KARTU PELAJAR (baru) ======= */}
+            {/* ======= KARTU PELAJAR (SAMA PERSIS SEPERTI KARTU PENGAJAR) ======= */}
             <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
-              <CardHeader className="pb-1 pt-4 border-b border-border/50">
+              <CardHeader className="pb-1 pt-4">
                 <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <UserIcon className="w-5 h-5 text-primary" />
+                  <UserCircle className="w-5 h-5 text-primary" />
                   Kartu Pelajar
                 </CardTitle>
               </CardHeader>
 
-              <CardContent className="p-5 pt-3 space-y-3">
-                {/* Tarif per jam (estimasi biaya per sesi) */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0">Tarif per jam</span>
-                  <span className="font-medium">
+              <CardContent className="p-5 pt-2">
+                {/* Foto + Nama */}
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
+                  >
+                    {profile?.name?.[0]?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-foreground">
+                      {profile?.name || 'Nama belum diisi'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-border/50 my-3" />
+
+                {/* Tarif & Status */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
+                  <span className="flex items-center text-sm text-muted-foreground">
+                    <DollarSign className="w-4 h-4 mr-1 text-green-500" />
                     {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                  </span>
+                  <span className="flex items-center text-sm text-muted-foreground">
+                    <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                    {learningMode}
                   </span>
                 </div>
 
                 {/* Kelas */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0">Kelas</span>
-                  <span className="font-medium">{profile?.grade_level || '—'}</span>
+                <div className="flex items-center text-sm text-muted-foreground mb-2">
+                  <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
+                  <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
                 </div>
 
                 {/* Mata Pelajaran */}
-                <div className="flex items-start gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0 pt-0.5">Mata Pelajaran</span>
-                  <div className="flex flex-wrap gap-1">
-                    {profile?.subjects?.length > 0 ? (
-                      profile.subjects.slice(0, 5).map((s: string) => (
-                        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground">Belum dipilih</span>
-                    )}
-                    {profile?.subjects?.length > 5 && (
-                      <Badge variant="outline" className="text-xs">+{profile.subjects.length - 5}</Badge>
-                    )}
-                  </div>
-                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <span>
+                      {profile?.subjects?.length > 0 ? (
+                        profile.subjects.join(', ')
+                      ) : (
+                        <span className="text-muted-foreground">Belum ada mata pelajaran</span>
+                      )}
+                    </span>
+                  </p>
 
-                {/* Alamat Rumah (gunakan school_address sebagai placeholder) */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0">Alamat Rumah</span>
-                  <span className="font-medium">{profile?.school_address || 'Belum diisi'}</span>
-                </div>
+                  {/* Alamat Rumah */}
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span>{profile?.school_address || 'Alamat belum diisi'}</span>
+                  </p>
 
-                {/* Jadwal Belajar */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0">Jadwal Belajar</span>
-                  <span className="font-medium">{profile?.preferred_schedule || 'Belum diatur'}</span>
-                </div>
-
-                {/* Status (Online/Offline) */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground w-32 flex-shrink-0">Status</span>
-                  <span className="font-medium flex items-center gap-1">
-                    <span className={`inline-block w-2 h-2 rounded-full ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
-                    {learningMode}
-                  </span>
+                  {/* Jadwal Belajar */}
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <Clock className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <span>{profile?.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                  </p>
                 </div>
 
                 {/* Label & Tombol Edit */}
