@@ -54,18 +54,18 @@ export default function StudentDashboard() {
   // Fungsi fetch data student via API
   const fetchStudentData = async (userId: string) => {
     try {
-      console.log('[Dashboard] 📡 Memanggil API /api/students/onboarding untuk user:', userId)
+      console.log('🔍 [DEBUG] Memanggil API /api/students/onboarding dengan user_id:', userId)
       const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
-      console.log('[Dashboard] 📡 Response status:', res.status)
+      console.log('🔍 [DEBUG] Response status:', res.status)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || 'Gagal memuat data siswa')
       }
       const { student } = await res.json()
-      console.log('[Dashboard] 📦 Data student dari API:', student)
+      console.log('🔍 [DEBUG] Data student dari API:', student)
       return student
     } catch (err) {
-      console.error('[Dashboard] ❌ API fetch error:', err)
+      console.error('❌ [DEBUG] API fetch error:', err)
       return null
     }
   }
@@ -75,10 +75,10 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
-    // Timeout untuk mencegah loading selamanya
+    // Timeout fallback (tetap dipertahankan agar dashboard tetap bisa dibuka)
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
-        console.warn('[Dashboard] ⏱️ Timeout 3 detik, force loading=false')
+        console.warn('⏱️ [DEBUG] Timeout 3 detik, force loading=false')
         setLoading(false)
         setError('Waktu pengambilan data habis, tampilkan data kosong.')
       }
@@ -86,49 +86,73 @@ export default function StudentDashboard() {
 
     const fetchData = async () => {
       try {
-        console.log('[Dashboard] 🔄 Fetching data...')
+        console.log('🔄 [DEBUG] Fetching data...')
         const supabase = createClient()
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
-        console.log('[Dashboard] 👤 User ID:', user.id)
+        console.log('👤 [DEBUG] User ID:', user.id)
 
-        // Ambil data student dari API (ini sumber utama)
+        // Ambil data student dari API
         const studentData = await fetchStudentData(user.id)
 
         if (!isMounted.current) return
 
-        // Ambil email dari user_profiles (fallback)
+        // Ambil email dari user_profiles
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
           .eq('id', user.id)
           .maybeSingle()
-        if (upError) console.warn('[Dashboard] Gagal ambil email:', upError)
+        if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
 
-        // === INI BAGIAN PENTING: Prioritas data dari studentData ===
-        const profileData = {
-          id: studentData?.id || null,
-          // 🔥 Jika studentData.name ada, pakai itu. Jika tidak, fallback.
-          name: studentData?.name || user.user_metadata?.full_name || user.email || 'Siswa',
-          email: up?.email || user.email || '',
-          grade_level: studentData?.grade_level || '',
-          subjects: studentData?.subjects || [],
-          preferred_schedule: studentData?.preferred_schedule || '',
-          budget_per_month: studentData?.budget_per_month || 0,
-          sessions_per_month: studentData?.sessions_per_month || 0,
-          school_address: studentData?.school_address || '',
-          avatar_url: studentData?.avatar_url || null,
-          onboarding_complete: studentData?.onboarding_complete || false,
-          status: studentData?.status || 'active',
+        // ============================================================
+        // 🔥 BAGIAN PENTING: Membuat profileData dari studentData
+        // ============================================================
+        let profileData: any
+
+        if (studentData) {
+          // Jika ada data student, gunakan semua field dari student
+          console.log('✅ [DEBUG] Data student ditemukan, menggunakan:', studentData)
+          profileData = {
+            id: studentData.id,
+            name: studentData.name || user.user_metadata?.full_name || user.email || 'Siswa',
+            email: up?.email || user.email || '',
+            grade_level: studentData.grade_level || '',
+            subjects: studentData.subjects || [],
+            preferred_schedule: studentData.preferred_schedule || '',
+            budget_per_month: studentData.budget_per_month || 0,
+            sessions_per_month: studentData.sessions_per_month || 0,
+            school_address: studentData.school_address || studentData.address || '',
+            avatar_url: studentData.avatar_url || null,
+            onboarding_complete: studentData.onboarding_complete || false,
+            status: studentData.status || 'active',
+          }
+        } else {
+          // Jika studentData null, gunakan fallback dari metadata/email
+          console.warn('⚠️ [DEBUG] Data student NULL, menggunakan fallback.')
+          profileData = {
+            id: null,
+            name: user.user_metadata?.full_name || user.email || 'Siswa',
+            email: up?.email || user.email || '',
+            grade_level: '',
+            subjects: [],
+            preferred_schedule: '',
+            budget_per_month: 0,
+            sessions_per_month: 0,
+            school_address: '',
+            avatar_url: null,
+            onboarding_complete: false,
+            status: 'active',
+          }
         }
 
-        console.log('[Dashboard] 📝 Profile data yang akan diset:', profileData)
+        console.log('📝 [DEBUG] Profile data yang akan diset:', profileData)
         setProfile(profileData)
 
         // Jika ada student id, ambil matches dan offers
         if (studentData?.id) {
-          console.log('[Dashboard] 🔍 Mengambil matches untuk student_id:', studentData.id)
+          console.log('🔍 [DEBUG] Mengambil matches untuk student_id:', studentData.id)
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
@@ -153,17 +177,17 @@ export default function StudentDashboard() {
             setTutorOffers(offers || [])
           }
         } else {
-          console.log('[Dashboard] ℹ️ studentData.id kosong, tidak ada matches')
+          console.log('ℹ️ [DEBUG] studentData.id kosong, tidak ada matches')
         }
 
         if (isMounted.current) {
           setError(null)
           setLoading(false)
         }
-        console.log('[Dashboard] ✅ Data siap, loading=false')
+        console.log('✅ [DEBUG] Data siap, loading=false')
 
       } catch (err: any) {
-        console.error('[Dashboard] ❌ Fetch error:', err)
+        console.error('❌ [DEBUG] Fetch error:', err)
         if (isMounted.current) {
           setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
         }
@@ -171,7 +195,7 @@ export default function StudentDashboard() {
         if (isMounted.current && timeoutId.current) {
           clearTimeout(timeoutId.current)
           setLoading(prev => {
-            if (prev) console.log('[Dashboard] 🏁 Fetch selesai, loading=false (forced)')
+            if (prev) console.log('🏁 [DEBUG] Fetch selesai, loading=false (forced)')
             return false
           })
         }
@@ -217,6 +241,17 @@ export default function StudentDashboard() {
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Tambahan alert untuk debugging: jika profile.name masih 'Siswa' dan onboarding_complete false */}
+      {profile?.name === 'Siswa' && !onboardingComplete && (
+        <Alert className="mb-4 bg-yellow-500/10 border-yellow-500/30">
+          <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+            ⚠️ Data siswa belum ditemukan. Pastikan Anda sudah mengisi onboarding dan data tersimpan di database.
+            <br />
+            <span className="text-xs">(Cek console browser untuk melihat log detail)</span>
+          </AlertDescription>
         </Alert>
       )}
 
