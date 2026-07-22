@@ -28,6 +28,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState<any>({
+    id: null,
     name: 'Siswa',
     email: '',
     grade_level: '',
@@ -36,6 +37,8 @@ export default function StudentDashboard() {
     budget_per_month: 0,
     sessions_per_month: 0,
     school_address: '',
+    avatar_url: null,
+    onboarding_complete: false,
     status: 'active',
   })
   const [matches, setMatches] = useState<any[]>([])
@@ -48,6 +51,7 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
+  // Fungsi fetch data student via API (sama seperti tutor)
   const fetchStudentData = async (userId: string) => {
     try {
       const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
@@ -68,6 +72,7 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
+    // Timeout untuk mencegah loading selamanya
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('[Dashboard] ⏱️ Timeout 3 detik, force loading=false')
@@ -84,29 +89,38 @@ export default function StudentDashboard() {
         if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
 
-        // Ambil data profil user (name, email)
-        const { data: up, error: upError } = await supabase
-          .from('user_profiles')
-          .select('name, email')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (upError) throw upError
-
-        // Ambil data siswa via API
+        // Ambil data student dari API (ini sumber utama)
         const studentData = await fetchStudentData(user.id)
 
         if (!isMounted.current) return
 
-        // Gabungkan data
+        // Ambil email dari user_profiles (fallback)
+        const { data: up, error: upError } = await supabase
+          .from('user_profiles')
+          .select('email')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (upError) console.warn('[Dashboard] Gagal ambil email:', upError)
+
+        // Gabungkan data: prioritas dari studentData, fallback ke user metadata / email
         const profileData = {
-          name: up?.name || user.user_metadata?.full_name || user.email || 'Siswa',
+          id: studentData?.id || null,
+          name: studentData?.name || user.user_metadata?.full_name || user.email || 'Siswa',
           email: up?.email || user.email || '',
-          ...studentData,
+          grade_level: studentData?.grade_level || '',
+          subjects: studentData?.subjects || [],
+          preferred_schedule: studentData?.preferred_schedule || '',
+          budget_per_month: studentData?.budget_per_month || 0,
+          sessions_per_month: studentData?.sessions_per_month || 0,
+          school_address: studentData?.school_address || '',
+          avatar_url: studentData?.avatar_url || null,
+          onboarding_complete: studentData?.onboarding_complete || false,
+          status: studentData?.status || 'active',
         }
 
         setProfile(profileData)
 
-        // Jika ada student id, ambil matches
+        // Jika ada student id, ambil matches dan offers
         if (studentData?.id) {
           const { data: md, error: mdError } = await supabase
             .from('matches')
@@ -163,6 +177,7 @@ export default function StudentDashboard() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Komponen tab di-memo agar tidak re-render berlebihan
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
   const profileTab = useMemo(() => <StudentProfile />, [])
@@ -291,9 +306,9 @@ export default function StudentDashboard() {
             </Card>
           </div>
 
-          {/* Info & Quick Actions */}
+          {/* Namecard + Aksi Cepat (seperti tutor: 2 kolom) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* ======= KARTU PELAJAR (SAMA PERSIS SEPERTI KARTU PENGAJAR) ======= */}
+            {/* ======= KARTU PELAJAR (dengan data dari student) ======= */}
             <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
               <CardHeader className="pb-1 pt-4">
                 <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -308,7 +323,15 @@ export default function StudentDashboard() {
                   <div
                     className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
                   >
-                    {profile?.name?.[0]?.toUpperCase() || '?'}
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.name}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      profile?.name?.[0]?.toUpperCase() || '?'
+                    )}
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-foreground">
@@ -327,7 +350,7 @@ export default function StudentDashboard() {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
                   <span className="flex items-center text-sm text-muted-foreground">
                     <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-                    {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                    {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
                   </span>
                   <span className="flex items-center text-sm text-muted-foreground">
                     <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
@@ -341,7 +364,7 @@ export default function StudentDashboard() {
                   <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
                 </div>
 
-                {/* Mata Pelajaran */}
+                {/* Mata Pelajaran, Alamat, Jadwal */}
                 <div className="space-y-1.5">
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
@@ -354,13 +377,11 @@ export default function StudentDashboard() {
                     </span>
                   </p>
 
-                  {/* Alamat Rumah */}
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
                     <span>{profile?.school_address || 'Alamat belum diisi'}</span>
                   </p>
 
-                  {/* Jadwal Belajar */}
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <Clock className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
                     <span>{profile?.preferred_schedule || 'Jadwal belum ditentukan'}</span>
