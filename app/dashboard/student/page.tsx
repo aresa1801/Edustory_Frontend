@@ -44,7 +44,7 @@ export default function StudentDashboard() {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false)
 
   // ============================================================
-  // STATE LAINNYA (matches, offers, dll)
+  // STATE LAINNYA
   // ============================================================
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
@@ -56,7 +56,7 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
 
   // ============================================================
-  // FUNGSI FETCH DATA – SAMA PERSIS DENGAN TUTOR
+  // FUNGSI FETCH – SAMA PERSIS DENGAN TUTOR
   // ============================================================
   const fetchDashboardData = async (userId: string) => {
     if (fetchDone.current) return
@@ -65,7 +65,7 @@ export default function StudentDashboard() {
     try {
       console.log('[StudentDashboard] Fetching data for user:', userId)
 
-      // 1. Ambil data student dari API (mirip /api/tutors/profile)
+      // Panggil API student (sama seperti /api/tutors/profile)
       const params = new URLSearchParams({ user_id: userId })
       const response = await fetch(`/api/students/onboarding?${params.toString()}`)
       if (!response.ok) {
@@ -76,16 +76,15 @@ export default function StudentDashboard() {
       const { student } = await response.json()
       console.log('[StudentDashboard] studentData:', student)
 
-      // 2. Jika student null (belum onboarding), gunakan fallback dari user metadata
+      // Jika student null (belum onboarding), pakai fallback
       if (!student) {
-        console.log('[StudentDashboard] Data student tidak ditemukan, pakai fallback')
         setStudentName(authUser?.user_metadata?.full_name || authUser?.email || 'Siswa')
         setOnboardingComplete(false)
         setLoading(false)
         return
       }
 
-      // 3. Isi state namecard dengan data dari student
+      // Isi state namecard dengan data dari student
       setStudentName(student.name || authUser?.user_metadata?.full_name || authUser?.email || 'Siswa')
       setAvatarUrl(student.avatar_url || null)
       setGradeLevel(student.grade_level || '')
@@ -96,7 +95,7 @@ export default function StudentDashboard() {
       setSessionsPerMonth(student.sessions_per_month || 0)
       setOnboardingComplete(student.onboarding_complete || false)
 
-      // 4. Ambil matches & offers (menggunakan supabase client)
+      // Ambil matches & offers (mirip dengan yang di tutor)
       const supabase = createClient()
       if (student.id) {
         const { data: md, error: mdError } = await supabase
@@ -158,7 +157,7 @@ export default function StudentDashboard() {
   }, [authLoading, authUser])
 
   // ============================================================
-  // HELPER – SAMA PERSIS DENGAN TUTOR
+  // HELPER (sama seperti tutor)
   // ============================================================
   const costPerSession = budgetPerMonth && sessionsPerMonth
     ? Math.round(budgetPerMonth / sessionsPerMonth)
@@ -267,7 +266,7 @@ export default function StudentDashboard() {
   }
 
   // ============================================================
-  // LOADING & ERROR HANDLING (sama seperti tutor)
+  // LOADING / ERROR
   // ============================================================
   if (loading || authLoading) {
     return (
@@ -297,13 +296,12 @@ export default function StudentDashboard() {
   }
 
   // ============================================================
-  // RENDER UTAMA – SAMA PERSIS DENGAN TUTOR (HANYA KONTEN YANG BERBEDA)
+  // RENDER UTAMA
   // ============================================================
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
 
-  // Memo untuk tab komponen
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
   const profileTab = useMemo(() => <StudentProfile />, [])
@@ -409,7 +407,7 @@ export default function StudentDashboard() {
             </Card>
           </div>
 
-          {/* Namecard + Aksi Cepat (2 kolom seperti tutor) */}
+          {/* Namecard + Aksi Cepat (2 kolom) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {renderNameCard()}
 
