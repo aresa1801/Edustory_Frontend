@@ -98,7 +98,7 @@ export default function StudentDashboard() {
 
         if (!isMounted.current) return
 
-        // Ambil email dari user_profiles
+        // Ambil email dari user_profiles (fallback)
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
