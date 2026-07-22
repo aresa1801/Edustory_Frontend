@@ -12,6 +12,7 @@ import StudentMyMatches from '@/components/dashboard/student/my-matches'
 import StudentProfile from '@/components/dashboard/student/student-profile'
 import { createClient } from '@/lib/auth'
 import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
   ArrowRight, Calendar, Star, Mail, Edit,
@@ -27,20 +28,20 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
-  const [profile, setProfile] = useState<any>({
-    id: null,
-    name: 'Siswa',
-    email: '',
-    grade_level: '',
-    subjects: [],
-    preferred_schedule: '',
-    budget_per_month: 0,
-    sessions_per_month: 0,
-    school_address: '',
-    avatar_url: null,
-    onboarding_complete: false,
-    status: 'active',
-  })
+  const { user: authUser, loading: authLoading } = useAuth()
+
+  // State untuk namecard (seperti tutor)
+  const [studentName, setStudentName] = useState<string>('Siswa')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [gradeLevel, setGradeLevel] = useState<string>('')
+  const [subjects, setSubjects] = useState<string[]>([])
+  const [preferredSchedule, setPreferredSchedule] = useState<string>('')
+  const [schoolAddress, setSchoolAddress] = useState<string>('')
+  const [budgetPerMonth, setBudgetPerMonth] = useState<number>(0)
+  const [sessionsPerMonth, setSessionsPerMonth] = useState<number>(0)
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false)
+
+  // State untuk matches & offers (tetap seperti sebelumnya)
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,12 +50,12 @@ export default function StudentDashboard() {
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
-  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   // Fungsi fetch data student via API (sama seperti tutor)
   const fetchStudentData = async (userId: string) => {
     try {
-      const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
+      const params = new URLSearchParams({ user_id: userId })
+      const res = await fetch(`/api/students/onboarding?${params.toString()}`)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || 'Gagal memuat data siswa')
@@ -72,56 +73,55 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
-    // Timeout untuk mencegah loading selamanya
-    timeoutId.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[Dashboard] ⏱️ Timeout 3 detik, force loading=false')
-        setLoading(false)
-        setError('Waktu pengambilan data habis, tampilkan data kosong.')
-      }
-    }, 3000)
-
     const fetchData = async () => {
       try {
         console.log('[Dashboard] 🔄 Fetching data...')
-        const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) throw new Error('User tidak ditemukan')
+        if (authLoading) {
+          console.log('[Dashboard] ⏳ Auth masih loading, tunggu...')
+          return
+        }
+        if (!authUser) {
+          throw new Error('User tidak ditemukan')
+        }
 
-        // Ambil data student dari API (ini sumber utama)
-        const studentData = await fetchStudentData(user.id)
+        // Ambil data student dari API (sumber utama)
+        const studentData = await fetchStudentData(authUser.id)
 
         if (!isMounted.current) return
 
+        console.log('[Dashboard] 📦 studentData:', studentData)
+
         // Ambil email dari user_profiles (fallback)
+        const supabase = createClient()
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
-          .eq('id', user.id)
+          .eq('id', authUser.id)
           .maybeSingle()
         if (upError) console.warn('[Dashboard] Gagal ambil email:', upError)
 
-        // Gabungkan data: prioritas dari studentData, fallback ke user metadata / email
-        const profileData = {
-          id: studentData?.id || null,
-          name: studentData?.name || user.user_metadata?.full_name || user.email || 'Siswa',
-          email: up?.email || user.email || '',
-          grade_level: studentData?.grade_level || '',
-          subjects: studentData?.subjects || [],
-          preferred_schedule: studentData?.preferred_schedule || '',
-          budget_per_month: studentData?.budget_per_month || 0,
-          sessions_per_month: studentData?.sessions_per_month || 0,
-          school_address: studentData?.school_address || '',
-          avatar_url: studentData?.avatar_url || null,
-          onboarding_complete: studentData?.onboarding_complete || false,
-          status: studentData?.status || 'active',
+        // Jika studentData null (belum onboarding), gunakan fallback
+        if (!studentData) {
+          console.log('[Dashboard] ℹ️ Data student tidak ditemukan, pakai fallback')
+          setStudentName(authUser.user_metadata?.full_name || authUser.email || 'Siswa')
+          setOnboardingComplete(false)
+          setLoading(false)
+          return
         }
 
-        setProfile(profileData)
+        // Isi state namecard dengan data dari student
+        setStudentName(studentData.name || authUser.user_metadata?.full_name || authUser.email || 'Siswa')
+        setAvatarUrl(studentData.avatar_url || null)
+        setGradeLevel(studentData.grade_level || '')
+        setSubjects(studentData.subjects || [])
+        setPreferredSchedule(studentData.preferred_schedule || '')
+        setSchoolAddress(studentData.school_address || '')
+        setBudgetPerMonth(studentData.budget_per_month || 0)
+        setSessionsPerMonth(studentData.sessions_per_month || 0)
+        setOnboardingComplete(studentData.onboarding_complete || false)
 
-        // Jika ada student id, ambil matches dan offers
-        if (studentData?.id) {
+        // Ambil matches & offers (seperti sebelumnya)
+        if (studentData.id) {
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
@@ -157,14 +157,7 @@ export default function StudentDashboard() {
         console.error('[Dashboard] ❌ Fetch error:', err)
         if (isMounted.current) {
           setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
-        }
-      } finally {
-        if (isMounted.current && timeoutId.current) {
-          clearTimeout(timeoutId.current)
-          setLoading(prev => {
-            if (prev) console.log('[Dashboard] 🏁 Fetch selesai, loading=false')
-            return false
-          })
+          setLoading(false)
         }
       }
     }
@@ -173,16 +166,15 @@ export default function StudentDashboard() {
 
     return () => {
       isMounted.current = false
-      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authUser, authLoading])
 
-  // Komponen tab di-memo agar tidak re-render berlebihan
+  // Memo untuk tab komponen
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
   const profileTab = useMemo(() => <StudentProfile />, [])
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
@@ -195,13 +187,12 @@ export default function StudentDashboard() {
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
-  const onboardingComplete = profile?.onboarding_complete
 
-  const costPerSession = profile?.budget_per_month && profile?.sessions_per_month
-    ? Math.round(profile.budget_per_month / profile.sessions_per_month)
+  const costPerSession = budgetPerMonth && sessionsPerMonth
+    ? Math.round(budgetPerMonth / sessionsPerMonth)
     : 0
 
-  const learningMode = 'Online' // Bisa ditambahkan field nanti
+  const learningMode = 'Online'
 
   return (
     <div>
@@ -215,7 +206,7 @@ export default function StudentDashboard() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
           <p className="text-muted-foreground text-sm">
-            Selamat datang, <span className="font-medium text-foreground">{profile?.name || 'Siswa'}</span>! Kelola pembelajaran Anda di sini.
+            Selamat datang, <span className="font-medium text-foreground">{studentName}</span>! Kelola pembelajaran Anda di sini.
           </p>
         </div>
 
@@ -300,13 +291,13 @@ export default function StudentDashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
-                  <p className="text-2xl font-bold">{profile?.subjects?.length ?? 0}</p>
+                  <p className="text-2xl font-bold">{subjects.length}</p>
                 </div>
               </div>
             </Card>
           </div>
 
-          {/* Namecard + Aksi Cepat (seperti tutor: 2 kolom) */}
+          {/* Namecard + Aksi Cepat */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ======= KARTU PELAJAR (dengan data dari student) ======= */}
             <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
@@ -323,23 +314,23 @@ export default function StudentDashboard() {
                   <div
                     className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
                   >
-                    {profile?.avatar_url ? (
+                    {avatarUrl ? (
                       <img
-                        src={profile.avatar_url}
-                        alt={profile.name}
+                        src={avatarUrl}
+                        alt={studentName}
                         className="w-full h-full object-cover rounded-full"
                       />
                     ) : (
-                      profile?.name?.[0]?.toUpperCase() || '?'
+                      studentName.charAt(0).toUpperCase()
                     )}
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-foreground">
-                      {profile?.name || 'Nama belum diisi'}
+                      {studentName}
                     </h3>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Mail className="w-3.5 h-3.5" />
-                      <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
+                      <span className="truncate">{authUser?.email || 'Email tidak tersedia'}</span>
                     </p>
                   </div>
                 </div>
@@ -361,7 +352,7 @@ export default function StudentDashboard() {
                 {/* Kelas */}
                 <div className="flex items-center text-sm text-muted-foreground mb-2">
                   <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
-                  <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
+                  <span>{gradeLevel || 'Kelas belum ditentukan'}</span>
                 </div>
 
                 {/* Mata Pelajaran, Alamat, Jadwal */}
@@ -369,8 +360,8 @@ export default function StudentDashboard() {
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
                     <span>
-                      {profile?.subjects?.length > 0 ? (
-                        profile.subjects.join(', ')
+                      {subjects.length > 0 ? (
+                        subjects.join(', ')
                       ) : (
                         <span className="text-muted-foreground">Belum ada mata pelajaran</span>
                       )}
@@ -379,12 +370,12 @@ export default function StudentDashboard() {
 
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span>{profile?.school_address || 'Alamat belum diisi'}</span>
+                    <span>{schoolAddress || 'Alamat belum diisi'}</span>
                   </p>
 
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <Clock className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <span>{profile?.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                    <span>{preferredSchedule || 'Jadwal belum ditentukan'}</span>
                   </p>
                 </div>
 
@@ -402,7 +393,7 @@ export default function StudentDashboard() {
               </CardContent>
             </Card>
 
-            {/* Card Aksi Cepat (tetap) */}
+            {/* Card Aksi Cepat */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Aksi Cepat</CardTitle>
