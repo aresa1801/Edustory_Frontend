@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,9 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
-  // State namecard – terpisah
+  // ============================================================
+  // STATE NAMECARD
+  // ============================================================
   const [studentName, setStudentName] = useState<string>('Siswa')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [gradeLevel, setGradeLevel] = useState<string>('')
@@ -38,59 +40,84 @@ export default function StudentDashboard() {
   const [sessionsPerMonth, setSessionsPerMonth] = useState<number>(0)
   const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false)
   const [userEmail, setUserEmail] = useState<string>('')
+  const [userId, setUserId] = useState<string | null>(null)
 
+  // STATE LAINNYA
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
+  const [debugInfo, setDebugInfo] = useState<string>('')
 
-  const isMounted = useRef(true)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
+  // ============================================================
+  // FETCH DATA – DENGAN LOGGING SANGAT DETAIL
+  // ============================================================
   useEffect(() => {
-    isMounted.current = true
-    timeoutRef.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[Dashboard] ⏱️ Timeout fallback')
-        setLoading(false)
-        setError('Waktu pengambilan data habis, tampilkan data kosong.')
-      }
-    }, 5000)
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout | null = null
 
     const fetchData = async () => {
       try {
+        console.log('🔍 [1] START FETCHING')
         const supabase = createClient()
+        console.log('✅ [2] Supabase client created')
+
+        // Ambil user
+        console.log('👤 [3] Getting user...')
         const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError || !user) {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (!session?.user) throw new Error('User tidak ditemukan')
-          await processUser(session.user)
-        } else {
-          await processUser(user)
+        
+        if (userError) {
+          console.error('❌ [3a] User error:', userError)
+          throw new Error('User auth error: ' + userError.message)
         }
-      } catch (err) {
-        if (isMounted.current) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat data')
+        
+        if (!user) {
+          console.warn('⚠️ [3b] User null, trying session fallback...')
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session?.user) {
+            throw new Error('User tidak ditemukan (session also null)')
+          }
+          console.log('✅ [3c] User from session:', session.user.id)
+          await loadStudentData(session.user, isMounted, timeoutId)
+        } else {
+          console.log('✅ [3d] User from auth:', user.id)
+          await loadStudentData(user, isMounted, timeoutId)
+        }
+      } catch (err: any) {
+        console.error('❌ [FATAL] Error:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat data')
           setLoading(false)
+          setDebugInfo('❌ ' + err.message)
         }
       }
     }
 
-    const processUser = async (user: any) => {
+    const loadStudentData = async (user: any, mounted: boolean, timeoutId: NodeJS.Timeout | null) => {
       try {
+        console.log('📦 [4] Loading student data for user:', user.id)
+        setUserId(user.id)
         setUserEmail(user.email || '')
-        const res = await fetch(`/api/students/onboarding?user_id=${user.id}`)
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error || 'Gagal mengambil data siswa')
-        }
-        const { student } = await res.json()
-        console.log('[Dashboard] studentData:', student)
 
-        if (!isMounted.current) return
+        // Ambil student dari API
+        console.log('📡 [5] Calling API /api/students/onboarding...')
+        const res = await fetch(`/api/students/onboarding?user_id=${user.id}`)
+        console.log('📡 [6] API response status:', res.status)
+        
+        if (!res.ok) {
+          const errText = await res.text()
+          console.error('❌ [6a] API error response:', errText)
+          throw new Error(`API error ${res.status}: ${errText}`)
+        }
+        
+        const { student } = await res.json()
+        console.log('📦 [7] Student data from API:', student)
+
+        if (!mounted) return
 
         if (student) {
+          console.log('✅ [8] Student FOUND:', student.name)
           setStudentName(student.name || 'Siswa')
           setAvatarUrl(student.avatar_url || null)
           setGradeLevel(student.grade_level || '')
@@ -100,8 +127,9 @@ export default function StudentDashboard() {
           setBudgetPerMonth(student.budget_per_month || 0)
           setSessionsPerMonth(student.sessions_per_month || 0)
           setOnboardingComplete(student.onboarding_complete || false)
+          setDebugInfo('✅ Data ditemukan: ' + student.name)
 
-          // Ambil matches & offers (try-catch terpisah)
+          // Ambil matches & offers
           try {
             const supabase = createClient()
             if (student.id) {
@@ -114,58 +142,76 @@ export default function StudentDashboard() {
                 .eq('student_id', student.id)
                 .order('start_date', { ascending: false })
                 .limit(5)
+
               const { data: offers } = await supabase
                 .from('matches')
                 .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
                 .eq('student_id', student.id)
                 .eq('initiated_by', 'tutor')
                 .eq('status', 'pending')
-              if (isMounted.current) {
+
+              if (mounted) {
                 setMatches(md || [])
                 setTutorOffers(offers || [])
               }
             }
           } catch (matchErr) {
-            console.warn('[Dashboard] Matches fetch error:', matchErr)
+            console.warn('⚠️ [9] Matches fetch error (non-critical):', matchErr)
           }
         } else {
+          console.warn('⚠️ [10] Student NOT FOUND')
           setStudentName(user.user_metadata?.full_name || 'Siswa')
           setOnboardingComplete(false)
+          setDebugInfo('⚠️ Student tidak ditemukan')
         }
 
-        if (isMounted.current) {
-          setError(null)
-          setLoading(false)
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
-            timeoutRef.current = null
-          }
+        setError(null)
+      } catch (err: any) {
+        console.error('❌ [11] Error in loadStudentData:', err)
+        if (mounted) {
+          setError(err.message || 'Gagal memuat data student')
+          setDebugInfo('❌ ' + err.message)
         }
-      } catch (err) {
-        if (isMounted.current) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat data student')
+      } finally {
+        if (mounted) {
+          console.log('🏁 [12] FINISHED, setting loading=false')
           setLoading(false)
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
-            timeoutRef.current = null
+          if (timeoutId) {
+            clearTimeout(timeoutId)
           }
         }
       }
     }
 
+    // TIMEOUT FALLBACK 5 DETIK
+    timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('⏱️ [TIMEOUT] 5 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+        setDebugInfo('⏱️ Timeout')
+      }
+    }, 5000)
+
     fetchData()
 
     return () => {
-      isMounted.current = false
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      isMounted = false
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [])
 
+  // ============================================================
+  // HELPER
+  // ============================================================
   const costPerSession = budgetPerMonth && sessionsPerMonth
     ? Math.round(budgetPerMonth / sessionsPerMonth)
     : 0
   const learningMode = 'Online'
 
+  // ============================================================
+  // RENDER NAMECARD (sama)
+  // ============================================================
   const renderNameCard = () => {
     const initial = studentName.charAt(0).toUpperCase()
 
@@ -240,11 +286,15 @@ export default function StudentDashboard() {
     )
   }
 
+  // ============================================================
+  // LOADING / ERROR
+  // ============================================================
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Spinner className="h-8 w-8" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
+        <p className="text-xs text-muted-foreground/50 mt-1">Jika lama, halaman akan tetap tampil</p>
       </div>
     )
   }
@@ -255,14 +305,26 @@ export default function StudentDashboard() {
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button className="mt-4" onClick={() => window.location.reload()}>Refresh Halaman</Button>
-        <div className="mt-4">
-          <Link href="/dashboard/student/onboarding"><Button>Lengkapi Profil Sekarang</Button></Link>
+        <div className="mt-4 space-x-2">
+          <Button onClick={() => window.location.reload()}>
+            Refresh Halaman
+          </Button>
+          <Link href="/dashboard/student/onboarding">
+            <Button variant="outline">Lengkapi Profil Sekarang</Button>
+          </Link>
         </div>
+        {debugInfo && (
+          <div className="mt-4 p-2 bg-muted/50 rounded text-xs font-mono">
+            Debug: {debugInfo}
+          </div>
+        )}
       </div>
     )
   }
 
+  // ============================================================
+  // RENDER UTAMA
+  // ============================================================
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
@@ -273,19 +335,24 @@ export default function StudentDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div className="p-3 bg-muted/30 border border-border rounded-md text-xs font-mono overflow-auto max-h-32">
+      {/* 🔥 DEBUG PANEL */}
+      <div className="p-3 bg-muted/30 border border-border rounded-md text-xs font-mono overflow-auto max-h-40">
         <p className="font-bold text-foreground">📊 DEBUG</p>
+        <p>User ID: <span className="text-blue-400">{userId || '(null)'}</span></p>
         <p>Student Name: <span className="text-green-400">{studentName}</span></p>
         <p>Grade: <span className="text-blue-400">{gradeLevel || '(kosong)'}</span></p>
         <p>Subjects: <span className="text-purple-400">{subjects.length > 0 ? subjects.join(', ') : '(kosong)'}</span></p>
         <p>Onboarding Complete: <span className={onboardingComplete ? 'text-green-400' : 'text-red-400'}>
           {onboardingComplete ? '✅' : '❌'}
         </span></p>
+        <p>Status: <span className="text-yellow-400">{debugInfo || 'OK'}</span></p>
       </div>
 
       <div>
         <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard Siswa</h1>
-        <p className="text-muted-foreground">Selamat datang, {studentName}!</p>
+        <p className="text-muted-foreground">
+          Selamat datang, {studentName}! Kelola pembelajaran dan cari tutor terbaik.
+        </p>
       </div>
 
       {!onboardingComplete && (
@@ -304,7 +371,7 @@ export default function StudentDashboard() {
       {tutorOffers.length > 0 && (
         <Alert className="mb-6 bg-blue-500/10 border-blue-500/30">
           <AlertDescription className="text-blue-700 dark:text-blue-300 flex items-center justify-between flex-wrap gap-2">
-            <span>🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri!</span>
+            <span>🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
             <Link href="/dashboard/student/tutor-offers">
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                 Lihat Penawaran <ArrowRight className="w-4 h-4 ml-1" />
@@ -377,8 +444,11 @@ export default function StudentDashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {renderNameCard()}
+
             <Card>
-              <CardHeader><CardTitle className="text-base">Aksi Cepat</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Aksi Cepat</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2">
                 <Link href="/dashboard/student/tutor-offers" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
                   <div className="w-9 h-9 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
