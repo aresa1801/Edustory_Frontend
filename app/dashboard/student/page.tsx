@@ -49,6 +49,7 @@ export default function StudentDashboard() {
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   // Fungsi fetch data student via API
   const fetchStudentData = async (userId: string) => {
@@ -74,6 +75,15 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
+    // Timeout fallback (tetap dipertahankan agar dashboard tetap bisa dibuka)
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('⏱️ [DEBUG] Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
+
     const fetchData = async () => {
       try {
         console.log('🔄 [DEBUG] Fetching data...')
@@ -88,7 +98,7 @@ export default function StudentDashboard() {
 
         if (!isMounted.current) return
 
-        // Ambil email dari user_profiles (fallback)
+        // Ambil email dari user_profiles
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
@@ -96,9 +106,13 @@ export default function StudentDashboard() {
           .maybeSingle()
         if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
 
+        // ============================================================
+        // 🔥 BAGIAN PENTING: Membuat profileData dari studentData
+        // ============================================================
         let profileData: any
 
         if (studentData) {
+          // Jika ada data student, gunakan semua field dari student
           console.log('✅ [DEBUG] Data student ditemukan, menggunakan:', studentData)
           profileData = {
             id: studentData.id,
@@ -115,6 +129,7 @@ export default function StudentDashboard() {
             status: studentData.status || 'active',
           }
         } else {
+          // Jika studentData null, gunakan fallback dari metadata/email
           console.warn('⚠️ [DEBUG] Data student NULL, menggunakan fallback.')
           profileData = {
             id: null,
@@ -167,7 +182,6 @@ export default function StudentDashboard() {
 
         if (isMounted.current) {
           setError(null)
-          // 🔥 PASTIKAN LOADING FALSE DI SINI
           setLoading(false)
         }
         console.log('✅ [DEBUG] Data siap, loading=false')
@@ -176,18 +190,15 @@ export default function StudentDashboard() {
         console.error('❌ [DEBUG] Fetch error:', err)
         if (isMounted.current) {
           setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
-          // 🔥 PASTIKAN LOADING FALSE DI SINI
-          setLoading(false)
         }
-      }
-
-      // 🔥 FALLBACK: SET LOADING FALSE PASTI
-      if (isMounted.current) {
-        console.log('🏁 [DEBUG] Fallback: setLoading(false)')
-        setLoading(prev => {
-          if (prev) console.log('🏁 [DEBUG] Loading masih true, dipaksa false')
-          return false
-        })
+      } finally {
+        if (isMounted.current && timeoutId.current) {
+          clearTimeout(timeoutId.current)
+          setLoading(prev => {
+            if (prev) console.log('🏁 [DEBUG] Fetch selesai, loading=false (forced)')
+            return false
+          })
+        }
       }
     }
 
@@ -195,6 +206,7 @@ export default function StudentDashboard() {
 
     return () => {
       isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -231,12 +243,6 @@ export default function StudentDashboard() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
-      {/* 🔥 DEBUG PANEL */}
-      <div className="mb-4 p-3 bg-muted/30 border border-border rounded-md text-xs font-mono overflow-auto max-h-40">
-        <p className="font-bold text-foreground">📊 DEBUG: Profile State</p>
-        <pre>{JSON.stringify(profile, null, 2)}</pre>
-      </div>
 
       {/* Tambahan alert untuk debugging: jika profile.name masih 'Siswa' dan onboarding_complete false */}
       {profile?.name === 'Siswa' && !onboardingComplete && (
