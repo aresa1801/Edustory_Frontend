@@ -30,7 +30,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 export default function StudentDashboard() {
   const { user: authUser, loading: authLoading } = useAuth()
 
-  // 🔥 STATE NAMECARD – SAMA PERSIS DENGAN TUTOR
+  // State namecard (sama seperti tutor)
   const [studentName, setStudentName] = useState<string>('Siswa')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [gradeLevel, setGradeLevel] = useState<string>('')
@@ -41,7 +41,7 @@ export default function StudentDashboard() {
   const [sessionsPerMonth, setSessionsPerMonth] = useState<number>(0)
   const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false)
 
-  // STATE LAINNYA
+  // State lainnya
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,17 +50,26 @@ export default function StudentDashboard() {
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
-  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // ============================================================
-  // FUNGSI FETCH – SAMA PERSIS DENGAN TUTOR
+  // FUNGSI FETCH – SAMA PERSIS DENGAN TUTOR + TIMEOUT INTERNAL
   // ============================================================
   const fetchDashboardData = async (userId: string) => {
     if (fetchDone.current) return
     fetchDone.current = true
 
+    // ⏱️ TIMEOUT INTERNAL – HANYA UNTUK FETCH INI
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[StudentDashboard] ⏱️ Internal timeout 8 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 8000)
+
     try {
-      console.log('[StudentDashboard] Fetching data for user:', userId)
+      console.log('[StudentDashboard] 🔄 Fetching data for user:', userId)
       const params = new URLSearchParams({ user_id: userId })
       const response = await fetch(`/api/students/onboarding?${params.toString()}`)
       
@@ -70,10 +79,10 @@ export default function StudentDashboard() {
       }
 
       const { student } = await response.json()
-      console.log('[StudentDashboard] studentData:', student)
+      console.log('[StudentDashboard] 📦 studentData:', student)
 
       if (!student) {
-        console.log('[StudentDashboard] Data student tidak ditemukan, pakai fallback')
+        console.log('[StudentDashboard] ⚠️ Student tidak ditemukan, pakai fallback')
         setStudentName(authUser?.user_metadata?.full_name || authUser?.email || 'Siswa')
         setOnboardingComplete(false)
         setLoading(false)
@@ -81,7 +90,7 @@ export default function StudentDashboard() {
       }
 
       // 🔥 SET STATE – SAMA PERSIS DENGAN TUTOR
-      console.log('[StudentDashboard] Mengisi state dengan data student:', student)
+      console.log('[StudentDashboard] ✅ Mengisi state dengan data student:', student)
       setStudentName(student.name || authUser?.user_metadata?.full_name || authUser?.email || 'Siswa')
       setAvatarUrl(student.avatar_url || null)
       setGradeLevel(student.grade_level || '')
@@ -122,30 +131,27 @@ export default function StudentDashboard() {
 
       setError(null)
     } catch (err) {
-      console.error('[StudentDashboard] Error:', err)
+      console.error('[StudentDashboard] ❌ Error:', err)
       setError(err instanceof Error ? err.message : 'Gagal memuat data dashboard')
     } finally {
+      // 🔥 PASTIKAN LOADING FALSE DAN CLEAR TIMEOUT
       if (isMounted.current) {
+        console.log('[StudentDashboard] 🏁 finally: setLoading(false)')
         setLoading(false)
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current)
+          fetchTimeoutRef.current = null
+        }
       }
     }
   }
 
   // ============================================================
-  // useEffect – SAMA PERSIS DENGAN TUTOR + TIMEOUT SAFETY
+  // useEffect – TANPA TIMEOUT GLOBAL, TUNGGU AUTH
   // ============================================================
   useEffect(() => {
     isMounted.current = true
     fetchDone.current = false
-
-    // ⏱️ SAFETY TIMEOUT 3 DETIK – HANYA UNTUK JAGA-JAGA
-    timeoutId.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[StudentDashboard] ⏱️ Safety timeout 3 detik, force loading=false')
-        setLoading(false)
-        setError('Waktu pengambilan data habis, tampilkan data kosong.')
-      }
-    }, 3000)
 
     if (authLoading) {
       console.log('[StudentDashboard] ⏳ Auth masih loading...')
@@ -153,13 +159,9 @@ export default function StudentDashboard() {
     }
 
     if (!authUser) {
-      console.log('[StudentDashboard] ❌ authUser null')
+      console.log('[StudentDashboard] ❌ authUser null, set loading false')
       setError('User tidak ditemukan. Silakan login ulang.')
       setLoading(false)
-      if (timeoutId.current) {
-        clearTimeout(timeoutId.current)
-        timeoutId.current = null
-      }
       return
     }
 
@@ -168,20 +170,19 @@ export default function StudentDashboard() {
 
     return () => {
       isMounted.current = false
-      if (timeoutId.current) {
-        clearTimeout(timeoutId.current)
-        timeoutId.current = null
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current)
+        fetchTimeoutRef.current = null
       }
     }
   }, [authLoading, authUser])
 
   // ============================================================
-  // HELPER – SAMA PERSIS DENGAN TUTOR
+  // HELPER
   // ============================================================
   const costPerSession = budgetPerMonth && sessionsPerMonth
     ? Math.round(budgetPerMonth / sessionsPerMonth)
     : 0
-
   const learningMode = 'Online'
 
   // ============================================================
@@ -299,7 +300,7 @@ export default function StudentDashboard() {
   }
 
   // ============================================================
-  // RENDER UTAMA – SAMA PERSIS DENGAN TUTOR (HANYA KONTEN YANG BERBEDA)
+  // RENDER UTAMA – SAMA PERSIS DENGAN TUTOR
   // ============================================================
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
