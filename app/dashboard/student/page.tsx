@@ -244,6 +244,12 @@ export default function StudentDashboard() {
         </Alert>
       )}
 
+      {/* 🔥 DEBUG PANEL – Tampilkan raw profile */}
+      <div className="mb-4 p-3 bg-muted/30 border border-border rounded-md text-xs font-mono overflow-auto max-h-48">
+        <p className="font-bold text-foreground">📊 DEBUG: Profile State</p>
+        <pre>{JSON.stringify(profile, null, 2)}</pre>
+      </div>
+
       {/* Tambahan alert untuk debugging: jika profile.name masih 'Siswa' dan onboarding_complete false */}
       {profile?.name === 'Siswa' && !onboardingComplete && (
         <Alert className="mb-4 bg-yellow-500/10 border-yellow-500/30">
