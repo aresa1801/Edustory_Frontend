@@ -30,7 +30,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 export default function StudentDashboard() {
   const { user: authUser, loading: authLoading } = useAuth()
 
-  // STATE NAMECARD – SAMA PERSIS DENGAN TUTOR
+  // 🔥 STATE NAMECARD – SAMA PERSIS DENGAN TUTOR
   const [studentName, setStudentName] = useState<string>('Siswa')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [gradeLevel, setGradeLevel] = useState<string>('')
@@ -52,7 +52,8 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
 
   // ============================================================
-  // FUNGSI FETCH – SAMA PERSIS DENGAN TUTOR
+  // FUNGSI FETCH – SAMA PERSIS DENGAN TUTOR (TUTOR PAKAI /api/tutors/profile)
+  // STUDENT PAKAI /api/students/onboarding
   // ============================================================
   const fetchDashboardData = async (userId: string) => {
     if (fetchDone.current) return
@@ -79,7 +80,7 @@ export default function StudentDashboard() {
         return
       }
 
-      // SET STATE – SAMA PERSIS DENGAN TUTOR
+      // 🔥 SET STATE – SAMA PERSIS DENGAN TUTOR
       console.log('[StudentDashboard] Mengisi state dengan data student:', student)
       setStudentName(student.name || authUser?.user_metadata?.full_name || authUser?.email || 'Siswa')
       setAvatarUrl(student.avatar_url || null)
@@ -91,7 +92,7 @@ export default function StudentDashboard() {
       setSessionsPerMonth(student.sessions_per_month || 0)
       setOnboardingComplete(student.onboarding_complete || false)
 
-      // Ambil matches & offers
+      // Ambil matches & offers (sama seperti tutor)
       const supabase = createClient()
       if (student.id) {
         const { data: md, error: mdError } = await supabase
@@ -288,14 +289,13 @@ export default function StudentDashboard() {
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
 
-  // 🔥 PERBAIKAN: Gunakan useMemo dengan benar atau langsung render
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
   const matchesTab = useMemo(() => <StudentMyMatches />, [])
   const profileTab = useMemo(() => <StudentProfile />, [])
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* DEBUG PANEL */}
+      {/* 🔥 DEBUG PANEL – TAMPILKAN DATA */}
       <div className="p-3 bg-muted/30 border border-border rounded-md text-xs font-mono overflow-auto max-h-32">
         <p className="font-bold text-foreground">📊 DEBUG</p>
         <p>Student Name: <span className="text-green-400">{studentName}</span></p>
