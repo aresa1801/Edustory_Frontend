@@ -27,19 +27,20 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
-  // STATE NAMECARD – terpisah
-  const [studentName, setStudentName] = useState<string>('Siswa')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [gradeLevel, setGradeLevel] = useState<string>('')
-  const [subjects, setSubjects] = useState<string[]>([])
-  const [preferredSchedule, setPreferredSchedule] = useState<string>('')
-  const [schoolAddress, setSchoolAddress] = useState<string>('')
-  const [budgetPerMonth, setBudgetPerMonth] = useState<number>(0)
-  const [sessionsPerMonth, setSessionsPerMonth] = useState<number>(0)
-  const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false)
-  const [userEmail, setUserEmail] = useState<string>('')
-
-  // STATE LAINNYA
+  const [profile, setProfile] = useState<any>({
+    id: null,
+    name: 'Siswa',
+    email: '',
+    grade_level: '',
+    subjects: [],
+    preferred_schedule: '',
+    budget_per_month: 0,
+    sessions_per_month: 0,
+    school_address: '',
+    avatar_url: null,
+    onboarding_complete: false,
+    status: 'active',
+  })
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,7 +51,7 @@ export default function StudentDashboard() {
   const fetchDone = useRef(false)
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
-  // Fungsi fetch student via API
+  // Fungsi fetch data student via API
   const fetchStudentData = async (userId: string) => {
     try {
       console.log('🔍 [DEBUG] Memanggil API /api/students/onboarding dengan user_id:', userId)
@@ -74,7 +75,7 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
-    // Timeout fallback 3 detik – PASTIKAN DASHBOARD BISA DIBUKA
+    // Timeout fallback (tetap dipertahankan agar dashboard tetap bisa dibuka)
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('⏱️ [DEBUG] Timeout 3 detik, force loading=false')
@@ -91,35 +92,67 @@ export default function StudentDashboard() {
         if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
         console.log('👤 [DEBUG] User ID:', user.id)
-        setUserEmail(user.email || '')
 
         // Ambil data student dari API
         const studentData = await fetchStudentData(user.id)
 
         if (!isMounted.current) return
 
+        // Ambil email dari user_profiles
+        const { data: up, error: upError } = await supabase
+          .from('user_profiles')
+          .select('email')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
+
+        // ============================================================
+        // 🔥 BAGIAN PENTING: Membuat profileData dari studentData
+        // ============================================================
+        let profileData: any
+
         if (studentData) {
+          // Jika ada data student, gunakan semua field dari student
           console.log('✅ [DEBUG] Data student ditemukan, menggunakan:', studentData)
-          // 🔥 SET STATE TERPISAH
-          setStudentName(studentData.name || 'Siswa')
-          setAvatarUrl(studentData.avatar_url || null)
-          setGradeLevel(studentData.grade_level || '')
-          setSubjects(studentData.subjects || [])
-          setPreferredSchedule(studentData.preferred_schedule || '')
-          setSchoolAddress(studentData.school_address || studentData.address || '')
-          setBudgetPerMonth(studentData.budget_per_month || 0)
-          setSessionsPerMonth(studentData.sessions_per_month || 0)
-          setOnboardingComplete(studentData.onboarding_complete || false)
+          profileData = {
+            id: studentData.id,
+            name: studentData.name || user.user_metadata?.full_name || user.email || 'Siswa',
+            email: up?.email || user.email || '',
+            grade_level: studentData.grade_level || '',
+            subjects: studentData.subjects || [],
+            preferred_schedule: studentData.preferred_schedule || '',
+            budget_per_month: studentData.budget_per_month || 0,
+            sessions_per_month: studentData.sessions_per_month || 0,
+            school_address: studentData.school_address || studentData.address || '',
+            avatar_url: studentData.avatar_url || null,
+            onboarding_complete: studentData.onboarding_complete || false,
+            status: studentData.status || 'active',
+          }
         } else {
+          // Jika studentData null, gunakan fallback dari metadata/email
           console.warn('⚠️ [DEBUG] Data student NULL, menggunakan fallback.')
-          setStudentName(user.user_metadata?.full_name || user.email || 'Siswa')
-          setOnboardingComplete(false)
+          profileData = {
+            id: null,
+            name: user.user_metadata?.full_name || user.email || 'Siswa',
+            email: up?.email || user.email || '',
+            grade_level: '',
+            subjects: [],
+            preferred_schedule: '',
+            budget_per_month: 0,
+            sessions_per_month: 0,
+            school_address: '',
+            avatar_url: null,
+            onboarding_complete: false,
+            status: 'active',
+          }
         }
 
-        // Ambil matches & offers jika ada student id
+        console.log('📝 [DEBUG] Profile data yang akan diset:', profileData)
+        setProfile(profileData)
+
+        // Jika ada student id, ambil matches dan offers
         if (studentData?.id) {
           console.log('🔍 [DEBUG] Mengambil matches untuk student_id:', studentData.id)
-          const supabase = createClient()
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
@@ -129,7 +162,7 @@ export default function StudentDashboard() {
             .eq('student_id', studentData.id)
             .order('start_date', { ascending: false })
             .limit(5)
-          if (mdError) console.warn('⚠️ Matches error:', mdError)
+          if (mdError) throw mdError
 
           const { data: offers, error: offersError } = await supabase
             .from('matches')
@@ -137,7 +170,7 @@ export default function StudentDashboard() {
             .eq('student_id', studentData.id)
             .eq('initiated_by', 'tutor')
             .eq('status', 'pending')
-          if (offersError) console.warn('⚠️ Offers error:', offersError)
+          if (offersError) throw offersError
 
           if (isMounted.current) {
             setMatches(md || [])
@@ -195,87 +228,13 @@ export default function StudentDashboard() {
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
+  const onboardingComplete = profile?.onboarding_complete
 
-  const costPerSession = budgetPerMonth && sessionsPerMonth
-    ? Math.round(budgetPerMonth / sessionsPerMonth)
+  const costPerSession = profile?.budget_per_month && profile?.sessions_per_month
+    ? Math.round(profile.budget_per_month / profile.sessions_per_month)
     : 0
 
   const learningMode = 'Online'
-
-  // RENDER NAMECARD (langsung tanpa fungsi terpisah agar sederhana)
-  const renderNameCard = () => {
-    const initial = studentName.charAt(0).toUpperCase()
-
-    return (
-      <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
-        <CardHeader className="pb-1 pt-4">
-          <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-            <UserCircle className="w-5 h-5 text-primary" />
-            Kartu Pelajar
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-2">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={studentName} className="w-full h-full object-cover rounded-full" />
-              ) : (
-                initial
-              )}
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-foreground">{studentName}</h3>
-              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <Mail className="w-3.5 h-3.5" />
-                <span className="truncate">{userEmail || 'Email tidak tersedia'}</span>
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-border/50 my-3" />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
-            <span className="flex items-center text-sm text-muted-foreground">
-              <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-              {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
-            </span>
-            <span className="flex items-center text-sm text-muted-foreground">
-              <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
-              {learningMode}
-            </span>
-          </div>
-          <div className="flex items-center text-sm text-muted-foreground mb-2">
-            <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
-            <span>{gradeLevel || 'Kelas belum ditentukan'}</span>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
-              <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
-              <span>
-                {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mata pelajaran'}
-              </span>
-            </p>
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
-              <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-              <span>{schoolAddress || 'Alamat belum diisi'}</span>
-            </p>
-            <p className="text-sm text-muted-foreground flex items-start gap-2">
-              <Clock className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
-              <span>{preferredSchedule || 'Jadwal belum ditentukan'}</span>
-            </p>
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
-            <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
-              Namecard untuk ditampilkan ke tutor
-            </span>
-            <Link href="/dashboard/student/onboarding">
-              <Button size="sm" variant="outline" className="h-7 text-xs">
-                <Edit className="w-3 h-3 mr-1" /> Edit Profil
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
 
   return (
     <div>
@@ -285,11 +244,22 @@ export default function StudentDashboard() {
         </Alert>
       )}
 
+      {/* Tambahan alert untuk debugging: jika profile.name masih 'Siswa' dan onboarding_complete false */}
+      {profile?.name === 'Siswa' && !onboardingComplete && (
+        <Alert className="mb-4 bg-yellow-500/10 border-yellow-500/30">
+          <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+            ⚠️ Data siswa belum ditemukan. Pastikan Anda sudah mengisi onboarding dan data tersimpan di database.
+            <br />
+            <span className="text-xs">(Cek console browser untuk melihat log detail)</span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
           <p className="text-muted-foreground text-sm">
-            Selamat datang, <span className="font-medium text-foreground">{studentName || 'Siswa'}</span>! Kelola pembelajaran Anda di sini.
+            Selamat datang, <span className="font-medium text-foreground">{profile?.name || 'Siswa'}</span>! Kelola pembelajaran Anda di sini.
           </p>
         </div>
 
@@ -374,7 +344,7 @@ export default function StudentDashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
-                  <p className="text-2xl font-bold">{subjects.length}</p>
+                  <p className="text-2xl font-bold">{profile?.subjects?.length ?? 0}</p>
                 </div>
               </div>
             </Card>
@@ -382,9 +352,101 @@ export default function StudentDashboard() {
 
           {/* Namecard + Aksi Cepat */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {renderNameCard()}
+            {/* ======= KARTU PELAJAR ======= */}
+            <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
+              <CardHeader className="pb-1 pt-4">
+                <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <UserCircle className="w-5 h-5 text-primary" />
+                  Kartu Pelajar
+                </CardTitle>
+              </CardHeader>
 
-            {/* Aksi Cepat */}
+              <CardContent className="p-5 pt-2">
+                {/* Foto + Nama */}
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
+                  >
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.name}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      profile?.name?.[0]?.toUpperCase() || '?'
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-foreground">
+                      {profile?.name || 'Nama belum diisi'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-border/50 my-3" />
+
+                {/* Tarif & Status */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
+                  <span className="flex items-center text-sm text-muted-foreground">
+                    <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+                    {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
+                  </span>
+                  <span className="flex items-center text-sm text-muted-foreground">
+                    <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                    {learningMode}
+                  </span>
+                </div>
+
+                {/* Kelas */}
+                <div className="flex items-center text-sm text-muted-foreground mb-2">
+                  <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
+                  <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
+                </div>
+
+                {/* Mata Pelajaran, Alamat, Jadwal */}
+                <div className="space-y-1.5">
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <span>
+                      {profile?.subjects?.length > 0 ? (
+                        profile.subjects.join(', ')
+                      ) : (
+                        <span className="text-muted-foreground">Belum ada mata pelajaran</span>
+                      )}
+                    </span>
+                  </p>
+
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span>{profile?.school_address || 'Alamat belum diisi'}</span>
+                  </p>
+
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <Clock className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <span>{profile?.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                  </p>
+                </div>
+
+                {/* Label & Tombol Edit */}
+                <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
+                  <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
+                    Namecard untuk ditampilkan ke tutor
+                  </span>
+                  <Link href="/dashboard/student/onboarding">
+                    <Button size="sm" variant="outline" className="h-7 text-xs">
+                      <Edit className="w-3 h-3 mr-1" /> Edit Profil
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card Aksi Cepat */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Aksi Cepat</CardTitle>
