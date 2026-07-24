@@ -245,11 +245,34 @@ export default function StudentOnboardingPage() {
 
   // useEffect untuk memuat ulang data jika userId berubah (misal setelah login ulang)
   useEffect(() => {
-    if (userId) {
-      console.log('[ONBOARDING] 🔄 useEffect userId changed, loading data for:', userId)
-      loadStudentData(userId)
+    const init = async () => {
+      // 1. Ambil user dari context (lebih cepat)
+      let currentUser = authUser
+
+      // 2. Jika kosong, fallback ke session (misal context belum siap)
+      if (!currentUser) {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) currentUser = session.user
+      }
+
+      // 3. Jika tetap tidak ada, redirect ke login
+      if (!currentUser) {
+        router.push('/auth/login')
+        return
+      }
+
+      // 4. Set state userId dan email
+      setUserId(currentUser.id)
+      setUserEmail(currentUser.email || '')
+
+      // 5. Muat data student (hanya dipanggil SEKALI di sini)
+      console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
+      await loadStudentData(currentUser.id)
     }
-  }, [userId])
+
+    init()
+  }, [authUser?.id]) // ✅ Hanya bergantung pada ID user, bukan authLoading
 
   // ============================================================
   // VALIDASI

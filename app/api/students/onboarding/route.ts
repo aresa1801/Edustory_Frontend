@@ -22,8 +22,11 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('[API] Student fetch error:', error)
+    // 🔥 TAMBAHKAN LOG INI
+    console.log('[API GET] Student found:', student ? 'YES' : 'NO', student)
+
+    if (error) {
+      console.error('[API GET] Error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
