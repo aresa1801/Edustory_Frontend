@@ -330,6 +330,38 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
+  // SAVE STEP 4 (Payment Method)
+  // ============================================================
+  const saveStep4Data = async () => {
+    if (!authUser) throw new Error('User tidak ditemukan di context')
+    if (!selectedPayment) throw new Error('Metode pembayaran wajib dipilih')
+
+    const payload = {
+      user_id: authUser.id,
+      payment_method: selectedPayment,
+      transfer_notes: transferProof.trim() || null,
+      deposit_amount: budgetPerMonth ? Number(budgetPerMonth) : null,
+    }
+
+    Object.keys(payload).forEach(key => {
+      const k = key as keyof typeof payload
+      if (payload[k] === null || payload[k] === undefined) delete payload[k]
+    })
+
+    const response = await fetch('/api/students/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const result = await response.json()
+      throw new Error(result.error || `HTTP ${response.status}`)
+    }
+    return true
+  }
+
+  // ============================================================
   // FINALIZE ONBOARDING (update onboarding_complete & process payment)
   // ============================================================
   const finalizeOnboarding = async () => {
@@ -339,30 +371,26 @@ export default function StudentOnboardingPage() {
     const supabase = createClient()
     const userId = authUser.id
 
-    // 1. Update onboarding_complete (opsional, tidak memblokir)
-    try {
-      console.log('[ONBOARDING] Mengupdate onboarding_complete untuk user:', userId)
-      const { error: completeErr } = await supabase
-        .from('students')
-        .update({ onboarding_complete: true })
-        .eq('user_id', userId)
+    // 1. Update onboarding_complete menjadi true
+    console.log('[ONBOARDING] Mengupdate onboarding_complete untuk user:', userId)
+    const { error: completeErr } = await supabase
+      .from('students')
+      .update({ onboarding_complete: true })
+      .eq('user_id', userId)
 
-      if (completeErr) {
-        console.warn('[ONBOARDING] Gagal update onboarding_complete:', completeErr)
-      } else {
-        console.log('[ONBOARDING] ✅ onboarding_complete berhasil diupdate')
-      }
-    } catch (err) {
-      console.warn('[ONBOARDING] Error update onboarding_complete:', err)
+    if (completeErr) {
+      console.error('[ONBOARDING] ❌ Error update:', completeErr)
+      throw new Error(`Gagal update status: ${completeErr.message}`)
     }
+    console.log('[ONBOARDING] ✅ onboarding_complete berhasil diupdate')
 
-    // 2. Panggil payment API (WAJIB, tapi jika gagal kita tetap lanjut)
+    // 2. Panggil payment API (opsional, jangan gagalkan)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         const amount = budgetPerMonth ? Number(budgetPerMonth) : 0
         console.log('[ONBOARDING] Memanggil payment API dengan amount:', amount)
-        const response = await fetch('/api/payments', {
+        await fetch('/api/payments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -375,18 +403,10 @@ export default function StudentOnboardingPage() {
             transactionRef: transferProof.trim() || null,
           }),
         })
-        if (!response.ok) {
-          const errText = await response.text()
-          throw new Error(`Payment API error: ${response.status} - ${errText}`)
-        }
-        console.log('[ONBOARDING] ✅ Payment API sukses')
-      } else {
-        console.warn('[ONBOARDING] Tidak ada session, skip payment API')
+        console.log('[ONBOARDING] Payment API selesai')
       }
     } catch (paymentErr) {
-      console.error('[ONBOARDING] ❌ Payment API error:', paymentErr)
-      // Lempar error agar handleNext menangkap dan menampilkan pesan
-      throw paymentErr
+      console.warn('[Onboarding] Payment API error (non-critical):', paymentErr)
     }
 
     console.log('[ONBOARDING] 🎉 finalizeOnboarding selesai sukses')
@@ -422,14 +442,13 @@ export default function StudentOnboardingPage() {
         setStep(4)
       } else if (step === 4) {
         console.log('[Onboarding] Menyelesaikan onboarding...')
-        // 1. Finalisasi (payment + update onboarding_complete)
+        // 1. Simpan data payment ke students
+        await saveStep4Data()
+        // 2. Update onboarding_complete dan proses payment
         await finalizeOnboarding()
-        // 2. Redirect setelah semua proses selesai
+        // 3. Redirect ke dashboard
         console.log('[Onboarding] Redirect ke dashboard...')
-        // Gunakan timeout agar navigasi tidak terganggu oleh proses async lain
-        setTimeout(() => {
-          router.push('/dashboard/student')
-        }, 300)
+        router.push('/dashboard/student')
       }
     } catch (err: any) {
       console.error('[Onboarding] Error:', err)
