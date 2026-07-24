@@ -330,7 +330,7 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // SAVE STEP 4 (Payment Method)
+  // SAVE STEP 4 – Payment Method & Notes
   // ============================================================
   const saveStep4Data = async () => {
     if (!authUser) throw new Error('User tidak ditemukan di context')
@@ -362,57 +362,6 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // FINALIZE ONBOARDING (update onboarding_complete & process payment)
-  // ============================================================
-  const finalizeOnboarding = async () => {
-    console.log('[ONBOARDING] 🚀 finalizeOnboarding dimulai')
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-
-    const supabase = createClient()
-    const userId = authUser.id
-
-    // 1. Update onboarding_complete menjadi true
-    console.log('[ONBOARDING] Mengupdate onboarding_complete untuk user:', userId)
-    const { error: completeErr } = await supabase
-      .from('students')
-      .update({ onboarding_complete: true })
-      .eq('user_id', userId)
-
-    if (completeErr) {
-      console.error('[ONBOARDING] ❌ Error update:', completeErr)
-      throw new Error(`Gagal update status: ${completeErr.message}`)
-    }
-    console.log('[ONBOARDING] ✅ onboarding_complete berhasil diupdate')
-
-    // 2. Panggil payment API (opsional, jangan gagalkan)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const amount = budgetPerMonth ? Number(budgetPerMonth) : 0
-        console.log('[ONBOARDING] Memanggil payment API dengan amount:', amount)
-        await fetch('/api/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + session.access_token
-          },
-          body: JSON.stringify({
-            amount,
-            paymentMethod: selectedPayment,
-            isOnboardingDeposit: true,
-            transactionRef: transferProof.trim() || null,
-          }),
-        })
-        console.log('[ONBOARDING] Payment API selesai')
-      }
-    } catch (paymentErr) {
-      console.warn('[Onboarding] Payment API error (non-critical):', paymentErr)
-    }
-
-    console.log('[ONBOARDING] 🎉 finalizeOnboarding selesai sukses')
-  }
-
-  // ============================================================
   // HANDLE NEXT
   // ============================================================
   const handleNext = async () => {
@@ -441,13 +390,10 @@ export default function StudentOnboardingPage() {
         await saveStep3Data()
         setStep(4)
       } else if (step === 4) {
-        console.log('[Onboarding] Menyelesaikan onboarding...')
-        // 1. Simpan data payment ke students
+        console.log('[Onboarding] Menyimpan step 4 (metode pembayaran)...')
         await saveStep4Data()
-        // 2. Update onboarding_complete dan proses payment
-        await finalizeOnboarding()
-        // 3. Redirect ke dashboard
-        console.log('[Onboarding] Redirect ke dashboard...')
+        console.log('[Onboarding] Step 4 tersimpan, redirect ke dashboard...')
+        // Redirect ke dashboard setelah penyimpanan selesai
         router.push('/dashboard/student')
       }
     } catch (err: any) {
