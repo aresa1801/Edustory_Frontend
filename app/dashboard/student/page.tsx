@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import StudentBrowseTutors from '@/components/dashboard/student/browse-tutors'
 import StudentMyMatches from '@/components/dashboard/student/my-matches'
 import StudentProfile from '@/components/dashboard/student/student-profile'
@@ -43,20 +44,25 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
+  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   // Fungsi fetch data student via API
   const fetchStudentData = async (userId: string) => {
     try {
+      console.log('🔍 [DEBUG] Memanggil API /api/students/onboarding dengan user_id:', userId)
       const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
+      console.log('🔍 [DEBUG] Response status:', res.status)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || 'Gagal memuat data siswa')
       }
       const { student } = await res.json()
+      console.log('🔍 [DEBUG] Data student dari API:', student)
       return student
     } catch (err) {
       console.error('❌ [DEBUG] API fetch error:', err)
@@ -68,6 +74,15 @@ export default function StudentDashboard() {
     if (fetchDone.current) return
     fetchDone.current = true
     isMounted.current = true
+
+    // Timeout fallback (tetap dipertahankan agar dashboard tetap bisa dibuka)
+    timeoutId.current = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('⏱️ [DEBUG] Timeout 3 detik, force loading=false')
+        setLoading(false)
+        setError('Waktu pengambilan data habis, tampilkan data kosong.')
+      }
+    }, 3000)
 
     const fetchData = async () => {
       try {
@@ -91,9 +106,14 @@ export default function StudentDashboard() {
           .maybeSingle()
         if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
 
+        // ============================================================
+        // 🔥 BAGIAN PENTING: Membuat profileData dari studentData
+        // ============================================================
         let profileData: any
 
         if (studentData) {
+          // Jika ada data student, gunakan semua field dari student
+          console.log('✅ [DEBUG] Data student ditemukan, menggunakan:', studentData)
           profileData = {
             id: studentData.id,
             name: studentData.name || user.user_metadata?.full_name || user.email || 'Siswa',
@@ -109,6 +129,8 @@ export default function StudentDashboard() {
             status: studentData.status || 'active',
           }
         } else {
+          // Jika studentData null, gunakan fallback dari metadata/email
+          console.warn('⚠️ [DEBUG] Data student NULL, menggunakan fallback.')
           profileData = {
             id: null,
             name: user.user_metadata?.full_name || user.email || 'Siswa',
@@ -125,9 +147,12 @@ export default function StudentDashboard() {
           }
         }
 
+        console.log('📝 [DEBUG] Profile data yang akan diset:', profileData)
         setProfile(profileData)
 
+        // Jika ada student id, ambil matches dan offers
         if (studentData?.id) {
+          console.log('🔍 [DEBUG] Mengambil matches untuk student_id:', studentData.id)
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
@@ -151,9 +176,12 @@ export default function StudentDashboard() {
             setMatches(md || [])
             setTutorOffers(offers || [])
           }
+        } else {
+          console.log('ℹ️ [DEBUG] studentData.id kosong, tidak ada matches')
         }
 
         if (isMounted.current) {
+          setError(null)
           setLoading(false)
         }
         console.log('✅ [DEBUG] Data siap, loading=false')
@@ -161,7 +189,15 @@ export default function StudentDashboard() {
       } catch (err: any) {
         console.error('❌ [DEBUG] Fetch error:', err)
         if (isMounted.current) {
-          setLoading(false)
+          setError(err.message || 'Gagal memuat data, tapi dashboard tetap tampil.')
+        }
+      } finally {
+        if (isMounted.current && timeoutId.current) {
+          clearTimeout(timeoutId.current)
+          setLoading(prev => {
+            if (prev) console.log('🏁 [DEBUG] Fetch selesai, loading=false (forced)')
+            return false
+          })
         }
       }
     }
@@ -170,8 +206,9 @@ export default function StudentDashboard() {
 
     return () => {
       isMounted.current = false
+      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Komponen tab di-memo
   const browseTab = useMemo(() => <StudentBrowseTutors />, [])
@@ -183,6 +220,7 @@ export default function StudentDashboard() {
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
+        <p className="text-xs text-muted-foreground/50 mt-1">Jika lama, halaman akan tetap tampil</p>
       </div>
     )
   }
@@ -200,6 +238,23 @@ export default function StudentDashboard() {
 
   return (
     <div>
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Tambahan alert untuk debugging: jika profile.name masih 'Siswa' dan onboarding_complete false */}
+      {profile?.name === 'Siswa' && !onboardingComplete && (
+        <Alert className="mb-4 bg-yellow-500/10 border-yellow-500/30">
+          <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+            ⚠️ Data siswa belum ditemukan. Pastikan Anda sudah mengisi onboarding dan data tersimpan di database.
+            <br />
+            <span className="text-xs">(Cek console browser untuk melihat log detail)</span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
@@ -209,29 +264,29 @@ export default function StudentDashboard() {
         </div>
 
         {!onboardingComplete && (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-amber-700 dark:text-amber-300">⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
+          <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
+            <AlertDescription className="text-amber-700 dark:text-amber-300 flex items-center justify-between flex-wrap gap-2">
+              <span>⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
               <Link href="/dashboard/student/onboarding">
                 <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
                   Lengkapi Sekarang <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
 
         {tutorOffers.length > 0 && (
-          <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-blue-700 dark:text-blue-300">🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
+          <Alert className="mb-6 bg-blue-500/10 border-blue-500/30">
+            <AlertDescription className="text-blue-700 dark:text-blue-300 flex items-center justify-between flex-wrap gap-2">
+              <span>🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
               <Link href="/dashboard/student/tutor-offers">
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                   Lihat Penawaran <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
 
         <TabsList className="grid w-full grid-cols-4 mb-8">
@@ -297,7 +352,7 @@ export default function StudentDashboard() {
 
           {/* Namecard + Aksi Cepat */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Kartu Pelajar */}
+            {/* ======= KARTU PELAJAR ======= */}
             <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
               <CardHeader className="pb-1 pt-4">
                 <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -307,6 +362,7 @@ export default function StudentDashboard() {
               </CardHeader>
 
               <CardContent className="p-5 pt-2">
+                {/* Foto + Nama */}
                 <div className="flex items-center gap-4">
                   <div
                     className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
@@ -334,6 +390,7 @@ export default function StudentDashboard() {
 
                 <div className="border-t border-border/50 my-3" />
 
+                {/* Tarif & Status */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
                   <span className="flex items-center text-sm text-muted-foreground">
                     <DollarSign className="w-4 h-4 mr-1 text-green-500" />
@@ -345,11 +402,13 @@ export default function StudentDashboard() {
                   </span>
                 </div>
 
+                {/* Kelas */}
                 <div className="flex items-center text-sm text-muted-foreground mb-2">
                   <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
                   <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
                 </div>
 
+                {/* Mata Pelajaran, Alamat, Jadwal */}
                 <div className="space-y-1.5">
                   <p className="text-sm text-muted-foreground flex items-start gap-2">
                     <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
@@ -373,6 +432,7 @@ export default function StudentDashboard() {
                   </p>
                 </div>
 
+                {/* Label & Tombol Edit */}
                 <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
                   <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
                     Namecard untuk ditampilkan ke tutor
@@ -386,7 +446,7 @@ export default function StudentDashboard() {
               </CardContent>
             </Card>
 
-            {/* Aksi Cepat */}
+            {/* Card Aksi Cepat */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Aksi Cepat</CardTitle>
