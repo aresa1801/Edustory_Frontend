@@ -38,25 +38,10 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
-
-  const fetchStudentData = async (userId: string) => {
-    try {
-      const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Gagal memuat data siswa')
-      }
-      const { student } = await res.json()
-      console.log('📦 [DEBUG] Data dari API /students/onboarding:', student)
-      return student
-    } catch (err) {
-      console.error('❌ [DEBUG] API fetch error:', err)
-      return null
-    }
-  }
 
   useEffect(() => {
     if (fetchDone.current) return
@@ -65,17 +50,30 @@ export default function StudentDashboard() {
 
     const fetchData = async () => {
       try {
-        console.log('🔄 [DEBUG] Fetching data...')
+        console.log('🔄 [DEBUG] Fetching dashboard data...')
         const supabase = createClient()
+
+        // 1. Ambil user saat ini
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError) throw userError
         if (!user) throw new Error('User tidak ditemukan')
         console.log('👤 [DEBUG] User ID:', user.id)
 
-        const studentData = await fetchStudentData(user.id)
-        if (!isMounted.current) return
+        // 2. Ambil data student langsung dari tabel students (tanpa API)
+        const { data: student, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle()
 
-        // Ambil email dari user_profiles (opsional)
+        if (studentError) {
+          console.error('❌ [DEBUG] Error fetching student:', studentError)
+          throw studentError
+        }
+
+        console.log('📦 [DEBUG] Data student dari Supabase:', student)
+
+        // 3. Ambil email dari user_profiles (opsional)
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
@@ -83,27 +81,27 @@ export default function StudentDashboard() {
           .maybeSingle()
         if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
 
+        // 4. Bangun profileData
         let profileData: any
-
-        if (studentData) {
-          // 🔥 PRIORITAS: semua field dari tabel students
+        if (student) {
+          // Data dari tabel students
           profileData = {
-            id: studentData.id,
-            name: studentData.name || 'Nama belum diisi', // pastikan dari students.name
+            id: student.id,
+            name: student.name || 'Nama belum diisi',
             email: up?.email || user.email || '',
-            grade_level: studentData.grade_level || '',
-            subjects: studentData.subjects || [],
-            preferred_schedule: studentData.preferred_schedule || '',
-            budget_per_month: studentData.budget_per_month || 0,
-            sessions_per_month: studentData.sessions_per_month || 0,
-            school_address: studentData.school_address || studentData.address || '',
-            avatar_url: studentData.avatar_url || null,
-            onboarding_complete: studentData.onboarding_complete || false,
-            status: studentData.status || 'active',
+            grade_level: student.grade_level || '',
+            subjects: student.subjects || [],
+            preferred_schedule: student.preferred_schedule || '',
+            budget_per_month: student.budget_per_month || 0,
+            sessions_per_month: student.sessions_per_month || 0,
+            school_address: student.school_address || student.address || '',
+            avatar_url: student.avatar_url || null,
+            onboarding_complete: student.onboarding_complete || false,
+            status: student.status || 'active',
           }
           console.log('✅ [DEBUG] profileData dari students:', profileData)
         } else {
-          // Fallback hanya jika tidak ada data students sama sekali
+          // Fallback jika tidak ada data student
           profileData = {
             id: null,
             name: user.user_metadata?.full_name || user.email || 'Siswa',
@@ -118,19 +116,20 @@ export default function StudentDashboard() {
             onboarding_complete: false,
             status: 'active',
           }
-          console.log('ℹ️ [DEBUG] profileData fallback (tanpa students):', profileData)
+          console.log('ℹ️ [DEBUG] profileData fallback (tidak ada data student):', profileData)
         }
 
         setProfile(profileData)
 
-        if (studentData?.id) {
+        // 5. Ambil matches dan offers jika ada student.id
+        if (student?.id) {
           const { data: md, error: mdError } = await supabase
             .from('matches')
             .select(`
               id, status, subject, start_date, lesson_frequency,
               tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
             `)
-            .eq('student_id', studentData.id)
+            .eq('student_id', student.id)
             .order('start_date', { ascending: false })
             .limit(5)
           if (mdError) throw mdError
@@ -138,7 +137,7 @@ export default function StudentDashboard() {
           const { data: offers, error: offersError } = await supabase
             .from('matches')
             .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', studentData.id)
+            .eq('student_id', student.id)
             .eq('initiated_by', 'tutor')
             .eq('status', 'pending')
           if (offersError) throw offersError
@@ -152,6 +151,7 @@ export default function StudentDashboard() {
         console.log('✅ [DEBUG] Data siap, loading=false')
       } catch (err: any) {
         console.error('❌ [DEBUG] Fetch error:', err)
+        setError(err.message || 'Gagal memuat data')
       } finally {
         if (isMounted.current) {
           setLoading(false)
@@ -161,6 +161,7 @@ export default function StudentDashboard() {
 
     fetchData()
 
+    // Fallback timeout 5 detik untuk keamanan
     const timeout = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('⚠️ Force loading false after 5s')
@@ -181,6 +182,11 @@ export default function StudentDashboard() {
         <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
       </div>
     )
+  }
+
+  // Jika ada error, tampilkan pesan tapi tetap render
+  if (error) {
+    console.warn('⚠️ Dashboard error (tapi tetap tampil):', error)
   }
 
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
