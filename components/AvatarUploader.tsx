@@ -13,9 +13,16 @@ interface AvatarUploaderProps {
   onClose: () => void
   onUploadComplete: (url: string) => void
   userId: string
+  role?: 'tutor' | 'student' // 🔥 tambahkan role
 }
 
-export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: AvatarUploaderProps) {
+export function AvatarUploader({ 
+  isOpen, 
+  onClose, 
+  onUploadComplete, 
+  userId, 
+  role = 'tutor' // default tutor
+}: AvatarUploaderProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [crop, setCrop] = useState<Crop>({
@@ -97,8 +104,9 @@ export function AvatarUploader({ isOpen, onClose, onUploadComplete, userId }: Av
       const formData = new FormData()
       formData.append('file', blob, 'avatar.jpg')
       formData.append('userId', userId)
+      formData.append('role', role) // 🔥 kirim role
 
-      console.log('📤 Sending to API...')
+      console.log('📤 Sending to API with role:', role)
 
       // Kirim ke API route
       const uploadResponse = await fetch('/api/upload/avatar', {

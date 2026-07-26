@@ -11,12 +11,13 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const userId = formData.get('userId') as string
+    const role = formData.get('role') as string || 'tutor' // default tutor
 
     if (!file || !userId) {
       return NextResponse.json({ error: 'Missing file or userId' }, { status: 400 })
     }
 
-    console.log('[Upload] Uploading avatar for user:', userId)
+    console.log('[Upload] Uploading avatar for user:', userId, 'role:', role)
 
     // Konversi File ke Buffer
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -43,18 +44,29 @@ export async function POST(request: NextRequest) {
 
     const avatarUrl = urlData.publicUrl
 
-    // Update tutors table
-    const { error: updateError } = await supabaseAdmin
-      .from('tutors')
-      .update({ avatar_url: avatarUrl })
-      .eq('user_id', userId)
+    // 🔥 Update tabel berdasarkan role
+    let updateError = null
+    if (role === 'student') {
+      const { error } = await supabaseAdmin
+        .from('students')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', userId)
+      updateError = error
+    } else {
+      // default: tutor
+      const { error } = await supabaseAdmin
+        .from('tutors')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', userId)
+      updateError = error
+    }
 
     if (updateError) {
       console.error('[Upload] Update error:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    console.log('[Upload] ✅ Success for user:', userId)
+    console.log('[Upload] ✅ Success for user:', userId, 'role:', role)
     return NextResponse.json({ success: true, url: avatarUrl })
 
   } catch (error) {

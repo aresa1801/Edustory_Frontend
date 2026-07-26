@@ -542,6 +542,7 @@ export default function StudentDashboard() {
         onClose={() => setIsAvatarModalOpen(false)}
         onUploadComplete={handleAvatarUpload}
         userId={authUser?.id || ''}
+        role="student"
       />
     </div>
   )
