@@ -42,6 +42,10 @@ export default function StudentDashboard() {
   // 🔥 State untuk mode belajar (default Online)
   const [isOnline, setIsOnline] = useState(true)
 
+  // 🔥 State untuk notifikasi pop-up
+  const [showNotification, setShowNotification] = useState(false)
+  const [notificationMessage, setNotificationMessage] = useState('')
+
   const fetchStudentData = async (userId: string) => {
     try {
       const response = await fetch(`/api/students/onboarding?user_id=${userId}`)
@@ -128,6 +132,17 @@ export default function StudentDashboard() {
     }
   }, [authUser, authLoading])
 
+  // 🔥 Efek untuk menampilkan notifikasi saat mode berubah
+  useEffect(() => {
+    const message = isOnline ? 'Mode Pembelajaran Online' : 'Mode Pembelajaran Offline'
+    setNotificationMessage(message)
+    setShowNotification(true)
+    const timer = setTimeout(() => {
+      setShowNotification(false)
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [isOnline])
+
   if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -161,7 +176,14 @@ export default function StudentDashboard() {
   const toggleMode = () => setIsOnline(prev => !prev)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* 🔥 NOTIFIKASI POP-UP */}
+      {showNotification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white px-6 py-3 rounded-lg shadow-lg text-center transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-5">
+          <p className="text-sm font-medium">{notificationMessage}</p>
+        </div>
+      )}
+
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
         <p className="text-muted-foreground text-sm">
