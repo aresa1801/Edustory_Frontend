@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
+  const { user: authUser, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<any>({
     id: null,
     name: 'Siswa',
@@ -40,24 +42,25 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Tunggu auth selesai
+    if (authLoading) return
+    if (!authUser) {
+      setLoading(false)
+      return
+    }
+
     let isMounted = true
 
     const fetchData = async () => {
       try {
-        console.log('🔄 [Dashboard] Fetching data...')
+        console.log('🔄 [Dashboard] Fetching data for user:', authUser.id)
         const supabase = createClient()
 
-        // 1. Ambil user
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) throw new Error('User tidak ditemukan')
-        console.log('👤 [Dashboard] User ID:', user.id)
-
-        // 2. Ambil data student langsung dari tabel students
+        // 1. Ambil data student dari tabel students
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', authUser.id)
           .maybeSingle()
 
         if (studentError) {
@@ -67,24 +70,24 @@ export default function StudentDashboard() {
 
         console.log('📦 [Dashboard] Student data from Supabase:', studentData)
 
-        // 3. Ambil email dari user_profiles
+        // 2. Ambil email dari user_profiles
         const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('email')
-          .eq('id', user.id)
+          .eq('id', authUser.id)
           .maybeSingle()
 
         if (profileError) {
           console.warn('⚠️ [Dashboard] Gagal ambil user_profiles:', profileError)
         }
 
-        // 4. Bangun profileData
+        // 3. Bangun profileData
         let profileData: any
         if (studentData) {
           profileData = {
             id: studentData.id,
             name: studentData.name || 'Nama belum diisi',
-            email: userProfile?.email || user.email || '',
+            email: userProfile?.email || authUser.email || '',
             grade_level: studentData.grade_level || '',
             subjects: studentData.subjects || [],
             preferred_schedule: studentData.preferred_schedule || '',
@@ -100,8 +103,8 @@ export default function StudentDashboard() {
           // Fallback jika tidak ada data student
           profileData = {
             id: null,
-            name: user.user_metadata?.full_name || user.email || 'Siswa',
-            email: userProfile?.email || user.email || '',
+            name: authUser.user_metadata?.full_name || authUser.email || 'Siswa',
+            email: userProfile?.email || authUser.email || '',
             grade_level: '',
             subjects: [],
             preferred_schedule: '',
@@ -116,10 +119,9 @@ export default function StudentDashboard() {
         }
 
         if (!isMounted) return
-
         setProfile(profileData)
 
-        // 5. Ambil matches jika ada studentData.id
+        // 4. Ambil matches jika ada studentData.id
         if (studentData?.id) {
           const { data: matchesData, error: matchesError } = await supabase
             .from('matches')
@@ -177,13 +179,25 @@ export default function StudentDashboard() {
       isMounted = false
       clearTimeout(timeout)
     }
-  }, []) // Hanya berjalan sekali
+  }, [authUser, authLoading]) // dependency pada authUser dan authLoading
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
+      </div>
+    )
+  }
+
+  // Jika tidak ada user, tampilkan pesan
+  if (!authUser) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Silakan login untuk mengakses dashboard.</p>
+        <Link href="/auth/login">
+          <Button className="mt-4">Login</Button>
+        </Link>
       </div>
     )
   }
