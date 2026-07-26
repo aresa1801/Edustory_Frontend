@@ -50,6 +50,7 @@ export default function StudentDashboard() {
         throw new Error(err.error || 'Gagal memuat data siswa')
       }
       const { student } = await res.json()
+      console.log('📦 [DEBUG] Data dari API /students/onboarding:', student)
       return student
     } catch (err) {
       console.error('❌ [DEBUG] API fetch error:', err)
@@ -74,6 +75,7 @@ export default function StudentDashboard() {
         const studentData = await fetchStudentData(user.id)
         if (!isMounted.current) return
 
+        // Ambil email dari user_profiles (opsional)
         const { data: up, error: upError } = await supabase
           .from('user_profiles')
           .select('email')
@@ -84,9 +86,10 @@ export default function StudentDashboard() {
         let profileData: any
 
         if (studentData) {
+          // 🔥 PRIORITAS: semua field dari tabel students
           profileData = {
             id: studentData.id,
-            name: studentData.name || user.user_metadata?.full_name || user.email || 'Siswa',
+            name: studentData.name || 'Nama belum diisi', // pastikan dari students.name
             email: up?.email || user.email || '',
             grade_level: studentData.grade_level || '',
             subjects: studentData.subjects || [],
@@ -98,7 +101,9 @@ export default function StudentDashboard() {
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
           }
+          console.log('✅ [DEBUG] profileData dari students:', profileData)
         } else {
+          // Fallback hanya jika tidak ada data students sama sekali
           profileData = {
             id: null,
             name: user.user_metadata?.full_name || user.email || 'Siswa',
@@ -113,6 +118,7 @@ export default function StudentDashboard() {
             onboarding_complete: false,
             status: 'active',
           }
+          console.log('ℹ️ [DEBUG] profileData fallback (tanpa students):', profileData)
         }
 
         setProfile(profileData)
