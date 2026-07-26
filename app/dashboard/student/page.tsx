@@ -38,11 +38,11 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [debug, setDebug] = useState<any>({})
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
 
-  // 🔥 Gunakan API yang sama dengan onboarding
   const fetchStudentData = async (userId: string) => {
     try {
       const res = await fetch(`/api/students/onboarding?user_id=${userId}`)
@@ -52,10 +52,111 @@ export default function StudentDashboard() {
       }
       const { student } = await res.json()
       console.log('📦 [DEBUG] Data dari API /students/onboarding:', student)
+      setDebug((prev: any) => ({ ...prev, apiData: student }))
       return student
     } catch (err) {
       console.error('❌ [DEBUG] API fetch error:', err)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setDebug((prev: any) => ({ ...prev, apiError: errorMessage }))
       return null
+    }
+  }
+
+  const loadData = async () => {
+    try {
+      console.log('🔄 [DEBUG] Loading data...')
+      const supabase = createClient()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      if (!user) throw new Error('User tidak ditemukan')
+      console.log('👤 [DEBUG] User ID:', user.id)
+      setDebug((prev: any) => ({ ...prev, userId: user.id }))
+
+      const studentData = await fetchStudentData(user.id)
+      if (!isMounted.current) return
+
+      const { data: up, error: upError } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
+
+      let profileData: any
+      if (studentData) {
+        profileData = {
+          id: studentData.id,
+          name: studentData.name || 'Nama belum diisi',
+          email: up?.email || user.email || '',
+          grade_level: studentData.grade_level || '',
+          subjects: studentData.subjects || [],
+          preferred_schedule: studentData.preferred_schedule || '',
+          budget_per_month: studentData.budget_per_month || 0,
+          sessions_per_month: studentData.sessions_per_month || 0,
+          school_address: studentData.school_address || studentData.address || '',
+          avatar_url: studentData.avatar_url || null,
+          onboarding_complete: studentData.onboarding_complete || false,
+          status: studentData.status || 'active',
+        }
+        console.log('✅ [DEBUG] profileData dari API:', profileData)
+        setDebug((prev: any) => ({ ...prev, profileData }))
+      } else {
+        profileData = {
+          id: null,
+          name: user.user_metadata?.full_name || user.email || 'Siswa',
+          email: up?.email || user.email || '',
+          grade_level: '',
+          subjects: [],
+          preferred_schedule: '',
+          budget_per_month: 0,
+          sessions_per_month: 0,
+          school_address: '',
+          avatar_url: null,
+          onboarding_complete: false,
+          status: 'active',
+        }
+        console.log('ℹ️ [DEBUG] profileData fallback (tidak ada data student)')
+        setDebug((prev: any) => ({ ...prev, profileData: 'fallback' }))
+      }
+
+      setProfile(profileData)
+
+      if (studentData?.id) {
+        const { data: md, error: mdError } = await supabase
+          .from('matches')
+          .select(`
+            id, status, subject, start_date, lesson_frequency,
+            tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
+          `)
+          .eq('student_id', studentData.id)
+          .order('start_date', { ascending: false })
+          .limit(5)
+        if (mdError) throw mdError
+
+        const { data: offers, error: offersError } = await supabase
+          .from('matches')
+          .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
+          .eq('student_id', studentData.id)
+          .eq('initiated_by', 'tutor')
+          .eq('status', 'pending')
+        if (offersError) throw offersError
+
+        if (isMounted.current) {
+          setMatches(md || [])
+          setTutorOffers(offers || [])
+        }
+      }
+
+      console.log('✅ [DEBUG] Data siap, loading=false')
+      setDebug((prev: any) => ({ ...prev, loadingDone: true }))
+    } catch (err) {
+      console.error('❌ [DEBUG] Fetch error:', err)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setDebug((prev: any) => ({ ...prev, loadError: errorMessage }))
+    } finally {
+      if (isMounted.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -64,109 +165,8 @@ export default function StudentDashboard() {
     fetchDone.current = true
     isMounted.current = true
 
-    const fetchData = async () => {
-      try {
-        console.log('🔄 [DEBUG] Fetching dashboard data...')
-        const supabase = createClient()
+    loadData()
 
-        // 1. Ambil user
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) throw userError
-        if (!user) throw new Error('User tidak ditemukan')
-        console.log('👤 [DEBUG] User ID:', user.id)
-
-        // 2. Ambil data student dari API (sama dengan onboarding)
-        const studentData = await fetchStudentData(user.id)
-        if (!isMounted.current) return
-
-        // 3. Ambil email dari user_profiles (opsional)
-        const { data: up, error: upError } = await supabase
-          .from('user_profiles')
-          .select('email')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
-
-        // 4. Bangun profileData dari studentData (jika ada)
-        let profileData: any
-        if (studentData) {
-          // 🔥 Data dari tabel students
-          profileData = {
-            id: studentData.id,
-            name: studentData.name || 'Nama belum diisi',
-            email: up?.email || user.email || '',
-            grade_level: studentData.grade_level || '',
-            subjects: studentData.subjects || [],
-            preferred_schedule: studentData.preferred_schedule || '',
-            budget_per_month: studentData.budget_per_month || 0,
-            sessions_per_month: studentData.sessions_per_month || 0,
-            school_address: studentData.school_address || studentData.address || '',
-            avatar_url: studentData.avatar_url || null,
-            onboarding_complete: studentData.onboarding_complete || false,
-            status: studentData.status || 'active',
-          }
-          console.log('✅ [DEBUG] profileData dari API:', profileData)
-        } else {
-          // Fallback jika tidak ada data
-          profileData = {
-            id: null,
-            name: user.user_metadata?.full_name || user.email || 'Siswa',
-            email: up?.email || user.email || '',
-            grade_level: '',
-            subjects: [],
-            preferred_schedule: '',
-            budget_per_month: 0,
-            sessions_per_month: 0,
-            school_address: '',
-            avatar_url: null,
-            onboarding_complete: false,
-            status: 'active',
-          }
-          console.log('ℹ️ [DEBUG] profileData fallback (tidak ada data student)')
-        }
-
-        setProfile(profileData)
-
-        // 5. Ambil matches dan offers jika ada student.id
-        if (studentData?.id) {
-          const { data: md, error: mdError } = await supabase
-            .from('matches')
-            .select(`
-              id, status, subject, start_date, lesson_frequency,
-              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
-            `)
-            .eq('student_id', studentData.id)
-            .order('start_date', { ascending: false })
-            .limit(5)
-          if (mdError) throw mdError
-
-          const { data: offers, error: offersError } = await supabase
-            .from('matches')
-            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', studentData.id)
-            .eq('initiated_by', 'tutor')
-            .eq('status', 'pending')
-          if (offersError) throw offersError
-
-          if (isMounted.current) {
-            setMatches(md || [])
-            setTutorOffers(offers || [])
-          }
-        }
-
-        console.log('✅ [DEBUG] Data siap, loading=false')
-      } catch (err: any) {
-        console.error('❌ [DEBUG] Fetch error:', err)
-      } finally {
-        if (isMounted.current) {
-          setLoading(false)
-        }
-      }
-    }
-
-    fetchData()
-
-    // Fallback timeout
     const timeout = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('⚠️ Force loading false after 5s')
@@ -178,7 +178,7 @@ export default function StudentDashboard() {
       isMounted.current = false
       clearTimeout(timeout)
     }
-  }, [loading])
+  }, [])
 
   if (loading) {
     return (
@@ -202,6 +202,14 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Debug info - tampilkan di pojok */}
+      <div className="text-xs text-muted-foreground bg-gray-100 p-2 rounded border border-gray-300">
+        <strong>Debug:</strong> userId={debug.userId || 'none'} | apiData name={debug.apiData?.name || 'none'} | profile.name={profile.name}
+        {debug.apiError && <span className="text-red-500 ml-2">Error: {debug.apiError}</span>}
+        {debug.loadError && <span className="text-red-500 ml-2">Load Error: {debug.loadError}</span>}
+        {debug.profileData && <span className="text-green-600 ml-2">Profile Data: {typeof debug.profileData === 'string' ? debug.profileData : 'OK'}</span>}
+      </div>
+
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
         <p className="text-muted-foreground text-sm">
