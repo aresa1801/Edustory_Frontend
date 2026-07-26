@@ -5,12 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/auth'
 import Link from 'next/link'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
   ArrowRight, Calendar, Star, Edit,
-  UserCircle, School, BookMarked, MapPin, DollarSign
+  UserCircle, School, BookMarked, MapPin, DollarSign,
+  Camera
 } from 'lucide-react'
+import { AvatarUploader } from '@/components/AvatarUploader'
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Menunggu', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border border-yellow-500/30' },
@@ -38,6 +41,7 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
 
   // 🔥 State untuk mode belajar (default Online)
   const [isOnline, setIsOnline] = useState(true)
@@ -107,7 +111,25 @@ export default function StudentDashboard() {
 
         // Ambil matches jika ada student id
         if (studentData?.id) {
-          console.log('[DASHBOARD] 🔍 Mengambil matches untuk student_id:', studentData.id)
+          const supabase = createClient()
+          const { data: md, error: mdError } = await supabase
+            .from('matches')
+            .select(`
+              id, status, subject, start_date, lesson_frequency,
+              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
+            `)
+            .eq('student_id', studentData.id)
+            .order('start_date', { ascending: false })
+            .limit(5)
+          if (!mdError) setMatches(md || [])
+
+          const { data: offers, error: offersError } = await supabase
+            .from('matches')
+            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
+            .eq('student_id', studentData.id)
+            .eq('initiated_by', 'tutor')
+            .eq('status', 'pending')
+          if (!offersError) setTutorOffers(offers || [])
         }
 
       } catch (err) {
@@ -142,6 +164,31 @@ export default function StudentDashboard() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [isOnline])
+
+  // 🔥 Handle avatar upload
+  const handleAvatarUpload = async (url: string) => {
+    // ✅ Fix: guard against null authUser
+    if (!authUser) {
+      console.error('[DASHBOARD] No authenticated user')
+      alert('Silakan login terlebih dahulu')
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('students')
+        .update({ avatar_url: url })
+        .eq('user_id', authUser.id)
+      if (error) throw error
+      // Update state profile
+      setProfile((prev: any) => ({ ...prev, avatar_url: url })) // ✅ typed prev
+      console.log('[DASHBOARD] Avatar updated successfully')
+    } catch (err) {
+      console.error('[DASHBOARD] Failed to update avatar:', err)
+      alert('Gagal memperbarui foto profil')
+    }
+  }
 
   if (authLoading || loading) {
     return (
@@ -300,9 +347,11 @@ export default function StudentDashboard() {
           </CardHeader>
 
           <CardContent className="p-5 pt-2">
+            {/* 🔥 Foto + Nama dengan hover efek kamera */}
             <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
+                className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+                onClick={() => setIsAvatarModalOpen(true)}
               >
                 {profile?.avatar_url ? (
                   <img
@@ -313,6 +362,9 @@ export default function StudentDashboard() {
                 ) : (
                   profile?.name?.[0]?.toUpperCase() || '?'
                 )}
+                <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
               </div>
               <div>
                 <h3 className="text-2xl font-bold text-foreground">
@@ -483,6 +535,14 @@ export default function StudentDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* 🔥 Modal Avatar Upload */}
+      <AvatarUploader
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        onUploadComplete={handleAvatarUpload}
+        userId={authUser?.id || ''}
+      />
     </div>
   )
 }
