@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
-  ArrowRight, Calendar, Star, Mail, Edit,
+  ArrowRight, Calendar, Star, Edit,
   UserCircle, School, BookMarked, MapPin, DollarSign
 } from 'lucide-react'
 
@@ -39,19 +39,14 @@ export default function StudentDashboard() {
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 🔥 FUNGSI FETCH SAMA PERSIS DENGAN ONBOARDING
   const fetchStudentData = async (userId: string) => {
-    console.log('[DASHBOARD] 🔍 fetchStudentData dipanggil untuk uid:', userId)
     try {
       const response = await fetch(`/api/students/onboarding?user_id=${userId}`)
-      console.log('[DASHBOARD] 📡 Response status:', response.status)
       if (!response.ok) {
         const errData = await response.json()
         throw new Error(errData.error || 'Gagal memuat data')
       }
       const { student } = await response.json()
-      // 🔥 LOG YANG SAMA DENGAN ONBOARDING
-      console.log('[DASHBOARD] ✅ Data dari API:', student)
       return student
     } catch (err) {
       console.error('[DASHBOARD] ❌ Load data error:', err)
@@ -60,14 +55,8 @@ export default function StudentDashboard() {
   }
 
   useEffect(() => {
-    // Tunggu auth selesai
-    if (authLoading) {
-      console.log('[DASHBOARD] ⏳ Menunggu auth selesai...')
-      return
-    }
-
+    if (authLoading) return
     if (!authUser) {
-      console.log('[DASHBOARD] ❌ Tidak ada user, redirect ke login')
       setLoading(false)
       return
     }
@@ -76,19 +65,13 @@ export default function StudentDashboard() {
 
     const loadData = async () => {
       try {
-        console.log('[DASHBOARD] 🔄 Memuat data untuk user:', authUser.id)
-
-        // 🔥 PAKAI API SAMA SEPERTI ONBOARDING
         const studentData = await fetchStudentData(authUser.id)
-
         if (!isMounted) return
 
         if (studentData) {
-          // 🔥 SET PROFILE DARI DATA STUDENT
           setProfile({
             id: studentData.id,
             name: studentData.name || 'Nama belum diisi',
-            email: authUser.email || '',
             grade_level: studentData.grade_level || '',
             subjects: studentData.subjects || [],
             preferred_schedule: studentData.preferred_schedule || '',
@@ -99,14 +82,10 @@ export default function StudentDashboard() {
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
           })
-          console.log('[DASHBOARD] ✅ Profile berhasil di-set dari studentData:', studentData.name)
         } else {
-          console.log('[DASHBOARD] ℹ️ Tidak ada data student untuk user ini')
-          // Fallback
           setProfile({
             id: null,
             name: authUser.user_metadata?.full_name || authUser.email || 'Siswa',
-            email: authUser.email || '',
             grade_level: '',
             subjects: [],
             preferred_schedule: '',
@@ -121,23 +100,19 @@ export default function StudentDashboard() {
 
         // Ambil matches jika ada student id
         if (studentData?.id) {
+          // ... (ambil matches dan offers seperti sebelumnya, tidak diubah)
           console.log('[DASHBOARD] 🔍 Mengambil matches untuk student_id:', studentData.id)
-          // ... (ambil matches dan offers seperti sebelumnya)
         }
 
-        console.log('[DASHBOARD] ✅ Selesai loading data')
-      } catch (err: any) {
+      } catch (err) {
         console.error('[DASHBOARD] ❌ Error:', err)
       } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       }
     }
 
     loadData()
 
-    // Fallback timeout 5 detik
     const timeout = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[DASHBOARD] ⚠️ Force loading false after 5s')
@@ -295,10 +270,7 @@ export default function StudentDashboard() {
                 <h3 className="text-2xl font-bold text-foreground">
                   {profile?.name || 'Nama belum diisi'}
                 </h3>
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Mail className="w-3.5 h-3.5" />
-                  <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
-                </p>
+                {/* 🔥 Email dihapus – tidak ditampilkan */}
               </div>
             </div>
 
