@@ -39,6 +39,9 @@ export default function StudentDashboard() {
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  // 🔥 State untuk mode belajar (default Online)
+  const [isOnline, setIsOnline] = useState(true)
+
   const fetchStudentData = async (userId: string) => {
     try {
       const response = await fetch(`/api/students/onboarding?user_id=${userId}`)
@@ -100,7 +103,6 @@ export default function StudentDashboard() {
 
         // Ambil matches jika ada student id
         if (studentData?.id) {
-          // ... (ambil matches dan offers seperti sebelumnya, tidak diubah)
           console.log('[DASHBOARD] 🔍 Mengambil matches untuk student_id:', studentData.id)
         }
 
@@ -155,7 +157,8 @@ export default function StudentDashboard() {
     ? Math.round(profile.budget_per_month / profile.sessions_per_month)
     : 0
 
-  const learningMode = 'Online'
+  // 🔥 Toggle mode
+  const toggleMode = () => setIsOnline(prev => !prev)
 
   return (
     <div className="space-y-6">
@@ -244,11 +247,34 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Kartu Pelajar */}
         <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
-          <CardHeader className="pb-1 pt-4">
+          {/* 🔥 Header dengan switch Online/Offline di kanan atas */}
+          <CardHeader className="pb-1 pt-4 flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
               <UserCircle className="w-5 h-5 text-primary" />
               Kartu Pelajar
             </CardTitle>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${!isOnline ? 'text-muted-foreground' : 'text-primary'}`}>
+                Online
+              </span>
+              <button
+                onClick={toggleMode}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  isOnline ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+                role="switch"
+                aria-checked={isOnline}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    isOnline ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-medium ${isOnline ? 'text-muted-foreground' : 'text-primary'}`}>
+                Offline
+              </span>
+            </div>
           </CardHeader>
 
           <CardContent className="p-5 pt-2">
@@ -270,20 +296,17 @@ export default function StudentDashboard() {
                 <h3 className="text-2xl font-bold text-foreground">
                   {profile?.name || 'Nama belum diisi'}
                 </h3>
-                {/* 🔥 Email dihapus – tidak ditampilkan */}
+                {/* Email dihapus */}
               </div>
             </div>
 
             <div className="border-t border-border/50 my-3" />
 
+            {/* 🔥 Bagian tarif - indikator Online statis sudah dihapus */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
               <span className="flex items-center text-sm text-muted-foreground">
                 <DollarSign className="w-4 h-4 mr-1 text-green-500" />
                 {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
-              </span>
-              <span className="flex items-center text-sm text-muted-foreground">
-                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
-                {learningMode}
               </span>
             </div>
 
@@ -328,7 +351,7 @@ export default function StudentDashboard() {
           </CardContent>
         </Card>
 
-        {/* Aksi Cepat */}
+        {/* Aksi Cepat - tidak berubah */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Aksi Cepat</CardTitle>
