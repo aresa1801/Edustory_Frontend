@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
 import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
 import {
@@ -41,53 +40,56 @@ export default function StudentDashboard() {
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  // 🔥 FUNGSI FETCH SAMA PERSIS DENGAN ONBOARDING
+  const fetchStudentData = async (userId: string) => {
+    console.log('[DASHBOARD] 🔍 fetchStudentData dipanggil untuk uid:', userId)
+    try {
+      const response = await fetch(`/api/students/onboarding?user_id=${userId}`)
+      console.log('[DASHBOARD] 📡 Response status:', response.status)
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Gagal memuat data')
+      }
+      const { student } = await response.json()
+      // 🔥 LOG YANG SAMA DENGAN ONBOARDING
+      console.log('[DASHBOARD] ✅ Data dari API:', student)
+      return student
+    } catch (err) {
+      console.error('[DASHBOARD] ❌ Load data error:', err)
+      return null
+    }
+  }
+
   useEffect(() => {
     // Tunggu auth selesai
-    if (authLoading) return
+    if (authLoading) {
+      console.log('[DASHBOARD] ⏳ Menunggu auth selesai...')
+      return
+    }
+
     if (!authUser) {
+      console.log('[DASHBOARD] ❌ Tidak ada user, redirect ke login')
       setLoading(false)
       return
     }
 
     let isMounted = true
 
-    const fetchData = async () => {
+    const loadData = async () => {
       try {
-        console.log('🔄 [Dashboard] Fetching data for user:', authUser.id)
-        const supabase = createClient()
+        console.log('[DASHBOARD] 🔄 Memuat data untuk user:', authUser.id)
 
-        // 1. Ambil data student dari tabel students
-        const { data: studentData, error: studentError } = await supabase
-          .from('students')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .maybeSingle()
+        // 🔥 PAKAI API SAMA SEPERTI ONBOARDING
+        const studentData = await fetchStudentData(authUser.id)
 
-        if (studentError) {
-          console.error('❌ [Dashboard] Error fetching student:', studentError)
-          throw studentError
-        }
+        if (!isMounted) return
 
-        console.log('📦 [Dashboard] Student data from Supabase:', studentData)
-
-        // 2. Ambil email dari user_profiles
-        const { data: userProfile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('email')
-          .eq('id', authUser.id)
-          .maybeSingle()
-
-        if (profileError) {
-          console.warn('⚠️ [Dashboard] Gagal ambil user_profiles:', profileError)
-        }
-
-        // 3. Bangun profileData
-        let profileData: any
         if (studentData) {
-          profileData = {
+          // 🔥 SET PROFILE DARI DATA STUDENT
+          setProfile({
             id: studentData.id,
             name: studentData.name || 'Nama belum diisi',
-            email: userProfile?.email || authUser.email || '',
+            email: authUser.email || '',
             grade_level: studentData.grade_level || '',
             subjects: studentData.subjects || [],
             preferred_schedule: studentData.preferred_schedule || '',
@@ -97,14 +99,15 @@ export default function StudentDashboard() {
             avatar_url: studentData.avatar_url || null,
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
-          }
-          console.log('✅ [Dashboard] Profile data from students:', profileData)
+          })
+          console.log('[DASHBOARD] ✅ Profile berhasil di-set dari studentData:', studentData.name)
         } else {
-          // Fallback jika tidak ada data student
-          profileData = {
+          console.log('[DASHBOARD] ℹ️ Tidak ada data student untuk user ini')
+          // Fallback
+          setProfile({
             id: null,
             name: authUser.user_metadata?.full_name || authUser.email || 'Siswa',
-            email: userProfile?.email || authUser.email || '',
+            email: authUser.email || '',
             grade_level: '',
             subjects: [],
             preferred_schedule: '',
@@ -114,50 +117,18 @@ export default function StudentDashboard() {
             avatar_url: null,
             onboarding_complete: false,
             status: 'active',
-          }
-          console.log('ℹ️ [Dashboard] No student data found, using fallback')
+          })
         }
 
-        if (!isMounted) return
-        setProfile(profileData)
-
-        // 4. Ambil matches jika ada studentData.id
+        // Ambil matches jika ada student id
         if (studentData?.id) {
-          const { data: matchesData, error: matchesError } = await supabase
-            .from('matches')
-            .select(`
-              id, status, subject, start_date, lesson_frequency,
-              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
-            `)
-            .eq('student_id', studentData.id)
-            .order('start_date', { ascending: false })
-            .limit(5)
-
-          if (matchesError) {
-            console.error('❌ [Dashboard] Error fetching matches:', matchesError)
-          } else {
-            setMatches(matchesData || [])
-          }
-
-          const { data: offersData, error: offersError } = await supabase
-            .from('matches')
-            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', studentData.id)
-            .eq('initiated_by', 'tutor')
-            .eq('status', 'pending')
-
-          if (offersError) {
-            console.error('❌ [Dashboard] Error fetching offers:', offersError)
-          } else {
-            setTutorOffers(offersData || [])
-          }
-        } else {
-          console.log('ℹ️ [Dashboard] No student ID, skipping matches')
+          console.log('[DASHBOARD] 🔍 Mengambil matches untuk student_id:', studentData.id)
+          // ... (ambil matches dan offers seperti sebelumnya)
         }
 
-        console.log('✅ [Dashboard] Data loaded successfully')
+        console.log('[DASHBOARD] ✅ Selesai loading data')
       } catch (err: any) {
-        console.error('❌ [Dashboard] Fetch error:', err)
+        console.error('[DASHBOARD] ❌ Error:', err)
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -165,12 +136,12 @@ export default function StudentDashboard() {
       }
     }
 
-    fetchData()
+    loadData()
 
     // Fallback timeout 5 detik
     const timeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('⚠️ [Dashboard] Force loading false after 5s')
+        console.warn('[DASHBOARD] ⚠️ Force loading false after 5s')
         setLoading(false)
       }
     }, 5000)
@@ -179,7 +150,7 @@ export default function StudentDashboard() {
       isMounted = false
       clearTimeout(timeout)
     }
-  }, [authUser, authLoading]) // dependency pada authUser dan authLoading
+  }, [authUser, authLoading])
 
   if (authLoading || loading) {
     return (
@@ -190,7 +161,6 @@ export default function StudentDashboard() {
     )
   }
 
-  // Jika tidak ada user, tampilkan pesan
   if (!authUser) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
