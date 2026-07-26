@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
-import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   Users, Clock, BookOpen, CheckCircle, Search,
   ArrowRight, Calendar, Star, Mail, Edit,
@@ -23,9 +21,6 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 export default function StudentDashboard() {
-  const router = useRouter()
-  const { user: authUser, loading: authLoading } = useAuth()
-  
   const [profile, setProfile] = useState<any>({
     id: null,
     name: 'Siswa',
@@ -43,66 +38,70 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (authLoading) return
-
-    if (!authUser) {
-      router.push('/auth/login')
-      return
-    }
+    let isMounted = true
 
     const fetchData = async () => {
       try {
-        console.log('🔄 [DEBUG] Fetching data for user:', authUser.id)
+        console.log('🔄 [Dashboard] Fetching data...')
         const supabase = createClient()
 
-        // Ambil data student langsung dari Supabase
-        const { data: student, error: studentError } = await supabase
+        // 1. Ambil user
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError) throw userError
+        if (!user) throw new Error('User tidak ditemukan')
+        console.log('👤 [Dashboard] User ID:', user.id)
+
+        // 2. Ambil data student langsung dari tabel students
+        const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('*')
-          .eq('user_id', authUser.id)
+          .eq('user_id', user.id)
           .maybeSingle()
 
         if (studentError) {
-          console.error('❌ [DEBUG] Error fetching student:', studentError)
+          console.error('❌ [Dashboard] Error fetching student:', studentError)
           throw studentError
         }
 
-        console.log('📦 [DEBUG] Student data:', student)
+        console.log('📦 [Dashboard] Student data from Supabase:', studentData)
 
-        // Ambil email dari user_profiles
-        const { data: up, error: upError } = await supabase
+        // 3. Ambil email dari user_profiles
+        const { data: userProfile, error: profileError } = await supabase
           .from('user_profiles')
           .select('email')
-          .eq('id', authUser.id)
+          .eq('id', user.id)
           .maybeSingle()
-        if (upError) console.warn('⚠️ [DEBUG] Gagal ambil email:', upError)
 
-        // Bangun profile data
+        if (profileError) {
+          console.warn('⚠️ [Dashboard] Gagal ambil user_profiles:', profileError)
+        }
+
+        // 4. Bangun profileData
         let profileData: any
-        if (student) {
+        if (studentData) {
           profileData = {
-            id: student.id,
-            name: student.name || 'Nama belum diisi',
-            email: up?.email || authUser.email || '',
-            grade_level: student.grade_level || '',
-            subjects: student.subjects || [],
-            preferred_schedule: student.preferred_schedule || '',
-            budget_per_month: student.budget_per_month || 0,
-            sessions_per_month: student.sessions_per_month || 0,
-            school_address: student.school_address || student.address || '',
-            avatar_url: student.avatar_url || null,
-            onboarding_complete: student.onboarding_complete || false,
-            status: student.status || 'active',
+            id: studentData.id,
+            name: studentData.name || 'Nama belum diisi',
+            email: userProfile?.email || user.email || '',
+            grade_level: studentData.grade_level || '',
+            subjects: studentData.subjects || [],
+            preferred_schedule: studentData.preferred_schedule || '',
+            budget_per_month: studentData.budget_per_month || 0,
+            sessions_per_month: studentData.sessions_per_month || 0,
+            school_address: studentData.school_address || studentData.address || '',
+            avatar_url: studentData.avatar_url || null,
+            onboarding_complete: studentData.onboarding_complete || false,
+            status: studentData.status || 'active',
           }
-          console.log('✅ [DEBUG] Profile data from student:', profileData)
+          console.log('✅ [Dashboard] Profile data from students:', profileData)
         } else {
+          // Fallback jika tidak ada data student
           profileData = {
             id: null,
-            name: authUser.user_metadata?.full_name || authUser.email || 'Siswa',
-            email: up?.email || authUser.email || '',
+            name: user.user_metadata?.full_name || user.email || 'Siswa',
+            email: userProfile?.email || user.email || '',
             grade_level: '',
             subjects: [],
             preferred_schedule: '',
@@ -113,64 +112,78 @@ export default function StudentDashboard() {
             onboarding_complete: false,
             status: 'active',
           }
-          console.log('ℹ️ [DEBUG] Profile data fallback (no student data)')
+          console.log('ℹ️ [Dashboard] No student data found, using fallback')
         }
+
+        if (!isMounted) return
 
         setProfile(profileData)
 
-        // Ambil matches jika ada student id
-        if (student?.id) {
-          const { data: md, error: mdError } = await supabase
+        // 5. Ambil matches jika ada studentData.id
+        if (studentData?.id) {
+          const { data: matchesData, error: matchesError } = await supabase
             .from('matches')
             .select(`
               id, status, subject, start_date, lesson_frequency,
               tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
             `)
-            .eq('student_id', student.id)
+            .eq('student_id', studentData.id)
             .order('start_date', { ascending: false })
             .limit(5)
-          if (mdError) throw mdError
 
-          const { data: offers, error: offersError } = await supabase
+          if (matchesError) {
+            console.error('❌ [Dashboard] Error fetching matches:', matchesError)
+          } else {
+            setMatches(matchesData || [])
+          }
+
+          const { data: offersData, error: offersError } = await supabase
             .from('matches')
             .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', student.id)
+            .eq('student_id', studentData.id)
             .eq('initiated_by', 'tutor')
             .eq('status', 'pending')
-          if (offersError) throw offersError
 
-          setMatches(md || [])
-          setTutorOffers(offers || [])
+          if (offersError) {
+            console.error('❌ [Dashboard] Error fetching offers:', offersError)
+          } else {
+            setTutorOffers(offersData || [])
+          }
+        } else {
+          console.log('ℹ️ [Dashboard] No student ID, skipping matches')
         }
 
-        console.log('✅ [DEBUG] Data ready, loading=false')
+        console.log('✅ [Dashboard] Data loaded successfully')
       } catch (err: any) {
-        console.error('❌ [DEBUG] Fetch error:', err)
-        setError(err.message || 'Gagal memuat data')
+        console.error('❌ [Dashboard] Fetch error:', err)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     fetchData()
-  }, [authUser, authLoading, router])
 
-  if (authLoading || loading) {
+    // Fallback timeout 5 detik
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('⚠️ [Dashboard] Force loading false after 5s')
+        setLoading(false)
+      }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
+  }, []) // Hanya berjalan sekali
+
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat dashboard...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <p className="text-red-500">Error: {error}</p>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Coba lagi
-        </Button>
       </div>
     )
   }
@@ -188,11 +201,6 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Debug info */}
-      <div className="text-xs text-muted-foreground bg-gray-100 p-2 rounded border border-gray-300">
-        <strong>Debug:</strong> userId={authUser?.id || 'none'} | profile.name={profile.name} | onboarding={String(onboardingComplete)}
-      </div>
-
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard Siswa</h1>
         <p className="text-muted-foreground text-sm">
