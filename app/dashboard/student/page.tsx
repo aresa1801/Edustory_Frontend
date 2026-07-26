@@ -25,7 +25,6 @@ export default function StudentDashboard() {
   const [profile, setProfile] = useState<any>({
     id: null,
     name: 'Siswa',
-    email: '',
     grade_level: '',
     subjects: [],
     preferred_schedule: '',
