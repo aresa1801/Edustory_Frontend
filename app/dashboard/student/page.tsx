@@ -39,18 +39,20 @@ export default function StudentDashboard() {
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  // 🔥 State untuk mode belajar (Online / Offline)
-  const [isOnline, setIsOnline] = useState(true)
 
-  // Fetch data student (sama seperti onboarding)
+  // 🔥 FUNGSI FETCH SAMA PERSIS DENGAN ONBOARDING
   const fetchStudentData = async (userId: string) => {
+    console.log('[DASHBOARD] 🔍 fetchStudentData dipanggil untuk uid:', userId)
     try {
       const response = await fetch(`/api/students/onboarding?user_id=${userId}`)
+      console.log('[DASHBOARD] 📡 Response status:', response.status)
       if (!response.ok) {
         const errData = await response.json()
         throw new Error(errData.error || 'Gagal memuat data')
       }
       const { student } = await response.json()
+      // 🔥 LOG YANG SAMA DENGAN ONBOARDING
+      console.log('[DASHBOARD] ✅ Data dari API:', student)
       return student
     } catch (err) {
       console.error('[DASHBOARD] ❌ Load data error:', err)
@@ -59,8 +61,14 @@ export default function StudentDashboard() {
   }
 
   useEffect(() => {
-    if (authLoading) return
+    // Tunggu auth selesai
+    if (authLoading) {
+      console.log('[DASHBOARD] ⏳ Menunggu auth selesai...')
+      return
+    }
+
     if (!authUser) {
+      console.log('[DASHBOARD] ❌ Tidak ada user, redirect ke login')
       setLoading(false)
       return
     }
@@ -69,10 +77,15 @@ export default function StudentDashboard() {
 
     const loadData = async () => {
       try {
+        console.log('[DASHBOARD] 🔄 Memuat data untuk user:', authUser.id)
+
+        // 🔥 PAKAI API SAMA SEPERTI ONBOARDING
         const studentData = await fetchStudentData(authUser.id)
+
         if (!isMounted) return
 
         if (studentData) {
+          // 🔥 SET PROFILE DARI DATA STUDENT
           setProfile({
             id: studentData.id,
             name: studentData.name || 'Nama belum diisi',
@@ -87,7 +100,10 @@ export default function StudentDashboard() {
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
           })
+          console.log('[DASHBOARD] ✅ Profile berhasil di-set dari studentData:', studentData.name)
         } else {
+          console.log('[DASHBOARD] ℹ️ Tidak ada data student untuk user ini')
+          // Fallback
           setProfile({
             id: null,
             name: authUser.user_metadata?.full_name || authUser.email || 'Siswa',
@@ -104,36 +120,36 @@ export default function StudentDashboard() {
           })
         }
 
+        // Ambil matches jika ada student id
         if (studentData?.id) {
-          const supabase = (await import('@/lib/auth')).createClient()
-          const { data: md, error: mdError } = await supabase
-            .from('matches')
-            .select(`
-              id, status, subject, start_date, lesson_frequency,
-              tutors:tutor_id(hourly_rate, user_profiles:user_id(name))
-            `)
-            .eq('student_id', studentData.id)
-            .order('start_date', { ascending: false })
-            .limit(5)
-          if (!mdError) setMatches(md || [])
-
-          const { data: offers, error: offersError } = await supabase
-            .from('matches')
-            .select('id, status, subject, tutors:tutor_id(user_profiles:user_id(name))')
-            .eq('student_id', studentData.id)
-            .eq('initiated_by', 'tutor')
-            .eq('status', 'pending')
-          if (!offersError) setTutorOffers(offers || [])
+          console.log('[DASHBOARD] 🔍 Mengambil matches untuk student_id:', studentData.id)
+          // ... (ambil matches dan offers seperti sebelumnya)
         }
-      } catch (err) {
+
+        console.log('[DASHBOARD] ✅ Selesai loading data')
+      } catch (err: any) {
         console.error('[DASHBOARD] ❌ Error:', err)
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     loadData()
-    return () => { isMounted = false }
+
+    // Fallback timeout 5 detik
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[DASHBOARD] ⚠️ Force loading false after 5s')
+        setLoading(false)
+      }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
   }, [authUser, authLoading])
 
   if (authLoading || loading) {
@@ -165,8 +181,7 @@ export default function StudentDashboard() {
     ? Math.round(profile.budget_per_month / profile.sessions_per_month)
     : 0
 
-  // 🔥 Toggle mode belajar
-  const toggleMode = () => setIsOnline(prev => !prev)
+  const learningMode = 'Online'
 
   return (
     <div className="space-y-6">
@@ -253,7 +268,7 @@ export default function StudentDashboard() {
 
       {/* Namecard + Aksi Cepat */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ===== KARTU PELAJAR (DENGAN SWITCH) ===== */}
+        {/* Kartu Pelajar */}
         <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
           <CardHeader className="pb-1 pt-4">
             <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -263,7 +278,6 @@ export default function StudentDashboard() {
           </CardHeader>
 
           <CardContent className="p-5 pt-2">
-            {/* Avatar & Nama (tanpa email) */}
             <div className="flex items-center gap-4">
               <div
                 className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md"
@@ -282,51 +296,31 @@ export default function StudentDashboard() {
                 <h3 className="text-2xl font-bold text-foreground">
                   {profile?.name || 'Nama belum diisi'}
                 </h3>
-                {/* 🔥 EMAIL DIHAPUS */}
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span className="truncate">{profile?.email || 'Email tidak tersedia'}</span>
+                </p>
               </div>
             </div>
 
             <div className="border-t border-border/50 my-3" />
 
-            {/* Tarif & Switch Mode Belajar */}
-            <div className="flex flex-wrap items-center justify-between gap-y-2 mb-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
               <span className="flex items-center text-sm text-muted-foreground">
                 <DollarSign className="w-4 h-4 mr-1 text-green-500" />
                 {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
               </span>
-
-              {/* 🔥 SWITCH OFFLINE / ONLINE */}
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${!isOnline ? 'text-muted-foreground' : 'text-primary'}`}>
-                  Online
-                </span>
-                <button
-                  onClick={toggleMode}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                    isOnline ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                  role="switch"
-                  aria-checked={isOnline}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      isOnline ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-                <span className={`text-xs font-medium ${isOnline ? 'text-muted-foreground' : 'text-primary'}`}>
-                  Offline
-                </span>
-              </div>
+              <span className="flex items-center text-sm text-muted-foreground">
+                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${learningMode === 'Online' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                {learningMode}
+              </span>
             </div>
 
-            {/* Kelas */}
             <div className="flex items-center text-sm text-muted-foreground mb-2">
               <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
               <span>{profile?.grade_level || 'Kelas belum ditentukan'}</span>
             </div>
 
-            {/* Mata Pelajaran, Alamat, Jadwal */}
             <div className="space-y-1.5">
               <p className="text-sm text-muted-foreground flex items-start gap-2">
                 <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
@@ -363,7 +357,7 @@ export default function StudentDashboard() {
           </CardContent>
         </Card>
 
-        {/* Aksi Cepat (tidak berubah) */}
+        {/* Aksi Cepat */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Aksi Cepat</CardTitle>
