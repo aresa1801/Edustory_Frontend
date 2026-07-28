@@ -17,28 +17,55 @@ import {
   UserCircle,
 } from 'lucide-react'
 
-interface Student {
-  id: string
-  name: string
-  grade_level: string
-  subjects: string[]
-  budget_per_month: number
-  sessions_per_month: number
-  preferred_schedule: string
-  address: string
-  avatar_url: string | null
-}
+// Data dummy untuk testing (mirip seperti di gambar)
+const DUMMY_STUDENTS = [
+  {
+    id: '1',
+    name: 'Agus Kurniasariawan',
+    grade_level: 'SMA Kelas 10',
+    subjects: ['Fisika', 'Kimia', 'Biologi'],
+    budget_per_month: 250000,
+    sessions_per_month: 4,
+    preferred_schedule: 'Senin – Jumat (Siang 12.00–15.00)',
+    address: 'Jalan Imam Bonjol',
+    avatar_url: null,
+  },
+  {
+    id: '2',
+    name: 'Budi Santoso',
+    grade_level: 'SMP Kelas 9',
+    subjects: ['Matematika', 'IPA'],
+    budget_per_month: 300000,
+    sessions_per_month: 4,
+    preferred_schedule: 'Sabtu – Minggu (Pagi)',
+    address: 'Jalan Merdeka No. 10',
+    avatar_url: null,
+  },
+  {
+    id: '3',
+    name: 'Citra Dewi',
+    grade_level: 'SD Kelas 6',
+    subjects: ['Bahasa Inggris', 'Matematika'],
+    budget_per_month: 200000,
+    sessions_per_month: 3,
+    preferred_schedule: 'Senin – Jumat (Sore 15.00–19.00)',
+    address: 'Jalan Sudirman No. 5',
+    avatar_url: null,
+  },
+]
 
 export default function StudentOffersPage() {
-  const [students, setStudents] = useState<Student[]>([])
+  const [students, setStudents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [tutorVerified, setTutorVerified] = useState(false)
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [usingDummy, setUsingDummy] = useState(false)
 
   useEffect(() => {
     let isMounted = true
+    let timeoutId: NodeJS.Timeout
 
     const fetchData = async () => {
       try {
@@ -46,7 +73,11 @@ export default function StudentOffersPage() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-          if (isMounted) setLoading(false)
+          if (isMounted) {
+            setLoading(false)
+            setStudents(DUMMY_STUDENTS)
+            setUsingDummy(true)
+          }
           return
         }
 
@@ -64,11 +95,10 @@ export default function StudentOffersPage() {
           }
         }
 
-        // 2. Ambil siswa dari API (dengan fallback ke supabase langsung)
-        let studentsData: Student[] = []
+        // 2. Ambil siswa dari API
+        let studentsData = []
         try {
           const res = await fetch('/api/tutors/students', {
-            // tambahkan cache: 'no-store' agar tidak cache
             cache: 'no-store',
           })
           if (res.ok) {
@@ -78,30 +108,9 @@ export default function StudentOffersPage() {
             throw new Error(`API error: ${res.status}`)
           }
         } catch (apiErr) {
-          console.warn('API fallback, using supabase direct:', apiErr)
-          // fallback: coba langsung via supabase (mungkin terbatas RLS)
-          const { data, error: supabaseErr } = await supabase
-            .from('students')
-            .select(`
-              id,
-              name,
-              grade_level,
-              subjects,
-              budget_per_month,
-              sessions_per_month,
-              preferred_schedule,
-              address,
-              avatar_url
-            `)
-            .eq('status', 'active')
-            .eq('onboarding_complete', true)
-            .not('budget_per_month', 'is', null)
-            .order('created_at', { ascending: false })
-          if (!supabaseErr) {
-            studentsData = data || []
-          } else {
-            throw supabaseErr
-          }
+          console.warn('API gagal, pakai data dummy:', apiErr)
+          studentsData = DUMMY_STUDENTS
+          setUsingDummy(true)
         }
 
         if (isMounted) {
@@ -109,9 +118,12 @@ export default function StudentOffersPage() {
           setError(null)
         }
       } catch (err: any) {
-        console.error('Error fetching students:', err)
+        console.error('Error:', err)
         if (isMounted) {
-          setError(err.message || 'Gagal memuat data siswa')
+          setError(err.message || 'Gagal memuat data')
+          // Fallback ke dummy
+          setStudents(DUMMY_STUDENTS)
+          setUsingDummy(true)
         }
       } finally {
         if (isMounted) setLoading(false)
@@ -120,20 +132,22 @@ export default function StudentOffersPage() {
 
     fetchData()
 
-    // Timeout fallback: jika loading masih true setelah 5 detik, force false
-    const timeout = setTimeout(() => {
+    // Timeout 3 detik: force loading false
+    timeoutId = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('Forcing loading false after 5s')
+        console.warn('Force loading false after 3s')
         setLoading(false)
-        setError('Waktu muat habis, silakan refresh halaman.')
+        setStudents(DUMMY_STUDENTS)
+        setUsingDummy(true)
+        setError('Waktu muat habis, menampilkan data contoh.')
       }
-    }, 5000)
+    }, 3000)
 
     return () => {
       isMounted = false
-      clearTimeout(timeout)
+      clearTimeout(timeoutId)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line
 
   const handleSendOffer = async (studentId: string) => {
     if (!tutorId) {
@@ -164,7 +178,6 @@ export default function StudentOffersPage() {
 
       if (error) throw error
       alert('Penawaran berhasil dikirim!')
-      // Refresh page
       window.location.reload()
     } catch (err) {
       alert('Gagal mengirim penawaran: ' + (err instanceof Error ? err.message : 'Unknown error'))
@@ -188,6 +201,11 @@ export default function StudentOffersPage() {
         <p className="text-muted-foreground">
           Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.
         </p>
+        {usingDummy && (
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 text-sm">
+            ⚠️ Menampilkan data contoh (dummy) karena data siswa belum tersedia.
+          </div>
+        )}
         {!tutorVerified && tutorId && (
           <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm flex items-center gap-2">
             <Lock className="w-4 h-4" />
