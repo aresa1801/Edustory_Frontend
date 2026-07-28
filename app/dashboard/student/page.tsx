@@ -39,8 +39,8 @@ const isProfileComplete = (profile: any) => {
     profile.budget_per_month > 0 &&
     profile.sessions_per_month &&
     profile.sessions_per_month > 0 &&
-    profile.school_address &&
-    profile.school_address !== ''
+    profile.address &&
+    profile.address !== '' // ✅ ganti school_address menjadi address
   )
 }
 
@@ -54,7 +54,7 @@ export default function StudentDashboard() {
     preferred_schedule: '',
     budget_per_month: 0,
     sessions_per_month: 0,
-    school_address: '',
+    address: '', // ✅ ganti school_address menjadi address
     avatar_url: null,
     onboarding_complete: false,
     status: 'active',
@@ -109,7 +109,7 @@ export default function StudentDashboard() {
             preferred_schedule: studentData.preferred_schedule || '',
             budget_per_month: studentData.budget_per_month || 0,
             sessions_per_month: studentData.sessions_per_month || 0,
-            school_address: studentData.school_address || studentData.address || '',
+            address: studentData.address || studentData.school_address || '', // ✅ fallback
             avatar_url: studentData.avatar_url || null,
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
@@ -123,7 +123,7 @@ export default function StudentDashboard() {
             preferred_schedule: '',
             budget_per_month: 0,
             sessions_per_month: 0,
-            school_address: '',
+            address: '', // ✅ ganti
             avatar_url: null,
             onboarding_complete: false,
             status: 'active',
@@ -419,9 +419,10 @@ export default function StudentDashboard() {
                 </span>
               </p>
 
+              {/* ✅ Ubah label dan gunakan address */}
               <p className="text-sm text-muted-foreground flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
-                <span>{profile?.school_address || 'Alamat belum diisi'}</span>
+                <span>{profile?.address || 'Alamat rumah belum diisi'}</span>
               </p>
 
               <p className="text-sm text-muted-foreground flex items-start gap-2">

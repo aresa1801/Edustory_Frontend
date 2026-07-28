@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
     if (body.phone !== undefined) payload.phone = body.phone || null
     if (body.gender !== undefined) payload.gender = body.gender || null
     if (body.bio !== undefined) payload.bio = body.bio || null
+    if (body.address !== undefined) payload.address = body.address || null
     if (body.school_name !== undefined) payload.school_name = body.school_name || null
     if (body.school_type !== undefined) payload.school_type = body.school_type || null
     if (body.school_city !== undefined) payload.school_city = body.school_city || null
-    if (body.school_address !== undefined) payload.school_address = body.school_address || null
     if (body.parent_name !== undefined) payload.parent_name = body.parent_name || null
     if (body.parent_phone !== undefined) payload.parent_phone = body.parent_phone || null
     if (body.parent_email !== undefined) payload.parent_email = body.parent_email || null

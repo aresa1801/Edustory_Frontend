@@ -81,10 +81,10 @@ export default function StudentOnboardingPage() {
 
   // Step 1 – Profile
   const [siswaData, setSiswaData] = useState({
-    name: '', phone: '', gender: '', bio: '',
+    name: '', phone: '', gender: '', bio: '', address: '',
   })
   const [sekolahData, setSekolahData] = useState({
-    school_name: '', school_type: '', school_city: '', school_address: '',
+    school_name: '', school_type: '', school_city: '',
   })
   const [ortuData, setOrtuData] = useState({
     parent_name: '', parent_phone: '', parent_email: '', parent_relation: '',
@@ -125,12 +125,12 @@ export default function StudentOnboardingPage() {
           phone: student.phone || '',
           gender: student.gender || '',
           bio: student.bio || '',
+          address: student.address || '',
         })
         setSekolahData({
           school_name: student.school_name || '',
           school_type: student.school_type || '',
           school_city: student.school_city || '',
-          school_address: student.school_address || '',
         })
         setOrtuData({
           parent_name: student.parent_name || '',
@@ -229,10 +229,10 @@ export default function StudentOnboardingPage() {
       phone: siswaData.phone.trim() || null,
       gender: siswaData.gender || null,
       bio: siswaData.bio.trim() || null,
+      address: siswaData.address.trim() || null,
       school_name: sekolahData.school_name.trim() || null,
       school_type: sekolahData.school_type || null,
       school_city: sekolahData.school_city.trim() || null,
-      school_address: sekolahData.school_address.trim() || null,
       parent_name: ortuData.parent_name.trim() || null,
       parent_phone: ortuData.parent_phone.trim() || null,
       parent_email: ortuData.parent_email.trim() || null,
@@ -607,6 +607,14 @@ export default function StudentOnboardingPage() {
                       rows={3}
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>Alamat Rumah</Label>
+                    <Input
+                      value={siswaData.address}
+                      onChange={e => setSiswaData(p => ({ ...p, address: e.target.value }))}
+                      placeholder="Jl. ..."
+                    />
+                  </div>
                   <div className="pt-2">
                     <Button variant="outline" size="sm" onClick={() => setProfileTab('sekolah')}>
                       Lanjut: Data Sekolah <ChevronRight className="w-4 h-4 ml-1" />
@@ -648,14 +656,6 @@ export default function StudentOnboardingPage() {
                         value={sekolahData.school_city}
                         onChange={e => setSekolahData(p => ({ ...p, school_city: e.target.value }))}
                         placeholder="Contoh: Jakarta Selatan"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Alamat Sekolah</Label>
-                      <Input
-                        value={sekolahData.school_address}
-                        onChange={e => setSekolahData(p => ({ ...p, school_address: e.target.value }))}
-                        placeholder="Jl. ..."
                       />
                     </div>
                   </div>
