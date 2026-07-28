@@ -35,7 +35,13 @@ import {
   Wallet,
   Users,
   ArrowRight,
+  DollarSign,
+  MapPin,
+  School,
+  BookMarked,
+  UserCircle,
 } from 'lucide-react'
+import Link from 'next/link'
 
 const FREQUENCY_LABELS: Record<string, string> = {
   'once-a-week': '1× per minggu',
@@ -61,16 +67,19 @@ interface StudentOffer {
   alreadyApplied: boolean
 }
 
-interface BrowseOffer {
+interface BrowseStudent {
   id: string
+  name: string
   gradeLevel: string
   subjects: string[]
-  budget: number
+  budgetPerMonth: number
   sessionsPerMonth: number
   preferredSchedule: string
   learningGoals: string
-  studentName: string
-  studentCity?: string
+  address: string
+  avatarUrl: string | null
+  onboardingComplete: boolean
+  status: string
   alreadyApplied: boolean
   matchId?: string
 }
@@ -79,6 +88,13 @@ const SUBJECTS_ALL = [
   'Matematika', 'Bahasa Inggris', 'Bahasa Indonesia', 'Fisika', 'Kimia', 'Biologi',
   'Sejarah', 'Geografi', 'IPA', 'IPS', 'Ekonomi', 'Akuntansi',
   'Pemrograman', 'Desain Grafis', 'Musik', 'Seni Rupa',
+]
+
+const GRADE_LEVELS = [
+  'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
+  'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
+  'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
+  'Mahasiswa', 'Umum',
 ]
 
 export default function StudentOffersPage() {
@@ -99,12 +115,12 @@ export default function StudentOffersPage() {
   const [dialogAction, setDialogAction] = useState<'confirm' | 'reject'>('confirm')
 
   // Tab 2: Browse students (tutor-initiated)
-  const [browseOffers, setBrowseOffers] = useState<BrowseOffer[]>([])
-  const [filteredBrowse, setFilteredBrowse] = useState<BrowseOffer[]>([])
+  const [browseStudents, setBrowseStudents] = useState<BrowseStudent[]>([])
+  const [filteredBrowse, setFilteredBrowse] = useState<BrowseStudent[]>([])
   const [tutorData, setTutorData] = useState<any>(null)
   const [filterSubject, setFilterSubject] = useState('')
   const [filterGrade, setFilterGrade] = useState('')
-  const [selectedBrowseOffer, setSelectedBrowseOffer] = useState<BrowseOffer | null>(null)
+  const [selectedBrowseStudent, setSelectedBrowseStudent] = useState<BrowseStudent | null>(null)
   const [showApplyDialog, setShowApplyDialog] = useState(false)
   const [applySubject, setApplySubject] = useState('')
   const [applying, setApplying] = useState<string | null>(null)
@@ -172,8 +188,8 @@ export default function StudentOffersPage() {
           id: m.students?.id || '',
           grade_level: m.students?.grade_level || '—',
           learning_goals: m.students?.learning_goals || '',
-          name: m.students?.user_profiles?.name || m.students?.users_profile?.full_name || 'Siswa',
-          email: m.students?.user_profiles?.email || m.students?.users_profile?.email || '',
+          name: m.students?.name || 'Siswa', // langsung dari students.name
+          email: m.students?.user_profiles?.email || '',
         },
         alreadyApplied: appliedStudentIds.has(m.students?.id),
       }))
@@ -191,20 +207,22 @@ export default function StudentOffersPage() {
         const appliedBrowseIds = new Set((myApplications || []).map((a: any) => a.student_id))
         const browseMap = new Map((myApplications || []).map((a: any) => [a.student_id, a.id]))
 
+        // Ambil data siswa lengkap
         const { data: students, error: studentsErr } = await supabase
           .from('students')
           .select(`
             id,
+            name,
             grade_level,
             subjects,
             budget_per_month,
             sessions_per_month,
             preferred_schedule,
             learning_goals,
-            school_city,
+            address,
+            avatar_url,
             onboarding_complete,
-            status,
-            user_profiles:user_id(name)
+            status
           `)
           .eq('status', 'active')
           .eq('onboarding_complete', true)
@@ -218,21 +236,24 @@ export default function StudentOffersPage() {
             return verifiedLevels.includes(s.grade_level)
           })
 
-          const formatted: BrowseOffer[] = filtered.map((s: any) => ({
+          const formatted: BrowseStudent[] = filtered.map((s: any) => ({
             id: s.id,
+            name: s.name || 'Siswa',
             gradeLevel: s.grade_level || '-',
             subjects: s.subjects || [],
-            budget: s.budget_per_month || 0,
+            budgetPerMonth: s.budget_per_month || 0,
             sessionsPerMonth: s.sessions_per_month || 0,
             preferredSchedule: s.preferred_schedule || '',
             learningGoals: s.learning_goals || '',
-            studentName: s.user_profiles?.name || 'Siswa',
-            studentCity: s.school_city || '',
+            address: s.address || '',
+            avatarUrl: s.avatar_url || null,
+            onboardingComplete: s.onboarding_complete || false,
+            status: s.status || 'active',
             alreadyApplied: appliedBrowseIds.has(s.id),
             matchId: browseMap.get(s.id),
           }))
 
-          setBrowseOffers(formatted)
+          setBrowseStudents(formatted)
         }
       }
     } catch (err) {
@@ -264,11 +285,15 @@ export default function StudentOffersPage() {
 
   // Filter browse
   useEffect(() => {
-    let result = browseOffers
-    if (filterSubject) result = result.filter(o => o.subjects.includes(filterSubject))
-    if (filterGrade) result = result.filter(o => o.gradeLevel === filterGrade)
+    let result = browseStudents
+    if (filterSubject && filterSubject !== 'all') {
+      result = result.filter(o => o.subjects.includes(filterSubject))
+    }
+    if (filterGrade && filterGrade !== 'all') {
+      result = result.filter(o => o.gradeLevel === filterGrade)
+    }
     setFilteredBrowse(result)
-  }, [browseOffers, filterSubject, filterGrade])
+  }, [browseStudents, filterSubject, filterGrade])
 
   const handleAction = async (matchId: string, action: 'confirm' | 'reject') => {
     setActingId(matchId)
@@ -302,8 +327,8 @@ export default function StudentOffersPage() {
   }
 
   const handleApply = async () => {
-    if (!selectedBrowseOffer || !applySubject || !tutorData) return
-    setApplying(selectedBrowseOffer.id)
+    if (!selectedBrowseStudent || !applySubject || !tutorData) return
+    setApplying(selectedBrowseStudent.id)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -311,7 +336,7 @@ export default function StudentOffersPage() {
 
       const { error: insertErr } = await supabase.from('matches').insert({
         tutor_id: tutorData.id,
-        student_id: selectedBrowseOffer.id,
+        student_id: selectedBrowseStudent.id,
         subject: applySubject,
         status: 'pending',
         initiated_by: 'tutor',
@@ -321,9 +346,9 @@ export default function StudentOffersPage() {
 
       if (insertErr) throw insertErr
 
-      setApplySuccess(selectedBrowseOffer.id)
+      setApplySuccess(selectedBrowseStudent.id)
       setShowApplyDialog(false)
-      setSelectedBrowseOffer(null)
+      setSelectedBrowseStudent(null)
       setApplySubject('')
       setTimeout(() => setApplySuccess(null), 3000)
       await fetchData()
@@ -361,7 +386,7 @@ export default function StudentOffersPage() {
     )
   }
 
-  const allSubjects = [...new Set([...offers.map(o => o.subject), ...browseOffers.flatMap(o => o.subjects)])].sort()
+  const allSubjects = [...new Set([...offers.map(o => o.subject), ...browseStudents.flatMap(o => o.subjects)])].sort()
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -470,7 +495,6 @@ export default function StudentOffersPage() {
                         )}
                       </div>
 
-                      {/* Actions */}
                       <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0">
                         <Button
                           size="sm"
@@ -508,7 +532,7 @@ export default function StudentOffersPage() {
           )}
         </TabsContent>
 
-        {/* Tab 2: Browse Students */}
+        {/* Tab 2: Browse Students - Namecard Style */}
         <TabsContent value="browse" className="space-y-4">
           {!tutorData?.verified ? (
             <div className="text-center py-12">
@@ -535,9 +559,7 @@ export default function StudentOffersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Kelas</SelectItem>
-                    {['SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
-                      'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
-                      'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12'].map(g => (
+                    {GRADE_LEVELS.map(g => (
                       <SelectItem key={g} value={g}>{g}</SelectItem>
                     ))}
                   </SelectContent>
@@ -550,93 +572,132 @@ export default function StudentOffersPage() {
                   <p>Tidak ada siswa yang cocok dengan filter Anda</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredBrowse.map(offer => (
-                    <Card
-                      key={offer.id}
-                      className={`border transition-all ${
-                        offer.alreadyApplied
-                          ? 'border-green-200 bg-green-50/30'
-                          : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
-                      }`}
-                    >
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-sm font-semibold text-blue-300">
-                              {offer.studentName.charAt(0)}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-slate-900 truncate">{offer.studentName}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <Badge variant="secondary" className="text-[10px]">
-                                {offer.gradeLevel}
-                              </Badge>
-                              {offer.studentCity && (
-                                <span className="text-xs text-slate-400">{offer.studentCity}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {filteredBrowse.map(student => {
+                    const costPerSession = student.budgetPerMonth && student.sessionsPerMonth
+                      ? Math.round(student.budgetPerMonth / student.sessionsPerMonth)
+                      : 0
+
+                    return (
+                      <Card
+                        key={student.id}
+                        className={`border shadow-sm hover:shadow-md transition-shadow overflow-hidden ${
+                          student.alreadyApplied
+                            ? 'border-green-200 bg-green-50/30'
+                            : 'border-border hover:border-primary/40'
+                        }`}
+                      >
+                        <CardContent className="p-5">
+                          {/* Header: Avatar + Nama */}
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-md">
+                              {student.avatarUrl ? (
+                                <img
+                                  src={student.avatarUrl}
+                                  alt={student.name}
+                                  className="w-full h-full object-cover rounded-full"
+                                />
+                              ) : (
+                                student.name?.charAt(0)?.toUpperCase() || '?'
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-bold text-foreground truncate">
+                                {student.name || 'Nama belum diisi'}
+                              </h3>
+                              {student.alreadyApplied && (
+                                <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs mt-0.5">
+                                  ✓ Penawaran Dikirim
+                                </Badge>
                               )}
                             </div>
                           </div>
-                          {offer.alreadyApplied && (
-                            <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-                              ✓ Diapply
-                            </Badge>
+
+                          {/* Tarif per sesi */}
+                          <div className="flex items-center text-sm text-muted-foreground mb-1">
+                            <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+                            <span className="font-medium text-foreground">
+                              {costPerSession > 0
+                                ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi`
+                                : 'Belum diatur'}
+                            </span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              (Rp {student.budgetPerMonth.toLocaleString('id-ID')}/bulan)
+                            </span>
+                          </div>
+
+                          {/* Kelas */}
+                          <div className="flex items-center text-sm text-muted-foreground mb-1.5">
+                            <School className="w-4 h-4 mr-1 text-green-400 flex-shrink-0" />
+                            <span>{student.gradeLevel || 'Kelas belum ditentukan'}</span>
+                          </div>
+
+                          {/* Mata Pelajaran */}
+                          <div className="flex items-start text-sm text-muted-foreground mb-1.5">
+                            <BookMarked className="w-4 h-4 mr-1 mt-0.5 text-purple-400 flex-shrink-0" />
+                            <span>
+                              {student.subjects?.length > 0 ? (
+                                student.subjects.join(', ')
+                              ) : (
+                                <span className="text-muted-foreground">Belum ada mata pelajaran</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Alamat */}
+                          <div className="flex items-start text-sm text-muted-foreground mb-1.5">
+                            <MapPin className="w-4 h-4 mr-1 mt-0.5 text-blue-400 flex-shrink-0" />
+                            <span>{student.address || 'Alamat belum diisi'}</span>
+                          </div>
+
+                          {/* Jadwal */}
+                          <div className="flex items-start text-sm text-muted-foreground mb-3">
+                            <Clock className="w-4 h-4 mr-1 mt-0.5 text-orange-400 flex-shrink-0" />
+                            <span>{student.preferredSchedule || 'Jadwal belum ditentukan'}</span>
+                          </div>
+
+                          {/* Tujuan belajar (opsional) */}
+                          {student.learningGoals && (
+                            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 mb-4">
+                              <p className="text-xs text-slate-500 mb-0.5">Tujuan Belajar</p>
+                              <p className="text-sm text-slate-700 line-clamp-2">{student.learningGoals}</p>
+                            </div>
                           )}
-                        </div>
 
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {offer.subjects.slice(0, 3).map(subj => (
-                            <Badge key={subj} className="bg-slate-100 text-slate-700 text-[10px]">
-                              {subj}
-                            </Badge>
-                          ))}
-                          {offer.subjects.length > 3 && (
-                            <Badge className="bg-slate-100 text-slate-500 text-[10px]">
-                              +{offer.subjects.length - 3}
-                            </Badge>
+                          {/* Tombol aksi */}
+                          {!student.alreadyApplied ? (
+                            <Button
+                              size="sm"
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                              disabled={applying === student.id}
+                              onClick={() => {
+                                setSelectedBrowseStudent(student)
+                                setApplySubject('')
+                                setShowApplyDialog(true)
+                              }}
+                            >
+                              {applying === student.id ? (
+                                <Spinner className="h-3.5 w-3.5" />
+                              ) : (
+                                <Send className="w-3.5 h-3.5" />
+                              )}
+                              Kirim Penawaran
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-green-200 text-green-600 hover:bg-green-50 gap-1.5"
+                              disabled
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Penawaran Terkirim
+                            </Button>
                           )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-4">
-                          <div className="flex items-center gap-1">
-                            <Wallet className="w-3 h-3 text-slate-400" />
-                            <span>Rp {offer.budget.toLocaleString()}/bln</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            <span>{offer.sessionsPerMonth}x/bln</span>
-                          </div>
-                        </div>
-
-                        {offer.learningGoals && (
-                          <div className="p-2 bg-slate-50 rounded border border-slate-100 mb-4">
-                            <p className="text-[11px] text-slate-500 line-clamp-2">{offer.learningGoals}</p>
-                          </div>
-                        )}
-
-                        {!offer.alreadyApplied && (
-                          <Button
-                            size="sm"
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                            disabled={applying === offer.id}
-                            onClick={() => {
-                              setSelectedBrowseOffer(offer)
-                              setApplySubject('')
-                              setShowApplyDialog(true)
-                            }}
-                          >
-                            {applying === offer.id ? (
-                              <Spinner className="h-3.5 w-3.5" />
-                            ) : (
-                              <Send className="w-3.5 h-3.5" />
-                            )}
-                            Kirim Penawaran
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
               )}
             </>
@@ -681,7 +742,7 @@ export default function StudentOffersPage() {
             <DialogTitle>Kirim Penawaran</DialogTitle>
             <DialogDescription>
               Pilih mata pelajaran yang ingin Anda ajarkan kepada{' '}
-              <span className="font-semibold text-slate-900">{selectedBrowseOffer?.studentName}</span>.
+              <span className="font-semibold text-slate-900">{selectedBrowseStudent?.name}</span>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -692,22 +753,22 @@ export default function StudentOffersPage() {
                   <SelectValue placeholder="Pilih mata pelajaran" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(selectedBrowseOffer?.subjects || []).map(s => (
+                  {(selectedBrowseStudent?.subjects || []).map(s => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => { setShowApplyDialog(false); setSelectedBrowseOffer(null) }}>
+              <Button variant="outline" className="flex-1" onClick={() => { setShowApplyDialog(false); setSelectedBrowseStudent(null) }}>
                 Batal
               </Button>
               <Button
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
-                disabled={!applySubject || applying === selectedBrowseOffer?.id}
+                disabled={!applySubject || applying === selectedBrowseStudent?.id}
                 onClick={handleApply}
               >
-                {applying === selectedBrowseOffer?.id ? (
+                {applying === selectedBrowseStudent?.id ? (
                   <><Spinner className="mr-2 h-4 w-4" />Mengirim...</>
                 ) : (
                   <><Send className="w-4 h-4 mr-1.5" />Kirim Penawaran</>
