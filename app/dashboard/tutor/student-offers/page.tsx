@@ -10,7 +10,6 @@ import { createClient } from '@/lib/auth'
 import {
   DollarSign,
   MapPin,
-  School,
   BookMarked,
   Clock,
   Send,
@@ -39,47 +38,102 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchData = async () => {
-      setLoading(true)
-      setError(null)
       try {
-        // 1. Ambil data tutor (untuk cek verified dan tutor_id)
+        // 1. Ambil data tutor
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-          setLoading(false)
+          if (isMounted) setLoading(false)
           return
         }
 
+        // Cek tutor
         const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
           .eq('user_id', user.id)
           .single()
 
-        if (tutor) {
-          setTutorId(tutor.id)
-          setTutorVerified(tutor.verified || false)
+        if (isMounted) {
+          if (tutor) {
+            setTutorId(tutor.id)
+            setTutorVerified(tutor.verified || false)
+          }
         }
 
-        // 2. Ambil semua siswa via API (bypass RLS)
-        const res = await fetch('/api/tutors/students')
-        if (!res.ok) {
-          const errData = await res.json()
-          throw new Error(errData.error || 'Gagal memuat data siswa')
+        // 2. Ambil siswa dari API (dengan fallback ke supabase langsung)
+        let studentsData: Student[] = []
+        try {
+          const res = await fetch('/api/tutors/students', {
+            // tambahkan cache: 'no-store' agar tidak cache
+            cache: 'no-store',
+          })
+          if (res.ok) {
+            const json = await res.json()
+            studentsData = json.students || []
+          } else {
+            throw new Error(`API error: ${res.status}`)
+          }
+        } catch (apiErr) {
+          console.warn('API fallback, using supabase direct:', apiErr)
+          // fallback: coba langsung via supabase (mungkin terbatas RLS)
+          const { data, error: supabaseErr } = await supabase
+            .from('students')
+            .select(`
+              id,
+              name,
+              grade_level,
+              subjects,
+              budget_per_month,
+              sessions_per_month,
+              preferred_schedule,
+              address,
+              avatar_url
+            `)
+            .eq('status', 'active')
+            .eq('onboarding_complete', true)
+            .not('budget_per_month', 'is', null)
+            .order('created_at', { ascending: false })
+          if (!supabaseErr) {
+            studentsData = data || []
+          } else {
+            throw supabaseErr
+          }
         }
-        const { students: studentsData } = await res.json()
-        setStudents(studentsData || [])
-      } catch (err) {
-        console.error('Error:', err)
-        setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+
+        if (isMounted) {
+          setStudents(studentsData)
+          setError(null)
+        }
+      } catch (err: any) {
+        console.error('Error fetching students:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat data siswa')
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
 
     fetchData()
-  }, [])
+
+    // Timeout fallback: jika loading masih true setelah 5 detik, force false
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Forcing loading false after 5s')
+        setLoading(false)
+        setError('Waktu muat habis, silakan refresh halaman.')
+      }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSendOffer = async (studentId: string) => {
     if (!tutorId) {
@@ -110,7 +164,7 @@ export default function StudentOffersPage() {
 
       if (error) throw error
       alert('Penawaran berhasil dikirim!')
-      // Refresh list (bisa juga update state tanpa reload)
+      // Refresh page
       window.location.reload()
     } catch (err) {
       alert('Gagal mengirim penawaran: ' + (err instanceof Error ? err.message : 'Unknown error'))
@@ -134,10 +188,16 @@ export default function StudentOffersPage() {
         <p className="text-muted-foreground">
           Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.
         </p>
-        {!tutorVerified && (
+        {!tutorVerified && tutorId && (
           <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm flex items-center gap-2">
             <Lock className="w-4 h-4" />
             Anda belum lulus kurasi. Kirim penawaran hanya bisa dilakukan setelah kurasi selesai.
+          </div>
+        )}
+        {!tutorId && (
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm flex items-center gap-2">
+            <UserCircle className="w-4 h-4" />
+            Anda belum memiliki profil tutor. Silakan lengkapi profil tutor terlebih dahulu.
           </div>
         )}
       </div>
@@ -163,7 +223,6 @@ export default function StudentOffersPage() {
             return (
               <Card key={student.id} className="border shadow-sm hover:shadow-md transition-shadow overflow-hidden">
                 <CardContent className="p-5">
-                  {/* Avatar + Nama */}
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                       {student.avatar_url ? (
@@ -182,7 +241,6 @@ export default function StudentOffersPage() {
                     </div>
                   </div>
 
-                  {/* Detail */}
                   <div className="space-y-1.5 text-sm">
                     <div className="flex items-center text-muted-foreground">
                       <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
@@ -208,12 +266,11 @@ export default function StudentOffersPage() {
                     </div>
                   </div>
 
-                  {/* Tombol kirim penawaran */}
                   <div className="mt-4">
                     <Button
                       size="sm"
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                      disabled={!tutorVerified || sending === student.id}
+                      disabled={!tutorVerified || sending === student.id || !tutorId}
                       onClick={() => handleSendOffer(student.id)}
                     >
                       {sending === student.id ? (
@@ -223,7 +280,7 @@ export default function StudentOffersPage() {
                       )}
                       Kirim Penawaran
                     </Button>
-                    {!tutorVerified && (
+                    {!tutorVerified && tutorId && (
                       <p className="text-[10px] text-muted-foreground mt-1 text-center">
                         * Kurasi diperlukan untuk mengirim penawaran
                       </p>
