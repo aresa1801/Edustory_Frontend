@@ -23,6 +23,27 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'Dibatalkan', color: 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30' },
 }
 
+// 🔥 Fungsi untuk mengecek kelengkapan data siswa
+const isProfileComplete = (profile: any) => {
+  if (!profile) return false
+  return (
+    profile.name &&
+    profile.name !== 'Nama belum diisi' &&
+    profile.grade_level &&
+    profile.grade_level !== '' &&
+    Array.isArray(profile.subjects) &&
+    profile.subjects.length > 0 &&
+    profile.preferred_schedule &&
+    profile.preferred_schedule !== '' &&
+    profile.budget_per_month &&
+    profile.budget_per_month > 0 &&
+    profile.sessions_per_month &&
+    profile.sessions_per_month > 0 &&
+    profile.school_address &&
+    profile.school_address !== ''
+  )
+}
+
 export default function StudentDashboard() {
   const { user: authUser, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<any>({
@@ -167,7 +188,6 @@ export default function StudentDashboard() {
 
   // 🔥 Handle avatar upload
   const handleAvatarUpload = async (url: string) => {
-    // ✅ Fix: guard against null authUser
     if (!authUser) {
       console.error('[DASHBOARD] No authenticated user')
       alert('Silakan login terlebih dahulu')
@@ -181,8 +201,7 @@ export default function StudentDashboard() {
         .update({ avatar_url: url })
         .eq('user_id', authUser.id)
       if (error) throw error
-      // Update state profile
-      setProfile((prev: any) => ({ ...prev, avatar_url: url })) // ✅ typed prev
+      setProfile((prev: any) => ({ ...prev, avatar_url: url }))
       console.log('[DASHBOARD] Avatar updated successfully')
     } catch (err) {
       console.error('[DASHBOARD] Failed to update avatar:', err)
@@ -213,7 +232,6 @@ export default function StudentDashboard() {
   const activeMatches = matches.filter(m => ['matched', 'active'].includes(m.status))
   const pendingMatches = matches.filter(m => m.status === 'pending')
   const completedMatches = matches.filter(m => m.status === 'completed')
-  const onboardingComplete = profile?.onboarding_complete
 
   const costPerSession = profile?.budget_per_month && profile?.sessions_per_month
     ? Math.round(profile.budget_per_month / profile.sessions_per_month)
@@ -221,6 +239,9 @@ export default function StudentDashboard() {
 
   // 🔥 Toggle mode
   const toggleMode = () => setIsOnline(prev => !prev)
+
+  // 🔥 Cek kelengkapan data menggunakan fungsi isProfileComplete
+  const profileComplete = isProfileComplete(profile)
 
   return (
     <div className="space-y-6 relative">
@@ -238,7 +259,8 @@ export default function StudentDashboard() {
         </p>
       </div>
 
-      {!onboardingComplete && (
+      {/* 🔥 Notifikasi onboarding – HANYA muncul jika data TIDAK lengkap */}
+      {!profileComplete && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-amber-700 dark:text-amber-300">⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
@@ -316,7 +338,6 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Kartu Pelajar */}
         <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
-          {/* 🔥 Header dengan switch Online/Offline di kanan atas */}
           <CardHeader className="pb-1 pt-4 flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
               <UserCircle className="w-5 h-5 text-primary" />
@@ -347,7 +368,6 @@ export default function StudentDashboard() {
           </CardHeader>
 
           <CardContent className="p-5 pt-2">
-            {/* 🔥 Foto + Nama dengan hover efek kamera */}
             <div className="flex items-center gap-4">
               <div
                 className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
@@ -370,13 +390,11 @@ export default function StudentDashboard() {
                 <h3 className="text-2xl font-bold text-foreground">
                   {profile?.name || 'Nama belum diisi'}
                 </h3>
-                {/* Email dihapus */}
               </div>
             </div>
 
             <div className="border-t border-border/50 my-3" />
 
-            {/* 🔥 Bagian tarif - indikator Online statis sudah dihapus */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
               <span className="flex items-center text-sm text-muted-foreground">
                 <DollarSign className="w-4 h-4 mr-1 text-green-500" />
@@ -425,7 +443,7 @@ export default function StudentDashboard() {
           </CardContent>
         </Card>
 
-        {/* Aksi Cepat - tidak berubah */}
+        {/* Aksi Cepat */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Aksi Cepat</CardTitle>
@@ -536,7 +554,7 @@ export default function StudentDashboard() {
         </Card>
       )}
 
-      {/* 🔥 Modal Avatar Upload */}
+      {/* Modal Avatar Upload */}
       <AvatarUploader
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
