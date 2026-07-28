@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/auth'
 import {
   DollarSign,
@@ -35,10 +36,14 @@ export default function StudentOffersPage() {
   const [tutorVerified, setTutorVerified] = useState(false)
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true)
+      setError(null)
       try {
+        // 1. Ambil data tutor (untuk cek verified dan tutor_id)
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -46,7 +51,6 @@ export default function StudentOffersPage() {
           return
         }
 
-        // Cek data tutor (verified)
         const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
@@ -58,29 +62,17 @@ export default function StudentOffersPage() {
           setTutorVerified(tutor.verified || false)
         }
 
-        // Ambil semua siswa aktif & onboarding_complete
-        const { data: studentsData, error } = await supabase
-          .from('students')
-          .select(`
-            id,
-            name,
-            grade_level,
-            subjects,
-            budget_per_month,
-            sessions_per_month,
-            preferred_schedule,
-            address,
-            avatar_url
-          `)
-          .eq('status', 'active')
-          .eq('onboarding_complete', true)
-          .not('budget_per_month', 'is', null)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
+        // 2. Ambil semua siswa via API (bypass RLS)
+        const res = await fetch('/api/tutors/students')
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Gagal memuat data siswa')
+        }
+        const { students: studentsData } = await res.json()
         setStudents(studentsData || [])
       } catch (err) {
-        console.error('Error fetching students:', err)
+        console.error('Error:', err)
+        setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
       } finally {
         setLoading(false)
       }
@@ -118,7 +110,7 @@ export default function StudentOffersPage() {
 
       if (error) throw error
       alert('Penawaran berhasil dikirim!')
-      // Refresh data agar tombol berubah status (opsional)
+      // Refresh list (bisa juga update state tanpa reload)
       window.location.reload()
     } catch (err) {
       alert('Gagal mengirim penawaran: ' + (err instanceof Error ? err.message : 'Unknown error'))
@@ -149,6 +141,12 @@ export default function StudentOffersPage() {
           </div>
         )}
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {students.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
