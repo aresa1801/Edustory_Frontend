@@ -597,6 +597,14 @@ export default function StudentOnboardingPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1.5">
+                      <Label>Alamat Rumah</Label>
+                      <Input
+                        value={siswaData.address}
+                        onChange={e => setSiswaData(p => ({ ...p, address: e.target.value }))}
+                        placeholder="Jl. ..."
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Tentang Saya / Catatan</Label>
@@ -605,14 +613,6 @@ export default function StudentOnboardingPage() {
                       onChange={e => setSiswaData(p => ({ ...p, bio: e.target.value }))}
                       placeholder="Ceritakan tentang diri Anda, kebiasaan belajar, dll."
                       rows={3}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Alamat Rumah</Label>
-                    <Input
-                      value={siswaData.address}
-                      onChange={e => setSiswaData(p => ({ ...p, address: e.target.value }))}
-                      placeholder="Jl. ..."
                     />
                   </div>
                   <div className="pt-2">
