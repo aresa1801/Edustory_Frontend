@@ -36,9 +36,9 @@ export default function StudentOffersPage() {
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string>('')
 
   const isMounted = useRef(true)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     isMounted.current = true
@@ -46,63 +46,97 @@ export default function StudentOffersPage() {
     const fetchData = async () => {
       setError(null)
       setLoading(true)
+      setDebugInfo('Mulai fetch...')
 
       try {
-        console.log('[StudentOffers] 🔍 Start fetching...')
-
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          console.warn('[StudentOffers] No user found')
+          setDebugInfo('Tidak ada user, stop.')
           setLoading(false)
           return
         }
 
-        console.log('[StudentOffers] ✅ User authenticated:', user.id)
+        setDebugInfo(`User ID: ${user.id}`)
 
-        // Cek tutor (verified)
-        const { data: tutor, error: tutorError } = await supabase
+        // Cek tutor
+        const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
           .eq('user_id', user.id)
           .single()
 
-        if (tutorError && tutorError.code !== 'PGRST116') {
-          console.error('[StudentOffers] Tutor fetch error:', tutorError)
-        }
-
         if (tutor) {
           setTutorId(tutor.id)
           setTutorVerified(tutor.verified || false)
-          console.log('[StudentOffers] ✅ Tutor found:', { id: tutor.id, verified: tutor.verified })
+          setDebugInfo(`Tutor ID: ${tutor.id}, verified: ${tutor.verified}`)
         } else {
-          console.warn('[StudentOffers] ⚠️ No tutor profile')
+          setDebugInfo('Tutor profile tidak ditemukan')
         }
 
-        // 🔥 Ambil semua siswa dari API
-        console.log('[StudentOffers] 🔍 Fetching all students from API...')
-        const res = await fetch('/api/tutors/students', { cache: 'no-store' })
-        console.log('[StudentOffers] API response status:', res.status)
+        // 🔥 Ambil students dari API
+        setDebugInfo('Memanggil API /api/tutors/students...')
+        let studentsData: Student[] = []
 
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`API error ${res.status}: ${errText}`)
+        try {
+          const res = await fetch('/api/tutors/students', { cache: 'no-store' })
+          setDebugInfo(`API response status: ${res.status}`)
+
+          if (!res.ok) {
+            const text = await res.text()
+            setDebugInfo(`API error: ${res.status} - ${text}`)
+            throw new Error(`API ${res.status}: ${text}`)
+          }
+
+          const json = await res.json()
+          setDebugInfo(`API response: ${JSON.stringify(json).substring(0, 200)}...`)
+
+          if (json.students && Array.isArray(json.students)) {
+            studentsData = json.students
+            setDebugInfo(`API success: ${studentsData.length} students`)
+          } else {
+            setDebugInfo('API response tidak memiliki students array')
+          }
+        } catch (apiErr) {
+          setDebugInfo(`API gagal: ${apiErr}`)
+          console.error('[StudentOffers] API gagal:', apiErr)
+
+          // 🔥 Fallback: query langsung Supabase (client-side)
+          setDebugInfo('Coba query langsung Supabase...')
+          try {
+            const { data, error } = await supabase
+              .from('students')
+              .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
+              .eq('status', 'active')
+              .eq('onboarding_complete', true)
+              .not('budget_per_month', 'is', null)
+              .order('created_at', { ascending: false })
+
+            if (error) {
+              setDebugInfo(`Supabase error: ${error.message}`)
+              throw error
+            }
+            studentsData = data || []
+            setDebugInfo(`Supabase success: ${studentsData.length} students`)
+          } catch (supabaseErr) {
+            setDebugInfo(`Supabase juga gagal: ${supabaseErr}`)
+            setError('Gagal memuat data siswa dari semua sumber. Cek console.')
+          }
         }
-
-        const json = await res.json()
-        const studentsData = json.students || []
-        console.log('[StudentOffers] ✅ Students fetched:', studentsData.length)
 
         if (isMounted.current) {
           setStudents(studentsData)
-          setError(null)
+          if (studentsData.length === 0 && !error) {
+            setDebugInfo('Tidak ada data siswa (kosong)')
+          } else {
+            setDebugInfo(`Total students: ${studentsData.length}`)
+          }
         }
       } catch (err: any) {
-        console.error('[StudentOffers] ❌ Error:', err)
-        if (isMounted.current) {
-          setError(err.message || 'Gagal memuat data siswa')
-        }
+        console.error('[StudentOffers] Error:', err)
+        setDebugInfo(`Error catch: ${err.message}`)
+        setError(err.message || 'Terjadi kesalahan')
       } finally {
         if (isMounted.current) {
           setLoading(false)
@@ -112,40 +146,27 @@ export default function StudentOffersPage() {
 
     fetchData()
 
-    timeoutRef.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[StudentOffers] ⏱️ Force loading false after 5s')
-        setLoading(false)
-        setError('Waktu muat habis, silakan refresh halaman.')
-      }
-    }, 5000)
-
     return () => {
       isMounted.current = false
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
   }, [])
 
   const handleSendOffer = async (studentId: string) => {
     if (!tutorId) {
-      alert('Anda belum memiliki profil tutor. Silakan lengkapi profil terlebih dahulu.')
+      alert('Anda belum memiliki profil tutor.')
       return
     }
-
     if (!tutorVerified) {
-      alert('Anda belum lulus kurasi. Silakan selesaikan kurasi terlebih dahulu.')
+      alert('Anda belum lulus kurasi.')
       return
     }
 
     const student = students.find(s => s.id === studentId)
-    if (!student) {
-      alert('Data siswa tidak ditemukan.')
-      return
-    }
+    if (!student) return
 
     const subject = student.subjects?.[0] || 'Umum'
-
     setSending(studentId)
+
     try {
       const supabase = createClient()
       const { error } = await supabase.from('matches').insert({
@@ -157,17 +178,13 @@ export default function StudentOffersPage() {
         lesson_frequency: 'flexible',
         start_date: new Date().toISOString().split('T')[0],
       })
-
       if (error) throw error
-
       alert('✅ Penawaran berhasil dikirim!')
-      // Tandai sebagai sudah diapply
       setStudents(prev => prev.map(s =>
         s.id === studentId ? { ...s, alreadyApplied: true } : s
       ))
     } catch (err: any) {
-      console.error('[StudentOffers] Send offer error:', err)
-      alert('❌ Gagal mengirim penawaran: ' + (err.message || 'Unknown error'))
+      alert('❌ Gagal: ' + err.message)
     } finally {
       setSending(null)
     }
@@ -177,7 +194,7 @@ export default function StudentOffersPage() {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3 text-muted-foreground">Memuat daftar siswa...</p>
+        <p className="ml-3 text-muted-foreground">Memuat...</p>
       </div>
     )
   }
@@ -185,51 +202,48 @@ export default function StudentOffersPage() {
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Daftar Siswa</h1>
-        <p className="text-muted-foreground">
-          Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.
-        </p>
+        <h1 className="text-2xl font-bold">Daftar Siswa</h1>
+        <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
 
-        {!tutorVerified && tutorId && (
-          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm flex items-center gap-2">
-            <Lock className="w-4 h-4" />
-            Anda belum lulus kurasi. Kirim penawaran hanya bisa dilakukan setelah kurasi selesai.
-          </div>
-        )}
+        {/* Debug Info */}
+        <div className="mt-2 p-2 bg-gray-100 border border-gray-300 rounded text-xs font-mono text-gray-700 overflow-auto max-h-24">
+          <strong>Debug:</strong> {debugInfo}
+        </div>
 
         {!tutorId && (
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm flex items-center gap-2">
-            <UserCircle className="w-4 h-4" />
-            Anda belum memiliki profil tutor. Silakan lengkapi profil tutor terlebih dahulu.
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
+            <UserCircle className="w-4 h-4 inline mr-1" />
+            Anda belum memiliki profil tutor.
           </div>
         )}
+        {tutorId && !tutorVerified && (
+          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-amber-700 text-sm">
+            <Lock className="w-4 h-4 inline mr-1" />
+            Anda belum lulus kurasi. Tombol kirim penawaran dinonaktifkan.
+          </div>
+        )}
+        {error && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {students.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>Belum ada siswa yang terdaftar.</p>
-          {!error && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Pastikan ada siswa yang sudah menyelesaikan onboarding.
-            </p>
-          )}
+          <p className="text-sm">(Pastikan ada siswa dengan status aktif, onboarding_complete, dan budget terisi)</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {students.map((student) => {
+          {students.map(student => {
             const costPerSession = student.budget_per_month && student.sessions_per_month
               ? Math.round(student.budget_per_month / student.sessions_per_month)
               : 0
 
             return (
-              <Card key={student.id} className="border shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+              <Card key={student.id} className="border shadow-sm hover:shadow-md">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -240,7 +254,7 @@ export default function StudentOffersPage() {
                       )}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground">{student.name || 'Siswa'}</h3>
+                      <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
                       {student.grade_level && (
                         <Badge variant="secondary" className="text-xs">{student.grade_level}</Badge>
                       )}
@@ -250,15 +264,11 @@ export default function StudentOffersPage() {
                   <div className="space-y-1.5 text-sm">
                     <div className="flex items-center text-muted-foreground">
                       <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                      {costPerSession > 0 ? (
-                        <span>Rp {costPerSession.toLocaleString('id-ID')}/sesi</span>
-                      ) : (
-                        <span className="text-muted-foreground">Belum diatur</span>
-                      )}
+                      {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
                     </div>
                     <div className="flex items-start text-muted-foreground">
                       <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                      <span>{student.subjects?.length > 0 ? student.subjects.join(', ') : 'Belum ada mata pelajaran'}</span>
+                      <span>{student.subjects?.length > 0 ? student.subjects.join(', ') : 'Belum ada mapel'}</span>
                     </div>
                     <div className="flex items-start text-muted-foreground">
                       <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
@@ -277,17 +287,11 @@ export default function StudentOffersPage() {
                       disabled={!tutorVerified || sending === student.id || !tutorId}
                       onClick={() => handleSendOffer(student.id)}
                     >
-                      {sending === student.id ? (
-                        <Spinner className="h-3.5 w-3.5" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
+                      {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
                       Kirim Penawaran
                     </Button>
-                    {!tutorVerified && tutorId && (
-                      <p className="text-[10px] text-muted-foreground mt-1 text-center">
-                        * Kurasi diperlukan untuk mengirim penawaran
-                      </p>
+                    {tutorId && !tutorVerified && (
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center">* Kurasi diperlukan</p>
                     )}
                   </div>
                 </CardContent>
