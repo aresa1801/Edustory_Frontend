@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import {
   DollarSign,
@@ -36,118 +35,62 @@ export default function StudentOffersPage() {
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>('')
-
-  const isMounted = useRef(true)
 
   useEffect(() => {
-    isMounted.current = true
+    let isMounted = true
 
     const fetchData = async () => {
-      setError(null)
-      setLoading(true)
-      setDebugInfo('Mulai fetch...')
-
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          setDebugInfo('Tidak ada user, stop.')
-          setLoading(false)
+          if (isMounted) setLoading(false)
           return
         }
 
-        setDebugInfo(`User ID: ${user.id}`)
-
-        // Cek tutor
+        // Get tutor info
         const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
           .eq('user_id', user.id)
           .single()
 
-        if (tutor) {
-          setTutorId(tutor.id)
-          setTutorVerified(tutor.verified || false)
-          setDebugInfo(`Tutor ID: ${tutor.id}, verified: ${tutor.verified}`)
+        if (isMounted) {
+          if (tutor) {
+            setTutorId(tutor.id)
+            setTutorVerified(tutor.verified || false)
+          }
+        }
+
+        // 🔥 Query langsung dari frontend (bypass API)
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
+          .eq('status', 'active')
+          .eq('onboarding_complete', true)
+          .not('budget_per_month', 'is', null)
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          console.error('Supabase error:', error)
+          setError(error.message)
         } else {
-          setDebugInfo('Tutor profile tidak ditemukan')
-        }
-
-        // 🔥 Ambil students dari API
-        setDebugInfo('Memanggil API /api/tutors/students...')
-        let studentsData: Student[] = []
-
-        try {
-          const res = await fetch('/api/tutors/students', { cache: 'no-store' })
-          setDebugInfo(`API response status: ${res.status}`)
-
-          if (!res.ok) {
-            const text = await res.text()
-            setDebugInfo(`API error: ${res.status} - ${text}`)
-            throw new Error(`API ${res.status}: ${text}`)
-          }
-
-          const json = await res.json()
-          setDebugInfo(`API response: ${JSON.stringify(json).substring(0, 200)}...`)
-
-          if (json.students && Array.isArray(json.students)) {
-            studentsData = json.students
-            setDebugInfo(`API success: ${studentsData.length} students`)
-          } else {
-            setDebugInfo('API response tidak memiliki students array')
-          }
-        } catch (apiErr) {
-          setDebugInfo(`API gagal: ${apiErr}`)
-          console.error('[StudentOffers] API gagal:', apiErr)
-
-          // 🔥 Fallback: query langsung Supabase (client-side)
-          setDebugInfo('Coba query langsung Supabase...')
-          try {
-            const { data, error } = await supabase
-              .from('students')
-              .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
-              .eq('status', 'active')
-              .eq('onboarding_complete', true)
-              .not('budget_per_month', 'is', null)
-              .order('created_at', { ascending: false })
-
-            if (error) {
-              setDebugInfo(`Supabase error: ${error.message}`)
-              throw error
-            }
-            studentsData = data || []
-            setDebugInfo(`Supabase success: ${studentsData.length} students`)
-          } catch (supabaseErr) {
-            setDebugInfo(`Supabase juga gagal: ${supabaseErr}`)
-            setError('Gagal memuat data siswa dari semua sumber. Cek console.')
-          }
-        }
-
-        if (isMounted.current) {
-          setStudents(studentsData)
-          if (studentsData.length === 0 && !error) {
-            setDebugInfo('Tidak ada data siswa (kosong)')
-          } else {
-            setDebugInfo(`Total students: ${studentsData.length}`)
-          }
+          setStudents(data || [])
+          console.log(`✅ ${data?.length || 0} students loaded`)
         }
       } catch (err: any) {
-        console.error('[StudentOffers] Error:', err)
-        setDebugInfo(`Error catch: ${err.message}`)
-        setError(err.message || 'Terjadi kesalahan')
+        console.error('Error:', err)
+        setError(err.message || 'Gagal memuat data')
       } finally {
-        if (isMounted.current) {
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       }
     }
 
     fetchData()
 
     return () => {
-      isMounted.current = false
+      isMounted = false
     }
   }, [])
 
@@ -194,7 +137,7 @@ export default function StudentOffersPage() {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3 text-muted-foreground">Memuat...</p>
+        <p className="ml-3 text-muted-foreground">Memuat daftar siswa...</p>
       </div>
     )
   }
@@ -203,12 +146,7 @@ export default function StudentOffersPage() {
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Daftar Siswa</h1>
-        <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
-
-        {/* Debug Info */}
-        <div className="mt-2 p-2 bg-gray-100 border border-gray-300 rounded text-xs font-mono text-gray-700 overflow-auto max-h-24">
-          <strong>Debug:</strong> {debugInfo}
-        </div>
+        <p className="text-muted-foreground">Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.</p>
 
         {!tutorId && (
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
@@ -219,13 +157,13 @@ export default function StudentOffersPage() {
         {tutorId && !tutorVerified && (
           <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-amber-700 text-sm">
             <Lock className="w-4 h-4 inline mr-1" />
-            Anda belum lulus kurasi. Tombol kirim penawaran dinonaktifkan.
+            Anda belum lulus kurasi. Kirim penawaran dinonaktifkan.
           </div>
         )}
         {error && (
-          <Alert variant="destructive" className="mt-2">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+            Error: {error}
+          </div>
         )}
       </div>
 
@@ -233,7 +171,8 @@ export default function StudentOffersPage() {
         <div className="text-center py-12 text-muted-foreground">
           <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>Belum ada siswa yang terdaftar.</p>
-          <p className="text-sm">(Pastikan ada siswa dengan status aktif, onboarding_complete, dan budget terisi)</p>
+          <p className="text-sm">Pastikan ada siswa dengan status aktif, onboarding_complete, dan budget terisi.</p>
+          {error && <p className="text-sm text-red-500 mt-2">Error: {error}</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
