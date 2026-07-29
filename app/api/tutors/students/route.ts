@@ -3,14 +3,14 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    console.log('[API] 🔍 Fetching students...')
+    console.log('[API] 📥 GET /api/tutors/students - Fetching all students')
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data, error } = await supabase
+    const { data: students, error } = await supabase
       .from('students')
       .select(`
         id,
@@ -33,8 +33,8 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log('[API] ✅ Students found:', data?.length || 0)
-    return NextResponse.json({ students: data || [] })
+    console.log(`[API] ✅ Success: ${students?.length || 0} students found`)
+    return NextResponse.json({ students: students || [] })
   } catch (err) {
     console.error('[API] ❌ Unexpected error:', err)
     return NextResponse.json(

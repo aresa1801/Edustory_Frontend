@@ -29,42 +29,6 @@ interface Student {
   avatar_url: string | null
 }
 
-const DUMMY_STUDENTS: Student[] = [
-  {
-    id: '1',
-    name: 'Agus Kurniasariawan',
-    grade_level: 'SMA Kelas 10',
-    subjects: ['Fisika', 'Kimia', 'Biologi'],
-    budget_per_month: 250000,
-    sessions_per_month: 4,
-    preferred_schedule: 'Senin – Jumat (Siang 12.00–15.00)',
-    address: 'Jalan Imam Bonjol',
-    avatar_url: null,
-  },
-  {
-    id: '2',
-    name: 'Budi Santoso',
-    grade_level: 'SMP Kelas 9',
-    subjects: ['Matematika', 'IPA'],
-    budget_per_month: 300000,
-    sessions_per_month: 4,
-    preferred_schedule: 'Sabtu – Minggu (Pagi)',
-    address: 'Jalan Merdeka No. 10',
-    avatar_url: null,
-  },
-  {
-    id: '3',
-    name: 'Citra Dewi',
-    grade_level: 'SD Kelas 6',
-    subjects: ['Bahasa Inggris', 'Matematika'],
-    budget_per_month: 200000,
-    sessions_per_month: 3,
-    preferred_schedule: 'Senin – Jumat (Sore 15.00–19.00)',
-    address: 'Jalan Sudirman No. 5',
-    avatar_url: null,
-  },
-]
-
 export default function StudentOffersPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,7 +36,6 @@ export default function StudentOffersPage() {
   const [tutorId, setTutorId] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [usingDummy, setUsingDummy] = useState(false)
 
   const isMounted = useRef(true)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -81,30 +44,24 @@ export default function StudentOffersPage() {
     isMounted.current = true
 
     const fetchData = async () => {
+      setError(null)
+      setLoading(true)
+
       try {
         console.log('[StudentOffers] 🔍 Start fetching...')
 
         const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-        if (userError) {
-          console.error('[StudentOffers] Auth error:', userError)
-          throw new Error('Gagal autentikasi: ' + userError.message)
-        }
+        const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          console.warn('[StudentOffers] No user found, using dummy data')
-          if (isMounted.current) {
-            setStudents(DUMMY_STUDENTS)
-            setUsingDummy(true)
-            setLoading(false)
-          }
+          console.warn('[StudentOffers] No user found')
+          setLoading(false)
           return
         }
 
         console.log('[StudentOffers] ✅ User authenticated:', user.id)
 
-        // Cek tutor
+        // Cek tutor (verified)
         const { data: tutor, error: tutorError } = await supabase
           .from('tutors')
           .select('id, verified')
@@ -115,64 +72,39 @@ export default function StudentOffersPage() {
           console.error('[StudentOffers] Tutor fetch error:', tutorError)
         }
 
-        if (isMounted.current) {
-          if (tutor) {
-            setTutorId(tutor.id)
-            setTutorVerified(tutor.verified || false)
-            console.log('[StudentOffers] ✅ Tutor found:', { id: tutor.id, verified: tutor.verified })
-          } else {
-            console.warn('[StudentOffers] ⚠️ No tutor profile found')
-          }
+        if (tutor) {
+          setTutorId(tutor.id)
+          setTutorVerified(tutor.verified || false)
+          console.log('[StudentOffers] ✅ Tutor found:', { id: tutor.id, verified: tutor.verified })
+        } else {
+          console.warn('[StudentOffers] ⚠️ No tutor profile')
         }
 
-        // 🔥 Ambil siswa dari API atau fallback
-        let studentsData: Student[] = []
+        // 🔥 Ambil semua siswa dari API
+        console.log('[StudentOffers] 🔍 Fetching all students from API...')
+        const res = await fetch('/api/tutors/students', { cache: 'no-store' })
+        console.log('[StudentOffers] API response status:', res.status)
 
-        try {
-          const res = await fetch('/api/tutors/students', { cache: 'no-store' })
-          console.log('[StudentOffers] API response status:', res.status)
-
-          if (res.ok) {
-            const json = await res.json()
-            studentsData = json.students || []
-            console.log('[StudentOffers] ✅ Students fetched from API:', studentsData.length)
-          } else {
-            throw new Error(`API error: ${res.status}`)
-          }
-        } catch (apiErr) {
-          console.warn('[StudentOffers] API failed, trying direct Supabase query...', apiErr)
-
-          // 🔥 Fallback: query langsung ke Supabase (tanpa API)
-          try {
-            const { data, error } = await supabase
-              .from('students')
-              .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
-              .eq('status', 'active')
-              .eq('onboarding_complete', true)
-              .not('budget_per_month', 'is', null)
-              .order('created_at', { ascending: false })
-
-            if (error) throw error
-            studentsData = data || []
-            console.log('[StudentOffers] ✅ Direct Supabase query success:', studentsData.length)
-          } catch (supabaseErr) {
-            console.warn('[StudentOffers] Direct Supabase query also failed, using dummy data:', supabaseErr)
-            studentsData = DUMMY_STUDENTS
-            setUsingDummy(true)
-          }
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`API error ${res.status}: ${errText}`)
         }
+
+        const json = await res.json()
+        const studentsData = json.students || []
+        console.log('[StudentOffers] ✅ Students fetched:', studentsData.length)
 
         if (isMounted.current) {
           setStudents(studentsData)
           setError(null)
-          setLoading(false)
         }
       } catch (err: any) {
         console.error('[StudentOffers] ❌ Error:', err)
         if (isMounted.current) {
-          setError(err.message || 'Gagal memuat data')
-          setStudents(DUMMY_STUDENTS)
-          setUsingDummy(true)
+          setError(err.message || 'Gagal memuat data siswa')
+        }
+      } finally {
+        if (isMounted.current) {
           setLoading(false)
         }
       }
@@ -184,9 +116,7 @@ export default function StudentOffersPage() {
       if (isMounted.current && loading) {
         console.warn('[StudentOffers] ⏱️ Force loading false after 5s')
         setLoading(false)
-        setStudents(DUMMY_STUDENTS)
-        setUsingDummy(true)
-        setError('Waktu muat habis, menampilkan data contoh.')
+        setError('Waktu muat habis, silakan refresh halaman.')
       }
     }, 5000)
 
@@ -231,7 +161,8 @@ export default function StudentOffersPage() {
       if (error) throw error
 
       alert('✅ Penawaran berhasil dikirim!')
-      setStudents(prev => prev.map(s => 
+      // Tandai sebagai sudah diapply
+      setStudents(prev => prev.map(s =>
         s.id === studentId ? { ...s, alreadyApplied: true } : s
       ))
     } catch (err: any) {
@@ -259,12 +190,6 @@ export default function StudentOffersPage() {
           Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.
         </p>
 
-        {usingDummy && (
-          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 text-sm">
-            ⚠️ Menampilkan data contoh (dummy) karena data siswa belum tersedia.
-          </div>
-        )}
-
         {!tutorVerified && tutorId && (
           <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm flex items-center gap-2">
             <Lock className="w-4 h-4" />
@@ -290,6 +215,11 @@ export default function StudentOffersPage() {
         <div className="text-center py-12 text-muted-foreground">
           <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>Belum ada siswa yang terdaftar.</p>
+          {!error && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Pastikan ada siswa yang sudah menyelesaikan onboarding.
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
