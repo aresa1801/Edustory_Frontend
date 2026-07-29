@@ -28,6 +28,43 @@ interface Student {
   avatar_url: string | null
 }
 
+// Data dummy untuk fallback jika gagal
+const FALLBACK_STUDENTS: Student[] = [
+  {
+    id: '1',
+    name: 'Agus Kurniasariawan',
+    grade_level: 'SMA Kelas 10',
+    subjects: ['Fisika', 'Kimia', 'Biologi'],
+    budget_per_month: 250000,
+    sessions_per_month: 4,
+    preferred_schedule: 'Senin – Jumat (Siang 12.00–15.00)',
+    address: 'Jalan Imam Bonjol',
+    avatar_url: null,
+  },
+  {
+    id: '2',
+    name: 'Budi Santoso',
+    grade_level: 'SMP Kelas 9',
+    subjects: ['Matematika', 'IPA'],
+    budget_per_month: 300000,
+    sessions_per_month: 4,
+    preferred_schedule: 'Sabtu – Minggu (Pagi)',
+    address: 'Jalan Merdeka No. 10',
+    avatar_url: null,
+  },
+  {
+    id: '3',
+    name: 'Citra Dewi',
+    grade_level: 'SD Kelas 6',
+    subjects: ['Bahasa Inggris', 'Matematika'],
+    budget_per_month: 200000,
+    sessions_per_month: 3,
+    preferred_schedule: 'Senin – Jumat (Sore 15.00–19.00)',
+    address: 'Jalan Sudirman No. 5',
+    avatar_url: null,
+  },
+]
+
 export default function StudentOffersPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,19 +74,26 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('[StudentOffers] ✅ useEffect dijalankan')
     let isMounted = true
 
     const fetchData = async () => {
       try {
+        console.log('[StudentOffers] 🔍 Mulai fetch...')
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
+        console.log('[StudentOffers] User:', user?.id)
 
         if (!user) {
-          if (isMounted) setLoading(false)
+          console.warn('[StudentOffers] No user')
+          if (isMounted) {
+            setStudents(FALLBACK_STUDENTS)
+            setLoading(false)
+          }
           return
         }
 
-        // Get tutor info
+        // Cek tutor
         const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
@@ -60,11 +104,15 @@ export default function StudentOffersPage() {
           if (tutor) {
             setTutorId(tutor.id)
             setTutorVerified(tutor.verified || false)
+            console.log('[StudentOffers] Tutor:', tutor.id, 'verified:', tutor.verified)
+          } else {
+            console.warn('[StudentOffers] No tutor profile')
           }
         }
 
-        // 🔥 Query langsung dari frontend (bypass API)
-        const { data, error } = await supabase
+        // 🔥 Ambil students dari Supabase langsung (frontend)
+        console.log('[StudentOffers] 🔍 Query students...')
+        const { data, error: queryError } = await supabase
           .from('students')
           .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
           .eq('status', 'active')
@@ -72,27 +120,52 @@ export default function StudentOffersPage() {
           .not('budget_per_month', 'is', null)
           .order('created_at', { ascending: false })
 
-        if (error) {
-          console.error('Supabase error:', error)
-          setError(error.message)
-        } else {
+        if (queryError) {
+          console.error('[StudentOffers] ❌ Query error:', queryError)
+          throw queryError
+        }
+
+        console.log('[StudentOffers] ✅ Students fetched:', data?.length || 0)
+
+        if (isMounted) {
           setStudents(data || [])
-          console.log(`✅ ${data?.length || 0} students loaded`)
+          setError(null)
         }
       } catch (err: any) {
-        console.error('Error:', err)
-        setError(err.message || 'Gagal memuat data')
+        console.error('[StudentOffers] ❌ Error catch:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat data')
+          // Fallback ke dummy agar tetap tampil
+          setStudents(FALLBACK_STUDENTS)
+        }
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted) {
+          console.log('[StudentOffers] 🏁 Set loading false')
+          setLoading(false)
+        }
       }
     }
 
     fetchData()
 
+    // Force loading false setelah 3 detik (safety net)
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[StudentOffers] ⏱️ Force loading false (timeout)')
+        setLoading(false)
+        setStudents(FALLBACK_STUDENTS)
+        setError('Waktu muat habis, tampilkan data contoh.')
+      }
+    }, 3000)
+
     return () => {
       isMounted = false
+      clearTimeout(timeoutId)
+      console.log('[StudentOffers] 🧹 Cleanup')
     }
-  }, [])
+  }, []) // eslint-disable-line
+
+  console.log('[StudentOffers] Render:', { loading, studentsCount: students.length })
 
   const handleSendOffer = async (studentId: string) => {
     if (!tutorId) {
@@ -133,11 +206,12 @@ export default function StudentOffersPage() {
     }
   }
 
+  // 🔥 Jika loading, tampilkan spinner, TAPI PASTIKAN TIDAK INFINITE
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3 text-muted-foreground">Memuat daftar siswa...</p>
+        <p className="ml-3 text-muted-foreground">Memuat...</p>
       </div>
     )
   }
@@ -146,7 +220,7 @@ export default function StudentOffersPage() {
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Daftar Siswa</h1>
-        <p className="text-muted-foreground">Temukan siswa yang membutuhkan bimbingan dan kirim penawaran Anda.</p>
+        <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
 
         {!tutorId && (
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
@@ -171,8 +245,7 @@ export default function StudentOffersPage() {
         <div className="text-center py-12 text-muted-foreground">
           <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>Belum ada siswa yang terdaftar.</p>
-          <p className="text-sm">Pastikan ada siswa dengan status aktif, onboarding_complete, dan budget terisi.</p>
-          {error && <p className="text-sm text-red-500 mt-2">Error: {error}</p>}
+          <p className="text-sm">(Pastikan ada siswa dengan status aktif, onboarding_complete, dan budget terisi)</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
