@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Gunakan service role key agar bisa bypass RLS
+    console.log('[API] 🔍 Fetching students...')
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY! // pastikan ada di .env.local
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Ambil semua siswa yang aktif dan sudah lengkap onboarding
     const { data, error } = await supabase
       .from('students')
       .select(`
@@ -29,16 +29,14 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[API] Error fetching students:', error)
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      )
+      console.error('[API] ❌ Error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    console.log('[API] ✅ Students found:', data?.length || 0)
     return NextResponse.json({ students: data || [] })
   } catch (err) {
-    console.error('[API] Unexpected error:', err)
+    console.error('[API] ❌ Unexpected error:', err)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
