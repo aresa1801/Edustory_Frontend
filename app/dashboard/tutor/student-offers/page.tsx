@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import {
   DollarSign,
@@ -14,6 +16,8 @@ import {
   Send,
   Lock,
   UserCircle,
+  AlertTriangle,
+  UserPlus,
 } from 'lucide-react'
 
 interface Student {
@@ -28,12 +32,27 @@ interface Student {
   avatar_url: string | null
 }
 
+interface TutorProfile {
+  id: string
+  full_name: string
+  phone: string
+  bio: string
+  experience_years: number
+  hourly_rate: number
+  qualifications: string
+  approval_status: string
+  verified: boolean
+  specializations_sd: string[]
+  specializations_smp: string[]
+  specializations_sma: string[]
+}
+
 export default function StudentOffersPage() {
+  const router = useRouter()
   const { user: authUser, loading: authLoading } = useAuth()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
-  const [tutorVerified, setTutorVerified] = useState(false)
-  const [tutorId, setTutorId] = useState<string | null>(null)
+  const [tutorProfile, setTutorProfile] = useState<TutorProfile | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,15 +71,14 @@ export default function StudentOffersPage() {
 
     const fetchData = async () => {
       try {
-        // 1. Ambil data tutor (pakai API yang sudah ada)
+        // 1. Ambil data tutor lengkap dari API yang sudah ada
         const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`)
+        let tutorData: TutorProfile | null = null
         if (tutorRes.ok) {
           const result = await tutorRes.json()
-          // Response: { tutor: {...}, email: ... }
-          const tutorData = result.tutor
+          tutorData = result.tutor
           if (isMounted && tutorData) {
-            setTutorId(tutorData.id)
-            setTutorVerified(tutorData.verified || false)
+            setTutorProfile(tutorData)
           }
         }
 
@@ -85,6 +103,28 @@ export default function StudentOffersPage() {
     }
   }, [authUser?.id, authLoading])
 
+  // Cek kelengkapan profil tutor
+  const isProfileComplete = (profile: TutorProfile | null): boolean => {
+    if (!profile) return false
+    const hasSpec =
+      (profile.specializations_sd && profile.specializations_sd.length > 0) ||
+      (profile.specializations_smp && profile.specializations_smp.length > 0) ||
+      (profile.specializations_sma && profile.specializations_sma.length > 0)
+
+    return !!(
+      profile.full_name?.trim() &&
+      profile.phone?.trim() &&
+      profile.experience_years > 0 &&
+      profile.hourly_rate > 0 &&
+      profile.qualifications?.trim() &&
+      hasSpec
+    )
+  }
+
+  const isVerified = tutorProfile?.verified === true
+  const profileComplete = isProfileComplete(tutorProfile)
+  const canSendOffer = profileComplete && isVerified
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -100,22 +140,55 @@ export default function StudentOffersPage() {
         <h1 className="text-2xl font-bold">Daftar Siswa</h1>
         <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
 
-        {!tutorId && (
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
-            <UserCircle className="w-4 h-4 inline mr-1" />
-            Anda belum terdaftar sebagai tutor. Daftar untuk bisa mengirim penawaran.
-          </div>
+        {/* Peringatan jika profil tutor tidak ada */}
+        {!tutorProfile && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
+              <Button
+                variant="link"
+                className="p-0 h-auto font-semibold text-blue-600"
+                onClick={() => router.push('/dashboard/tutor/profile')}
+              >
+                <UserPlus className="w-4 h-4 inline mr-1" />
+                Lengkapi Profil
+              </Button>
+            </AlertDescription>
+          </Alert>
         )}
-        {tutorId && !tutorVerified && (
-          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-amber-700 text-sm">
-            <Lock className="w-4 h-4 inline mr-1" />
-            Tutor belum diverifikasi. Penawaran tidak bisa dikirim.
-          </div>
+
+        {/* Peringatan jika profil belum lengkap */}
+        {tutorProfile && !profileComplete && (
+          <Alert className="mt-4 border-amber-200 bg-amber-50">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="text-amber-700">
+              Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
+              <Button
+                variant="link"
+                className="p-0 h-auto font-semibold text-blue-600"
+                onClick={() => router.push('/dashboard/tutor/profile')}
+              >
+                Lengkapi Profil
+              </Button>
+            </AlertDescription>
+          </Alert>
         )}
+
+        {/* Peringatan jika belum diverifikasi */}
+        {tutorProfile && profileComplete && !isVerified && (
+          <Alert className="mt-4 border-amber-200 bg-amber-50">
+            <Lock className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="text-amber-700">
+              Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {error && (
-          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-            ❌ {error}
-          </div>
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>❌ {error}</AlertDescription>
+          </Alert>
         )}
       </div>
 
@@ -186,10 +259,16 @@ export default function StudentOffersPage() {
                     <Button
                       size="sm"
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                      disabled={!tutorVerified || sending === student.id || !tutorId}
+                      disabled={!canSendOffer || sending === student.id}
                       onClick={async () => {
-                        if (!tutorId) return alert('Profil tutor tidak ditemukan.')
-                        if (!tutorVerified) return alert('Tutor belum diverifikasi.')
+                        if (!canSendOffer) {
+                          if (!profileComplete) {
+                            alert('Lengkapi profil tutor Anda terlebih dahulu.')
+                          } else if (!isVerified) {
+                            alert('Tutor belum diverifikasi.')
+                          }
+                          return
+                        }
 
                         const subject = student.subjects?.[0] || 'Umum'
                         setSending(student.id)
@@ -198,7 +277,7 @@ export default function StudentOffersPage() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              tutor_id: tutorId,
+                              tutor_id: tutorProfile!.id,
                               student_id: student.id,
                               subject,
                               status: 'pending',
