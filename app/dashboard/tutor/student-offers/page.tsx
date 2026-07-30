@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
 import {
   DollarSign,
   MapPin,
@@ -29,6 +30,7 @@ interface Student {
 }
 
 export default function StudentOffersPage() {
+  const { user, loading: authLoading } = useAuth()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [tutorVerified, setTutorVerified] = useState(false)
@@ -36,11 +38,9 @@ export default function StudentOffersPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [debugMessages, setDebugMessages] = useState<string[]>([])
-  const [userFetched, setUserFetched] = useState(false)
 
   const addDebug = (msg: string) => {
-    const timestamp = new Date().toLocaleTimeString()
-    setDebugMessages(prev => [...prev, `[${timestamp}] ${msg}`])
+    setDebugMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
     console.log('[StudentOffers]', msg)
   }
 
@@ -49,37 +49,24 @@ export default function StudentOffersPage() {
 
     const fetchData = async () => {
       addDebug('🚀 Mulai fetch data...')
+
+      if (authLoading) {
+        addDebug('⏳ Menunggu auth loading...')
+        return
+      }
+
+      if (!user) {
+        addDebug('❌ Tidak ada user (dari context)')
+        setLoading(false)
+        return
+      }
+
+      addDebug(`✅ User ditemukan: ${user.id}`)
+      const supabase = createClient()
+
+      // Ambil tutor
+      addDebug('📡 Ambil data tutor...')
       try {
-        const supabase = createClient()
-        addDebug('📡 Ambil session...')
-        
-        // Gunakan getSession() sebagai fallback untuk getUser()
-        let user = null
-        try {
-          const { data: { user: authUser } } = await supabase.auth.getUser()
-          user = authUser
-          addDebug(`✅ getUser() berhasil: ${user?.id || 'null'}`)
-        } catch (userErr) {
-          addDebug(`⚠️ getUser() gagal, coba getSession()...`)
-          const { data: { session } } = await supabase.auth.getSession()
-          user = session?.user || null
-          addDebug(`✅ getSession() berhasil: ${user?.id || 'null'}`)
-        }
-
-        if (!user) {
-          addDebug('❌ Tidak ada user, stop.')
-          if (isMounted) {
-            setLoading(false)
-            setError('Silakan login terlebih dahulu.')
-          }
-          return
-        }
-
-        setUserFetched(true)
-        addDebug(`✅ User ditemukan: ${user.id}`)
-
-        // Ambil tutor
-        addDebug('📡 Ambil data tutor...')
         const { data: tutor, error: tutorErr } = await supabase
           .from('tutors')
           .select('id, verified')
@@ -97,65 +84,63 @@ export default function StudentOffersPage() {
         } else {
           addDebug('⚠️ Tutor tidak ditemukan')
         }
+      } catch (tutorErr: any) {
+        addDebug(`❌ Exception tutor: ${tutorErr.message}`)
+      }
 
-        // Ambil students via API
-        addDebug('📡 Panggil API /api/tutors/students...')
-        let studentsData: Student[] = []
+      // Ambil students
+      addDebug('📡 Ambil data siswa...')
+      let studentsData: Student[] = []
+      try {
+        // Coba API dulu
+        const res = await fetch('/api/tutors/students', { cache: 'no-store' })
+        addDebug(`📡 API response status: ${res.status}`)
+        if (res.ok) {
+          const json = await res.json()
+          studentsData = json.students || []
+          addDebug(`✅ API sukses: ${studentsData.length} siswa`)
+        } else {
+          const text = await res.text()
+          addDebug(`❌ API error ${res.status}: ${text.substring(0, 100)}`)
+          throw new Error(`API error ${res.status}`)
+        }
+      } catch (apiErr: any) {
+        addDebug(`❌ API gagal: ${apiErr.message}`)
+        // Fallback: query langsung
+        addDebug('📡 Coba query langsung Supabase...')
         try {
-          const res = await fetch('/api/tutors/students', { cache: 'no-store' })
-          addDebug(`📡 Response status: ${res.status}`)
-          if (res.ok) {
-            const json = await res.json()
-            studentsData = json.students || []
-            addDebug(`✅ API sukses: ${studentsData.length} siswa`)
-          } else {
-            const text = await res.text()
-            addDebug(`❌ API error ${res.status}: ${text.substring(0, 100)}`)
-            throw new Error(`API error ${res.status}`)
-          }
-        } catch (apiErr: any) {
-          addDebug(`❌ API gagal: ${apiErr.message}`)
-          // Fallback: query langsung
-          addDebug('📡 Coba query langsung Supabase...')
-          try {
-            const { data, error: directErr } = await supabase
-              .from('students')
-              .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
-              .eq('status', 'active')
-              .eq('onboarding_complete', true)
-              .not('budget_per_month', 'is', null)
-              .order('created_at', { ascending: false })
+          const { data, error: directErr } = await supabase
+            .from('students')
+            .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
+            .eq('status', 'active')
+            .eq('onboarding_complete', true)
+            .not('budget_per_month', 'is', null)
+            .order('created_at', { ascending: false })
 
-            if (directErr) {
-              addDebug(`❌ Query langsung error: ${directErr.message}`)
-              throw directErr
-            }
-            studentsData = data || []
-            addDebug(`✅ Query langsung sukses: ${studentsData.length} siswa`)
-          } catch (directErr: any) {
-            addDebug(`❌ Query langsung gagal: ${directErr.message}`)
-            setError(directErr.message)
+          if (directErr) {
+            addDebug(`❌ Query langsung error: ${directErr.message}`)
+            throw directErr
           }
+          studentsData = data || []
+          addDebug(`✅ Query langsung sukses: ${studentsData.length} siswa`)
+        } catch (directErr: any) {
+          addDebug(`❌ Query langsung gagal: ${directErr.message}`)
+          setError(directErr.message)
         }
+      }
 
-        if (isMounted) {
-          setStudents(studentsData)
-          addDebug(`🏁 Set students: ${studentsData.length} data`)
-        }
-      } catch (err: any) {
-        addDebug(`❌ Catch-all error: ${err.message}`)
-        setError(err.message)
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-          addDebug('🏁 Loading selesai')
-        }
+      if (isMounted) {
+        setStudents(studentsData)
+        addDebug(`🏁 Set students: ${studentsData.length} data`)
+        setLoading(false)
+        addDebug('🏁 Loading selesai')
       }
     }
 
-    fetchData()
+    if (!authLoading) {
+      fetchData()
+    }
 
-    // Safety timeout (5 detik)
     const timeout = setTimeout(() => {
       if (isMounted && loading) {
         addDebug('⏱️ Force loading false (timeout)')
@@ -168,9 +153,9 @@ export default function StudentOffersPage() {
       isMounted = false
       clearTimeout(timeout)
     }
-  }, [])
+  }, [user, authLoading])
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
