@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
+import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/lib/auth-context'
 import {
   DollarSign,
   MapPin,
@@ -45,102 +45,75 @@ export default function StudentOffersPage() {
   }
 
   useEffect(() => {
+    if (authLoading) {
+      addDebug('⏳ Auth loading...')
+      return
+    }
+
+    if (!user) {
+      addDebug('❌ No user from auth context')
+      setLoading(false)
+      return
+    }
+
     let isMounted = true
 
     const fetchData = async () => {
-      addDebug('🚀 Mulai fetch data...')
-
-      if (authLoading) {
-        addDebug('⏳ Menunggu auth loading...')
-        return
-      }
-
-      if (!user) {
-        addDebug('❌ Tidak ada user (dari context)')
-        setLoading(false)
-        return
-      }
-
       addDebug(`✅ User ditemukan: ${user.id}`)
-      const supabase = createClient()
-
-      // Ambil tutor
-      addDebug('📡 Ambil data tutor...')
       try {
+        const supabase = createClient()
+
+        // Ambil tutor
+        addDebug('📡 Ambil data tutor...')
         const { data: tutor, error: tutorErr } = await supabase
           .from('tutors')
           .select('id, verified')
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
 
         if (tutorErr) {
           addDebug(`❌ Error tutor: ${tutorErr.message}`)
-        }
-
-        if (tutor) {
+        } else if (tutor) {
           setTutorId(tutor.id)
           setTutorVerified(tutor.verified || false)
           addDebug(`✅ Tutor: ID=${tutor.id}, verified=${tutor.verified}`)
         } else {
           addDebug('⚠️ Tutor tidak ditemukan')
         }
-      } catch (tutorErr: any) {
-        addDebug(`❌ Exception tutor: ${tutorErr.message}`)
-      }
 
-      // Ambil students
-      addDebug('📡 Ambil data siswa...')
-      let studentsData: Student[] = []
-      try {
-        // Coba API dulu
-        const res = await fetch('/api/tutors/students', { cache: 'no-store' })
-        addDebug(`📡 API response status: ${res.status}`)
-        if (res.ok) {
-          const json = await res.json()
-          studentsData = json.students || []
-          addDebug(`✅ API sukses: ${studentsData.length} siswa`)
+        // 🔥 Ambil students (langsung dari Supabase, tanpa API)
+        addDebug('📡 Query students...')
+        const { data, error: queryErr } = await supabase
+          .from('students')
+          .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
+          .eq('status', 'active')
+          .eq('onboarding_complete', true)
+          .not('budget_per_month', 'is', null)
+          .order('created_at', { ascending: false })
+
+        if (queryErr) {
+          addDebug(`❌ Query students error: ${queryErr.message}`)
+          setError(queryErr.message)
         } else {
-          const text = await res.text()
-          addDebug(`❌ API error ${res.status}: ${text.substring(0, 100)}`)
-          throw new Error(`API error ${res.status}`)
-        }
-      } catch (apiErr: any) {
-        addDebug(`❌ API gagal: ${apiErr.message}`)
-        // Fallback: query langsung
-        addDebug('📡 Coba query langsung Supabase...')
-        try {
-          const { data, error: directErr } = await supabase
-            .from('students')
-            .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
-            .eq('status', 'active')
-            .eq('onboarding_complete', true)
-            .not('budget_per_month', 'is', null)
-            .order('created_at', { ascending: false })
-
-          if (directErr) {
-            addDebug(`❌ Query langsung error: ${directErr.message}`)
-            throw directErr
+          addDebug(`✅ Query students sukses: ${data?.length || 0} siswa`)
+          if (isMounted) {
+            setStudents(data || [])
           }
-          studentsData = data || []
-          addDebug(`✅ Query langsung sukses: ${studentsData.length} siswa`)
-        } catch (directErr: any) {
-          addDebug(`❌ Query langsung gagal: ${directErr.message}`)
-          setError(directErr.message)
+        }
+      } catch (err: any) {
+        addDebug(`❌ Catch error: ${err.message}`)
+        setError(err.message)
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+          addDebug('🏁 Loading selesai')
         }
       }
-
-      if (isMounted) {
-        setStudents(studentsData)
-        addDebug(`🏁 Set students: ${studentsData.length} data`)
-        setLoading(false)
-        addDebug('🏁 Loading selesai')
-      }
     }
 
-    if (!authLoading) {
-      fetchData()
-    }
+    fetchData()
 
+    // Safety timeout
     const timeout = setTimeout(() => {
       if (isMounted && loading) {
         addDebug('⏱️ Force loading false (timeout)')
@@ -154,6 +127,45 @@ export default function StudentOffersPage() {
       clearTimeout(timeout)
     }
   }, [user, authLoading])
+
+  const handleSendOffer = async (studentId: string) => {
+    if (!tutorId) {
+      alert('Anda belum memiliki profil tutor.')
+      return
+    }
+    if (!tutorVerified) {
+      alert('Tutor belum diverifikasi.')
+      return
+    }
+
+    const student = students.find(s => s.id === studentId)
+    if (!student) return
+
+    const subject = student.subjects?.[0] || 'Umum'
+    setSending(studentId)
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('matches').insert({
+        tutor_id: tutorId,
+        student_id: studentId,
+        subject: subject,
+        status: 'pending',
+        initiated_by: 'tutor',
+        lesson_frequency: 'flexible',
+        start_date: new Date().toISOString().split('T')[0],
+      })
+      if (error) throw error
+      alert('✅ Penawaran berhasil dikirim!')
+      setStudents(prev => prev.map(s =>
+        s.id === studentId ? { ...s, alreadyApplied: true } : s
+      ))
+    } catch (err: any) {
+      alert('❌ Gagal: ' + err.message)
+    } finally {
+      setSending(null)
+    }
+  }
 
   if (authLoading || loading) {
     return (
@@ -254,31 +266,7 @@ export default function StudentOffersPage() {
                       size="sm"
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
                       disabled={!tutorVerified || sending === student.id || !tutorId}
-                      onClick={async () => {
-                        if (!tutorId) return alert('Profil tutor tidak ditemukan.')
-                        if (!tutorVerified) return alert('Tutor belum diverifikasi.')
-
-                        const subject = student.subjects?.[0] || 'Umum'
-                        setSending(student.id)
-                        try {
-                          const supabase = createClient()
-                          const { error } = await supabase.from('matches').insert({
-                            tutor_id: tutorId,
-                            student_id: student.id,
-                            subject,
-                            status: 'pending',
-                            initiated_by: 'tutor',
-                            lesson_frequency: 'flexible',
-                            start_date: new Date().toISOString().split('T')[0],
-                          })
-                          if (error) throw error
-                          alert('✅ Penawaran berhasil dikirim!')
-                        } catch (err: any) {
-                          alert('❌ Gagal: ' + err.message)
-                        } finally {
-                          setSending(null)
-                        }
-                      }}
+                      onClick={() => handleSendOffer(student.id)}
                     >
                       {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
                       Kirim Penawaran
