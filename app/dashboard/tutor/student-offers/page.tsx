@@ -52,18 +52,20 @@ export default function StudentOffersPage() {
 
     const fetchData = async () => {
       try {
-        // 1. Ambil data tutor (untuk tombol kirim)
-        const tutorRes = await fetch('/api/tutor/profile')
+        // 1. Ambil data tutor (pakai API yang sudah ada)
+        const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`)
         if (tutorRes.ok) {
-          const tutorData = await tutorRes.json()
-          if (isMounted) {
+          const result = await tutorRes.json()
+          // Response: { tutor: {...}, email: ... }
+          const tutorData = result.tutor
+          if (isMounted && tutorData) {
             setTutorId(tutorData.id)
             setTutorVerified(tutorData.verified || false)
           }
         }
 
-        // 2. Ambil semua students dari API (sudah pakai service role, bypass RLS)
-        const res = await fetch('/api/tutor/students')
+        // 2. Ambil semua students dari API /api/tutors/students
+        const res = await fetch('/api/tutors/students')
         if (!res.ok) throw new Error('Gagal mengambil data siswa')
         const data = await res.json()
         if (isMounted) {
@@ -81,7 +83,7 @@ export default function StudentOffersPage() {
     return () => {
       isMounted = false
     }
-  }, [authUser?.id, authLoading]) // ← dependensi pakai ID, bukan object
+  }, [authUser?.id, authLoading])
 
   if (authLoading || loading) {
     return (
