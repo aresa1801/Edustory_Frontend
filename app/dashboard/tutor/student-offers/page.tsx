@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -38,33 +38,41 @@ export default function StudentOffersPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Guard untuk mencegah fetch ganda
+  const fetchedRef = useRef(false)
+
   useEffect(() => {
+    // Jangan jalankan jika auth masih loading
     if (authLoading) return
 
+    // Jika tidak ada user, set loading selesai
+    if (!authUser) {
+      setLoading(false)
+      return
+    }
+
+    // Cegah fetch berulang
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+
     let isMounted = true
+    const supabase = createClient()
 
     const fetchData = async () => {
-      if (!authUser) {
-        setLoading(false)
-        return
-      }
-
-      const supabase = createClient()
-
       try {
-        // 1. Cek tutor (hanya untuk tombol kirim penawaran)
+        // 1. Cek tutor (opsional, hanya untuk tombol)
         const { data: tutor } = await supabase
           .from('tutors')
           .select('id, verified')
           .eq('user_id', authUser.id)
           .maybeSingle()
 
-        if (tutor) {
+        if (isMounted && tutor) {
           setTutorId(tutor.id)
           setTutorVerified(tutor.verified || false)
         }
 
-        // 2. Ambil SEMUA data students (tanpa filter apapun)
+        // 2. Ambil SEMUA students (tanpa filter)
         const { data, error: studentsErr } = await supabase
           .from('students')
           .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
@@ -76,7 +84,7 @@ export default function StudentOffersPage() {
           setStudents(data || [])
         }
       } catch (err: any) {
-        setError(err.message)
+        if (isMounted) setError(err.message)
       } finally {
         if (isMounted) setLoading(false)
       }
@@ -87,8 +95,9 @@ export default function StudentOffersPage() {
     return () => {
       isMounted = false
     }
-  }, [authUser, authLoading])
+  }, [authUser, authLoading]) // Dependensi hanya authUser dan authLoading
 
+  // Jika auth atau data masih loading, tampilkan spinner
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -98,6 +107,7 @@ export default function StudentOffersPage() {
     )
   }
 
+  // Render utama
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div>
