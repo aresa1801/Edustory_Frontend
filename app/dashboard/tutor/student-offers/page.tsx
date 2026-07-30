@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   UserPlus,
   Filter,
+  RefreshCw,
 } from 'lucide-react'
 
 interface Student {
@@ -46,7 +47,7 @@ interface TutorProfile {
   specializations_sd: string[]
   specializations_smp: string[]
   specializations_sma: string[]
-  verified_grade_levels: string[] // tambahan
+  verified_grade_levels: string[]
 }
 
 type FilterOption = 'all' | 1 | 2 | 3
@@ -61,87 +62,93 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
 
-  const fetchedRef = useRef(false)
   const listRef = useRef<HTMLDivElement>(null)
+  const isMounted = useRef(true)
 
+  // Fungsi fetch data dengan cache bypass
+  const fetchData = async (forceRefresh = false) => {
+    if (!authUser) return
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const timestamp = Date.now() // untuk bypass cache
+
+      // 1. Ambil data tutor
+      const tutorRes = await fetch(
+        `/api/tutors/profile?user_id=${authUser.id}&_t=${timestamp}`,
+        { cache: 'no-store' }
+      )
+      if (tutorRes.ok) {
+        const result = await tutorRes.json()
+        if (isMounted.current) setTutorProfile(result.tutor)
+      }
+
+      // 2. Ambil semua students
+      const res = await fetch(
+        `/api/tutors/students?_t=${timestamp}`,
+        { cache: 'no-store' }
+      )
+      if (!res.ok) throw new Error('Gagal mengambil data siswa')
+      const data = await res.json()
+      if (isMounted.current) setStudents(data.students || [])
+    } catch (err: any) {
+      if (isMounted.current) setError(err.message)
+    } finally {
+      if (isMounted.current) setLoading(false)
+    }
+  }
+
+  // Fetch awal saat mount
   useEffect(() => {
+    isMounted.current = true
     if (authLoading) return
     if (!authUser) {
       setLoading(false)
       return
     }
-    if (fetchedRef.current) return
-    fetchedRef.current = true
-
-    let isMounted = true
-
-    const fetchData = async () => {
-      try {
-        // 1. Ambil data tutor lengkap
-        const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`)
-        let tutorData: TutorProfile | null = null
-        if (tutorRes.ok) {
-          const result = await tutorRes.json()
-          tutorData = result.tutor
-          if (isMounted && tutorData) {
-            setTutorProfile(tutorData)
-          }
-        }
-
-        // 2. Ambil semua students
-        const res = await fetch('/api/tutors/students')
-        if (!res.ok) throw new Error('Gagal mengambil data siswa')
-        const data = await res.json()
-        if (isMounted) {
-          setStudents(data.students || [])
-        }
-      } catch (err: any) {
-        if (isMounted) setError(err.message)
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
 
     fetchData()
 
     return () => {
-      isMounted = false
+      isMounted.current = false
     }
   }, [authUser?.id, authLoading])
 
-  // Fungsi untuk menghitung kesamaan antara student dan tutor
+  // Fungsi refresh manual
+  const handleRefresh = () => {
+    fetchData(true)
+  }
+
+  // Fungsi hitung kesamaan
   const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
-    // 1. Kumpulkan semua mata pelajaran tutor dari semua jenjang
     const tutorSubjects = new Set<string>()
     ;(tutor.specializations_sd || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_smp || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_sma || []).forEach(s => tutorSubjects.add(s))
 
-    // Hitung mata pelajaran yang sama
     let matchCount = 0
     ;(student.subjects || []).forEach(subj => {
       if (tutorSubjects.has(subj)) matchCount++
     })
 
-    // 2. Cek kecocokan jenjang
     const studentGrade = student.grade_level || ''
     const tutorGrades = tutor.verified_grade_levels || []
-
     const gradeMatch = tutorGrades.some(g => {
-      // Cek apakah student grade mengandung kata kunci jenjang (SD, SMP, SMA)
       const lowerStudent = studentGrade.toLowerCase()
       const lowerGrade = g.toLowerCase()
-      return lowerStudent.includes('sd') && lowerGrade.includes('sd') ||
-             lowerStudent.includes('smp') && lowerGrade.includes('smp') ||
-             lowerStudent.includes('sma') && lowerGrade.includes('sma')
+      return (
+        (lowerStudent.includes('sd') && lowerGrade.includes('sd')) ||
+        (lowerStudent.includes('smp') && lowerGrade.includes('smp')) ||
+        (lowerStudent.includes('sma') && lowerGrade.includes('sma'))
+      )
     })
-
     if (gradeMatch) matchCount += 1
-
     return matchCount
   }
 
-  // Filter students berdasarkan option
+  // Filter
   const filteredStudents = (() => {
     if (filterOption === 'all' || !tutorProfile) {
       return students
@@ -152,14 +159,13 @@ export default function StudentOffersPage() {
     })
   })()
 
-  // Cek kelengkapan profil tutor
+  // Cek kelengkapan profil
   const isProfileComplete = (profile: TutorProfile | null): boolean => {
     if (!profile) return false
     const hasSpec =
       (profile.specializations_sd && profile.specializations_sd.length > 0) ||
       (profile.specializations_smp && profile.specializations_smp.length > 0) ||
       (profile.specializations_sma && profile.specializations_sma.length > 0)
-
     return !!(
       profile.full_name?.trim() &&
       profile.phone?.trim() &&
@@ -174,10 +180,8 @@ export default function StudentOffersPage() {
   const profileComplete = isProfileComplete(tutorProfile)
   const canSendOffer = profileComplete && isVerified
 
-  // Handler untuk filter
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)
-    // Scroll ke daftar
     setTimeout(() => {
       listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
@@ -194,63 +198,72 @@ export default function StudentOffersPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Daftar Siswa</h1>
-        <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
-
-        {/* Peringatan jika profil tutor tidak ada */}
-        {!tutorProfile && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
-              <Button
-                variant="link"
-                className="p-0 h-auto font-semibold text-blue-600"
-                onClick={() => router.push('/dashboard/tutor/profile')}
-              >
-                <UserPlus className="w-4 h-4 inline mr-1" />
-                Lengkapi Profil
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Peringatan jika profil belum lengkap */}
-        {tutorProfile && !profileComplete && (
-          <Alert className="mt-4 border-amber-200 bg-amber-50">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-amber-700">
-              Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
-              <Button
-                variant="link"
-                className="p-0 h-auto font-semibold text-blue-600"
-                onClick={() => router.push('/dashboard/tutor/profile')}
-              >
-                Lengkapi Profil
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Peringatan jika belum diverifikasi */}
-        {tutorProfile && profileComplete && !isVerified && (
-          <Alert className="mt-4 border-amber-200 bg-amber-50">
-            <Lock className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-amber-700">
-              Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {error && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertDescription>❌ {error}</AlertDescription>
-          </Alert>
-        )}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Daftar Siswa</h1>
+          <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-1.5"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh Data
+        </Button>
       </div>
 
-      {/* Filter Section */}
+      {/* Peringatan profil tutor */}
+      {!tutorProfile && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
+            <Button
+              variant="link"
+              className="p-0 h-auto font-semibold text-blue-600"
+              onClick={() => router.push('/dashboard/tutor/profile')}
+            >
+              <UserPlus className="w-4 h-4 inline mr-1" />
+              Lengkapi Profil
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {tutorProfile && !profileComplete && (
+        <Alert className="mt-4 border-amber-200 bg-amber-50">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-700">
+            Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
+            <Button
+              variant="link"
+              className="p-0 h-auto font-semibold text-blue-600"
+              onClick={() => router.push('/dashboard/tutor/profile')}
+            >
+              Lengkapi Profil
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {tutorProfile && profileComplete && !isVerified && (
+        <Alert className="mt-4 border-amber-200 bg-amber-50">
+          <Lock className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-700">
+            Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>❌ {error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Filter */}
       {tutorProfile && profileComplete && students.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 py-2 border-t border-b border-gray-200">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -304,7 +317,6 @@ export default function StudentOffersPage() {
                   ? Math.round(student.budget_per_month / student.sessions_per_month)
                   : 0
 
-              // Tampilkan jumlah kesamaan (opsional)
               const matchCount = tutorProfile ? calculateMatchCount(student, tutorProfile) : 0
 
               return (
