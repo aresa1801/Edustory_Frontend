@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/auth-context'
 import {
   DollarSign,
@@ -38,50 +37,37 @@ export default function StudentOffersPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Guard untuk mencegah fetch ganda
   const fetchedRef = useRef(false)
 
   useEffect(() => {
-    // Jangan jalankan jika auth masih loading
     if (authLoading) return
-
-    // Jika tidak ada user, set loading selesai
     if (!authUser) {
       setLoading(false)
       return
     }
-
-    // Cegah fetch berulang
     if (fetchedRef.current) return
     fetchedRef.current = true
 
     let isMounted = true
-    const supabase = createClient()
 
     const fetchData = async () => {
       try {
-        // 1. Cek tutor (opsional, hanya untuk tombol)
-        const { data: tutor } = await supabase
-          .from('tutors')
-          .select('id, verified')
-          .eq('user_id', authUser.id)
-          .maybeSingle()
-
-        if (isMounted && tutor) {
-          setTutorId(tutor.id)
-          setTutorVerified(tutor.verified || false)
+        // 1. Ambil data tutor (untuk tombol kirim)
+        const tutorRes = await fetch('/api/tutor/profile')
+        if (tutorRes.ok) {
+          const tutorData = await tutorRes.json()
+          if (isMounted) {
+            setTutorId(tutorData.id)
+            setTutorVerified(tutorData.verified || false)
+          }
         }
 
-        // 2. Ambil SEMUA students (tanpa filter)
-        const { data, error: studentsErr } = await supabase
-          .from('students')
-          .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
-          .order('created_at', { ascending: false })
-
-        if (studentsErr) throw studentsErr
-
+        // 2. Ambil semua students dari API (sudah pakai service role, bypass RLS)
+        const res = await fetch('/api/tutor/students')
+        if (!res.ok) throw new Error('Gagal mengambil data siswa')
+        const data = await res.json()
         if (isMounted) {
-          setStudents(data || [])
+          setStudents(data.students || [])
         }
       } catch (err: any) {
         if (isMounted) setError(err.message)
@@ -95,9 +81,8 @@ export default function StudentOffersPage() {
     return () => {
       isMounted = false
     }
-  }, [authUser, authLoading]) // Dependensi hanya authUser dan authLoading
+  }, [authUser?.id, authLoading]) // ← dependensi pakai ID, bukan object
 
-  // Jika auth atau data masih loading, tampilkan spinner
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -107,7 +92,6 @@ export default function StudentOffersPage() {
     )
   }
 
-  // Render utama
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div>
@@ -208,17 +192,23 @@ export default function StudentOffersPage() {
                         const subject = student.subjects?.[0] || 'Umum'
                         setSending(student.id)
                         try {
-                          const supabase = createClient()
-                          const { error } = await supabase.from('matches').insert({
-                            tutor_id: tutorId,
-                            student_id: student.id,
-                            subject,
-                            status: 'pending',
-                            initiated_by: 'tutor',
-                            lesson_frequency: 'flexible',
-                            start_date: new Date().toISOString().split('T')[0],
+                          const res = await fetch('/api/matches', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              tutor_id: tutorId,
+                              student_id: student.id,
+                              subject,
+                              status: 'pending',
+                              initiated_by: 'tutor',
+                              lesson_frequency: 'flexible',
+                              start_date: new Date().toISOString().split('T')[0],
+                            }),
                           })
-                          if (error) throw error
+                          if (!res.ok) {
+                            const err = await res.json()
+                            throw new Error(err.error || 'Gagal')
+                          }
                           alert('✅ Penawaran berhasil dikirim!')
                         } catch (err: any) {
                           alert('❌ Gagal: ' + err.message)
