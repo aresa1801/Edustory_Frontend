@@ -36,9 +36,11 @@ export default function StudentOffersPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [debugMessages, setDebugMessages] = useState<string[]>([])
+  const [userFetched, setUserFetched] = useState(false)
 
   const addDebug = (msg: string) => {
-    setDebugMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
+    const timestamp = new Date().toLocaleTimeString()
+    setDebugMessages(prev => [...prev, `[${timestamp}] ${msg}`])
     console.log('[StudentOffers]', msg)
   }
 
@@ -49,13 +51,31 @@ export default function StudentOffersPage() {
       addDebug('🚀 Mulai fetch data...')
       try {
         const supabase = createClient()
-        addDebug('📡 Ambil user...')
-        const { data: { user } } = await supabase.auth.getUser()
+        addDebug('📡 Ambil session...')
+        
+        // Gunakan getSession() sebagai fallback untuk getUser()
+        let user = null
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser()
+          user = authUser
+          addDebug(`✅ getUser() berhasil: ${user?.id || 'null'}`)
+        } catch (userErr) {
+          addDebug(`⚠️ getUser() gagal, coba getSession()...`)
+          const { data: { session } } = await supabase.auth.getSession()
+          user = session?.user || null
+          addDebug(`✅ getSession() berhasil: ${user?.id || 'null'}`)
+        }
+
         if (!user) {
           addDebug('❌ Tidak ada user, stop.')
-          if (isMounted) setLoading(false)
+          if (isMounted) {
+            setLoading(false)
+            setError('Silakan login terlebih dahulu.')
+          }
           return
         }
+
+        setUserFetched(true)
         addDebug(`✅ User ditemukan: ${user.id}`)
 
         // Ambil tutor
