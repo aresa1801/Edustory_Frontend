@@ -20,8 +20,7 @@ import {
   UserPlus,
   Filter,
   RefreshCw,
-  Star,
-} from 'lucide-react'
+} from 'lucide-react' // ⬅️ Star dihapus
 
 interface Student {
   id: string
@@ -352,7 +351,7 @@ export default function StudentOffersPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
-                        {/* Badge Kelas */}
+                        {/* Badge Kelas - tanpa bintang */}
                         {student.grade_level && (
                           <Badge
                             variant="secondary"
@@ -365,9 +364,6 @@ export default function StudentOffersPage() {
                             `}
                           >
                             {student.grade_level}
-                            {gradeMatched && (
-                              <Star className="w-3 h-3 ml-1 inline text-amber-500 fill-amber-500" />
-                            )}
                           </Badge>
                         )}
                         {/* Badge kesamaan */}
@@ -387,7 +383,7 @@ export default function StudentOffersPage() {
                           : 'Belum diatur'}
                       </div>
 
-                      {/* Mata Pelajaran dengan highlight emas */}
+                      {/* Mata Pelajaran - yang tidak match tetap normal (tidak meredup) */}
                       <div className="flex items-start text-muted-foreground">
                         <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                         <span>
@@ -400,7 +396,7 @@ export default function StudentOffersPage() {
                                     className={
                                       isMatched
                                         ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
-                                        : 'text-gray-600'
+                                        : 'text-muted-foreground' // ← sama dengan teks lain
                                     }
                                   >
                                     {subj}
@@ -419,7 +415,7 @@ export default function StudentOffersPage() {
                         <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                         <span>{student.address || 'Alamat belum diisi'}</span>
                       </div>
-                      
+
                       <div className="flex items-start text-muted-foreground">
                         <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                         <span>{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
