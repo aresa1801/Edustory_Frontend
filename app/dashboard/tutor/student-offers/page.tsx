@@ -20,6 +20,7 @@ import {
   UserPlus,
   Filter,
   RefreshCw,
+  Star,
 } from 'lucide-react'
 
 interface Student {
@@ -66,7 +67,7 @@ export default function StudentOffersPage() {
   const isMounted = useRef(true)
   const fetchAbortController = useRef<AbortController | null>(null)
 
-  // Fungsi fetch data dengan cache bypass total
+  // Fungsi fetch data
   const fetchData = async () => {
     if (!authUser) return
 
@@ -74,7 +75,6 @@ export default function StudentOffersPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch tutor
       const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
@@ -84,7 +84,6 @@ export default function StudentOffersPage() {
         if (isMounted.current) setTutorProfile(result.tutor)
       }
 
-      // Fetch students
       const res = await fetch('/api/tutors/students', {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
@@ -101,7 +100,6 @@ export default function StudentOffersPage() {
     }
   }
 
-  // Fetch awal
   useEffect(() => {
     isMounted.current = true
     if (authLoading) return
@@ -109,7 +107,6 @@ export default function StudentOffersPage() {
       setLoading(false)
       return
     }
-
     fetchData()
 
     return () => {
@@ -120,40 +117,13 @@ export default function StudentOffersPage() {
     }
   }, [authUser?.id, authLoading])
 
-  // Refresh manual
   const handleRefresh = () => {
     fetchData()
   }
 
-  // Fungsi hitung kesamaan
-  const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
-    const tutorSubjects = new Set<string>()
-    ;(tutor.specializations_sd || []).forEach(s => tutorSubjects.add(s))
-    ;(tutor.specializations_smp || []).forEach(s => tutorSubjects.add(s))
-    ;(tutor.specializations_sma || []).forEach(s => tutorSubjects.add(s))
-
-    let matchCount = 0
-    ;(student.subjects || []).forEach(subj => {
-      if (tutorSubjects.has(subj)) matchCount++
-    })
-
+  // === HELPER: cek kecocokan grade ===
+  const isGradeMatched = (student: Student, tutor: TutorProfile): boolean => {
     const studentGrade = student.grade_level || ''
-    const tutorGrades = tutor.verified_grade_levels || []
-    const gradeMatch = tutorGrades.some(g => {
-      const lowerStudent = studentGrade.toLowerCase()
-      const lowerGrade = g.toLowerCase()
-      return (
-        (lowerStudent.includes('sd') && lowerGrade.includes('sd')) ||
-        (lowerStudent.includes('smp') && lowerGrade.includes('smp')) ||
-        (lowerStudent.includes('sma') && lowerGrade.includes('sma'))
-      )
-    })
-    if (gradeMatch) matchCount += 1
-    return matchCount
-  }
-
-  // Cek apakah grade cocok
-  const checkGradeMatch = (studentGrade: string, tutor: TutorProfile): boolean => {
     const tutorGrades = tutor.verified_grade_levels || []
     return tutorGrades.some(g => {
       const lowerStudent = studentGrade.toLowerCase()
@@ -164,6 +134,24 @@ export default function StudentOffersPage() {
         (lowerStudent.includes('sma') && lowerGrade.includes('sma'))
       )
     })
+  }
+
+  // === HELPER: daftar mata pelajaran yang match ===
+  const getMatchedSubjects = (student: Student, tutor: TutorProfile): string[] => {
+    const tutorSubjects = new Set<string>()
+    ;(tutor.specializations_sd || []).forEach(s => tutorSubjects.add(s))
+    ;(tutor.specializations_smp || []).forEach(s => tutorSubjects.add(s))
+    ;(tutor.specializations_sma || []).forEach(s => tutorSubjects.add(s))
+
+    return (student.subjects || []).filter(subj => tutorSubjects.has(subj))
+  }
+
+  // === Hitung total kesamaan ===
+  const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
+    const matchedSubjects = getMatchedSubjects(student, tutor)
+    let count = matchedSubjects.length
+    if (isGradeMatched(student, tutor)) count += 1
+    return count
   }
 
   // Filter + Sorting
@@ -344,15 +332,8 @@ export default function StudentOffersPage() {
                   : 0
 
               const matchCount = tutorProfile ? calculateMatchCount(student, tutorProfile) : 0
-              const gradeMatch = tutorProfile ? checkGradeMatch(student.grade_level, tutorProfile) : false
-
-              // Kumpulkan mata pelajaran tutor untuk pengecekan
-              const tutorSubjectsSet = new Set<string>()
-              if (tutorProfile) {
-                ;(tutorProfile.specializations_sd || []).forEach(s => tutorSubjectsSet.add(s))
-                ;(tutorProfile.specializations_smp || []).forEach(s => tutorSubjectsSet.add(s))
-                ;(tutorProfile.specializations_sma || []).forEach(s => tutorSubjectsSet.add(s))
-              }
+              const gradeMatched = tutorProfile ? isGradeMatched(student, tutorProfile) : false
+              const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
 
               return (
                 <Card key={student.id} className="border shadow-sm hover:shadow-md">
@@ -371,16 +352,27 @@ export default function StudentOffersPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
+                        {/* Badge Kelas */}
                         {student.grade_level && (
                           <Badge
                             variant="secondary"
-                            className={`text-xs ${gradeMatch ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold' : ''}`}
+                            className={`
+                              text-xs
+                              ${gradeMatched
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50'
+                                : 'bg-gray-100 text-gray-700 border-gray-200'
+                              }
+                            `}
                           >
                             {student.grade_level}
+                            {gradeMatched && (
+                              <Star className="w-3 h-3 ml-1 inline text-amber-500 fill-amber-500" />
+                            )}
                           </Badge>
                         )}
+                        {/* Badge kesamaan */}
                         {tutorProfile && matchCount > 0 && (
-                          <Badge variant="outline" className="ml-1 text-xs border-amber-300 bg-amber-50 text-amber-700">
+                          <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-700">
                             {matchCount} kesamaan
                           </Badge>
                         )}
@@ -395,16 +387,22 @@ export default function StudentOffersPage() {
                           : 'Belum diatur'}
                       </div>
 
-                      {/* Mata pelajaran dengan highlight emas untuk yang match */}
+                      {/* Mata Pelajaran dengan highlight emas */}
                       <div className="flex items-start text-muted-foreground">
                         <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                         <span>
                           {student.subjects?.length > 0 ? (
                             student.subjects.map((subj, idx) => {
-                              const isMatch = tutorSubjectsSet.has(subj)
+                              const isMatched = matchedSubjects.includes(subj)
                               return (
                                 <span key={idx}>
-                                  <span className={isMatch ? 'text-amber-600 font-semibold' : 'text-gray-700'}>
+                                  <span
+                                    className={
+                                      isMatched
+                                        ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
+                                        : 'text-gray-600'
+                                    }
+                                  >
                                     {subj}
                                   </span>
                                   {idx < student.subjects.length - 1 && ', '}
@@ -412,18 +410,18 @@ export default function StudentOffersPage() {
                               )
                             })
                           ) : (
-                            <span className="text-gray-700">Belum ada mapel</span>
+                            'Belum ada mapel'
                           )}
                         </span>
                       </div>
 
                       <div className="flex items-start text-muted-foreground">
                         <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                        <span className="text-gray-700">{student.address || 'Alamat belum diisi'}</span>
+                        <span>{student.address || 'Alamat belum diisi'}</span>
                       </div>
                       <div className="flex items-start text-muted-foreground">
                         <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                        <span className="text-gray-700">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                        <span>{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
                       </div>
                     </div>
 
