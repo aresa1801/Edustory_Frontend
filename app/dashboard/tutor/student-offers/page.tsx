@@ -68,38 +68,38 @@ export default function StudentOffersPage() {
 
   // Fungsi fetch data dengan cache bypass total
   const fetchData = async () => {
-  if (!authUser) return
+    if (!authUser) return
 
-  try {
-    setLoading(true)
-    setError(null)
+    try {
+      setLoading(true)
+      setError(null)
 
-    // Fetch tutor
-    const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-    })
-    if (tutorRes.ok) {
-      const result = await tutorRes.json()
-      if (isMounted.current) setTutorProfile(result.tutor)
+      // Fetch tutor
+      const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      })
+      if (tutorRes.ok) {
+        const result = await tutorRes.json()
+        if (isMounted.current) setTutorProfile(result.tutor)
+      }
+
+      // Fetch students
+      const res = await fetch('/api/tutors/students', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      })
+      if (!res.ok) throw new Error('Gagal mengambil data siswa')
+      const data = await res.json()
+      if (isMounted.current) {
+        setStudents([...(data.students || [])])
+      }
+    } catch (err: any) {
+      if (isMounted.current) setError(err.message)
+    } finally {
+      if (isMounted.current) setLoading(false)
     }
-
-    // Fetch students
-    const res = await fetch('/api/tutors/students', {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-    })
-    if (!res.ok) throw new Error('Gagal mengambil data siswa')
-    const data = await res.json()
-    if (isMounted.current) {
-      setStudents([...(data.students || [])])
-    }
-  } catch (err: any) {
-    if (isMounted.current) setError(err.message)
-  } finally {
-    if (isMounted.current) setLoading(false)
   }
-}
 
   // Fetch awal
   useEffect(() => {
@@ -152,14 +152,24 @@ export default function StudentOffersPage() {
     return matchCount
   }
 
-  // Filter
-  const filteredStudents = (() => {
-    if (filterOption === 'all' || !tutorProfile) {
-      return students
+  // Filter + Sorting (URUTAN PRIORITAS: matchCount tertinggi di atas)
+  const filteredAndSortedStudents = (() => {
+    if (!tutorProfile) return students
+
+    // 1. Filter sesuai pilihan
+    let result = students
+    if (filterOption !== 'all') {
+      result = result.filter(student => {
+        const count = calculateMatchCount(student, tutorProfile)
+        return count >= filterOption
+      })
     }
-    return students.filter(student => {
-      const count = calculateMatchCount(student, tutorProfile)
-      return count >= filterOption
+
+    // 2. Urutkan berdasarkan matchCount DESC (tertinggi ke terendah)
+    return [...result].sort((a, b) => {
+      const countA = calculateMatchCount(a, tutorProfile)
+      const countB = calculateMatchCount(b, tutorProfile)
+      return countB - countA
     })
   })()
 
@@ -301,21 +311,21 @@ export default function StudentOffersPage() {
             3 Kategori Sama
           </Button>
           <span className="text-sm text-gray-500 ml-2">
-            Menampilkan {filteredStudents.length} dari {students.length} siswa
+            Menampilkan {filteredAndSortedStudents.length} dari {students.length} siswa
           </span>
         </div>
       )}
 
       {/* Daftar Student */}
       <div ref={listRef}>
-        {filteredStudents.length === 0 ? (
+        {filteredAndSortedStudents.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p>Tidak ada siswa yang sesuai dengan filter.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filteredStudents.map((student) => {
+            {filteredAndSortedStudents.map((student) => {
               const costPerSession =
                 student.budget_per_month && student.sessions_per_month
                   ? Math.round(student.budget_per_month / student.sessions_per_month)
