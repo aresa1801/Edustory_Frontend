@@ -68,75 +68,38 @@ export default function StudentOffersPage() {
 
   // Fungsi fetch data dengan cache bypass total
   const fetchData = async () => {
-    if (!authUser) return
+  if (!authUser) return
 
-    // Batalkan fetch sebelumnya jika masih berjalan
-    if (fetchAbortController.current) {
-      fetchAbortController.current.abort()
+  try {
+    setLoading(true)
+    setError(null)
+
+    // Fetch tutor
+    const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+    })
+    if (tutorRes.ok) {
+      const result = await tutorRes.json()
+      if (isMounted.current) setTutorProfile(result.tutor)
     }
-    const controller = new AbortController()
-    fetchAbortController.current = controller
 
-    try {
-      setLoading(true)
-      setError(null)
-
-      const timestamp = Date.now()
-      const headers = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        Pragma: 'no-cache',
-        Expires: '0',
-      }
-
-      // 1. Ambil tutor
-      const tutorRes = await fetch(
-        `/api/tutors/profile?user_id=${authUser.id}&_t=${timestamp}`,
-        { 
-          cache: 'no-store',
-          headers,
-          signal: controller.signal 
-        }
-      )
-      if (tutorRes.ok) {
-        const result = await tutorRes.json()
-        if (isMounted.current) {
-          setTutorProfile(result.tutor)
-        }
-      }
-
-      // 2. Ambil semua students
-      const res = await fetch(
-        `/api/tutors/students?_t=${timestamp}`,
-        { 
-          cache: 'no-store',
-          headers,
-          signal: controller.signal 
-        }
-      )
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Gagal mengambil data siswa')
-      }
-      const data = await res.json()
-      if (isMounted.current) {
-        // Spread untuk memastikan array baru
-        setStudents([...(data.students || [])])
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('[fetch] Dibatalkan')
-        return
-      }
-      if (isMounted.current) setError(err.message)
-    } finally {
-      if (isMounted.current && !controller.signal.aborted) {
-        setLoading(false)
-      }
-      if (fetchAbortController.current === controller) {
-        fetchAbortController.current = null
-      }
+    // Fetch students
+    const res = await fetch('/api/tutors/students', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+    })
+    if (!res.ok) throw new Error('Gagal mengambil data siswa')
+    const data = await res.json()
+    if (isMounted.current) {
+      setStudents([...(data.students || [])])
     }
+  } catch (err: any) {
+    if (isMounted.current) setError(err.message)
+  } finally {
+    if (isMounted.current) setLoading(false)
   }
+}
 
   // Fetch awal
   useEffect(() => {

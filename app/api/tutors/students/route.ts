@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 
 export async function GET() {
+  noStore() // 🔥 Ini memaksa Next.js untuk tidak caching route ini
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,22 +16,14 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { 
-        status: 500,
-        headers: { 'Cache-Control': 'no-store, must-revalidate' }
-      })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ students: students || [] }, {
-      headers: { 'Cache-Control': 'no-store, must-revalidate' }
-    })
+    return NextResponse.json({ students: students || [] })
   } catch (err) {
     return NextResponse.json(
       { error: 'Internal server error' },
-      { 
-        status: 500,
-        headers: { 'Cache-Control': 'no-store, must-revalidate' }
-      }
+      { status: 500 }
     )
   }
 }
