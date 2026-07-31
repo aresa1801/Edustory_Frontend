@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/supabase/client' // client dengan anon key
 import {
   DollarSign,
   MapPin,
@@ -64,18 +65,18 @@ export default function StudentOffersPage() {
 
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
+  const supabase = createClient()
 
-  // Fungsi fetch data dengan cache bypass
-  const fetchData = async (forceRefresh = false) => {
+  // Fungsi fetch data dari API (dengan cache bypass)
+  const fetchData = async () => {
     if (!authUser) return
-
     try {
       setLoading(true)
       setError(null)
 
-      const timestamp = Date.now() // untuk bypass cache
+      const timestamp = Date.now()
 
-      // 1. Ambil data tutor
+      // 1. Ambil tutor
       const tutorRes = await fetch(
         `/api/tutors/profile?user_id=${authUser.id}&_t=${timestamp}`,
         { cache: 'no-store' }
@@ -100,7 +101,34 @@ export default function StudentOffersPage() {
     }
   }
 
-  // Fetch awal saat mount
+  // Setup real-time subscription untuk tabel students
+  useEffect(() => {
+    if (!authUser) return
+
+    // Subscribe ke semua perubahan di tabel students
+    const channel = supabase
+      .channel('students-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // semua event: INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'students',
+        },
+        (payload) => {
+          console.log('[Realtime] Perubahan pada students:', payload)
+          // Ambil ulang data terbaru (tanpa menampilkan loading)
+          fetchData()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [authUser?.id])
+
+  // Fetch awal
   useEffect(() => {
     isMounted.current = true
     if (authLoading) return
@@ -116,9 +144,9 @@ export default function StudentOffersPage() {
     }
   }, [authUser?.id, authLoading])
 
-  // Fungsi refresh manual
+  // Refresh manual
   const handleRefresh = () => {
-    fetchData(true)
+    fetchData()
   }
 
   // Fungsi hitung kesamaan
