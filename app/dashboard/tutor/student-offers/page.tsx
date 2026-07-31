@@ -8,7 +8,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/supabase/client' // client dengan anon key
 import {
   DollarSign,
   MapPin,
@@ -65,68 +64,79 @@ export default function StudentOffersPage() {
 
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
-  const supabase = createClient()
+  const fetchAbortController = useRef<AbortController | null>(null)
 
-  // Fungsi fetch data dari API (dengan cache bypass)
+  // Fungsi fetch data dengan cache bypass total
   const fetchData = async () => {
     if (!authUser) return
+
+    // Batalkan fetch sebelumnya jika masih berjalan
+    if (fetchAbortController.current) {
+      fetchAbortController.current.abort()
+    }
+    const controller = new AbortController()
+    fetchAbortController.current = controller
+
     try {
       setLoading(true)
       setError(null)
 
       const timestamp = Date.now()
+      const headers = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      }
 
       // 1. Ambil tutor
       const tutorRes = await fetch(
         `/api/tutors/profile?user_id=${authUser.id}&_t=${timestamp}`,
-        { cache: 'no-store' }
+        { 
+          cache: 'no-store',
+          headers,
+          signal: controller.signal 
+        }
       )
       if (tutorRes.ok) {
         const result = await tutorRes.json()
-        if (isMounted.current) setTutorProfile(result.tutor)
+        if (isMounted.current) {
+          setTutorProfile(result.tutor)
+        }
       }
 
       // 2. Ambil semua students
       const res = await fetch(
         `/api/tutors/students?_t=${timestamp}`,
-        { cache: 'no-store' }
-      )
-      if (!res.ok) throw new Error('Gagal mengambil data siswa')
-      const data = await res.json()
-      if (isMounted.current) setStudents(data.students || [])
-    } catch (err: any) {
-      if (isMounted.current) setError(err.message)
-    } finally {
-      if (isMounted.current) setLoading(false)
-    }
-  }
-
-  // Setup real-time subscription untuk tabel students
-  useEffect(() => {
-    if (!authUser) return
-
-    // Subscribe ke semua perubahan di tabel students
-    const channel = supabase
-      .channel('students-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // semua event: INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'students',
-        },
-        (payload) => {
-          console.log('[Realtime] Perubahan pada students:', payload)
-          // Ambil ulang data terbaru (tanpa menampilkan loading)
-          fetchData()
+        { 
+          cache: 'no-store',
+          headers,
+          signal: controller.signal 
         }
       )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Gagal mengambil data siswa')
+      }
+      const data = await res.json()
+      if (isMounted.current) {
+        // Spread untuk memastikan array baru
+        setStudents([...(data.students || [])])
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('[fetch] Dibatalkan')
+        return
+      }
+      if (isMounted.current) setError(err.message)
+    } finally {
+      if (isMounted.current && !controller.signal.aborted) {
+        setLoading(false)
+      }
+      if (fetchAbortController.current === controller) {
+        fetchAbortController.current = null
+      }
     }
-  }, [authUser?.id])
+  }
 
   // Fetch awal
   useEffect(() => {
@@ -141,6 +151,9 @@ export default function StudentOffersPage() {
 
     return () => {
       isMounted.current = false
+      if (fetchAbortController.current) {
+        fetchAbortController.current.abort()
+      }
     }
   }, [authUser?.id, authLoading])
 

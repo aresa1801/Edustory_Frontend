@@ -3,31 +3,33 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    console.log('[API] GET /api/tutor/students - Fetching all students')
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY! // ← service role bypass RLS
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Hapus semua filter, ambil semua student
     const { data: students, error } = await supabase
       .from('students')
       .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[API] Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { 
+        status: 500,
+        headers: { 'Cache-Control': 'no-store, must-revalidate' }
+      })
     }
 
-    console.log(`[API] Success: ${students?.length || 0} students`)
-    return NextResponse.json({ students: students || [] })
+    return NextResponse.json({ students: students || [] }, {
+      headers: { 'Cache-Control': 'no-store, must-revalidate' }
+    })
   } catch (err) {
-    console.error('[API] Unexpected error:', err)
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: { 'Cache-Control': 'no-store, must-revalidate' }
+      }
     )
   }
 }
