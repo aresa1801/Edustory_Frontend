@@ -380,50 +380,54 @@ export default function StudentOffersPage() {
                     </div>
 
                     <div className="space-y-1.5 text-sm">
-                      <div className="flex items-center text-muted-foreground">
-                        <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                        {costPerSession > 0
-                          ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi`
-                          : 'Belum diatur'}
-                      </div>
-
-                      {/* Mata Pelajaran dengan highlight emas */}
-                      <div className="flex items-start text-muted-foreground">
-                        <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                        <span>
-                          {student.subjects?.length > 0 ? (
-                            student.subjects.map((subj, idx) => {
-                              const isMatched = matchedSubjects.includes(subj)
-                              return (
-                                <span key={idx}>
-                                  <span
-                                    className={
-                                      isMatched
-                                        ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
-                                        : 'text-gray-600'
-                                    }
-                                  >
-                                    {subj}
-                                  </span>
-                                  {idx < student.subjects.length - 1 && ', '}
-                                </span>
-                              )
-                            })
-                          ) : (
-                            'Belum ada mapel'
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex items-start text-muted-foreground">
-                        <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                        <span>{student.address || 'Alamat belum diisi'}</span>
-                      </div>
-                      <div className="flex items-start text-muted-foreground">
-                        <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                        <span>{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
-                      </div>
+                    {/* Harga */}
+                    <div className="flex items-center text-muted-foreground">
+                      <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                      {costPerSession > 0
+                        ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi`
+                        : 'Belum diatur'}
                     </div>
+
+                    {/* Mata Pelajaran - HILANGKAN text-muted-foreground dari container */}
+                    <div className="flex items-start">
+                      <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                      <span className="text-gray-700">
+                        {student.subjects?.length > 0 ? (
+                          student.subjects.map((subj, idx) => {
+                            const isMatched = matchedSubjects.includes(subj)
+                            return (
+                              <span key={idx}>
+                                <span
+                                  className={
+                                    isMatched
+                                      ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
+                                      : 'text-gray-700' // ← sekarang sama dengan teks normal
+                                  }
+                                >
+                                  {subj}
+                                </span>
+                                {idx < student.subjects.length - 1 && ', '}
+                              </span>
+                            )
+                          })
+                        ) : (
+                          <span className="text-gray-700">Belum ada mapel</span>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Alamat - ubah ke text-gray-700 */}
+                    <div className="flex items-start">
+                      <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                      <span className="text-gray-700">{student.address || 'Alamat belum diisi'}</span>
+                    </div>
+
+                    {/* Jadwal - ubah ke text-gray-700 */}
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                      <span className="text-gray-700">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                    </div>
+                  </div>
 
                     <div className="mt-4">
                       <Button
