@@ -383,7 +383,7 @@ export default function StudentOffersPage() {
                       <div className="flex items-center text-muted-foreground">
                         <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
                         {costPerSession > 0
-                          ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi`
+                          ? `Rp ${costPerSession.toLocaleString('id-ID')}/jam`
                           : 'Belum diatur'}
                       </div>
 

@@ -839,11 +839,11 @@ export default function StudentOnboardingPage() {
 
               {budgetPerMonth && sessionsPerMonth && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm font-semibold text-blue-800 mb-1">Estimasi Biaya per Sesi</p>
-                  <p className="text-2xl font-bold text-blue-900">
-                    Rp {Math.round(Number(budgetPerMonth) / Number(sessionsPerMonth)).toLocaleString('id-ID')}
-                    <span className="text-sm font-normal text-blue-700">/sesi</span>
-                  </p>
+                  <p className="text-sm font-semibold text-blue-800 mb-1">Estimasi Biaya per Jam</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      Rp {Math.round(Number(budgetPerMonth) / Number(sessionsPerMonth)).toLocaleString('id-ID')}
+                      <span className="text-sm font-normal text-blue-700">/jam</span>
+                    </p>
                   <p className="text-xs text-blue-300 mt-1">
                     Total Rp {Number(budgetPerMonth).toLocaleString('id-ID')}/bulan × {sessionsPerMonth} pertemuan
                   </p>

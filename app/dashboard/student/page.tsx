@@ -398,7 +398,7 @@ export default function StudentDashboard() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
               <span className="flex items-center text-sm text-muted-foreground">
                 <DollarSign className="w-4 h-4 mr-1 text-green-500" />
-                {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/sesi` : 'Belum diatur'}
+                {costPerSession > 0 ? `Rp ${costPerSession.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
               </span>
             </div>
 
