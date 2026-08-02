@@ -20,7 +20,6 @@ import {
   UserPlus,
   Filter,
   RefreshCw,
-  Star,
 } from 'lucide-react'
 
 interface Student {
@@ -121,6 +120,14 @@ export default function StudentOffersPage() {
     fetchData()
   }
 
+  // === HELPER: hitung harga per sesi student ===
+  const getStudentRate = (student: Student): number => {
+    if (student.budget_per_month && student.sessions_per_month && student.sessions_per_month > 0) {
+      return Math.round(student.budget_per_month / student.sessions_per_month)
+    }
+    return 0
+  }
+
   // === HELPER: cek kecocokan grade ===
   const isGradeMatched = (student: Student, tutor: TutorProfile): boolean => {
     const studentGrade = student.grade_level || ''
@@ -136,6 +143,13 @@ export default function StudentOffersPage() {
     })
   }
 
+  // === HELPER: cek kecocokan tarif ===
+  const isRateMatched = (student: Student, tutor: TutorProfile): boolean => {
+    const studentRate = getStudentRate(student)
+    const tutorRate = tutor.hourly_rate || 0
+    return studentRate > 0 && tutorRate > 0 && studentRate === tutorRate
+  }
+
   // === HELPER: daftar mata pelajaran yang match ===
   const getMatchedSubjects = (student: Student, tutor: TutorProfile): string[] => {
     const tutorSubjects = new Set<string>()
@@ -148,9 +162,13 @@ export default function StudentOffersPage() {
 
   // === Hitung total kesamaan ===
   const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
-    const matchedSubjects = getMatchedSubjects(student, tutor)
-    let count = matchedSubjects.length
+    let count = 0
+    // Mata pelajaran yang match
+    count += getMatchedSubjects(student, tutor).length
+    // Grade match
     if (isGradeMatched(student, tutor)) count += 1
+    // Tarif match
+    if (isRateMatched(student, tutor)) count += 1
     return count
   }
 
@@ -326,13 +344,10 @@ export default function StudentOffersPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredAndSortedStudents.map((student) => {
-              const costPerSession =
-                student.budget_per_month && student.sessions_per_month
-                  ? Math.round(student.budget_per_month / student.sessions_per_month)
-                  : 0
-
+              const studentRate = getStudentRate(student)
               const matchCount = tutorProfile ? calculateMatchCount(student, tutorProfile) : 0
               const gradeMatched = tutorProfile ? isGradeMatched(student, tutorProfile) : false
+              const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
               const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
 
               return (
@@ -377,17 +392,26 @@ export default function StudentOffersPage() {
                     </div>
 
                     <div className="space-y-1.5 text-sm">
-                      <div className="flex items-center text-muted-foreground">
+                      {/* Tarif – dengan highlight emas jika match */}
+                      <div className="flex items-center">
                         <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                        {costPerSession > 0
-                          ? `Rp ${costPerSession.toLocaleString('id-ID')}/jam`
-                          : 'Belum diatur'}
+                        <span
+                          className={
+                            rateMatched
+                              ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {studentRate > 0
+                            ? `Rp ${studentRate.toLocaleString('id-ID')}/jam`
+                            : 'Belum diatur'}
+                        </span>
                       </div>
 
-                      {/* Mata Pelajaran dengan highlight emas */}
-                      <div className="flex items-start text-muted-foreground">
+                      {/* Mata Pelajaran – yang tidak match tetap normal */}
+                      <div className="flex items-start">
                         <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                        <span>
+                        <span className="text-muted-foreground">
                           {student.subjects?.length > 0 ? (
                             student.subjects.map((subj, idx) => {
                               const isMatched = matchedSubjects.includes(subj)
@@ -412,14 +436,14 @@ export default function StudentOffersPage() {
                         </span>
                       </div>
 
-                      <div className="flex items-start text-muted-foreground">
+                      <div className="flex items-start">
                         <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                        <span>{student.address || 'Alamat belum diisi'}</span>
+                        <span className="text-muted-foreground">{student.address || 'Alamat belum diisi'}</span>
                       </div>
-                      
-                      <div className="flex items-start text-muted-foreground">
+
+                      <div className="flex items-start">
                         <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                        <span>{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                        <span className="text-muted-foreground">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
                       </div>
                     </div>
 
