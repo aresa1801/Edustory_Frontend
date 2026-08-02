@@ -365,9 +365,6 @@ export default function StudentOffersPage() {
                             `}
                           >
                             {student.grade_level}
-                            {gradeMatched && (
-                              <Star className="w-3 h-3 ml-1 inline text-amber-500 fill-amber-500" />
-                            )}
                           </Badge>
                         )}
                         {/* Badge kesamaan */}
