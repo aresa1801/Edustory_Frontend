@@ -20,6 +20,7 @@ import {
   UserPlus,
   Filter,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react'
 
 interface Student {
@@ -350,8 +351,22 @@ export default function StudentOffersPage() {
               const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
               const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
 
+              // Badge "Recommended!" jika matchCount >= 3
+              const isRecommended = matchCount >= 3
+
               return (
-                <Card key={student.id} className="border shadow-sm hover:shadow-md">
+                <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
+                  {/* Badge Recommended! - mewah */}
+                  {isRecommended && (
+                    <div className="absolute top-3 left-3 z-10">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/30 border border-white/20 animate-pulse">
+                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                        Recommended!
+                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    </div>
+                  )}
+
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
