@@ -397,7 +397,7 @@ export default function StudentOffersPage() {
                                     className={
                                       isMatched
                                         ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
-                                        : 'text-gray-600'
+                                        : 'text-muted-foreground'
                                     }
                                   >
                                     {subj}
