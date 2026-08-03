@@ -33,6 +33,8 @@ interface Student {
   preferred_schedule: string
   address: string
   avatar_url: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 interface TutorProfile {
@@ -49,9 +51,22 @@ interface TutorProfile {
   specializations_smp: string[]
   specializations_sma: string[]
   verified_grade_levels: string[]
+  latitude: number | null
+  longitude: number | null
 }
 
 type FilterOption = 'all' | 1 | 2 | 3
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c
+}
 
 export default function StudentOffersPage() {
   const router = useRouter()
@@ -67,10 +82,8 @@ export default function StudentOffersPage() {
   const isMounted = useRef(true)
   const fetchAbortController = useRef<AbortController | null>(null)
 
-  // Fungsi fetch data
   const fetchData = async () => {
     if (!authUser) return
-
     try {
       setLoading(true)
       setError(null)
@@ -90,9 +103,7 @@ export default function StudentOffersPage() {
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()
-      if (isMounted.current) {
-        setStudents([...(data.students || [])])
-      }
+      if (isMounted.current) setStudents([...(data.students || [])])
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
     } finally {
@@ -108,20 +119,14 @@ export default function StudentOffersPage() {
       return
     }
     fetchData()
-
     return () => {
       isMounted.current = false
-      if (fetchAbortController.current) {
-        fetchAbortController.current.abort()
-      }
+      if (fetchAbortController.current) fetchAbortController.current.abort()
     }
   }, [authUser?.id, authLoading])
 
-  const handleRefresh = () => {
-    fetchData()
-  }
+  const handleRefresh = () => fetchData()
 
-  // === HELPER: hitung harga per sesi student ===
   const getStudentRate = (student: Student): number => {
     if (student.budget_per_month && student.sessions_per_month && student.sessions_per_month > 0) {
       return Math.round(student.budget_per_month / student.sessions_per_month)
@@ -129,7 +134,6 @@ export default function StudentOffersPage() {
     return 0
   }
 
-  // === HELPER: cek kecocokan grade ===
   const isGradeMatched = (student: Student, tutor: TutorProfile): boolean => {
     const studentGrade = student.grade_level || ''
     const tutorGrades = tutor.verified_grade_levels || []
@@ -144,39 +148,30 @@ export default function StudentOffersPage() {
     })
   }
 
-  // === HELPER: cek kecocokan tarif ===
   const isRateMatched = (student: Student, tutor: TutorProfile): boolean => {
     const studentRate = getStudentRate(student)
     const tutorRate = tutor.hourly_rate || 0
     return studentRate > 0 && tutorRate > 0 && studentRate === tutorRate
   }
 
-  // === HELPER: daftar mata pelajaran yang match ===
   const getMatchedSubjects = (student: Student, tutor: TutorProfile): string[] => {
     const tutorSubjects = new Set<string>()
     ;(tutor.specializations_sd || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_smp || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_sma || []).forEach(s => tutorSubjects.add(s))
-
     return (student.subjects || []).filter(subj => tutorSubjects.has(subj))
   }
 
-  // === Hitung total kesamaan ===
   const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
     let count = 0
-    // Mata pelajaran yang match
     count += getMatchedSubjects(student, tutor).length
-    // Grade match
     if (isGradeMatched(student, tutor)) count += 1
-    // Tarif match
     if (isRateMatched(student, tutor)) count += 1
     return count
   }
 
-  // Filter + Sorting
   const filteredAndSortedStudents = (() => {
     if (!tutorProfile) return students
-
     let result = students
     if (filterOption !== 'all') {
       result = result.filter(student => {
@@ -184,7 +179,6 @@ export default function StudentOffersPage() {
         return count >= filterOption
       })
     }
-
     return [...result].sort((a, b) => {
       const countA = calculateMatchCount(a, tutorProfile)
       const countB = calculateMatchCount(b, tutorProfile)
@@ -192,7 +186,6 @@ export default function StudentOffersPage() {
     })
   })()
 
-  // Cek kelengkapan profil
   const isProfileComplete = (profile: TutorProfile | null): boolean => {
     if (!profile) return false
     const hasSpec =
@@ -236,28 +229,18 @@ export default function StudentOffersPage() {
           <h1 className="text-2xl font-bold">Daftar Siswa</h1>
           <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          className="gap-1.5"
-        >
+        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
           <RefreshCw className="w-4 h-4" />
           Refresh Data
         </Button>
       </div>
 
-      {/* Peringatan profil tutor */}
       {!tutorProfile && (
         <Alert variant="destructive" className="mt-4">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
-            <Button
-              variant="link"
-              className="p-0 h-auto font-semibold text-blue-600"
-              onClick={() => router.push('/dashboard/tutor/profile')}
-            >
+            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
               <UserPlus className="w-4 h-4 inline mr-1" />
               Lengkapi Profil
             </Button>
@@ -270,11 +253,7 @@ export default function StudentOffersPage() {
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-amber-700">
             Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
-            <Button
-              variant="link"
-              className="p-0 h-auto font-semibold text-blue-600"
-              onClick={() => router.push('/dashboard/tutor/profile')}
-            >
+            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
               Lengkapi Profil
             </Button>
           </AlertDescription>
@@ -296,37 +275,20 @@ export default function StudentOffersPage() {
         </Alert>
       )}
 
-      {/* Filter */}
       {tutorProfile && profileComplete && students.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 py-2 border-t border-b border-gray-200">
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Filter:</span>
-          <Button
-            variant={filterOption === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilter('all')}
-          >
+          <Button variant={filterOption === 'all' ? 'default' : 'outline'} size="sm" onClick={() => handleFilter('all')}>
             Semua
           </Button>
-          <Button
-            variant={filterOption === 1 ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilter(1)}
-          >
+          <Button variant={filterOption === 1 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(1)}>
             1 Kategori Sama
           </Button>
-          <Button
-            variant={filterOption === 2 ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilter(2)}
-          >
+          <Button variant={filterOption === 2 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(2)}>
             2 Kategori Sama
           </Button>
-          <Button
-            variant={filterOption === 3 ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilter(3)}
-          >
+          <Button variant={filterOption === 3 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(3)}>
             3 Kategori Sama
           </Button>
           <span className="text-sm text-gray-500 ml-2">
@@ -335,7 +297,6 @@ export default function StudentOffersPage() {
         </div>
       )}
 
-      {/* Daftar Student */}
       <div ref={listRef}>
         {filteredAndSortedStudents.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
@@ -350,13 +311,26 @@ export default function StudentOffersPage() {
               const gradeMatched = tutorProfile ? isGradeMatched(student, tutorProfile) : false
               const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
               const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
-
-              // Badge "Recommended!" jika matchCount >= 3
               const isRecommended = matchCount >= 3
+
+              let distance: number | null = null
+              if (tutorProfile?.latitude && tutorProfile?.longitude && student.latitude && student.longitude) {
+                distance = getDistance(
+                  tutorProfile.latitude,
+                  tutorProfile.longitude,
+                  student.latitude,
+                  student.longitude
+                )
+              }
 
               return (
                 <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
-                  {/* Badge Recommended! - mewah dengan teks hitam */}
+                  {distance !== null && distance <= 100 && (
+                    <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
+                      {distance < 1 ? '< 1' : distance.toFixed(1)} km
+                    </div>
+                  )}
+
                   {isRecommended && (
                     <div className="absolute top-3 left-3 z-10">
                       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-gray-900 text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/30 border border-white/20 animate-pulse">
@@ -371,33 +345,24 @@ export default function StudentOffersPage() {
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                         {student.avatar_url ? (
-                          <img
-                            src={student.avatar_url}
-                            alt={student.name}
-                            className="w-full h-full object-cover rounded-full"
-                          />
+                          <img src={student.avatar_url} alt={student.name} className="w-full h-full object-cover rounded-full" />
                         ) : (
                           student.name?.charAt(0)?.toUpperCase() || '?'
                         )}
                       </div>
                       <div>
                         <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
-                        {/* Badge Kelas */}
                         {student.grade_level && (
                           <Badge
                             variant="secondary"
-                            className={`
-                              text-xs
-                              ${gradeMatched
-                                ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50'
-                                : 'bg-gray-100 text-gray-700 border-gray-200'
-                              }
-                            `}
+                            className={`text-xs ${gradeMatched
+                              ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50'
+                              : 'bg-gray-100 text-gray-700 border-gray-200'
+                            }`}
                           >
                             {student.grade_level}
                           </Badge>
                         )}
-                        {/* Badge kesamaan */}
                         {tutorProfile && matchCount > 0 && (
                           <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-700">
                             {matchCount} kesamaan
@@ -407,23 +372,13 @@ export default function StudentOffersPage() {
                     </div>
 
                     <div className="space-y-1.5 text-sm">
-                      {/* Tarif – dengan highlight emas jika match */}
                       <div className="flex items-center">
                         <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                        <span
-                          className={
-                            rateMatched
-                              ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
-                              : 'text-muted-foreground'
-                          }
-                        >
-                          {studentRate > 0
-                            ? `Rp ${studentRate.toLocaleString('id-ID')}/jam`
-                            : 'Belum diatur'}
+                        <span className={rateMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
+                          {studentRate > 0 ? `Rp ${studentRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                         </span>
                       </div>
 
-                      {/* Mata Pelajaran – yang tidak match tetap normal */}
                       <div className="flex items-start">
                         <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                         <span className="text-muted-foreground">
@@ -432,22 +387,14 @@ export default function StudentOffersPage() {
                               const isMatched = matchedSubjects.includes(subj)
                               return (
                                 <span key={idx}>
-                                  <span
-                                    className={
-                                      isMatched
-                                        ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
-                                        : 'text-muted-foreground'
-                                    }
-                                  >
+                                  <span className={isMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
                                     {subj}
                                   </span>
                                   {idx < student.subjects.length - 1 && ', '}
                                 </span>
                               )
                             })
-                          ) : (
-                            'Belum ada mapel'
-                          )}
+                          ) : 'Belum ada mapel'}
                         </span>
                       </div>
 
@@ -469,14 +416,10 @@ export default function StudentOffersPage() {
                         disabled={!canSendOffer || sending === student.id}
                         onClick={async () => {
                           if (!canSendOffer) {
-                            if (!profileComplete) {
-                              alert('Lengkapi profil tutor Anda terlebih dahulu.')
-                            } else if (!isVerified) {
-                              alert('Tutor belum diverifikasi.')
-                            }
+                            if (!profileComplete) alert('Lengkapi profil tutor Anda terlebih dahulu.')
+                            else if (!isVerified) alert('Tutor belum diverifikasi.')
                             return
                           }
-
                           const subject = student.subjects?.[0] || 'Umum'
                           setSending(student.id)
                           try {
@@ -505,11 +448,7 @@ export default function StudentOffersPage() {
                           }
                         }}
                       >
-                        {sending === student.id ? (
-                          <Spinner className="h-3.5 w-3.5" />
-                        ) : (
-                          <Send className="w-3.5 h-3.5" />
-                        )}
+                        {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
                         Kirim Penawaran
                       </Button>
                     </div>

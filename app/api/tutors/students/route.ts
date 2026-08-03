@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { unstable_noStore as noStore } from 'next/cache'
 
 export async function GET() {
-  noStore() // 🔥 Ini memaksa Next.js untuk tidak caching route ini
+  noStore()
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +12,7 @@ export async function GET() {
 
     const { data: students, error } = await supabase
       .from('students')
-      .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url')
+      .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, latitude, longitude') // 🔥 tambahkan latitude & longitude
       .order('created_at', { ascending: false })
 
     if (error) {
