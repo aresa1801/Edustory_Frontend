@@ -283,7 +283,7 @@ export default function StudentOffersPage() {
 
       {tutorProfile && profileComplete && !isVerified && (
         <Alert className="mt-4 border-amber-200 bg-amber-50">
-          <Lock className="h-4 w-4 text-amber-500" />
+          <Lock className="w-4 h-4 text-amber-500" />
           <AlertDescription className="text-amber-700">
             Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
           </AlertDescription>
@@ -356,13 +356,13 @@ export default function StudentOffersPage() {
 
               return (
                 <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
-                  {/* Badge Recommended! - mewah */}
+                  {/* Badge Recommended! - mewah dengan teks hitam */}
                   {isRecommended && (
                     <div className="absolute top-3 left-3 z-10">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/30 border border-white/20 animate-pulse">
-                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-gray-900 text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/30 border border-white/20 animate-pulse">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
                         Recommended!
-                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
                       </div>
                     </div>
                   )}
