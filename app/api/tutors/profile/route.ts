@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabase()
 
-    // Fetch tutor data - tambahkan field baru
+    // Fetch tutor data – tambahkan latitude & longitude
     const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
       .select(`
@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
         specializations_sd,
         specializations_smp,
         specializations_sma,
-        avatar_url
+        avatar_url,
+        latitude,        // 🔥 TAMBAHKAN
+        longitude        // 🔥 TAMBAHKAN
       `)
       .eq('user_id', userId)
       .maybeSingle()
@@ -85,12 +87,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 })
     }
 
-    // --- Buat payload hanya dengan field yang ada di body ---
+    // --- Buat payload ---
     const payload: Record<string, any> = {
       user_id: userId,
     }
 
-    // Field yang boleh di-update (tambahkan field baru, hapus 'specializations')
+    // Field yang boleh di-update (tambahkan latitude & longitude)
     const fields = [
       'full_name', 'phone', 'bio',
       'experience_years', 'hourly_rate', 'qualifications',
@@ -99,7 +101,9 @@ export async function POST(request: NextRequest) {
       'verified_grade_levels', 
       'specializations_sd', 
       'specializations_smp', 
-      'specializations_sma'
+      'specializations_sma',
+      'latitude',   // 🔥 TAMBAHKAN
+      'longitude'   // 🔥 TAMBAHKAN
     ]
 
     fields.forEach(field => {

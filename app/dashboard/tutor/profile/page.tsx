@@ -78,6 +78,28 @@ export default function ProfilePage() {
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
   const fetchDone = useRef(false)
 
+  // 🔥 Fungsi untuk mendapatkan lokasi GPS
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation tidak didukung oleh browser ini'))
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          })
+        },
+        (err) => {
+          reject(err)
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    })
+  }
+
   const fetchProfile = async (currentUserId: string) => {
     if (fetchDone.current) return
     fetchDone.current = true
@@ -87,7 +109,6 @@ export default function ProfilePage() {
 
       setUserId(currentUserId)
 
-      // Fetch profile data via API route (uses service role key, bypasses RLS)
       const params = new URLSearchParams({ user_id: currentUserId })
       const response = await fetch(`/api/tutors/profile?${params.toString()}`)
       if (!response.ok) {
@@ -126,7 +147,6 @@ export default function ProfilePage() {
     isMounted.current = true
     fetchDone.current = false
 
-    // Wait for auth context to finish loading
     if (authLoading) return
 
     if (!authUser) {
@@ -162,7 +182,6 @@ export default function ProfilePage() {
     }, 10000)
 
     try {
-      // Use userId from state, fallback to authUser from context
       const currentUserId = userId || authUser?.id
       if (!currentUserId) {
         throw new Error('User ID tidak ditemukan. Silakan refresh halaman.')
@@ -170,6 +189,18 @@ export default function ProfilePage() {
 
       if (!form.full_name.trim()) {
         throw new Error('Nama lengkap wajib diisi')
+      }
+
+      // 🔥 Ambil lokasi GPS
+      let lat = null, lng = null
+      try {
+        const pos = await getCurrentLocation()
+        lat = pos.lat
+        lng = pos.lng
+        console.log('[Profile] 📍 Lokasi GPS didapat:', lat, lng)
+      } catch (locErr) {
+        console.warn('[Profile] ⚠️ Gagal mendapat lokasi GPS:', locErr)
+        // Lanjut tanpa koordinat
       }
 
       console.log('[Profile] 1. Mengirim ke API /api/tutors/profile... userId:', currentUserId)
@@ -187,6 +218,8 @@ export default function ProfilePage() {
           experience_years: parseInt(form.experience_years) || 0,
           hourly_rate: parseFloat(form.hourly_rate) || 0,
           qualifications: form.qualifications.trim() || null,
+          latitude: lat,   // 🔥 Kirim koordinat
+          longitude: lng,  // 🔥 Kirim koordinat
         }),
       })
 
@@ -200,11 +233,9 @@ export default function ProfilePage() {
 
       setSuccess('Profil berhasil disimpan! Mengarahkan ke halaman Minat Mengajar...')
 
-      // Refresh data
       fetchDone.current = false
       await fetchProfile(currentUserId)
 
-      // Redirect to teaching interest page after successful save
       router.push('/dashboard/tutor/teaching-interest')
 
     } catch (err) {
@@ -226,7 +257,6 @@ export default function ProfilePage() {
     )
   }
 
-  // 🔥 Jika error dan loading sudah selesai, tampilkan pesan error
   if (error && !loading) {
     return (
       <div className="max-w-3xl mx-auto p-6">
