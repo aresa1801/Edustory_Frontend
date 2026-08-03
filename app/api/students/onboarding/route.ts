@@ -101,23 +101,37 @@ export async function POST(request: NextRequest) {
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
 
-    // 🔥 PERBAIKAN: Geocoding hanya jika ada address, tidak set null
+    // 🔥 PERBAIKAN GEOCDING DENGAN LOG YANG JELAS
     if (body.address) {
       console.log('[API] 📍 Geocoding address:', body.address)
       try {
-        const coords = await geocodeAddress(body.address)
+        // Tambahkan timeout 5 detik agar tidak menggantung
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Geocoding timeout')), 5000)
+        )
+        const coords = await Promise.race([
+          geocodeAddress(body.address),
+          timeoutPromise
+        ]) as { lat: number; lng: number } | null
+
         if (coords) {
           payload.latitude = coords.lat
           payload.longitude = coords.lng
           console.log('[API] ✅ Geocode success:', coords)
         } else {
-          console.warn('[API] ⚠️ Geocode failed, koordinat tidak disimpan')
-          // Jangan tambahkan field latitude/longitude
+          console.warn('[API] ⚠️ Geocode returned null, koordinat tidak disimpan')
+          // Tetap set null agar kita tahu bahwa geocode dicoba tapi gagal
+          payload.latitude = null
+          payload.longitude = null
         }
       } catch (err) {
         console.error('[API] ❌ Geocode error:', err)
-        // Jangan tambahkan field latitude/longitude
+        // Set null agar tidak menyimpan koordinat yang salah
+        payload.latitude = null
+        payload.longitude = null
       }
+    } else {
+      console.log('[API] ℹ️ Tidak ada address, skip geocoding')
     }
 
     // Hapus null/undefined, tapi jangan hapus array kosong
@@ -127,7 +141,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('[API] Upsert payload:', payload)
+    console.log('[API] 📦 Final payload sebelum upsert:', payload)
 
     const { data, error } = await supabase
       .from('students')
