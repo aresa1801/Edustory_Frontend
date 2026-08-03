@@ -19,26 +19,26 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabase()
 
-    // Fetch tutor data – tambahkan latitude & longitude
+    // Fetch tutor data - tambahkan latitude & longitude
     const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
       .select(`
-        id, 
-        full_name, 
-        phone, 
-        bio, 
-        experience_years, 
-        hourly_rate, 
-        qualifications, 
-        approval_status, 
+        id,
+        full_name,
+        phone,
+        bio,
+        experience_years,
+        hourly_rate,
+        qualifications,
+        approval_status,
         verified,
         verified_grade_levels,
         specializations_sd,
         specializations_smp,
         specializations_sma,
         avatar_url,
-        latitude,        // 🔥 TAMBAHKAN
-        longitude        // 🔥 TAMBAHKAN
+        latitude,
+        longitude
       `)
       .eq('user_id', userId)
       .maybeSingle()
@@ -92,28 +92,27 @@ export async function POST(request: NextRequest) {
       user_id: userId,
     }
 
-    // Field yang boleh di-update (tambahkan latitude & longitude)
+    // Field yang boleh di-update
     const fields = [
       'full_name', 'phone', 'bio',
       'experience_years', 'hourly_rate', 'qualifications',
       'approval_status', 'verified',
-      'rating', 'total_reviews', 
-      'verified_grade_levels', 
-      'specializations_sd', 
-      'specializations_smp', 
+      'rating', 'total_reviews',
+      'verified_grade_levels',
+      'specializations_sd',
+      'specializations_smp',
       'specializations_sma',
-      'latitude',   // 🔥 TAMBAHKAN
-      'longitude'   // 🔥 TAMBAHKAN
+      'latitude',
+      'longitude'
     ]
 
     fields.forEach(field => {
       if (body[field] !== undefined) {
-        // Jangan set null untuk array, biarkan array kosong
         payload[field] = body[field] ?? (Array.isArray(body[field]) ? [] : null)
       }
     })
 
-    // Hapus null/undefined (tapi hati-hati jangan hapus array kosong)
+    // Hapus null/undefined
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined) {
         delete payload[key]
