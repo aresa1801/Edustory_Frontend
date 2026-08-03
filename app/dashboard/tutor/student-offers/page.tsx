@@ -21,7 +21,7 @@ import {
   Filter,
   RefreshCw,
   Sparkles,
-  Map, // 🔥 TAMBAHKAN IKON MAP
+  Map,
 } from 'lucide-react'
 
 interface Student {
@@ -57,6 +57,8 @@ interface TutorProfile {
 }
 
 type FilterOption = 'all' | 1 | 2 | 3
+
+const MAX_DISTANCE = 15
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -373,14 +375,16 @@ export default function StudentOffersPage() {
                 )
               }
 
+              const isWithinDistance = distance !== null && distance <= MAX_DISTANCE
+
               return (
                 <Card
                   key={student.id}
                   className="border shadow-sm hover:shadow-md relative overflow-hidden"
                 >
-                  {distance !== null && (
+                  {isWithinDistance && (
                     <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
-                      {distance < 1 ? '< 1' : distance.toFixed(1)} km
+                      {distance! < 1 ? '< 1' : distance!.toFixed(1)} km
                     </div>
                   )}
 
@@ -475,29 +479,25 @@ export default function StudentOffersPage() {
                         </span>
                       </div>
 
-                      {/* 🔥 Alamat dengan ikon peta */}
                       <div className="flex items-start">
                         <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                         <span className="text-muted-foreground">
                           {student.address || 'Alamat belum diisi'}
                         </span>
-                        {tutorProfile?.latitude &&
-                          tutorProfile?.longitude &&
-                          student.latitude &&
-                          student.longitude && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
-                              onClick={() => {
-                                const url = `https://www.google.com/maps/dir/?api=1&origin=${tutorProfile.latitude},${tutorProfile.longitude}&destination=${student.latitude},${student.longitude}&travelmode=driving`
-                                window.open(url, '_blank')
-                              }}
-                              title="Buka Google Maps & lihat rute"
-                            >
-                              <Map className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                        {isWithinDistance && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                            onClick={() => {
+                              const url = `https://www.google.com/maps/dir/?api=1&origin=${tutorProfile!.latitude},${tutorProfile!.longitude}&destination=${student.latitude},${student.longitude}&travelmode=driving`
+                              window.open(url, '_blank')
+                            }}
+                            title="Buka Google Maps & lihat rute"
+                          >
+                            <Map className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
 
                       <div className="flex items-start">
