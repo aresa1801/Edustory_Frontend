@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { geocodeAddress } from '@/lib/geocode' // 🔥 TAMBAHKAN
+import { geocodeAddress } from '@/lib/geocode'
 
 // === GET: Ambil data student berdasarkan user_id ===
 export async function GET(request: NextRequest) {
@@ -101,16 +101,22 @@ export async function POST(request: NextRequest) {
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
 
-    // 🔥 TAMBAHKAN GEOCODING UNTUK ADDRESS
+    // 🔥 PERBAIKAN: Geocoding hanya jika ada address, tidak set null
     if (body.address) {
-      const coords = await geocodeAddress(body.address)
-      if (coords) {
-        payload.latitude = coords.lat
-        payload.longitude = coords.lng
-      } else {
-        // Jika gagal, set null agar tidak menyimpan koordinat yang salah
-        payload.latitude = null
-        payload.longitude = null
+      console.log('[API] 📍 Geocoding address:', body.address)
+      try {
+        const coords = await geocodeAddress(body.address)
+        if (coords) {
+          payload.latitude = coords.lat
+          payload.longitude = coords.lng
+          console.log('[API] ✅ Geocode success:', coords)
+        } else {
+          console.warn('[API] ⚠️ Geocode failed, koordinat tidak disimpan')
+          // Jangan tambahkan field latitude/longitude
+        }
+      } catch (err) {
+        console.error('[API] ❌ Geocode error:', err)
+        // Jangan tambahkan field latitude/longitude
       }
     }
 
