@@ -101,11 +101,13 @@ export async function POST(request: NextRequest) {
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
 
-    // 🔥 PERBAIKAN GEOCDING DENGAN LOG YANG JELAS
+    // 🔥 GEOCODING DENGAN STATUS
+    let geocodeStatus = 'skipped'
     if (body.address) {
       console.log('[API] 📍 Geocoding address:', body.address)
+      geocodeStatus = 'processing'
       try {
-        // Tambahkan timeout 5 detik agar tidak menggantung
+        // Timeout 5 detik
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Geocoding timeout')), 5000)
         )
@@ -117,24 +119,23 @@ export async function POST(request: NextRequest) {
         if (coords) {
           payload.latitude = coords.lat
           payload.longitude = coords.lng
+          geocodeStatus = 'success'
           console.log('[API] ✅ Geocode success:', coords)
         } else {
-          console.warn('[API] ⚠️ Geocode returned null, koordinat tidak disimpan')
-          // Tetap set null agar kita tahu bahwa geocode dicoba tapi gagal
-          payload.latitude = null
-          payload.longitude = null
+          geocodeStatus = 'failed_not_found'
+          console.warn('[API] ⚠️ Geocode returned null (alamat tidak ditemukan)')
         }
       } catch (err) {
+        geocodeStatus = 'failed_error'
         console.error('[API] ❌ Geocode error:', err)
-        // Set null agar tidak menyimpan koordinat yang salah
-        payload.latitude = null
-        payload.longitude = null
       }
     } else {
       console.log('[API] ℹ️ Tidak ada address, skip geocoding')
     }
 
     // Hapus null/undefined, tapi jangan hapus array kosong
+    // 🔥 Kita tidak akan menghapus latitude/longitude meskipun null,
+    // tapi kita hanya menambahkan jika berhasil. Jika gagal, field tidak ada.
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined) {
         delete payload[key]
@@ -150,16 +151,24 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[API] Upsert error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+        geocode_status: geocodeStatus,
+      }, { status: 500 })
     }
 
     console.log('[API] ✅ Success:', data)
-    return NextResponse.json({ success: true, data: data?.[0] || null })
+    return NextResponse.json({
+      success: true,
+      data: data?.[0] || null,
+      geocode_status: geocodeStatus, // 🔥 Kirim status geocode ke frontend
+    })
   } catch (err) {
     console.error('[API] Unexpected error:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      error: err instanceof Error ? err.message : 'Internal error',
+      geocode_status: 'failed_error',
+    }, { status: 500 })
   }
 }
