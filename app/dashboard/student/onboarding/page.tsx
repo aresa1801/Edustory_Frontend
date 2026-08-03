@@ -104,6 +104,28 @@ export default function StudentOnboardingPage() {
   const [selectedPayment, setSelectedPayment] = useState('')
   const [transferProof, setTransferProof] = useState('')
 
+  // 🔥 Fungsi untuk mengambil lokasi GPS (sama seperti di profil tutor)
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation tidak didukung oleh browser ini'))
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          })
+        },
+        (err) => {
+          reject(err)
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    })
+  }
+
   // ============================================================
   // LOAD DATA – DARI TABEL students
   // ============================================================
@@ -219,10 +241,23 @@ export default function StudentOnboardingPage() {
   }
 
   // ============================================================
-  // SAVE STEP 1
+  // SAVE STEP 1 – DENGAN GPS
   // ============================================================
   const saveStep1Data = async () => {
     if (!authUser) throw new Error('User tidak ditemukan di context')
+
+    // 🔥 Ambil lokasi GPS
+    let lat = null, lng = null
+    try {
+      const pos = await getCurrentLocation()
+      lat = pos.lat
+      lng = pos.lng
+      console.log('[Onboarding] 📍 Lokasi GPS didapat:', lat, lng)
+    } catch (err) {
+      console.warn('[Onboarding] ⚠️ Gagal mendapat lokasi GPS:', err)
+      // Lanjut tanpa koordinat
+    }
+
     const payload = {
       user_id: authUser.id,
       name: siswaData.name.trim() || null,
@@ -239,6 +274,8 @@ export default function StudentOnboardingPage() {
       parent_relation: ortuData.parent_relation || null,
       status: 'active',
       onboarding_complete: false,
+      latitude: lat,   // 🔥 Kirim koordinat (bisa null)
+      longitude: lng,  // 🔥 Kirim koordinat (bisa null)
     }
 
     // Hapus null/undefined
@@ -253,8 +290,10 @@ export default function StudentOnboardingPage() {
       body: JSON.stringify(payload),
     })
 
+    const result = await response.json()
+    console.log('[Onboarding] Response:', result)
+
     if (!response.ok) {
-      const result = await response.json()
       throw new Error(result.error || `HTTP ${response.status}`)
     }
     return true

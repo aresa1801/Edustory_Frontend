@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { geocodeAddress } from '@/lib/geocode'
 
 // === GET: Ambil data student berdasarkan user_id ===
 export async function GET(request: NextRequest) {
@@ -101,54 +100,9 @@ export async function POST(request: NextRequest) {
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
 
-    // 🔥 GEOCODING DENGAN DETAIL RESPONSE
-    let geocodeResult: {
-      status: string
-      message: string
-      lat: number | null
-      lng: number | null
-    } = {
-      status: 'skipped',
-      message: 'Tidak ada alamat',
-      lat: null,
-      lng: null,
-    }
-
-    if (body.address && body.address.trim().length > 5) {
-      console.log('[API] 📍 Geocoding address:', body.address)
-      geocodeResult.status = 'processing'
-      geocodeResult.message = 'Sedang memproses...'
-
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Geocoding timeout (5 detik)')), 5000)
-        )
-        const coords = await Promise.race([
-          geocodeAddress(body.address),
-          timeoutPromise
-        ]) as { lat: number; lng: number } | null
-
-        if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number') {
-          payload.latitude = coords.lat
-          payload.longitude = coords.lng
-          geocodeResult.status = 'success'
-          geocodeResult.message = 'Berhasil mendapatkan koordinat'
-          geocodeResult.lat = coords.lat
-          geocodeResult.lng = coords.lng
-          console.log('[API] ✅ Geocode success:', coords)
-        } else {
-          geocodeResult.status = 'failed_not_found'
-          geocodeResult.message = 'Alamat tidak ditemukan oleh Nominatim'
-          console.warn('[API] ⚠️ Geocode returned null')
-        }
-      } catch (err: any) {
-        geocodeResult.status = 'failed_error'
-        geocodeResult.message = err.message || 'Error tidak diketahui'
-        console.error('[API] ❌ Geocode error:', err)
-      }
-    } else {
-      geocodeResult.message = 'Alamat kosong atau terlalu pendek (min 5 karakter)'
-    }
+    // 🔥 AMBIL KOORDINAT DARI BODY (dikirim dari frontend GPS)
+    if (body.latitude !== undefined) payload.latitude = body.latitude
+    if (body.longitude !== undefined) payload.longitude = body.longitude
 
     // Hapus null/undefined, tapi jangan hapus array kosong
     Object.keys(payload).forEach(key => {
@@ -166,30 +120,16 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[API] Upsert error:', error)
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-        geocode: geocodeResult,
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
     console.log('[API] ✅ Success:', data)
-    return NextResponse.json({
-      success: true,
-      data: data?.[0] || null,
-      geocode: geocodeResult,
-    })
+    return NextResponse.json({ success: true, data: data?.[0] || null })
   } catch (err) {
     console.error('[API] Unexpected error:', err)
-    return NextResponse.json({
-      success: false,
-      error: err instanceof Error ? err.message : 'Internal error',
-      geocode: {
-        status: 'failed_error',
-        message: err instanceof Error ? err.message : 'Error tidak diketahui',
-        lat: null,
-        lng: null,
-      },
-    }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'Internal error' },
+      { status: 500 }
+    )
   }
 }
