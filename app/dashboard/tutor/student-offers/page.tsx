@@ -61,10 +61,13 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
 }
 
@@ -103,7 +106,9 @@ export default function StudentOffersPage() {
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()
-      if (isMounted.current) setStudents([...(data.students || [])])
+      if (isMounted.current) {
+        setStudents([...(data.students || [])])
+      }
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
     } finally {
@@ -229,7 +234,12 @@ export default function StudentOffersPage() {
           <h1 className="text-2xl font-bold">Daftar Siswa</h1>
           <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-1.5"
+        >
           <RefreshCw className="w-4 h-4" />
           Refresh Data
         </Button>
@@ -240,7 +250,11 @@ export default function StudentOffersPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
-            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
+            <Button
+              variant="link"
+              className="p-0 h-auto font-semibold text-blue-600"
+              onClick={() => router.push('/dashboard/tutor/profile')}
+            >
               <UserPlus className="w-4 h-4 inline mr-1" />
               Lengkapi Profil
             </Button>
@@ -252,8 +266,13 @@ export default function StudentOffersPage() {
         <Alert className="mt-4 border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-amber-700">
-            Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
-            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
+            Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif,
+            kualifikasi, dan minimal satu spesialisasi.
+            <Button
+              variant="link"
+              className="p-0 h-auto font-semibold text-blue-600"
+              onClick={() => router.push('/dashboard/tutor/profile')}
+            >
               Lengkapi Profil
             </Button>
           </AlertDescription>
@@ -264,7 +283,8 @@ export default function StudentOffersPage() {
         <Alert className="mt-4 border-amber-200 bg-amber-50">
           <Lock className="w-4 h-4 text-amber-500" />
           <AlertDescription className="text-amber-700">
-            Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
+            Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses
+            verifikasi admin.
           </AlertDescription>
         </Alert>
       )}
@@ -279,16 +299,32 @@ export default function StudentOffersPage() {
         <div className="flex flex-wrap items-center gap-3 py-2 border-t border-b border-gray-200">
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Filter:</span>
-          <Button variant={filterOption === 'all' ? 'default' : 'outline'} size="sm" onClick={() => handleFilter('all')}>
+          <Button
+            variant={filterOption === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter('all')}
+          >
             Semua
           </Button>
-          <Button variant={filterOption === 1 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(1)}>
+          <Button
+            variant={filterOption === 1 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(1)}
+          >
             1 Kategori Sama
           </Button>
-          <Button variant={filterOption === 2 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(2)}>
+          <Button
+            variant={filterOption === 2 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(2)}
+          >
             2 Kategori Sama
           </Button>
-          <Button variant={filterOption === 3 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(3)}>
+          <Button
+            variant={filterOption === 3 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(3)}
+          >
             3 Kategori Sama
           </Button>
           <span className="text-sm text-gray-500 ml-2">
@@ -307,14 +343,27 @@ export default function StudentOffersPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredAndSortedStudents.map((student) => {
               const studentRate = getStudentRate(student)
-              const matchCount = tutorProfile ? calculateMatchCount(student, tutorProfile) : 0
-              const gradeMatched = tutorProfile ? isGradeMatched(student, tutorProfile) : false
-              const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
-              const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
+              const matchCount = tutorProfile
+                ? calculateMatchCount(student, tutorProfile)
+                : 0
+              const gradeMatched = tutorProfile
+                ? isGradeMatched(student, tutorProfile)
+                : false
+              const rateMatched = tutorProfile
+                ? isRateMatched(student, tutorProfile)
+                : false
+              const matchedSubjects = tutorProfile
+                ? getMatchedSubjects(student, tutorProfile)
+                : []
               const isRecommended = matchCount >= 3
 
               let distance: number | null = null
-              if (tutorProfile?.latitude && tutorProfile?.longitude && student.latitude && student.longitude) {
+              if (
+                tutorProfile?.latitude &&
+                tutorProfile?.longitude &&
+                student.latitude &&
+                student.longitude
+              ) {
                 distance = getDistance(
                   tutorProfile.latitude,
                   tutorProfile.longitude,
@@ -324,8 +373,12 @@ export default function StudentOffersPage() {
               }
 
               return (
-                <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
-                  {distance !== null && distance <= 100 && (
+                <Card
+                  key={student.id}
+                  className="border shadow-sm hover:shadow-md relative overflow-hidden"
+                >
+                  {/* 🔥 BADGE JARAK – SEKARANG TANPA BATASAN 100 KM */}
+                  {distance !== null && (
                     <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
                       {distance < 1 ? '< 1' : distance.toFixed(1)} km
                     </div>
@@ -345,7 +398,11 @@ export default function StudentOffersPage() {
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                         {student.avatar_url ? (
-                          <img src={student.avatar_url} alt={student.name} className="w-full h-full object-cover rounded-full" />
+                          <img
+                            src={student.avatar_url}
+                            alt={student.name}
+                            className="w-full h-full object-cover rounded-full"
+                          />
                         ) : (
                           student.name?.charAt(0)?.toUpperCase() || '?'
                         )}
@@ -355,16 +412,20 @@ export default function StudentOffersPage() {
                         {student.grade_level && (
                           <Badge
                             variant="secondary"
-                            className={`text-xs ${gradeMatched
-                              ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50'
-                              : 'bg-gray-100 text-gray-700 border-gray-200'
+                            className={`text-xs ${
+                              gradeMatched
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50'
+                                : 'bg-gray-100 text-gray-700 border-gray-200'
                             }`}
                           >
                             {student.grade_level}
                           </Badge>
                         )}
                         {tutorProfile && matchCount > 0 && (
-                          <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-700">
+                          <Badge
+                            variant="outline"
+                            className="ml-1 text-xs border-green-300 text-green-700"
+                          >
                             {matchCount} kesamaan
                           </Badge>
                         )}
@@ -374,8 +435,16 @@ export default function StudentOffersPage() {
                     <div className="space-y-1.5 text-sm">
                       <div className="flex items-center">
                         <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                        <span className={rateMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
-                          {studentRate > 0 ? `Rp ${studentRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                        <span
+                          className={
+                            rateMatched
+                              ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {studentRate > 0
+                            ? `Rp ${studentRate.toLocaleString('id-ID')}/jam`
+                            : 'Belum diatur'}
                         </span>
                       </div>
 
@@ -387,25 +456,37 @@ export default function StudentOffersPage() {
                               const isMatched = matchedSubjects.includes(subj)
                               return (
                                 <span key={idx}>
-                                  <span className={isMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
+                                  <span
+                                    className={
+                                      isMatched
+                                        ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded'
+                                        : 'text-muted-foreground'
+                                    }
+                                  >
                                     {subj}
                                   </span>
                                   {idx < student.subjects.length - 1 && ', '}
                                 </span>
                               )
                             })
-                          ) : 'Belum ada mapel'}
+                          ) : (
+                            'Belum ada mapel'
+                          )}
                         </span>
                       </div>
 
                       <div className="flex items-start">
                         <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                        <span className="text-muted-foreground">{student.address || 'Alamat belum diisi'}</span>
+                        <span className="text-muted-foreground">
+                          {student.address || 'Alamat belum diisi'}
+                        </span>
                       </div>
 
                       <div className="flex items-start">
                         <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                        <span className="text-muted-foreground">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                        <span className="text-muted-foreground">
+                          {student.preferred_schedule || 'Jadwal belum ditentukan'}
+                        </span>
                       </div>
                     </div>
 
@@ -416,8 +497,10 @@ export default function StudentOffersPage() {
                         disabled={!canSendOffer || sending === student.id}
                         onClick={async () => {
                           if (!canSendOffer) {
-                            if (!profileComplete) alert('Lengkapi profil tutor Anda terlebih dahulu.')
-                            else if (!isVerified) alert('Tutor belum diverifikasi.')
+                            if (!profileComplete)
+                              alert('Lengkapi profil tutor Anda terlebih dahulu.')
+                            else if (!isVerified)
+                              alert('Tutor belum diverifikasi.')
                             return
                           }
                           const subject = student.subjects?.[0] || 'Umum'
@@ -433,7 +516,9 @@ export default function StudentOffersPage() {
                                 status: 'pending',
                                 initiated_by: 'tutor',
                                 lesson_frequency: 'flexible',
-                                start_date: new Date().toISOString().split('T')[0],
+                                start_date: new Date()
+                                  .toISOString()
+                                  .split('T')[0],
                               }),
                             })
                             if (!res.ok) {
@@ -448,7 +533,11 @@ export default function StudentOffersPage() {
                           }
                         }}
                       >
-                        {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                        {sending === student.id ? (
+                          <Spinner className="h-3.5 w-3.5" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
                         Kirim Penawaran
                       </Button>
                     </div>
