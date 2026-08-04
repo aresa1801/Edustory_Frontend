@@ -36,7 +36,6 @@ interface Student {
   avatar_url: string | null
   latitude: number | null
   longitude: number | null
-  is_online: boolean // 🔥 tambahan
 }
 
 interface TutorProfile {
@@ -58,7 +57,6 @@ interface TutorProfile {
 }
 
 type FilterOption = 'all' | 1 | 2 | 3
-type ModeOption = 'online' | 'offline'
 
 const MAX_DISTANCE = 15
 
@@ -85,7 +83,6 @@ export default function StudentOffersPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
-  const [mode, setMode] = useState<ModeOption>('online') // 🔥 mode online/offline
 
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
@@ -181,67 +178,20 @@ export default function StudentOffersPage() {
     return count
   }
 
-  // 🔥 Filter & sorting berdasarkan mode
   const filteredAndSortedStudents = (() => {
     if (!tutorProfile) return students
-
-    let result = [...students]
-
-    // 1. Filter berdasarkan mode online/offline
-    if (mode === 'online') {
-      result = result.filter(student => student.is_online === true)
-    } else {
-      // offline: hanya yang offline dan jarak <= 15 km
-      result = result.filter(student => {
-        if (student.is_online !== false) return false
-        if (!student.latitude || !student.longitude || !tutorProfile.latitude || !tutorProfile.longitude) return false
-        const dist = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
-          student.latitude,
-          student.longitude
-        )
-        return dist <= MAX_DISTANCE
-      })
-    }
-
-    // 2. Filter berdasarkan kategori kesamaan
+    let result = students
     if (filterOption !== 'all') {
       result = result.filter(student => {
         const count = calculateMatchCount(student, tutorProfile)
         return count >= filterOption
       })
     }
-
-    // 3. Sorting
-    if (mode === 'online') {
-      // Online: urutkan berdasarkan matchCount DESC
-      result.sort((a, b) => {
-        const countA = calculateMatchCount(a, tutorProfile)
-        const countB = calculateMatchCount(b, tutorProfile)
-        return countB - countA
-      })
-    } else {
-      // Offline: urutkan berdasarkan jarak terdekat ASC
-      result.sort((a, b) => {
-        if (!a.latitude || !a.longitude || !b.latitude || !b.longitude) return 0
-        const distA = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
-          a.latitude,
-          a.longitude
-        )
-        const distB = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
-          b.latitude,
-          b.longitude
-        )
-        return distA - distB
-      })
-    }
-
-    return result
+    return [...result].sort((a, b) => {
+      const countA = calculateMatchCount(a, tutorProfile)
+      const countB = calculateMatchCount(b, tutorProfile)
+      return countB - countA
+    })
   })()
 
   const isProfileComplete = (profile: TutorProfile | null): boolean => {
@@ -266,15 +216,6 @@ export default function StudentOffersPage() {
 
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)
-    setTimeout(() => {
-      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 100)
-  }
-
-  // 🔥 Toggle mode
-  const toggleMode = () => {
-    setMode(prev => prev === 'online' ? 'offline' : 'online')
-    // Scroll ke daftar setelah toggle
     setTimeout(() => {
       listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
@@ -357,68 +298,41 @@ export default function StudentOffersPage() {
         </Alert>
       )}
 
-      {/* 🔥 Filter + Switch Online/Offline */}
       {tutorProfile && profileComplete && students.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 py-2 border-t border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filter:</span>
-            <Button
-              variant={filterOption === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleFilter('all')}
-            >
-              Semua
-            </Button>
-            <Button
-              variant={filterOption === 1 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleFilter(1)}
-            >
-              1 Kategori Sama
-            </Button>
-            <Button
-              variant={filterOption === 2 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleFilter(2)}
-            >
-              2 Kategori Sama
-            </Button>
-            <Button
-              variant={filterOption === 3 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleFilter(3)}
-            >
-              3 Kategori Sama
-            </Button>
-            <span className="text-sm text-gray-500 ml-2">
-              {filteredAndSortedStudents.length} dari {students.length} siswa
-            </span>
-          </div>
-
-          {/* 🔥 Switch Online/Offline */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className={`text-xs font-medium ${mode === 'offline' ? 'text-muted-foreground' : 'text-primary'}`}>
-              Online
-            </span>
-            <button
-              onClick={toggleMode}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                mode === 'online' ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-              role="switch"
-              aria-checked={mode === 'online'}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                  mode === 'online' ? 'translate-x-5' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-            <span className={`text-xs font-medium ${mode === 'online' ? 'text-muted-foreground' : 'text-primary'}`}>
-              Offline
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center gap-3 py-2 border-t border-b border-gray-200">
+          <Filter className="w-4 h-4 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Filter:</span>
+          <Button
+            variant={filterOption === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter('all')}
+          >
+            Semua
+          </Button>
+          <Button
+            variant={filterOption === 1 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(1)}
+          >
+            1 Kategori Sama
+          </Button>
+          <Button
+            variant={filterOption === 2 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(2)}
+          >
+            2 Kategori Sama
+          </Button>
+          <Button
+            variant={filterOption === 3 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilter(3)}
+          >
+            3 Kategori Sama
+          </Button>
+          <span className="text-sm text-gray-500 ml-2">
+            Menampilkan {filteredAndSortedStudents.length} dari {students.length} siswa
+          </span>
         </div>
       )}
 
@@ -426,15 +340,11 @@ export default function StudentOffersPage() {
         {filteredAndSortedStudents.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>
-              {mode === 'online'
-                ? 'Tidak ada siswa online yang sesuai dengan filter.'
-                : 'Tidak ada siswa offline dalam jangkauan 15 km.'}
-            </p>
+            <p>Tidak ada siswa yang sesuai dengan filter.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filteredAndSortedStudents.map((student, index) => {
+            {filteredAndSortedStudents.map((student) => {
               const studentRate = getStudentRate(student)
               const matchCount = tutorProfile
                 ? calculateMatchCount(student, tutorProfile)
@@ -448,9 +358,7 @@ export default function StudentOffersPage() {
               const matchedSubjects = tutorProfile
                 ? getMatchedSubjects(student, tutorProfile)
                 : []
-
-              // 🔥 Recommended hanya untuk 3 siswa teratas (index < 3)
-              const isRecommended = index < 3
+              const isRecommended = matchCount >= 3
 
               let distance: number | null = null
               if (
@@ -467,16 +375,14 @@ export default function StudentOffersPage() {
                 )
               }
 
-              // 🔥 Jarak hanya ditampilkan di mode offline dan jarak <= 15 km
-              const showDistance = mode === 'offline' && distance !== null && distance <= MAX_DISTANCE
-              const isWithinDistance = showDistance
+              const isWithinDistance = distance !== null && distance <= MAX_DISTANCE
 
               return (
                 <Card
                   key={student.id}
                   className="border shadow-sm hover:shadow-md relative overflow-hidden"
                 >
-                  {showDistance && (
+                  {isWithinDistance && (
                     <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
                       {distance! < 1 ? '< 1' : distance!.toFixed(1)} km
                     </div>
@@ -578,8 +484,7 @@ export default function StudentOffersPage() {
                         <span className="text-muted-foreground">
                           {student.address || 'Alamat belum diisi'}
                         </span>
-                        {/* 🔥 Ikon peta hanya di mode offline dan jarak <= 15 km */}
-                        {showDistance && (
+                        {isWithinDistance && (
                           <Button
                             variant="ghost"
                             size="icon"
