@@ -241,6 +241,25 @@ export default function StudentOffersPage() {
     return result
   })()
 
+  // 🔥 Hitung indeks siswa yang eligible untuk badge Recommended
+  // Syarat: matchCount >= 3 (3 kesamaan), dan hanya 3 teratas dari yang eligible
+  const recommendedIndices = (() => {
+    const indices = new Set<number>()
+    if (!tutorProfile) return indices
+
+    let eligiblePos = 0
+    filteredAndSortedStudents.forEach((student, idx) => {
+      const matchCount = calculateMatchCount(student, tutorProfile)
+      if (matchCount >= 3) {
+        if (eligiblePos < 3) {
+          indices.add(idx)
+        }
+        eligiblePos++
+      }
+    })
+    return indices
+  })()
+
   const isProfileComplete = (profile: TutorProfile | null): boolean => {
     if (!profile) return false
     const hasSpec =
@@ -400,7 +419,9 @@ export default function StudentOffersPage() {
               const gradeMatched = tutorProfile ? isGradeMatched(student, tutorProfile) : false
               const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
               const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
-              const isRecommended = index < 3
+
+              // 🔥 Badge Recommended hanya jika index ada di recommendedIndices
+              const isRecommended = recommendedIndices.has(index)
 
               let distance: number | null = null
               if (tutorProfile?.latitude && tutorProfile?.longitude && student.latitude && student.longitude) {
