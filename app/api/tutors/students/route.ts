@@ -12,7 +12,7 @@ export async function GET() {
 
     const { data: students, error } = await supabase
       .from('students')
-      .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, latitude, longitude') // 🔥 tambahkan latitude & longitude
+      .select('id, name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, latitude, longitude, is_online')
       .order('created_at', { ascending: false })
 
     if (error) {
