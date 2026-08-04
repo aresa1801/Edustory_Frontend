@@ -213,6 +213,7 @@ export default function StudentOffersPage() {
       })
     }
 
+    // Sorting
     if (mode === 'online') {
       result.sort((a, b) => {
         const countA = calculateMatchCount(a, tutorProfile)
@@ -220,8 +221,21 @@ export default function StudentOffersPage() {
         return countB - countA
       })
     } else {
+      // Offline: prioritas utama = matchCount DESC, tie-breaker = jarak ASC
       result.sort((a, b) => {
-        if (!a.latitude || !a.longitude || !b.latitude || !b.longitude) return 0
+        const countA = calculateMatchCount(a, tutorProfile)
+        const countB = calculateMatchCount(b, tutorProfile)
+
+        // Jika matchCount berbeda, urutkan berdasarkan matchCount (lebih tinggi = atas)
+        if (countB !== countA) {
+          return countB - countA
+        }
+
+        // Jika matchCount sama, urutkan berdasarkan jarak terdekat
+        // Jika salah satu tidak punya koordinat, tempatkan di bawah
+        if (!a.latitude || !a.longitude) return 1
+        if (!b.latitude || !b.longitude) return -1
+
         const distA = getDistance(
           tutorProfile.latitude,
           tutorProfile.longitude,
@@ -242,21 +256,21 @@ export default function StudentOffersPage() {
   })()
 
   // 🔥 Hitung indeks siswa yang eligible untuk badge Recommended
-  // Syarat: matchCount >= 3 (3 kesamaan), dan hanya 3 teratas dari yang eligible
   const recommendedIndices = (() => {
     const indices = new Set<number>()
     if (!tutorProfile) return indices
 
-    let eligiblePos = 0
-    filteredAndSortedStudents.forEach((student, idx) => {
-      const matchCount = calculateMatchCount(student, tutorProfile)
-      if (matchCount >= 3) {
-        if (eligiblePos < 3) {
-          indices.add(idx)
-        }
-        eligiblePos++
-      }
-    })
+    // Filter siswa yang memiliki matchCount >= 3
+    const eligibleStudents = filteredAndSortedStudents
+      .map((student, idx) => ({ student, idx }))
+      .filter(({ student }) => calculateMatchCount(student, tutorProfile) >= 3)
+
+    // Urutkan eligible students berdasarkan:
+    // - Online: matchCount DESC (sudah terurut)
+    // - Offline: matchCount DESC, lalu jarak ASC (sudah terurut dari filteredAndSortedStudents)
+    // Ambil 3 teratas
+    eligibleStudents.slice(0, 3).forEach(({ idx }) => indices.add(idx))
+
     return indices
   })()
 
@@ -420,7 +434,6 @@ export default function StudentOffersPage() {
               const rateMatched = tutorProfile ? isRateMatched(student, tutorProfile) : false
               const matchedSubjects = tutorProfile ? getMatchedSubjects(student, tutorProfile) : []
 
-              // 🔥 Badge Recommended hanya jika index ada di recommendedIndices
               const isRecommended = recommendedIndices.has(index)
 
               let distance: number | null = null
