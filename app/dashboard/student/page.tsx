@@ -23,7 +23,6 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'Dibatalkan', color: 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30' },
 }
 
-// 🔥 Fungsi untuk mengecek kelengkapan data siswa
 const isProfileComplete = (profile: any) => {
   if (!profile) return false
   return (
@@ -40,7 +39,7 @@ const isProfileComplete = (profile: any) => {
     profile.sessions_per_month &&
     profile.sessions_per_month > 0 &&
     profile.address &&
-    profile.address !== '' // ✅ ganti school_address menjadi address
+    profile.address !== ''
   )
 }
 
@@ -54,10 +53,11 @@ export default function StudentDashboard() {
     preferred_schedule: '',
     budget_per_month: 0,
     sessions_per_month: 0,
-    address: '', // ✅ ganti school_address menjadi address
+    address: '',
     avatar_url: null,
     onboarding_complete: false,
     status: 'active',
+    is_online: true,
   })
   const [matches, setMatches] = useState<any[]>([])
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
@@ -70,6 +70,31 @@ export default function StudentDashboard() {
   // 🔥 State untuk notifikasi pop-up
   const [showNotification, setShowNotification] = useState(false)
   const [notificationMessage, setNotificationMessage] = useState('')
+
+  // 🔥 Fungsi update status online/offline ke database
+  const updateOnlineStatus = async (newStatus: boolean) => {
+    if (!authUser) return
+    try {
+      const res = await fetch('/api/students/status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: authUser.id, is_online: newStatus }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Gagal update status')
+      }
+      // Update state lokal setelah berhasil
+      setIsOnline(newStatus)
+      // Update juga di profile untuk konsistensi
+      setProfile((prev: any) => ({ ...prev, is_online: newStatus }))
+    } catch (err) {
+      console.error('[DASHBOARD] Gagal update status:', err)
+      alert('Gagal mengubah status. Silakan coba lagi.')
+      // Rollback toggle jika gagal
+      setIsOnline(!newStatus)
+    }
+  }
 
   const fetchStudentData = async (userId: string) => {
     try {
@@ -109,11 +134,13 @@ export default function StudentDashboard() {
             preferred_schedule: studentData.preferred_schedule || '',
             budget_per_month: studentData.budget_per_month || 0,
             sessions_per_month: studentData.sessions_per_month || 0,
-            address: studentData.address || studentData.school_address || '', // ✅ fallback
+            address: studentData.address || studentData.school_address || '',
             avatar_url: studentData.avatar_url || null,
             onboarding_complete: studentData.onboarding_complete || false,
             status: studentData.status || 'active',
+            is_online: studentData.is_online ?? true,
           })
+          setIsOnline(studentData.is_online ?? true)
         } else {
           setProfile({
             id: null,
@@ -123,14 +150,15 @@ export default function StudentDashboard() {
             preferred_schedule: '',
             budget_per_month: 0,
             sessions_per_month: 0,
-            address: '', // ✅ ganti
+            address: '',
             avatar_url: null,
             onboarding_complete: false,
             status: 'active',
+            is_online: true,
           })
+          setIsOnline(true)
         }
 
-        // Ambil matches jika ada student id
         if (studentData?.id) {
           const supabase = createClient()
           const { data: md, error: mdError } = await supabase
@@ -175,8 +203,10 @@ export default function StudentDashboard() {
     }
   }, [authUser, authLoading])
 
-  // 🔥 Efek untuk menampilkan notifikasi saat mode berubah
+  // 🔥 Efek untuk menampilkan notifikasi saat mode berubah (hanya dari toggle, bukan dari load)
   useEffect(() => {
+    // Kita hanya tampilkan notifikasi jika state berubah (bukan inisialisasi)
+    // Gunakan ref untuk skip pertama kali atau cukup tampilkan selalu
     const message = isOnline ? 'Mode Pembelajaran Online' : 'Mode Pembelajaran Offline'
     setNotificationMessage(message)
     setShowNotification(true)
@@ -186,7 +216,6 @@ export default function StudentDashboard() {
     return () => clearTimeout(timer)
   }, [isOnline])
 
-  // 🔥 Handle avatar upload
   const handleAvatarUpload = async (url: string) => {
     if (!authUser) {
       console.error('[DASHBOARD] No authenticated user')
@@ -237,15 +266,19 @@ export default function StudentDashboard() {
     ? Math.round(profile.budget_per_month / profile.sessions_per_month)
     : 0
 
-  // 🔥 Toggle mode
-  const toggleMode = () => setIsOnline(prev => !prev)
+  // 🔥 Toggle mode dengan update database
+  const toggleMode = () => {
+    const newStatus = !isOnline
+    // Optimistic update
+    setIsOnline(newStatus)
+    // Kirim ke server
+    updateOnlineStatus(newStatus)
+  }
 
-  // 🔥 Cek kelengkapan data menggunakan fungsi isProfileComplete
   const profileComplete = isProfileComplete(profile)
 
   return (
     <div className="space-y-6 relative">
-      {/* 🔥 NOTIFIKASI POP-UP */}
       {showNotification && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white px-6 py-3 rounded-lg shadow-lg text-center transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-5">
           <p className="text-sm font-medium">{notificationMessage}</p>
@@ -259,7 +292,6 @@ export default function StudentDashboard() {
         </p>
       </div>
 
-      {/* 🔥 Notifikasi onboarding – HANYA muncul jika data TIDAK lengkap */}
       {!profileComplete && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -419,7 +451,6 @@ export default function StudentDashboard() {
                 </span>
               </p>
 
-              {/* ✅ Ubah label dan gunakan address */}
               <p className="text-sm text-muted-foreground flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
                 <span>{profile?.address || 'Alamat rumah belum diisi'}</span>
@@ -496,7 +527,6 @@ export default function StudentDashboard() {
         </Card>
       </div>
 
-      {/* Recent Matches */}
       {matches.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -555,7 +585,6 @@ export default function StudentDashboard() {
         </Card>
       )}
 
-      {/* Modal Avatar Upload */}
       <AvatarUploader
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
