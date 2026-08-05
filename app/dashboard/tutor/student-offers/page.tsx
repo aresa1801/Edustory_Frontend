@@ -23,6 +23,14 @@ import {
   Sparkles,
   Map,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Student {
   id: string
@@ -86,6 +94,10 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
+
+  // 🔥 State untuk dialog konfirmasi
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
@@ -284,8 +296,49 @@ export default function StudentOffersPage() {
   const profileComplete = isProfileComplete(tutorProfile)
 
   // 🔥 BYPASS: tombol kirim selalu aktif (kecuali sedang proses)
-  // const canSendOffer = profileComplete && isVerified
-  const canSendOffer = true // bypass
+  const canSendOffer = true
+
+  // 🔥 Fungsi untuk membuka dialog konfirmasi
+  const openConfirmDialog = (student: Student) => {
+    setSelectedStudent(student)
+    setShowConfirmDialog(true)
+  }
+
+  // 🔥 Fungsi untuk mengirim penawaran (dipanggil setelah konfirmasi)
+  const handleConfirmSend = async () => {
+    if (!selectedStudent || !tutorProfile) return
+
+    const student = selectedStudent
+    setShowConfirmDialog(false)
+    setSending(student.id)
+
+    try {
+      const subject = student.subjects?.[0] || 'Umum'
+      const res = await fetch('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tutor_id: tutorProfile.id,
+          student_id: student.id,
+          subject,
+          status: 'pending',
+          initiated_by: 'tutor',
+          lesson_frequency: 'flexible',
+          start_date: new Date().toISOString().split('T')[0],
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Gagal')
+      }
+      alert('✅ Penawaran berhasil dikirim!')
+    } catch (err: any) {
+      alert('❌ Gagal: ' + err.message)
+    } finally {
+      setSending(null)
+      setSelectedStudent(null)
+    }
+  }
 
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)
@@ -539,40 +592,8 @@ export default function StudentOffersPage() {
                       <Button
                         size="sm"
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                        disabled={sending === student.id} // 🔥 BYPASS: hanya nonaktif saat proses kirim
-                        onClick={async () => {
-                          // 🔥 Konfirmasi sebelum kirim
-                          if (!confirm('Penawaran anda akan dikirim ke student. Kirim penawaran?')) {
-                            return
-                          }
-
-                          const subject = student.subjects?.[0] || 'Umum'
-                          setSending(student.id)
-                          try {
-                            const res = await fetch('/api/matches', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                tutor_id: tutorProfile!.id,
-                                student_id: student.id,
-                                subject,
-                                status: 'pending',
-                                initiated_by: 'tutor',
-                                lesson_frequency: 'flexible',
-                                start_date: new Date().toISOString().split('T')[0],
-                              }),
-                            })
-                            if (!res.ok) {
-                              const err = await res.json()
-                              throw new Error(err.error || 'Gagal')
-                            }
-                            alert('✅ Penawaran berhasil dikirim!')
-                          } catch (err: any) {
-                            alert('❌ Gagal: ' + err.message)
-                          } finally {
-                            setSending(null)
-                          }
-                        }}
+                        disabled={sending === student.id}
+                        onClick={() => openConfirmDialog(student)}
                       >
                         {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
                         Kirim Penawaran
@@ -585,6 +606,41 @@ export default function StudentOffersPage() {
           </div>
         )}
       </div>
+
+      {/* 🔥 Dialog Konfirmasi Kirim Penawaran */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">Kirim Penawaran</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Anda akan mengirim penawaran ke siswa <strong>{selectedStudent?.name}</strong>.
+              Penawaran ini akan masuk ke dashboard siswa dengan status <strong>Menunggu</strong>.
+              <br />
+              <br />
+              Apakah Anda yakin?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfirmDialog(false)
+                setSelectedStudent(null)
+              }}
+              className="min-w-[100px]"
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleConfirmSend}
+              className="min-w-[100px] bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={sending !== null}
+            >
+              {sending ? <Spinner className="h-4 w-4" /> : 'Ya, Kirim'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
