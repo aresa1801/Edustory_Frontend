@@ -21,19 +21,16 @@ export default function TutorMyMatches() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 🔥 Guard untuk mencegah fetch ganda
   const fetchedRef = useRef(false)
   const isMounted = useRef(true)
 
   const fetchMatches = async () => {
-    if (!isMounted.current) return
-    setLoading(true)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
+        if (isMounted.current) setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 
@@ -65,12 +62,13 @@ export default function TutorMyMatches() {
   useEffect(() => {
     if (fetchedRef.current) return
     fetchedRef.current = true
+
     fetchMatches()
 
     return () => {
       isMounted.current = false
     }
-  }, []) // empty array, hanya sekali
+  }, [])
 
   if (loading) {
     return (

@@ -16,20 +16,17 @@ export default function TutorMatchRequests() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<any>(null)
-  
-  // 🔥 Guard untuk mencegah fetch ganda
+
   const fetchedRef = useRef(false)
   const isMounted = useRef(true)
 
   const fetchMatches = async () => {
-    if (!isMounted.current) return
-    setLoading(true)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
+        if (isMounted.current) setError('Sesi tidak ditemukan. Silakan muat ulang halaman.')
         return
       }
 
@@ -61,12 +58,13 @@ export default function TutorMatchRequests() {
   useEffect(() => {
     if (fetchedRef.current) return
     fetchedRef.current = true
+
     fetchMatches()
 
     return () => {
       isMounted.current = false
     }
-  }, []) // empty array, hanya sekali
+  }, [])
 
   const handleConfirmMatch = async (matchId: string, action: 'confirm' | 'reject') => {
     setConfirmingId(matchId)
@@ -94,6 +92,7 @@ export default function TutorMatchRequests() {
 
       setShowConfirmDialog(false)
       setSelectedMatch(null)
+      // Refresh data setelah konfirmasi
       await fetchMatches()
 
       if (action === 'confirm') {
@@ -235,7 +234,6 @@ export default function TutorMatchRequests() {
         )
       })}
 
-      {/* Reject Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
