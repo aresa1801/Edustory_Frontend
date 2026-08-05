@@ -197,8 +197,8 @@ export default function StudentOffersPage() {
         if (student.is_online !== false) return false
         if (!student.latitude || !student.longitude || !tutorProfile.latitude || !tutorProfile.longitude) return false
         const dist = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
+          tutorProfile.latitude!,
+          tutorProfile.longitude!,
           student.latitude,
           student.longitude
         )
@@ -222,34 +222,36 @@ export default function StudentOffersPage() {
       })
     } else {
       // Offline: prioritas utama = matchCount DESC, tie-breaker = jarak ASC
-      result.sort((a, b) => {
-        const countA = calculateMatchCount(a, tutorProfile)
-        const countB = calculateMatchCount(b, tutorProfile)
-
-        // Jika matchCount berbeda, urutkan berdasarkan matchCount (lebih tinggi = atas)
-        if (countB !== countA) {
+      // Pastikan tutor memiliki koordinat (seharusnya sudah dari filter)
+      const tutorLat = tutorProfile.latitude
+      const tutorLng = tutorProfile.longitude
+      if (tutorLat === null || tutorLng === null) {
+        // Jika tutor tidak punya koordinat, tetap urutkan berdasarkan matchCount saja
+        result.sort((a, b) => {
+          const countA = calculateMatchCount(a, tutorProfile)
+          const countB = calculateMatchCount(b, tutorProfile)
           return countB - countA
-        }
+        })
+      } else {
+        result.sort((a, b) => {
+          const countA = calculateMatchCount(a, tutorProfile)
+          const countB = calculateMatchCount(b, tutorProfile)
 
-        // Jika matchCount sama, urutkan berdasarkan jarak terdekat
-        // Jika salah satu tidak punya koordinat, tempatkan di bawah
-        if (!a.latitude || !a.longitude) return 1
-        if (!b.latitude || !b.longitude) return -1
+          // Jika matchCount berbeda, urutkan berdasarkan matchCount (lebih tinggi = atas)
+          if (countB !== countA) {
+            return countB - countA
+          }
 
-        const distA = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
-          a.latitude,
-          a.longitude
-        )
-        const distB = getDistance(
-          tutorProfile.latitude,
-          tutorProfile.longitude,
-          b.latitude,
-          b.longitude
-        )
-        return distA - distB
-      })
+          // Jika matchCount sama, urutkan berdasarkan jarak terdekat
+          // Jika salah satu tidak punya koordinat, tempatkan di bawah
+          if (!a.latitude || !a.longitude) return 1
+          if (!b.latitude || !b.longitude) return -1
+
+          const distA = getDistance(tutorLat, tutorLng, a.latitude, a.longitude)
+          const distB = getDistance(tutorLat, tutorLng, b.latitude, b.longitude)
+          return distA - distB
+        })
+      }
     }
 
     return result
@@ -265,10 +267,7 @@ export default function StudentOffersPage() {
       .map((student, idx) => ({ student, idx }))
       .filter(({ student }) => calculateMatchCount(student, tutorProfile) >= 3)
 
-    // Urutkan eligible students berdasarkan:
-    // - Online: matchCount DESC (sudah terurut)
-    // - Offline: matchCount DESC, lalu jarak ASC (sudah terurut dari filteredAndSortedStudents)
-    // Ambil 3 teratas
+    // Ambil 3 teratas (sudah terurut dari filteredAndSortedStudents)
     eligibleStudents.slice(0, 3).forEach(({ idx }) => indices.add(idx))
 
     return indices
