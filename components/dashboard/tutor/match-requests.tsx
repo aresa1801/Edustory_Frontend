@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,12 +16,13 @@ export default function TutorMatchRequests() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<any>(null)
-
-  useEffect(() => {
-    fetchMatches()
-  }, [])
+  
+  // 🔥 Guard untuk mencegah fetch ganda
+  const fetchedRef = useRef(false)
+  const isMounted = useRef(true)
 
   const fetchMatches = async () => {
+    if (!isMounted.current) return
     setLoading(true)
     try {
       const supabase = createClient()
@@ -44,14 +45,28 @@ export default function TutorMatchRequests() {
 
       const data = await response.json()
       const pendingMatches = data.filter((m: any) => m.status === 'pending')
-      setMatches(pendingMatches)
-      setError(null)
+      if (isMounted.current) {
+        setMatches(pendingMatches)
+        setError(null)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat permintaan')
+      if (isMounted.current) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat permintaan')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+    fetchMatches()
+
+    return () => {
+      isMounted.current = false
+    }
+  }, []) // empty array, hanya sekali
 
   const handleConfirmMatch = async (matchId: string, action: 'confirm' | 'reject') => {
     setConfirmingId(matchId)
@@ -265,4 +280,3 @@ export default function TutorMatchRequests() {
     </div>
   )
 }
-

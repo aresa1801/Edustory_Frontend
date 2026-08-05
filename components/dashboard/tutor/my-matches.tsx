@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,11 +21,12 @@ export default function TutorMyMatches() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchMatches()
-  }, [])
+  // 🔥 Guard untuk mencegah fetch ganda
+  const fetchedRef = useRef(false)
+  const isMounted = useRef(true)
 
   const fetchMatches = async () => {
+    if (!isMounted.current) return
     setLoading(true)
     try {
       const supabase = createClient()
@@ -48,14 +49,28 @@ export default function TutorMyMatches() {
 
       const data = await response.json()
       const confirmedMatches = data.filter((m: any) => ['matched', 'active', 'completed'].includes(m.status))
-      setMatches(confirmedMatches)
-      setError(null)
+      if (isMounted.current) {
+        setMatches(confirmedMatches)
+        setError(null)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat pencocokan')
+      if (isMounted.current) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat pencocokan')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+    fetchMatches()
+
+    return () => {
+      isMounted.current = false
+    }
+  }, []) // empty array, hanya sekali
 
   if (loading) {
     return (
@@ -176,4 +191,3 @@ export default function TutorMyMatches() {
     </div>
   )
 }
-

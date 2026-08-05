@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,13 +16,18 @@ export default function MyStudentsPage() {
   const [loading, setLoading] = useState(true)
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
+  const fetchedRef = useRef(false)
+  const isMounted = useRef(true)
 
   useEffect(() => {
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+
     const fetchStats = async () => {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user || !isMounted.current) return
 
         const { data: tutorData } = await supabase
           .from('tutors')
@@ -30,13 +35,13 @@ export default function MyStudentsPage() {
           .eq('user_id', user.id)
           .single()
 
-        if (tutorData?.id) {
+        if (tutorData?.id && isMounted.current) {
           const { data: matchData } = await supabase
             .from('matches')
             .select('id, status')
             .eq('tutor_id', tutorData.id)
 
-          if (matchData) {
+          if (matchData && isMounted.current) {
             setTotalStudents(matchData.filter(m => ['matched', 'active'].includes(m.status)).length)
             setPendingCount(matchData.filter(m => m.status === 'pending').length)
           }
@@ -44,11 +49,15 @@ export default function MyStudentsPage() {
       } catch (err) {
         console.error('Error fetching student stats:', err)
       } finally {
-        setLoading(false)
+        if (isMounted.current) setLoading(false)
       }
     }
 
     fetchStats()
+
+    return () => {
+      isMounted.current = false
+    }
   }, [])
 
   if (loading) {
