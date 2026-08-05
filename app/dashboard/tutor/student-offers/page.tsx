@@ -95,7 +95,6 @@ export default function StudentOffersPage() {
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
 
-  // 🔥 State untuk dialog konfirmasi
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
@@ -295,16 +294,14 @@ export default function StudentOffersPage() {
   const isVerified = tutorProfile?.verified === true
   const profileComplete = isProfileComplete(tutorProfile)
 
-  // 🔥 BYPASS: tombol kirim selalu aktif (kecuali sedang proses)
+  // BYPASS: tombol kirim selalu aktif
   const canSendOffer = true
 
-  // 🔥 Fungsi untuk membuka dialog konfirmasi
   const openConfirmDialog = (student: Student) => {
     setSelectedStudent(student)
     setShowConfirmDialog(true)
   }
 
-  // 🔥 Fungsi untuk mengirim penawaran (dipanggil setelah konfirmasi)
   const handleConfirmSend = async () => {
     if (!selectedStudent || !tutorProfile) return
 
@@ -607,7 +604,7 @@ export default function StudentOffersPage() {
         )}
       </div>
 
-      {/* 🔥 Dialog Konfirmasi Kirim Penawaran */}
+      {/* Dialog Konfirmasi */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
