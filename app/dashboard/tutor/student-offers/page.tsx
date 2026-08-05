@@ -221,12 +221,9 @@ export default function StudentOffersPage() {
         return countB - countA
       })
     } else {
-      // Offline: prioritas utama = matchCount DESC, tie-breaker = jarak ASC
-      // Pastikan tutor memiliki koordinat (seharusnya sudah dari filter)
       const tutorLat = tutorProfile.latitude
       const tutorLng = tutorProfile.longitude
       if (tutorLat === null || tutorLng === null) {
-        // Jika tutor tidak punya koordinat, tetap urutkan berdasarkan matchCount saja
         result.sort((a, b) => {
           const countA = calculateMatchCount(a, tutorProfile)
           const countB = calculateMatchCount(b, tutorProfile)
@@ -237,13 +234,10 @@ export default function StudentOffersPage() {
           const countA = calculateMatchCount(a, tutorProfile)
           const countB = calculateMatchCount(b, tutorProfile)
 
-          // Jika matchCount berbeda, urutkan berdasarkan matchCount (lebih tinggi = atas)
           if (countB !== countA) {
             return countB - countA
           }
 
-          // Jika matchCount sama, urutkan berdasarkan jarak terdekat
-          // Jika salah satu tidak punya koordinat, tempatkan di bawah
           if (!a.latitude || !a.longitude) return 1
           if (!b.latitude || !b.longitude) return -1
 
@@ -257,17 +251,14 @@ export default function StudentOffersPage() {
     return result
   })()
 
-  // 🔥 Hitung indeks siswa yang eligible untuk badge Recommended
   const recommendedIndices = (() => {
     const indices = new Set<number>()
     if (!tutorProfile) return indices
 
-    // Filter siswa yang memiliki matchCount >= 3
     const eligibleStudents = filteredAndSortedStudents
       .map((student, idx) => ({ student, idx }))
       .filter(({ student }) => calculateMatchCount(student, tutorProfile) >= 3)
 
-    // Ambil 3 teratas (sudah terurut dari filteredAndSortedStudents)
     eligibleStudents.slice(0, 3).forEach(({ idx }) => indices.add(idx))
 
     return indices
@@ -291,7 +282,10 @@ export default function StudentOffersPage() {
 
   const isVerified = tutorProfile?.verified === true
   const profileComplete = isProfileComplete(tutorProfile)
-  const canSendOffer = profileComplete && isVerified
+
+  // 🔥 BYPASS: tombol kirim selalu aktif (kecuali sedang proses)
+  // const canSendOffer = profileComplete && isVerified
+  const canSendOffer = true // bypass
 
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)
@@ -545,13 +539,13 @@ export default function StudentOffersPage() {
                       <Button
                         size="sm"
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                        disabled={!canSendOffer || sending === student.id}
+                        disabled={sending === student.id} // 🔥 BYPASS: hanya nonaktif saat proses kirim
                         onClick={async () => {
-                          if (!canSendOffer) {
-                            if (!profileComplete) alert('Lengkapi profil tutor Anda terlebih dahulu.')
-                            else if (!isVerified) alert('Tutor belum diverifikasi.')
+                          // 🔥 Konfirmasi sebelum kirim
+                          if (!confirm('Penawaran anda akan dikirim ke student. Kirim penawaran?')) {
                             return
                           }
+
                           const subject = student.subjects?.[0] || 'Umum'
                           setSending(student.id)
                           try {
