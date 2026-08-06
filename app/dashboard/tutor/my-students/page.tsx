@@ -19,15 +19,17 @@ export default function MyStudentsPage() {
   const [matches, setMatches] = useState<any[]>([])
 
   const isMounted = useRef(true)
-  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchData = async () => {
-    if (!user) return
+    if (!user) {
+      if (isMounted.current) setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       setError(null)
 
-      // 1. Ambil ID tutor dari profil
+      // Ambil data tutor
       const tutorRes = await fetch(`/api/tutors/profile?user_id=${user.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
@@ -35,15 +37,15 @@ export default function MyStudentsPage() {
       if (!tutorRes.ok) throw new Error('Gagal mengambil profil tutor')
       const tutorData = await tutorRes.json()
       const tutorId = tutorData.tutor?.id
-      if (!tutorId) throw new Error('Tidak ditemukan ID tutor')
+      if (!tutorId) throw new Error('ID tutor tidak ditemukan')
 
-      // 2. Ambil semua match untuk tutor ini via API (butuh token)
-      // Ambil token dari session
+      // Ambil token untuk API matches
       const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || ''
 
+      // Ambil semua match
       const matchRes = await fetch('/api/matches', {
         cache: 'no-store',
         headers: {
@@ -54,22 +56,16 @@ export default function MyStudentsPage() {
       if (!matchRes.ok) throw new Error('Gagal mengambil data matches')
       const allMatches = await matchRes.json()
 
-      // 3. Filter
-      const pending = allMatches.filter(
-        (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-      )
-      const active = allMatches.filter(
-        (m: any) => ['matched', 'active'].includes(m.status)
-      )
-
       if (isMounted.current) {
         setMatches(allMatches)
+        const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
+        const pending = allMatches.filter((m: any) => m.status === 'pending' && m.initiated_by === 'tutor')
         setTotalStudents(active.length)
         setPendingCount(pending.length)
         setError(null)
       }
     } catch (err: any) {
-      if (isMounted.current) setError(err.message || 'Gagal memuat data')
+      if (isMounted.current) setError(err.message || 'Terjadi kesalahan')
     } finally {
       if (isMounted.current) setLoading(false)
     }
@@ -78,16 +74,8 @@ export default function MyStudentsPage() {
   useEffect(() => {
     isMounted.current = true
     if (authLoading) return
-    if (!user) {
-      setLoading(false)
-      return
-    }
     fetchData()
-
-    return () => {
-      isMounted.current = false
-      if (abortControllerRef.current) abortControllerRef.current.abort()
-    }
+    return () => { isMounted.current = false }
   }, [user?.id, authLoading])
 
   const handleRefresh = () => {
@@ -95,176 +83,7 @@ export default function MyStudentsPage() {
     fetchData()
   }
 
-  // Render konten tab "Permintaan Masuk"
-  const renderPending = () => {
-    const pendingMatches = matches.filter(
-      (m) => m.status === 'pending' && m.initiated_by === 'tutor'
-    )
-    if (pendingMatches.length === 0) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan dari siswa.
-          </CardContent>
-        </Card>
-      )
-    }
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {pendingMatches.map((match) => {
-          const student = match.students
-          const profile = student?.users_profile || {}
-          return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
-                    {student?.grade_level && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                        {student.grade_level}
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Pending
-                  </Badge>
-                </div>
-
-                <div className="space-y-1.5 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Mapel:</span> {match.subject}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">Frekuensi</p>
-                      <p className="font-medium">{match.lesson_frequency || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Mulai</p>
-                      <p className="font-medium">
-                        {match.start_date
-                          ? new Date(match.start_date).toLocaleDateString('id-ID')
-                          : '-'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <Button size="sm" variant="outline" className="w-full" disabled>
-                    Menunggu Konfirmasi Siswa
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // Render konten tab "Pencocokan Aktif"
-  const renderActive = () => {
-    const activeMatches = matches.filter((m) =>
-      ['matched', 'active', 'completed'].includes(m.status)
-    )
-    if (activeMatches.length === 0) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada pencocokan yang dikonfirmasi.
-          </CardContent>
-        </Card>
-      )
-    }
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {activeMatches.map((match) => {
-          const student = match.students
-          const profile = student?.users_profile || {}
-          const statusMap: Record<string, { label: string; color: string }> = {
-            matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-            active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
-            completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
-          }
-          const status = statusMap[match.status] || { label: match.status, color: 'bg-gray-200' }
-
-          return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                      {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
-                      {student?.grade_level && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                          {student.grade_level}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Badge className={`${status.color} text-xs`}>{status.label}</Badge>
-                </div>
-
-                <div className="space-y-1.5 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Mapel:</span> {match.subject}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">Frekuensi</p>
-                      <p className="font-medium">{match.lesson_frequency || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Mulai</p>
-                      <p className="font-medium">
-                        {match.start_date
-                          ? new Date(match.start_date).toLocaleDateString('id-ID')
-                          : '-'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {match.status === 'matched' && profile?.phone && (
-                  <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
-                    <p className="text-xs font-medium text-green-700">
-                      ✓ Pencocokan dikonfirmasi! Hubungi siswa.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-                      onClick={() =>
-                        window.open(
-                          `https://wa.me/${profile.phone.replace(/\D/g, '')}`,
-                          '_blank'
-                        )
-                      }
-                    >
-                      💬 WhatsApp
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-    )
-  }
-
+  // Render komponen
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -276,11 +95,17 @@ export default function MyStudentsPage() {
 
   if (error) {
     return (
-      <Alert variant="destructive" className="mt-4">
-        <AlertDescription>❌ {error}</AlertDescription>
-      </Alert>
+      <div className="max-w-6xl mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertDescription>❌ {error}</AlertDescription>
+        </Alert>
+        <Button onClick={handleRefresh} className="mt-4">Refresh Halaman</Button>
+      </div>
     )
   }
+
+  const pendingMatches = matches.filter((m: any) => m.status === 'pending' && m.initiated_by === 'tutor')
+  const activeMatches = matches.filter((m: any) => ['matched', 'active', 'completed'].includes(m.status))
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -333,8 +158,150 @@ export default function MyStudentsPage() {
           <TabsTrigger value="active">Pencocokan Aktif</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="requests">{renderPending()}</TabsContent>
-        <TabsContent value="active">{renderActive()}</TabsContent>
+        <TabsContent value="requests">
+          {pendingMatches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Belum ada permintaan dari siswa.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {pendingMatches.map((match: any) => {
+                const student = match.students
+                const profile = student?.users_profile || {}
+                return (
+                  <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                          {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
+                          {student?.grade_level && (
+                            <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                              {student.grade_level}
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                          Pending
+                        </Badge>
+                      </div>
+                      <div className="space-y-1.5 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Mapel:</span> {match.subject}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Frekuensi</p>
+                            <p className="font-medium">{match.lesson_frequency || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Mulai</p>
+                            <p className="font-medium">
+                              {match.start_date ? new Date(match.start_date).toLocaleDateString('id-ID') : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <Button size="sm" variant="outline" className="w-full" disabled>
+                          Menunggu Konfirmasi Siswa
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="active">
+          {activeMatches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Belum ada pencocokan yang dikonfirmasi.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {activeMatches.map((match: any) => {
+                const student = match.students
+                const profile = student?.users_profile || {}
+                const statusMap: Record<string, { label: string; color: string }> = {
+                  matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+                  active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+                  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
+                }
+                const status = statusMap[match.status] || { label: match.status, color: 'bg-gray-200' }
+                return (
+                  <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                            {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
+                            {student?.grade_level && (
+                              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                                {student.grade_level}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className={`${status.color} text-xs`}>{status.label}</Badge>
+                      </div>
+                      <div className="space-y-1.5 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Mapel:</span> {match.subject}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Frekuensi</p>
+                            <p className="font-medium">{match.lesson_frequency || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Mulai</p>
+                            <p className="font-medium">
+                              {match.start_date ? new Date(match.start_date).toLocaleDateString('id-ID') : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {match.status === 'matched' && profile?.phone && (
+                        <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
+                          <p className="text-xs font-medium text-green-700">✓ Pencocokan dikonfirmasi! Hubungi siswa.</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
+                            onClick={() =>
+                              window.open(
+                                `https://wa.me/${profile.phone.replace(/\D/g, '')}`,
+                                '_blank'
+                              )
+                            }
+                          >
+                            💬 WhatsApp
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   )
