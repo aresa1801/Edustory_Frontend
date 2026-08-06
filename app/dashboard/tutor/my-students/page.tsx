@@ -42,7 +42,7 @@ function TutorMatchRequests() {
       })
       if (!response.ok) throw new Error('Gagal memuat permintaan')
       const data = await response.json()
-      const pending = data.filter((m: any) => m.status === 'pending')
+      const pending = data.filter((m: any) => m.status === 'pending' && m.initiated_by === 'tutor')
       if (isMounted.current) {
         setMatches(pending)
         setError(null)
@@ -114,52 +114,66 @@ function TutorMatchRequests() {
         </AlertDescription>
       </Alert>
 
-      {matches.map((match) => {
-        const student = match.students
-        return (
-          <Card key={match.id} className="border-l-4 border-l-yellow-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{student?.users_profile?.full_name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Mapel: <span className="font-medium">{match.subject}</span>
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Tingkat: {student?.grade_level}
-                  </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {matches.map((match) => {
+          const student = match.students
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    {student?.avatar_url ? (
+                      <img src={student.avatar_url} alt={student?.users_profile?.full_name} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      student?.users_profile?.full_name?.charAt(0)?.toUpperCase() || '?'
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{student?.users_profile?.full_name || 'Siswa'}</h3>
+                    {student?.grade_level && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {student.grade_level}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
-                  ⏳ Menunggu
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-xs text-muted-foreground">Frekuensi</p><p className="font-medium">{match.lesson_frequency}</p></div>
-                <div><p className="text-xs text-muted-foreground">Mulai</p><p className="font-medium">{new Date(match.start_date).toLocaleDateString('id-ID')}</p></div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={confirmingId === match.id}
-                  onClick={() => { setSelectedMatch(match); setShowConfirmDialog(true) }}
-                >
-                  Tolak
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  disabled={confirmingId === match.id}
-                  onClick={() => handleConfirm(match.id, 'confirm')}
-                >
-                  {confirmingId === match.id ? <Spinner className="h-4 w-4" /> : '✓ Terima'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-start">
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Mapel:</span> {match.subject}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div><p className="text-muted-foreground">Frekuensi</p><p className="font-medium">{match.lesson_frequency}</p></div>
+                    <div><p className="text-muted-foreground">Mulai</p><p className="font-medium">{new Date(match.start_date).toLocaleDateString('id-ID')}</p></div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={confirmingId === match.id}
+                    onClick={() => { setSelectedMatch(match); setShowConfirmDialog(true) }}
+                  >
+                    Tolak
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    disabled={confirmingId === match.id}
+                    onClick={() => handleConfirm(match.id, 'confirm')}
+                  >
+                    {confirmingId === match.id ? <Spinner className="h-3.5 w-3.5" /> : '✓ Terima'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
 
       {/* Dialog tolak */}
       {showConfirmDialog && (
@@ -255,35 +269,54 @@ function TutorMyMatches() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       {matches.map((match) => {
         const student = match.students
         const cfg = STATUS_CONFIG[match.status] || STATUS_CONFIG.pending
         return (
-          <Card key={match.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{student?.users_profile?.full_name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">Mapel: {match.subject}</p>
-                  <p className="text-sm text-muted-foreground">Tingkat: {student?.grade_level}</p>
+          <Card key={match.id} className="border shadow-sm hover:shadow-md">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    {student?.avatar_url ? (
+                      <img src={student.avatar_url} alt={student?.users_profile?.full_name} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      student?.users_profile?.full_name?.charAt(0)?.toUpperCase() || '?'
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{student?.users_profile?.full_name || 'Siswa'}</h3>
+                    {student?.grade_level && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {student.grade_level}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                <Badge className={cfg.color}>{cfg.label}</Badge>
+                <Badge className={`${cfg.color} text-xs`}>{cfg.label}</Badge>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-xs text-muted-foreground">Frekuensi</p><p className="font-medium">{match.lesson_frequency}</p></div>
-                <div><p className="text-xs text-muted-foreground">Mulai</p><p className="font-medium">{new Date(match.start_date).toLocaleDateString('id-ID')}</p></div>
+
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-start">
+                  <span className="text-muted-foreground">
+                    <span className="font-medium">Mapel:</span> {match.subject}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><p className="text-muted-foreground">Frekuensi</p><p className="font-medium">{match.lesson_frequency}</p></div>
+                  <div><p className="text-muted-foreground">Mulai</p><p className="font-medium">{new Date(match.start_date).toLocaleDateString('id-ID')}</p></div>
+                </div>
               </div>
+
               {match.status === 'matched' && (
-                <div className="bg-green-50 border border-green-200 rounded p-3">
-                  <p className="text-sm font-medium text-green-300">✓ Pencocokan dikonfirmasi! Hubungi siswa.</p>
+                <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
+                  <p className="text-xs font-medium text-green-700">✓ Pencocokan dikonfirmasi! Hubungi siswa.</p>
                   {student?.users_profile?.phone && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-2 border-green-300 text-green-300 hover:bg-green-100"
+                      className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
                       onClick={() => window.open(`https://wa.me/${student.users_profile.phone.replace(/\D/g, '')}`, '_blank')}
                     >
                       💬 WhatsApp

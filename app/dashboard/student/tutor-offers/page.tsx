@@ -316,19 +316,11 @@ export default function TutorOffersPage() {
               {selectedOffer.status === 'pending' && (
                 <div className="flex gap-3 pt-2">
                   <Button
-                    variant="outline"
-                    className="flex-1 border-red-500/30 text-red-300 hover:bg-red-500/10"
-                    disabled={actionLoading === selectedOffer.id}
-                    onClick={() => handleAction(selectedOffer.id, 'reject')}
-                  >
-                    <X className="w-4 h-4 mr-1" /> Tolak
-                  </Button>
-                  <Button
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={actionLoading === selectedOffer.id}
                     onClick={() => handleAction(selectedOffer.id, 'accept')}
                   >
-                    <CheckCircle className="w-4 h-4 mr-1" /> Terima Tutor Ini
+                    <CheckCircle className="w-4 h-4 mr-1" /> Setuju dan pilih jadwal
                   </Button>
                 </div>
               )}
@@ -405,31 +397,20 @@ function TutorOfferCard({
           <Button variant="outline" size="sm" onClick={onView}>
             Lihat Profil
           </Button>
-          {offer.status === 'pending' && onAccept && onReject && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-red-500/30 text-red-300 hover:bg-red-500/10"
-                onClick={onReject}
-                disabled={actionLoading}
-              >
-                <X className="w-3 h-3 mr-1" /> Tolak
-              </Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={onAccept}
-                disabled={actionLoading}
-              >
-                {actionLoading ? (
-                  <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                ) : (
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                )}
-                Terima
-              </Button>
-            </>
+          {offer.status === 'pending' && onAccept && (
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={onAccept}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
+              ) : (
+                <CheckCircle className="w-3 h-3 mr-1" />
+              )}
+              Setuju dan pilih jadwal
+            </Button>
           )}
         </div>
       </CardContent>
