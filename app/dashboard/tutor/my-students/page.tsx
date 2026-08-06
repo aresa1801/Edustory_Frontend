@@ -18,10 +18,9 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Ref untuk mencegah fetch ganda
-  const fetchedRef = useRef(false)
-
   const fetchMatches = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -42,7 +41,7 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
         return
       }
 
-      // Ambil match dengan status pending dan initiated_by = 'tutor' serta join ke students dan user_profiles
+      // Ambil match dengan status pending dan initiated_by = 'tutor'
       const { data, error } = await supabase
         .from('matches')
         .select(`
@@ -69,7 +68,6 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
       if (error) throw error
 
       setMatches(data || [])
-      setError(null)
     } catch (err: any) {
       setError(err.message || 'Gagal memuat permintaan')
     } finally {
@@ -79,12 +77,9 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
 
   // Fetch saat mount dan saat refreshTrigger berubah
   useEffect(() => {
-    if (fetchedRef.current) return
-    fetchedRef.current = true
     fetchMatches()
   }, [fetchMatches, refreshTrigger])
 
-  // Jika ada error atau loading
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -123,7 +118,8 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
           variant="outline"
           size="sm"
           onClick={() => {
-            fetchedRef.current = false
+            // Refresh akan dipicu oleh perubahan refreshTrigger dari parent
+            // Tapi kita tetap bisa panggil langsung jika ingin
             fetchMatches()
           }}
         >
@@ -210,8 +206,6 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchedRef = useRef(false)
-
   const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
     pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
     matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
@@ -221,6 +215,8 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
   }
 
   const fetchMatches = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -265,7 +261,6 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
       if (error) throw error
 
       setMatches(data || [])
-      setError(null)
     } catch (err: any) {
       setError(err.message || 'Gagal memuat pencocokan')
     } finally {
@@ -274,8 +269,6 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
   }, [])
 
   useEffect(() => {
-    if (fetchedRef.current) return
-    fetchedRef.current = true
     fetchMatches()
   }, [fetchMatches, refreshTrigger])
 
@@ -311,10 +304,7 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            fetchedRef.current = false
-            fetchMatches()
-          }}
+          onClick={() => fetchMatches()}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
         </Button>
@@ -413,9 +403,6 @@ export default function MyStudentsPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Ref untuk mencegah fetch ganda
-  const fetchedRef = useRef(false)
-
   const fetchStats = useCallback(async () => {
     try {
       const supabase = createClient()
@@ -429,7 +416,7 @@ export default function MyStudentsPage() {
         .single()
 
       if (tutorData?.id) {
-        // ✅ PERBAIKAN: ambil juga kolom initiated_by
+        // Ambil status dan initiated_by untuk filtering
         const { data: matchData } = await supabase
           .from('matches')
           .select('status, initiated_by')
@@ -454,16 +441,12 @@ export default function MyStudentsPage() {
   }, [])
 
   useEffect(() => {
-    if (fetchedRef.current) return
-    fetchedRef.current = true
     fetchStats()
-  }, [fetchStats])
+  }, [fetchStats, refreshKey])
 
-  // Fungsi untuk refresh semua data
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
-    fetchedRef.current = false
-    fetchStats()
+    // fetchStats juga dipanggil otomatis karena refreshKey berubah
   }
 
   if (loading) {
