@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,67 +18,70 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchMatches = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Sesi tidak ditemukan.')
-        return
-      }
-
-      // Ambil data tutor yang login
-      const { data: tutorData, error: tutorError } = await supabase
-        .from('tutors')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .single()
-
-      if (tutorError || !tutorData) {
-        setError('Data tutor tidak ditemukan.')
-        return
-      }
-
-      // Ambil match dengan status pending dan initiated_by = 'tutor'
-      const { data, error } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          subject,
-          lesson_frequency,
-          start_date,
-          status,
-          initiated_by,
-          students:student_id (
-            id,
-            grade_level,
-            avatar_url,
-            users_profile:user_id (
-              full_name,
-              phone
-            )
-          )
-        `)
-        .eq('tutor_id', tutorData.id)
-        .eq('status', 'pending')
-        .eq('initiated_by', 'tutor')
-
-      if (error) throw error
-
-      setMatches(data || [])
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat permintaan')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Fetch saat mount dan saat refreshTrigger berubah
   useEffect(() => {
+    let isMounted = true
+
+    const fetchMatches = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          if (isMounted) setError('Sesi tidak ditemukan.')
+          return
+        }
+
+        // Ambil data tutor yang login
+        const { data: tutorData, error: tutorError } = await supabase
+          .from('tutors')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .single()
+
+        if (tutorError || !tutorData) {
+          if (isMounted) setError('Data tutor tidak ditemukan.')
+          return
+        }
+
+        // Ambil match dengan status pending dan initiated_by = 'tutor'
+        const { data, error } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            subject,
+            lesson_frequency,
+            start_date,
+            status,
+            initiated_by,
+            students:student_id (
+              id,
+              grade_level,
+              avatar_url,
+              users_profile:user_id (
+                full_name,
+                phone
+              )
+            )
+          `)
+          .eq('tutor_id', tutorData.id)
+          .eq('status', 'pending')
+          .eq('initiated_by', 'tutor')
+
+        if (error) throw error
+
+        if (isMounted) setMatches(data || [])
+      } catch (err: any) {
+        if (isMounted) setError(err.message || 'Gagal memuat permintaan')
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
     fetchMatches()
-  }, [fetchMatches, refreshTrigger])
+
+    return () => { isMounted = false }
+  }, [refreshTrigger])
 
   if (loading) {
     return (
@@ -120,7 +123,7 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
           onClick={() => {
             // Refresh akan dipicu oleh perubahan refreshTrigger dari parent
             // Tapi kita tetap bisa panggil langsung jika ingin
-            fetchMatches()
+            // Tidak perlu, karena parent akan trigger ulang
           }}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
@@ -214,63 +217,67 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
     cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
   }
 
-  const fetchMatches = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Sesi tidak ditemukan.')
-        return
-      }
-
-      const { data: tutorData, error: tutorError } = await supabase
-        .from('tutors')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .single()
-
-      if (tutorError || !tutorData) {
-        setError('Data tutor tidak ditemukan.')
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          subject,
-          lesson_frequency,
-          start_date,
-          status,
-          initiated_by,
-          students:student_id (
-            id,
-            grade_level,
-            avatar_url,
-            users_profile:user_id (
-              full_name,
-              phone
-            )
-          )
-        `)
-        .eq('tutor_id', tutorData.id)
-        .in('status', ['matched', 'active', 'completed'])
-
-      if (error) throw error
-
-      setMatches(data || [])
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat pencocokan')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
+    let isMounted = true
+
+    const fetchMatches = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          if (isMounted) setError('Sesi tidak ditemukan.')
+          return
+        }
+
+        const { data: tutorData, error: tutorError } = await supabase
+          .from('tutors')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .single()
+
+        if (tutorError || !tutorData) {
+          if (isMounted) setError('Data tutor tidak ditemukan.')
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            subject,
+            lesson_frequency,
+            start_date,
+            status,
+            initiated_by,
+            students:student_id (
+              id,
+              grade_level,
+              avatar_url,
+              users_profile:user_id (
+                full_name,
+                phone
+              )
+            )
+          `)
+          .eq('tutor_id', tutorData.id)
+          .in('status', ['matched', 'active', 'completed'])
+
+        if (error) throw error
+
+        if (isMounted) setMatches(data || [])
+      } catch (err: any) {
+        if (isMounted) setError(err.message || 'Gagal memuat pencocokan')
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
     fetchMatches()
-  }, [fetchMatches, refreshTrigger])
+
+    return () => { isMounted = false }
+  }, [refreshTrigger])
 
   if (loading) {
     return (
@@ -304,7 +311,9 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => fetchMatches()}
+          onClick={() => {
+            // Refresh akan dipicu oleh refreshTrigger dari parent
+          }}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
         </Button>
@@ -403,50 +412,52 @@ export default function MyStudentsPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: tutorData } = await supabase
-        .from('tutors')
-        .select('id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (tutorData?.id) {
-        // Ambil status dan initiated_by untuk filtering
-        const { data: matchData } = await supabase
-          .from('matches')
-          .select('status, initiated_by')
-          .eq('tutor_id', tutorData.id)
-
-        if (matchData) {
-          setTotalStudents(
-            matchData.filter(m => ['matched', 'active'].includes(m.status)).length
-          )
-          setPendingCount(
-            matchData.filter(
-              m => m.status === 'pending' && m.initiated_by === 'tutor'
-            ).length
-          )
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
+    let isMounted = true
+
+    const fetchStats = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: tutorData } = await supabase
+          .from('tutors')
+          .select('id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (tutorData?.id) {
+          const { data: matchData } = await supabase
+            .from('matches')
+            .select('status, initiated_by')
+            .eq('tutor_id', tutorData.id)
+
+          if (matchData && isMounted) {
+            setTotalStudents(
+              matchData.filter(m => ['matched', 'active'].includes(m.status)).length
+            )
+            setPendingCount(
+              matchData.filter(
+                m => m.status === 'pending' && m.initiated_by === 'tutor'
+              ).length
+            )
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching stats:', err)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
     fetchStats()
-  }, [fetchStats, refreshKey])
+
+    return () => { isMounted = false }
+  }, [refreshKey])
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
-    // fetchStats juga dipanggil otomatis karena refreshKey berubah
   }
 
   if (loading) {
