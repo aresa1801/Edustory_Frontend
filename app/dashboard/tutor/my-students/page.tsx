@@ -13,38 +13,42 @@ import { Users, MessageCircle, RefreshCw } from 'lucide-react'
 // ====================================================================
 // KOMPONEN PERMINTAAN MASUK (TUTOR MELIHAT SISWA YANG DITAWARI)
 // ====================================================================
-function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
+function TutorMatchRequests() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
+    console.log('TutorMatchRequests: useEffect mount')
 
-    const fetchMatches = async () => {
-      setLoading(true)
-      setError(null)
+    const fetchData = async () => {
+      console.log('TutorMatchRequests: fetchData mulai')
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('TutorMatchRequests: session =', session?.user?.email)
+
         if (!session) {
           if (isMounted) setError('Sesi tidak ditemukan.')
           return
         }
 
-        // Ambil data tutor yang login
+        // Ambil data tutor
         const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
           .select('id')
           .eq('user_id', session.user.id)
           .single()
 
+        console.log('TutorMatchRequests: tutorData =', tutorData)
+
         if (tutorError || !tutorData) {
           if (isMounted) setError('Data tutor tidak ditemukan.')
           return
         }
 
-        // Ambil match dengan status pending dan initiated_by = 'tutor'
+        // Ambil match pending initiated_by tutor
         const { data, error } = await supabase
           .from('matches')
           .select(`
@@ -68,20 +72,30 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
           .eq('status', 'pending')
           .eq('initiated_by', 'tutor')
 
+        console.log('TutorMatchRequests: data matches =', data?.length)
+
         if (error) throw error
 
-        if (isMounted) setMatches(data || [])
+        if (isMounted) {
+          setMatches(data || [])
+          setError(null)
+        }
       } catch (err: any) {
-        if (isMounted) setError(err.message || 'Gagal memuat permintaan')
+        console.error('TutorMatchRequests error:', err)
+        if (isMounted) setError(err.message || 'Gagal memuat')
       } finally {
+        console.log('TutorMatchRequests: finally, set loading false')
         if (isMounted) setLoading(false)
       }
     }
 
-    fetchMatches()
+    fetchData()
 
-    return () => { isMounted = false }
-  }, [refreshTrigger])
+    return () => {
+      console.log('TutorMatchRequests: unmount')
+      isMounted = false
+    }
+  }, []) // <-- hanya dijalankan sekali
 
   if (loading) {
     return (
@@ -120,11 +134,7 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            // Refresh akan dipicu oleh perubahan refreshTrigger dari parent
-            // Tapi kita tetap bisa panggil langsung jika ingin
-            // Tidak perlu, karena parent akan trigger ulang
-          }}
+          onClick={() => window.location.reload()}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
         </Button>
@@ -137,7 +147,6 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
               <CardContent className="p-5">
-                {/* Header: Avatar + Nama + Badge Pending */}
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                     {student?.avatar_url ? (
@@ -163,7 +172,6 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
                   </Badge>
                 </div>
 
-                {/* Detail: Mapel, Frekuensi, Tanggal Mulai */}
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-start">
                     <span className="text-muted-foreground">
@@ -186,7 +194,6 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
                   </div>
                 </div>
 
-                {/* Tombol Pending (disabled) sebagai pengganti aksi */}
                 <div className="mt-4">
                   <Button size="sm" variant="outline" className="w-full" disabled>
                     Menunggu Konfirmasi Siswa
@@ -204,7 +211,7 @@ function TutorMatchRequests({ refreshTrigger }: { refreshTrigger: number }) {
 // ====================================================================
 // KOMPONEN PENCOCOKAN AKTIF (SUDAH MATCHED/ACTIVE/COMPLETED)
 // ====================================================================
-function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
+function TutorMyMatches() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -219,13 +226,15 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
 
   useEffect(() => {
     let isMounted = true
+    console.log('TutorMyMatches: useEffect mount')
 
-    const fetchMatches = async () => {
-      setLoading(true)
-      setError(null)
+    const fetchData = async () => {
+      console.log('TutorMyMatches: fetchData mulai')
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('TutorMyMatches: session =', session?.user?.email)
+
         if (!session) {
           if (isMounted) setError('Sesi tidak ditemukan.')
           return
@@ -236,6 +245,8 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
           .select('id')
           .eq('user_id', session.user.id)
           .single()
+
+        console.log('TutorMyMatches: tutorData =', tutorData)
 
         if (tutorError || !tutorData) {
           if (isMounted) setError('Data tutor tidak ditemukan.')
@@ -264,20 +275,30 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
           .eq('tutor_id', tutorData.id)
           .in('status', ['matched', 'active', 'completed'])
 
+        console.log('TutorMyMatches: data matches =', data?.length)
+
         if (error) throw error
 
-        if (isMounted) setMatches(data || [])
+        if (isMounted) {
+          setMatches(data || [])
+          setError(null)
+        }
       } catch (err: any) {
-        if (isMounted) setError(err.message || 'Gagal memuat pencocokan')
+        console.error('TutorMyMatches error:', err)
+        if (isMounted) setError(err.message || 'Gagal memuat')
       } finally {
+        console.log('TutorMyMatches: finally, set loading false')
         if (isMounted) setLoading(false)
       }
     }
 
-    fetchMatches()
+    fetchData()
 
-    return () => { isMounted = false }
-  }, [refreshTrigger])
+    return () => {
+      console.log('TutorMyMatches: unmount')
+      isMounted = false
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -311,9 +332,7 @@ function TutorMyMatches({ refreshTrigger }: { refreshTrigger: number }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            // Refresh akan dipicu oleh refreshTrigger dari parent
-          }}
+          onClick={() => window.location.reload()}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
         </Button>
@@ -410,15 +429,18 @@ export default function MyStudentsPage() {
   const [loading, setLoading] = useState(true)
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
-  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let isMounted = true
+    console.log('MyStudentsPage: useEffect mount')
 
     const fetchStats = async () => {
+      console.log('MyStudentsPage: fetchStats mulai')
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
+        console.log('MyStudentsPage: user =', user?.email)
+
         if (!user) return
 
         const { data: tutorData } = await supabase
@@ -427,11 +449,15 @@ export default function MyStudentsPage() {
           .eq('user_id', user.id)
           .single()
 
+        console.log('MyStudentsPage: tutorData =', tutorData)
+
         if (tutorData?.id) {
           const { data: matchData } = await supabase
             .from('matches')
             .select('status, initiated_by')
             .eq('tutor_id', tutorData.id)
+
+          console.log('MyStudentsPage: matchData =', matchData?.length)
 
           if (matchData && isMounted) {
             setTotalStudents(
@@ -445,20 +471,20 @@ export default function MyStudentsPage() {
           }
         }
       } catch (err) {
-        console.error('Error fetching stats:', err)
+        console.error('MyStudentsPage error:', err)
       } finally {
+        console.log('MyStudentsPage: finally, set loading false')
         if (isMounted) setLoading(false)
       }
     }
 
     fetchStats()
 
-    return () => { isMounted = false }
-  }, [refreshKey])
-
-  const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1)
-  }
+    return () => {
+      console.log('MyStudentsPage: unmount')
+      isMounted = false
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -475,8 +501,8 @@ export default function MyStudentsPage() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Siswa Saya</h1>
           <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh Semua
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
         </Button>
       </div>
 
@@ -519,11 +545,11 @@ export default function MyStudentsPage() {
         </TabsList>
 
         <TabsContent value="requests">
-          <TutorMatchRequests refreshTrigger={refreshKey} />
+          <TutorMatchRequests />
         </TabsContent>
 
         <TabsContent value="active">
-          <TutorMyMatches refreshTrigger={refreshKey} />
+          <TutorMyMatches />
         </TabsContent>
       </Tabs>
     </div>
