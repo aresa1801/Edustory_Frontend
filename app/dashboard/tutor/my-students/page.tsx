@@ -1,147 +1,117 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, MessageCircle, RefreshCw } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
 
-// ====================================================================
-// KOMPONEN PERMINTAAN MASUK (TUTOR MELIHAT SISWA YANG DITAWARI)
-// ====================================================================
-function TutorMatchRequests() {
-  const [matches, setMatches] = useState<any[]>([])
+export default function MyStudentsPage() {
+  const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [totalStudents, setTotalStudents] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [matches, setMatches] = useState<any[]>([])
+
+  const isMounted = useRef(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const fetchData = async () => {
+    if (!user) return
+    try {
+      setLoading(true)
+      setError(null)
+
+      // 1. Ambil ID tutor dari profil
+      const tutorRes = await fetch(`/api/tutors/profile?user_id=${user.id}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      })
+      if (!tutorRes.ok) throw new Error('Gagal mengambil profil tutor')
+      const tutorData = await tutorRes.json()
+      const tutorId = tutorData.tutor?.id
+      if (!tutorId) throw new Error('Tidak ditemukan ID tutor')
+
+      // 2. Ambil semua match untuk tutor ini via API (butuh token)
+      // Ambil token dari session
+      const { createClient } = await import('@/lib/auth')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+
+      const matchRes = await fetch('/api/matches', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (!matchRes.ok) throw new Error('Gagal mengambil data matches')
+      const allMatches = await matchRes.json()
+
+      // 3. Filter
+      const pending = allMatches.filter(
+        (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+      )
+      const active = allMatches.filter(
+        (m: any) => ['matched', 'active'].includes(m.status)
+      )
+
+      if (isMounted.current) {
+        setMatches(allMatches)
+        setTotalStudents(active.length)
+        setPendingCount(pending.length)
+        setError(null)
+      }
+    } catch (err: any) {
+      if (isMounted.current) setError(err.message || 'Gagal memuat data')
+    } finally {
+      if (isMounted.current) setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let isMounted = true
-    console.log('TutorMatchRequests: useEffect mount')
-
-    const fetchData = async () => {
-      console.log('TutorMatchRequests: fetchData mulai')
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('TutorMatchRequests: session =', session?.user?.email)
-
-        if (!session) {
-          if (isMounted) setError('Sesi tidak ditemukan.')
-          return
-        }
-
-        // Ambil data tutor
-        const { data: tutorData, error: tutorError } = await supabase
-          .from('tutors')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .single()
-
-        console.log('TutorMatchRequests: tutorData =', tutorData)
-
-        if (tutorError || !tutorData) {
-          if (isMounted) setError('Data tutor tidak ditemukan.')
-          return
-        }
-
-        // Ambil match pending initiated_by tutor
-        const { data, error } = await supabase
-          .from('matches')
-          .select(`
-            id,
-            subject,
-            lesson_frequency,
-            start_date,
-            status,
-            initiated_by,
-            students:student_id (
-              id,
-              grade_level,
-              avatar_url,
-              users_profile:user_id (
-                full_name,
-                phone
-              )
-            )
-          `)
-          .eq('tutor_id', tutorData.id)
-          .eq('status', 'pending')
-          .eq('initiated_by', 'tutor')
-
-        console.log('TutorMatchRequests: data matches =', data?.length)
-
-        if (error) throw error
-
-        if (isMounted) {
-          setMatches(data || [])
-          setError(null)
-        }
-      } catch (err: any) {
-        console.error('TutorMatchRequests error:', err)
-        if (isMounted) setError(err.message || 'Gagal memuat')
-      } finally {
-        console.log('TutorMatchRequests: finally, set loading false')
-        if (isMounted) setLoading(false)
-      }
+    isMounted.current = true
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
     }
-
     fetchData()
 
     return () => {
-      console.log('TutorMatchRequests: unmount')
-      isMounted = false
+      isMounted.current = false
+      if (abortControllerRef.current) abortControllerRef.current.abort()
     }
-  }, []) // <-- hanya dijalankan sekali
+  }, [user?.id, authLoading])
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Spinner className="h-8 w-8" />
-      </div>
-    )
+  const handleRefresh = () => {
+    if (!isMounted.current) return
+    fetchData()
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+  // Render konten tab "Permintaan Masuk"
+  const renderPending = () => {
+    const pendingMatches = matches.filter(
+      (m) => m.status === 'pending' && m.initiated_by === 'tutor'
     )
-  }
-
-  if (matches.length === 0) {
+    if (pendingMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada permintaan dari siswa.
+          </CardContent>
+        </Card>
+      )
+    }
     return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          <p>Belum ada permintaan dari siswa.</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Alert className="bg-blue-50 border-blue-200 flex-1 mr-4">
-          <AlertDescription className="text-blue-800">
-            Anda memiliki {matches.length} permintaan baru.
-          </AlertDescription>
-        </Alert>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.location.reload()}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {matches.map((match) => {
+        {pendingMatches.map((match) => {
           const student = match.students
           const profile = student?.users_profile || {}
           return (
@@ -149,15 +119,7 @@ function TutorMatchRequests() {
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {student?.avatar_url ? (
-                      <img
-                        src={student.avatar_url}
-                        alt={profile.full_name || 'Siswa'}
-                        className="w-full h-full object-cover rounded-full"
-                      />
-                    ) : (
-                      profile.full_name?.charAt(0)?.toUpperCase() || '?'
-                    )}
+                    {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
@@ -173,7 +135,7 @@ function TutorMatchRequests() {
                 </div>
 
                 <div className="space-y-1.5 text-sm">
-                  <div className="flex items-start">
+                  <div>
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {match.subject}
                     </span>
@@ -204,144 +166,34 @@ function TutorMatchRequests() {
           )
         })}
       </div>
-    </div>
-  )
-}
-
-// ====================================================================
-// KOMPONEN PENCOCOKAN AKTIF (SUDAH MATCHED/ACTIVE/COMPLETED)
-// ====================================================================
-function TutorMyMatches() {
-  const [matches, setMatches] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-    pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-    matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-    active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-    completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
-    cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+    )
   }
 
-  useEffect(() => {
-    let isMounted = true
-    console.log('TutorMyMatches: useEffect mount')
-
-    const fetchData = async () => {
-      console.log('TutorMyMatches: fetchData mulai')
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('TutorMyMatches: session =', session?.user?.email)
-
-        if (!session) {
-          if (isMounted) setError('Sesi tidak ditemukan.')
-          return
-        }
-
-        const { data: tutorData, error: tutorError } = await supabase
-          .from('tutors')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .single()
-
-        console.log('TutorMyMatches: tutorData =', tutorData)
-
-        if (tutorError || !tutorData) {
-          if (isMounted) setError('Data tutor tidak ditemukan.')
-          return
-        }
-
-        const { data, error } = await supabase
-          .from('matches')
-          .select(`
-            id,
-            subject,
-            lesson_frequency,
-            start_date,
-            status,
-            initiated_by,
-            students:student_id (
-              id,
-              grade_level,
-              avatar_url,
-              users_profile:user_id (
-                full_name,
-                phone
-              )
-            )
-          `)
-          .eq('tutor_id', tutorData.id)
-          .in('status', ['matched', 'active', 'completed'])
-
-        console.log('TutorMyMatches: data matches =', data?.length)
-
-        if (error) throw error
-
-        if (isMounted) {
-          setMatches(data || [])
-          setError(null)
-        }
-      } catch (err: any) {
-        console.error('TutorMyMatches error:', err)
-        if (isMounted) setError(err.message || 'Gagal memuat')
-      } finally {
-        console.log('TutorMyMatches: finally, set loading false')
-        if (isMounted) setLoading(false)
-      }
+  // Render konten tab "Pencocokan Aktif"
+  const renderActive = () => {
+    const activeMatches = matches.filter((m) =>
+      ['matched', 'active', 'completed'].includes(m.status)
+    )
+    if (activeMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada pencocokan yang dikonfirmasi.
+          </CardContent>
+        </Card>
+      )
     }
-
-    fetchData()
-
-    return () => {
-      console.log('TutorMyMatches: unmount')
-      isMounted = false
-    }
-  }, [])
-
-  if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Spinner className="h-8 w-8" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (matches.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          <p>Belum ada pencocokan yang dikonfirmasi.</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.location.reload()}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
-      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {matches.map((match) => {
+        {activeMatches.map((match) => {
           const student = match.students
           const profile = student?.users_profile || {}
-          const cfg = STATUS_CONFIG[match.status] || STATUS_CONFIG.pending
+          const statusMap: Record<string, { label: string; color: string }> = {
+            matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+            active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+            completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
+          }
+          const status = statusMap[match.status] || { label: match.status, color: 'bg-gray-200' }
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow">
@@ -349,15 +201,7 @@ function TutorMyMatches() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                      {student?.avatar_url ? (
-                        <img
-                          src={student.avatar_url}
-                          alt={profile.full_name || 'Siswa'}
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      ) : (
-                        profile.full_name?.charAt(0)?.toUpperCase() || '?'
-                      )}
+                      {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
                     </div>
                     <div>
                       <h3 className="font-semibold">{profile.full_name || 'Siswa'}</h3>
@@ -368,11 +212,11 @@ function TutorMyMatches() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`${cfg.color} text-xs`}>{cfg.label}</Badge>
+                  <Badge className={`${status.color} text-xs`}>{status.label}</Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
-                  <div className="flex items-start">
+                  <div>
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {match.subject}
                     </span>
@@ -393,24 +237,24 @@ function TutorMyMatches() {
                   </div>
                 </div>
 
-                {match.status === 'matched' && (
+                {match.status === 'matched' && profile?.phone && (
                   <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
-                    <p className="text-xs font-medium text-green-700">✓ Pencocokan dikonfirmasi! Hubungi siswa.</p>
-                    {profile?.phone && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-                        onClick={() =>
-                          window.open(
-                            `https://wa.me/${profile.phone.replace(/\D/g, '')}`,
-                            '_blank'
-                          )
-                        }
-                      >
-                        💬 WhatsApp
-                      </Button>
-                    )}
+                    <p className="text-xs font-medium text-green-700">
+                      ✓ Pencocokan dikonfirmasi! Hubungi siswa.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
+                      onClick={() =>
+                        window.open(
+                          `https://wa.me/${profile.phone.replace(/\D/g, '')}`,
+                          '_blank'
+                        )
+                      }
+                    >
+                      💬 WhatsApp
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -418,114 +262,59 @@ function TutorMyMatches() {
           )
         })}
       </div>
-    </div>
-  )
-}
+    )
+  }
 
-// ====================================================================
-// PAGE UTAMA
-// ====================================================================
-export default function MyStudentsPage() {
-  const [loading, setLoading] = useState(true)
-  const [totalStudents, setTotalStudents] = useState(0)
-  const [pendingCount, setPendingCount] = useState(0)
-
-  useEffect(() => {
-    let isMounted = true
-    console.log('MyStudentsPage: useEffect mount')
-
-    const fetchStats = async () => {
-      console.log('MyStudentsPage: fetchStats mulai')
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        console.log('MyStudentsPage: user =', user?.email)
-
-        if (!user) return
-
-        const { data: tutorData } = await supabase
-          .from('tutors')
-          .select('id')
-          .eq('user_id', user.id)
-          .single()
-
-        console.log('MyStudentsPage: tutorData =', tutorData)
-
-        if (tutorData?.id) {
-          const { data: matchData } = await supabase
-            .from('matches')
-            .select('status, initiated_by')
-            .eq('tutor_id', tutorData.id)
-
-          console.log('MyStudentsPage: matchData =', matchData?.length)
-
-          if (matchData && isMounted) {
-            setTotalStudents(
-              matchData.filter(m => ['matched', 'active'].includes(m.status)).length
-            )
-            setPendingCount(
-              matchData.filter(
-                m => m.status === 'pending' && m.initiated_by === 'tutor'
-              ).length
-            )
-          }
-        }
-      } catch (err) {
-        console.error('MyStudentsPage error:', err)
-      } finally {
-        console.log('MyStudentsPage: finally, set loading false')
-        if (isMounted) setLoading(false)
-      }
-    }
-
-    fetchStats()
-
-    return () => {
-      console.log('MyStudentsPage: unmount')
-      isMounted = false
-    }
-  }, [])
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
+        <p className="ml-3">Memuat...</p>
       </div>
     )
   }
 
+  if (error) {
+    return (
+      <Alert variant="destructive" className="mt-4">
+        <AlertDescription>❌ {error}</AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-start">
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Siswa Saya</h1>
+          <h1 className="text-2xl font-bold">Siswa Saya</h1>
           <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+          <RefreshCw className="w-4 h-4" />
+          Refresh
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
+              <Users className="w-5 h-5 text-blue-500" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Siswa Aktif</p>
-              <p className="text-2xl font-bold text-foreground">{totalStudents}</p>
+              <p className="text-2xl font-bold">{totalStudents}</p>
             </div>
           </div>
         </Card>
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-yellow-300" />
+              <MessageCircle className="w-5 h-5 text-yellow-500" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Permintaan Baru</p>
-              <p className="text-2xl font-bold text-foreground">{pendingCount}</p>
+              <p className="text-2xl font-bold">{pendingCount}</p>
             </div>
           </div>
         </Card>
@@ -544,13 +333,8 @@ export default function MyStudentsPage() {
           <TabsTrigger value="active">Pencocokan Aktif</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="requests">
-          <TutorMatchRequests />
-        </TabsContent>
-
-        <TabsContent value="active">
-          <TutorMyMatches />
-        </TabsContent>
+        <TabsContent value="requests">{renderPending()}</TabsContent>
+        <TabsContent value="active">{renderActive()}</TabsContent>
       </Tabs>
     </div>
   )
