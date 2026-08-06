@@ -8,7 +8,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 import {
   DollarSign,
   MapPin,
@@ -96,12 +95,8 @@ export default function StudentOffersPage() {
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
 
-  // Dialog konfirmasi
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-
-  // 🔥 Student ID yang sudah diajukan (pending/matched/active)
-  const [sentStudentIds, setSentStudentIds] = useState<Set<string>>(new Set())
 
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
@@ -113,43 +108,27 @@ export default function StudentOffersPage() {
       setLoading(true)
       setError(null)
 
-      // 1. Ambil tutor
       const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
-      let tutorData = null
       if (tutorRes.ok) {
         const result = await tutorRes.json()
-        tutorData = result.tutor
-        if (isMounted.current) setTutorProfile(tutorData)
+        if (isMounted.current) setTutorProfile(result.tutor)
       }
 
-      // 2. Ambil semua siswa
       const res = await fetch('/api/tutors/students', {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()
-      const studentsData = (data.students || []).map((s: any) => ({
-        ...s,
-        is_online: s.is_online ?? true,
-      }))
-      if (isMounted.current) setStudents(studentsData)
-
-      // 🔥 3. Ambil data match yang sudah ada untuk tutor ini
-      if (tutorData?.id) {
-        const supabase = createClient()
-        const { data: matchData, error: matchError } = await supabase
-          .from('matches')
-          .select('student_id')
-          .eq('tutor_id', tutorData.id)
-          .in('status', ['pending', 'matched', 'active'])
-        if (!matchError && matchData) {
-          const ids = new Set(matchData.map((m: any) => m.student_id))
-          if (isMounted.current) setSentStudentIds(ids)
-        }
+      if (isMounted.current) {
+        const studentsWithOnline = (data.students || []).map((s: any) => ({
+          ...s,
+          is_online: s.is_online ?? true,
+        }))
+        setStudents(studentsWithOnline)
       }
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
@@ -245,6 +224,7 @@ export default function StudentOffersPage() {
       })
     }
 
+    // Sorting
     if (mode === 'online') {
       result.sort((a, b) => {
         const countA = calculateMatchCount(a, tutorProfile)
@@ -314,18 +294,17 @@ export default function StudentOffersPage() {
   const isVerified = tutorProfile?.verified === true
   const profileComplete = isProfileComplete(tutorProfile)
 
-  // BYPASS: tombol tetap aktif
+  // BYPASS: tombol kirim selalu aktif
   const canSendOffer = true
 
-  // Fungsi untuk membuka dialog konfirmasi
   const openConfirmDialog = (student: Student) => {
     setSelectedStudent(student)
     setShowConfirmDialog(true)
   }
 
-  // Fungsi untuk mengirim penawaran (setelah konfirmasi)
   const handleConfirmSend = async () => {
     if (!selectedStudent || !tutorProfile) return
+
     const student = selectedStudent
     setShowConfirmDialog(false)
     setSending(student.id)
@@ -350,8 +329,6 @@ export default function StudentOffersPage() {
         throw new Error(err.error || 'Gagal')
       }
       alert('✅ Penawaran berhasil dikirim!')
-      // 🔥 Tambahkan student id ke set agar tombol langsung disable
-      setSentStudentIds(prev => new Set(prev).add(student.id))
     } catch (err: any) {
       alert('❌ Gagal: ' + err.message)
     } finally {
@@ -514,9 +491,6 @@ export default function StudentOffersPage() {
 
               const showDistance = mode === 'offline' && distance !== null && distance <= MAX_DISTANCE
 
-              // 🔥 Cek apakah sudah diajukan
-              const isAlreadySent = sentStudentIds.has(student.id)
-
               return (
                 <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
                   {showDistance && (
@@ -615,17 +589,11 @@ export default function StudentOffersPage() {
                       <Button
                         size="sm"
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                        disabled={sending === student.id || isAlreadySent}
-                        onClick={() => {
-                          if (isAlreadySent) {
-                            alert('Anda sudah mengajukan permintaan untuk siswa ini.')
-                            return
-                          }
-                          openConfirmDialog(student)
-                        }}
+                        disabled={sending === student.id}
+                        onClick={() => openConfirmDialog(student)}
                       >
                         {sending === student.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="w-3.5 h-3.5" />}
-                        {isAlreadySent ? 'Sudah Diajukan' : 'Kirim Penawaran'}
+                        Kirim Penawaran
                       </Button>
                     </div>
                   </CardContent>
