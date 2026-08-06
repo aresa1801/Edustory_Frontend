@@ -42,7 +42,7 @@ function TutorMatchRequests() {
       })
       if (!response.ok) throw new Error('Gagal memuat permintaan')
       const data = await response.json()
-      const pending = data.filter((m: any) => m.status === 'pending')
+      const pending = data.filter((m: any) => m.status === 'pending' && m.initiated_by === 'tutor')
       if (isMounted.current) {
         setMatches(pending)
         setError(null)

@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         lesson_frequency,
         start_date,
         created_at,
+        initiated_by,
         students:student_id(
           id,
           grade_level,
