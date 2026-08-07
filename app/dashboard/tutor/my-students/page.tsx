@@ -27,6 +27,7 @@ export default function MyStudentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
+  const [debug, setDebug] = useState<string>('')
 
   useEffect(() => {
     let isMounted = true
@@ -43,10 +44,12 @@ export default function MyStudentsPage() {
       try {
         setLoading(true)
         setError(null)
+        setDebug('1. Membuat Supabase client...')
 
         const supabase = createClient()
 
-        // 1. Ambil tutor ID
+        // AMBIL TUTOR ID
+        setDebug('2. Mencari tutor ID...')
         const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
           .select('id')
@@ -54,20 +57,46 @@ export default function MyStudentsPage() {
           .single()
 
         if (tutorError || !tutorData) {
-          throw new Error('Tutor tidak ditemukan')
+          console.error('Tutor error:', tutorError)
+          throw new Error('Tutor tidak ditemukan: ' + (tutorError?.message || ''))
         }
 
-        // 2. Ambil semua match untuk tutor ini dengan join ke students dan users_profile
+        const tutorId = tutorData.id
+        setDebug(`3. Tutor ID ditemukan: ${tutorId}`)
+
+        // AMBIL MATCHES DULU (tanpa join)
+        setDebug('4. Mengambil matches...')
         const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
-          .select(`
-            id,
-            subject,
-            lesson_frequency,
-            start_date,
-            status,
-            initiated_by,
-            students:student_id (
+          .select('*')
+          .eq('tutor_id', tutorId)
+
+        if (matchesError) {
+          console.error('Matches error:', matchesError)
+          throw new Error('Gagal ambil matches: ' + matchesError.message)
+        }
+
+        setDebug(`5. Matches ditemukan: ${matchesData?.length || 0}`)
+        console.log('📊 Raw matches:', matchesData)
+
+        if (!matchesData || matchesData.length === 0) {
+          if (isMounted) {
+            setMatches([])
+            setPendingCount(0)
+            setTotalStudents(0)
+            setError(null)
+          }
+          return
+        }
+
+        // AMBIL DATA STUDENT SATU PER SATU
+        setDebug('6. Mengambil data siswa...')
+        const enrichedMatches = []
+
+        for (const match of matchesData) {
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .select(`
               id,
               grade_level,
               subjects,
@@ -80,20 +109,33 @@ export default function MyStudentsPage() {
                 full_name,
                 phone
               )
-            )
-          `)
-          .eq('tutor_id', tutorData.id)
+            `)
+            .eq('id', match.student_id)
+            .single()
 
-        if (matchesError) {
-          throw new Error('Gagal mengambil data matches: ' + matchesError.message)
+          if (studentError) {
+            console.warn(`Gagal ambil student ${match.student_id}:`, studentError)
+            enrichedMatches.push({
+              ...match,
+              students: null
+            })
+          } else {
+            enrichedMatches.push({
+              ...match,
+              students: studentData
+            })
+          }
         }
 
+        setDebug(`7. Selesai, ${enrichedMatches.length} data diproses`)
+        console.log('📊 Enriched matches:', enrichedMatches)
+
         if (isMounted) {
-          setMatches(matchesData || [])
-          const pending = (matchesData || []).filter(
+          setMatches(enrichedMatches)
+          const pending = enrichedMatches.filter(
             (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
           )
-          const active = (matchesData || []).filter(
+          const active = enrichedMatches.filter(
             (m: any) => ['matched', 'active'].includes(m.status)
           )
           setPendingCount(pending.length)
@@ -102,6 +144,7 @@ export default function MyStudentsPage() {
         }
       } catch (err: any) {
         console.error('[MyStudents] Error:', err)
+        setDebug('ERROR: ' + err.message)
         if (isMounted) {
           setError(err.message || 'Terjadi kesalahan')
         }
@@ -143,9 +186,10 @@ export default function MyStudentsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3">Memuat...</p>
+        <p className="ml-3 mt-2">Memuat...</p>
+        {debug && <p className="text-xs text-gray-400 mt-2">Debug: {debug}</p>}
       </div>
     )
   }
@@ -156,6 +200,7 @@ export default function MyStudentsPage() {
         <Alert variant="destructive">
           <AlertDescription>❌ {error}</AlertDescription>
         </Alert>
+        {debug && <p className="text-xs text-red-500 mt-2">Debug: {debug}</p>}
         <Button onClick={handleRefresh} className="mt-4">Refresh Halaman</Button>
       </div>
     )
@@ -183,7 +228,7 @@ export default function MyStudentsPage() {
         {pendingMatches.map((match: any) => {
           const student = match.students
           const profile = student?.users_profile || {}
-          const fullName = profile.full_name || 'Siswa'
+          const fullName = profile.full_name || 'Siswa (data tidak lengkap)'
           const grade = student?.grade_level || ''
           const subjects = student?.subjects || []
           const rate = getStudentRate(student)
@@ -287,7 +332,7 @@ export default function MyStudentsPage() {
         {activeMatches.map((match: any) => {
           const student = match.students
           const profile = student?.users_profile || {}
-          const fullName = profile.full_name || 'Siswa'
+          const fullName = profile.full_name || 'Siswa (data tidak lengkap)'
           const grade = student?.grade_level || ''
           const subjects = student?.subjects || []
           const rate = getStudentRate(student)
@@ -391,6 +436,7 @@ export default function MyStudentsPage() {
         <div>
           <h1 className="text-2xl font-bold">Siswa Saya</h1>
           <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
+          {debug && <p className="text-xs text-gray-400 mt-1">Debug: {debug}</p>}
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
           <RefreshCw className="w-4 h-4" />
