@@ -1,4 +1,3 @@
-// app/api/matches/route.ts
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -22,17 +21,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Get tutor ID from user
-    const { data: tutorData } = await supabase
+    const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
       .select('id')
       .eq('user_id', user.id)
       .single()
 
-    if (!tutorData) {
+    if (tutorErr || !tutorData) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // Fetch matches for this tutor with related student data
+    // Fetch matches for this tutor with complete student data
     const { data: matches, error: matchErr } = await supabase
       .from('matches')
       .select(`
@@ -46,6 +45,11 @@ export async function GET(request: NextRequest) {
         students:student_id(
           id,
           grade_level,
+          subjects,
+          budget_per_month,
+          sessions_per_month,
+          preferred_schedule,
+          address,
           avatar_url,
           users_profile:user_id(
             full_name,
