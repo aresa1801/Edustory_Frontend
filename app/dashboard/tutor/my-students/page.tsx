@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -26,65 +26,82 @@ export default function MyStudentsPage() {
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
 
-  const isMounted = useRef(true)
-
-  const fetchData = async () => {
-    if (!authUser) return
-    try {
-      setLoading(true)
-      setError(null)
-
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      if (!token) throw new Error('Token tidak ditemukan')
-
-      const res = await fetch('/api/matches', {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (!res.ok) throw new Error('Gagal mengambil data matches')
-      const allMatches = await res.json()
-
-      if (isMounted.current) {
-        setMatches(allMatches)
-        const pending = allMatches.filter(
-          (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-        )
-        const active = allMatches.filter(
-          (m: any) => ['matched', 'active'].includes(m.status)
-        )
-        setPendingCount(pending.length)
-        setTotalStudents(active.length)
-        setError(null)
-      }
-    } catch (err: any) {
-      if (isMounted.current) setError(err.message || 'Terjadi kesalahan')
-    } finally {
-      if (isMounted.current) setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    isMounted.current = true
-    if (authLoading) return
-    if (!authUser) {
-      setLoading(false)
+    let isMounted = true
+
+    const fetchData = async () => {
+      try {
+        console.log('🔍 [MyStudents] fetchData mulai')
+        setError(null)
+
+        // Jika authUser belum ada, set loading false dan keluar
+        if (!authUser) {
+          console.log('⛔ [MyStudents] authUser null, set loading false')
+          if (isMounted) setLoading(false)
+          return
+        }
+
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+
+        if (!token) {
+          throw new Error('Token tidak ditemukan')
+        }
+
+        console.log('🔑 [MyStudents] token ditemukan, fetch /api/matches')
+        const res = await fetch('/api/matches', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!res.ok) throw new Error('Gagal mengambil data matches')
+        const allMatches = await res.json()
+        console.log(`✅ [MyStudents] matches diterima: ${allMatches.length}`)
+
+        if (isMounted) {
+          setMatches(allMatches)
+          const pending = allMatches.filter(
+            (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+          )
+          const active = allMatches.filter(
+            (m: any) => ['matched', 'active'].includes(m.status)
+          )
+          setPendingCount(pending.length)
+          setTotalStudents(active.length)
+          setError(null)
+        }
+      } catch (err: any) {
+        console.error('❌ [MyStudents] fetchData error:', err)
+        if (isMounted) setError(err.message || 'Terjadi kesalahan')
+      } finally {
+        console.log('🏁 [MyStudents] fetchData finally, set loading false')
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    // Jika auth masih loading, tunggu
+    if (authLoading) {
+      console.log('⏳ [MyStudents] authLoading true, menunggu...')
       return
     }
+
     fetchData()
+
     return () => {
-      isMounted.current = false
+      console.log('🧹 [MyStudents] cleanup, isMounted = false')
+      isMounted = false
     }
-  }, [authUser?.id, authLoading])
+  }, [authUser?.id, authLoading]) // dependensi: id user dan status auth
 
   const handleRefresh = () => {
-    if (!isMounted.current) return
-    fetchData()
+    // Refresh ulang dengan memicu useEffect (ubah state dummy jika perlu)
+    // Karena dependensi tidak berubah, kita panggil manual.
+    // Cara cepat: reload page, atau kita tambahkan state refreshKey.
+    // Untuk sekarang, reload page dulu.
+    window.location.reload()
   }
 
   const formatDate = (dateStr: string) => {
@@ -92,6 +109,7 @@ export default function MyStudentsPage() {
     return new Date(dateStr).toLocaleDateString('id-ID')
   }
 
+  // Jika authLoading atau loading, tampilkan spinner
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -101,6 +119,7 @@ export default function MyStudentsPage() {
     )
   }
 
+  // Jika ada error, tampilkan alert
   if (error) {
     return (
       <div className="max-w-6xl mx-auto p-4">
@@ -112,6 +131,7 @@ export default function MyStudentsPage() {
     )
   }
 
+  // Filter data untuk tab
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
