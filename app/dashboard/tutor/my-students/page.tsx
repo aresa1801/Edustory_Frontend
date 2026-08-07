@@ -1,18 +1,145 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useAuth } from '@/lib/auth-context'
+import {
+  BookMarked,
+  CalendarDays,
+  Clock,
+  Users,
+  MessageCircle,
+  RefreshCw,
+} from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { createClient } from '@/lib/auth'
 
 export default function MyStudentsPage() {
+  const { user: authUser, loading: authLoading } = useAuth()
+  const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [totalStudents, setTotalStudents] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
-    console.log('🔵 useEffect dijalankan')
-    setLoading(false)
-  }, [])
+    let isMounted = true
 
-  if (loading) {
+    const fetchData = async () => {
+      try {
+        console.log('🚀 [MyStudents] fetchData mulai')
+        setError(null)
+
+        // 1. Tunggu auth selesai
+        if (authLoading) {
+          console.log('⏳ [MyStudents] authLoading true, tunggu...')
+          return
+        }
+
+        if (!authUser) {
+          console.log('❌ [MyStudents] authUser null')
+          if (isMounted) setLoading(false)
+          return
+        }
+
+        console.log('✅ [MyStudents] authUser:', authUser.email)
+
+        // 2. Buat Supabase client
+        const supabase = createClient()
+
+        // 3. Ambil tutor ID dari user_id
+        console.log('🔍 [MyStudents] mengambil tutor ID...')
+        const { data: tutorData, error: tutorError } = await supabase
+          .from('tutors')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .single()
+
+        if (tutorError || !tutorData) {
+          console.error('❌ [MyStudents] gagal ambil tutor:', tutorError)
+          throw new Error('Data tutor tidak ditemukan')
+        }
+
+        const tutorId = tutorData.id
+        console.log('✅ [MyStudents] tutor ID:', tutorId)
+
+        // 4. Ambil semua matches untuk tutor ini dengan join ke students dan users_profile
+        console.log('🔍 [MyStudents] mengambil matches...')
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            subject,
+            lesson_frequency,
+            start_date,
+            status,
+            initiated_by,
+            students:student_id (
+              id,
+              grade_level,
+              avatar_url,
+              users_profile:user_id (
+                full_name,
+                phone
+              )
+            )
+          `)
+          .eq('tutor_id', tutorId)
+
+        if (matchesError) {
+          console.error('❌ [MyStudents] error ambil matches:', matchesError)
+          throw new Error(matchesError.message)
+        }
+
+        console.log(`✅ [MyStudents] matches diterima: ${matchesData?.length || 0}`)
+        if (isMounted) {
+          setMatches(matchesData || [])
+          const pending = (matchesData || []).filter(
+            (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+          )
+          const active = (matchesData || []).filter(
+            (m: any) => ['matched', 'active'].includes(m.status)
+          )
+          setPendingCount(pending.length)
+          setTotalStudents(active.length)
+          setError(null)
+        }
+      } catch (err: any) {
+        console.error('💥 [MyStudents] error catch:', err)
+        if (isMounted) setError(err.message || 'Terjadi kesalahan')
+      } finally {
+        console.log('🏁 [MyStudents] fetchData selesai, set loading false')
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    if (authLoading) {
+      console.log('⏳ [MyStudents] authLoading true, return...')
+      return
+    }
+
+    fetchData()
+
+    return () => {
+      console.log('🧹 [MyStudents] cleanup')
+      isMounted = false
+    }
+  }, [authUser?.id, authLoading])
+
+  const handleRefresh = () => {
+    window.location.reload()
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString('id-ID')
+  }
+
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
@@ -21,10 +148,247 @@ export default function MyStudentsPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertDescription>❌ {error}</AlertDescription>
+        </Alert>
+        <Button onClick={handleRefresh} className="mt-4">Refresh Halaman</Button>
+      </div>
+    )
+  }
+
+  const pendingMatches = matches.filter(
+    (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+  )
+  const activeMatches = matches.filter(
+    (m: any) => ['matched', 'active', 'completed'].includes(m.status)
+  )
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Halaman Siswa Saya</h1>
-      <p>Jika ini terlihat, maka useEffect berjalan dan loading selesai.</p>
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Siswa Saya</h1>
+          <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+          <RefreshCw className="w-4 h-4" />
+          Refresh Data
+        </Button>
+      </div>
+
+      {/* Statistik */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Siswa Aktif</p>
+              <p className="text-2xl font-bold">{totalStudents}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Permintaan Baru</p>
+              <p className="text-2xl font-bold">{pendingCount}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="requests" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="requests">
+            Permintaan Masuk
+            {pendingCount > 0 && (
+              <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {pendingCount}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="active">Pencocokan Aktif</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="requests">
+          {pendingMatches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Belum ada permintaan dari siswa.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {pendingMatches.map((match: any) => {
+                const student = match.students
+                const profile = student?.users_profile || {}
+                const fullName = profile.full_name || 'Siswa'
+                const grade = student?.grade_level || ''
+                const subjects = match.subject || 'Umum'
+                const frequency = match.lesson_frequency || 'Flexible'
+                const startDate = match.start_date
+
+                return (
+                  <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                          {fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">{fullName}</h3>
+                          {grade && (
+                            <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                              {grade}
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                          Pending
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex items-start">
+                          <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Mapel:</span> {subjects}
+                          </span>
+                        </div>
+                        <div className="flex items-start">
+                          <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Jumlah pertemuan:</span> {frequency}
+                          </span>
+                        </div>
+                        {startDate && (
+                          <div className="flex items-start">
+                            <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                            <span className="text-muted-foreground">
+                              <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4">
+                        <Button size="sm" variant="outline" className="w-full" disabled>
+                          Menunggu konfirmasi siswa
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="active">
+          {activeMatches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Belum ada pencocokan yang dikonfirmasi.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {activeMatches.map((match: any) => {
+                const student = match.students
+                const profile = student?.users_profile || {}
+                const fullName = profile.full_name || 'Siswa'
+                const grade = student?.grade_level || ''
+                const subjects = match.subject || 'Umum'
+                const frequency = match.lesson_frequency || 'Flexible'
+                const startDate = match.start_date
+                const status = match.status
+                const phone = profile.phone || ''
+
+                const statusMap: Record<string, { label: string; color: string }> = {
+                  matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+                  active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+                  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
+                }
+                const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+
+                return (
+                  <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                            {fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">{fullName}</h3>
+                            {grade && (
+                              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                                {grade}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                      </div>
+
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex items-start">
+                          <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Mapel:</span> {subjects}
+                          </span>
+                        </div>
+                        <div className="flex items-start">
+                          <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">
+                            <span className="font-medium">Jumlah pertemuan:</span> {frequency}
+                          </span>
+                        </div>
+                        {startDate && (
+                          <div className="flex items-start">
+                            <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                            <span className="text-muted-foreground">
+                              <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {status === 'matched' && phone && (
+                        <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
+                          <p className="text-xs font-medium text-green-700">
+                            ✓ Pencocokan dikonfirmasi! Hubungi siswa.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
+                            onClick={() =>
+                              window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank')
+                            }
+                          >
+                            💬 WhatsApp
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
