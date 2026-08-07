@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/auth'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useAuth } from '@/lib/auth-context'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   DollarSign,
   MapPin,
@@ -17,11 +18,8 @@ import {
   RefreshCw,
   CalendarDays,
 } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { createClient } from '@/lib/auth'
 
 export default function MyStudentsPage() {
-  const { user: authUser, loading: authLoading } = useAuth()
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,30 +31,27 @@ export default function MyStudentsPage() {
 
     const fetchData = async () => {
       try {
-        console.log('🚀 [MyStudents] fetchData mulai')
-        if (!authUser) {
-          console.log('❌ [MyStudents] authUser null, set loading false')
-          if (isMounted) setLoading(false)
-          return
-        }
-
+        console.log('🚀 MyStudents: fetchData mulai')
         const supabase = createClient()
-        console.log('✅ [MyStudents] supabase client created')
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          throw new Error('Tidak ada sesi')
+        }
+        console.log('✅ Sesi ditemukan:', session.user.email)
 
-        // 1. Ambil tutor ID
+        // Ambil tutor ID
         const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
           .select('id')
-          .eq('user_id', authUser.id)
+          .eq('user_id', session.user.id)
           .single()
 
         if (tutorError || !tutorData) {
-          console.error('❌ [MyStudents] tutor error:', tutorError)
           throw new Error('Tutor tidak ditemukan')
         }
-        console.log('✅ [MyStudents] tutor ID:', tutorData.id)
+        console.log('✅ Tutor ID:', tutorData.id)
 
-        // 2. Ambil semua match untuk tutor ini dengan join ke student dan profile
+        // Ambil matches
         const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
           .select(`
@@ -84,12 +79,10 @@ export default function MyStudentsPage() {
           .eq('tutor_id', tutorData.id)
 
         if (matchesError) {
-          console.error('❌ [MyStudents] matches error:', matchesError)
           throw new Error(matchesError.message)
         }
 
-        console.log(`✅ [MyStudents] matches ditemukan: ${matchesData?.length || 0}`)
-
+        console.log(`✅ Matches diterima: ${matchesData?.length || 0}`)
         if (isMounted) {
           setMatches(matchesData || [])
           const pending = (matchesData || []).filter(
@@ -103,26 +96,23 @@ export default function MyStudentsPage() {
           setError(null)
         }
       } catch (err: any) {
-        console.error('💥 [MyStudents] error catch:', err)
+        console.error('❌ Error:', err)
         if (isMounted) setError(err.message || 'Terjadi kesalahan')
       } finally {
-        console.log('🏁 [MyStudents] fetchData selesai, set loading false')
-        if (isMounted) setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+          console.log('🏁 Loading selesai, setLoading(false)')
+        }
       }
-    }
-
-    if (authLoading) {
-      console.log('⏳ [MyStudents] authLoading true, menunggu...')
-      return
     }
 
     fetchData()
 
     return () => {
-      console.log('🧹 [MyStudents] cleanup')
       isMounted = false
+      console.log('🧹 Cleanup')
     }
-  }, [authUser?.id, authLoading])
+  }, [])
 
   const handleRefresh = () => {
     window.location.reload()
@@ -140,7 +130,7 @@ export default function MyStudentsPage() {
     return 0
   }
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
@@ -270,31 +260,26 @@ export default function MyStudentsPage() {
                             {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                           </span>
                         </div>
-
                         <div className="flex items-start">
                           <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
                           </span>
                         </div>
-
                         <div className="flex items-start">
                           <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
                         </div>
-
                         <div className="flex items-start">
                           <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                           <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                         </div>
-
                         <div className="flex items-start">
                           <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             <span className="font-medium">Jumlah pertemuan:</span> {frequency}
                           </span>
                         </div>
-
                         {startDate && (
                           <div className="flex items-start">
                             <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
@@ -379,31 +364,26 @@ export default function MyStudentsPage() {
                             {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                           </span>
                         </div>
-
                         <div className="flex items-start">
                           <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
                           </span>
                         </div>
-
                         <div className="flex items-start">
                           <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
                         </div>
-
                         <div className="flex items-start">
                           <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                           <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                         </div>
-
                         <div className="flex items-start">
                           <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             <span className="font-medium">Jumlah pertemuan:</span> {frequency}
                           </span>
                         </div>
-
                         {startDate && (
                           <div className="flex items-start">
                             <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
