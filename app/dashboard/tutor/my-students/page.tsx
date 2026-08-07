@@ -43,7 +43,7 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
-      // Ambil session token untuk Authorization header
+      // Ambil token
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
@@ -158,7 +158,6 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed'].includes(m.status)
   )
 
-  // Fungsi render pending dan active (sama seperti sebelumnya)
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
