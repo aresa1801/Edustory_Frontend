@@ -410,5 +410,6 @@ export default function MyStudentsPage() {
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
     </div>
+    
   )
 }
