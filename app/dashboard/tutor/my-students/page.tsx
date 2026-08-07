@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
 import { Card, CardContent } from '@/components/ui/card'
@@ -28,9 +28,14 @@ export default function MyStudentsPage() {
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
 
+  const isMounted = useRef(true)
+
   const fetchData = async () => {
     if (!authUser) {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        setError('User tidak ditemukan')
+      }
       return
     }
 
@@ -38,66 +43,81 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
-      // 1. Ambil tutor profile via API
-      const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-      })
-      if (!tutorRes.ok) {
-        throw new Error('Gagal mengambil profil tutor')
-      }
-      const tutorResult = await tutorRes.json()
-      const tutorId = tutorResult.tutor?.id
-      if (!tutorId) throw new Error('ID tutor tidak ditemukan')
-
-      // 2. Ambil matches via API (butuh token)
+      // Ambil session token untuk Authorization header
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
-      if (!token) throw new Error('Token tidak ditemukan')
 
-      const matchRes = await fetch('/api/matches', {
+      if (!token) {
+        throw new Error('Token tidak ditemukan')
+      }
+
+      const res = await fetch('/api/matches', {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           Authorization: `Bearer ${token}`,
         },
       })
-      if (!matchRes.ok) {
-        const errData = await matchRes.json()
+
+      if (!res.ok) {
+        const errData = await res.json()
         throw new Error(errData.error || 'Gagal mengambil data matches')
       }
 
-      const allMatches = await matchRes.json()
-      setMatches(allMatches)
+      const allMatches = await res.json()
 
-      const pending = allMatches.filter(
-        (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-      )
-      const active = allMatches.filter(
-        (m: any) => ['matched', 'active'].includes(m.status)
-      )
-      setPendingCount(pending.length)
-      setTotalStudents(active.length)
-      setError(null)
+      if (isMounted.current) {
+        setMatches(allMatches)
+        const pending = allMatches.filter(
+          (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+        )
+        const active = allMatches.filter(
+          (m: any) => ['matched', 'active'].includes(m.status)
+        )
+        setPendingCount(pending.length)
+        setTotalStudents(active.length)
+        setError(null)
+      }
     } catch (err: any) {
       console.error('[MyStudents] Fetch error:', err)
-      setError(err.message || 'Terjadi kesalahan')
+      if (isMounted.current) {
+        setError(err.message || 'Terjadi kesalahan')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
+    isMounted.current = true
     if (authLoading) return
     if (!authUser) {
       setLoading(false)
       return
     }
     fetchData()
+
+    // Safety timeout: jika loading masih true setelah 8 detik, force selesai
+    const timeout = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('⚠️ MyStudents timeout, force setLoading(false)')
+        setLoading(false)
+        setError('Waktu muat habis, silakan refresh halaman')
+      }
+    }, 8000)
+
+    return () => {
+      isMounted.current = false
+      clearTimeout(timeout)
+    }
   }, [authUser?.id, authLoading])
 
-  const handleRefresh = () => fetchData()
+  const handleRefresh = () => {
+    fetchData()
+  }
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-'
@@ -138,6 +158,7 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed'].includes(m.status)
   )
 
+  // Fungsi render pending dan active (sama seperti sebelumnya)
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -410,6 +431,5 @@ export default function MyStudentsPage() {
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
     </div>
-    
   )
 }
