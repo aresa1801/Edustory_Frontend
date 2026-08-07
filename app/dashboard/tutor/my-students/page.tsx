@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
 import { Card, CardContent } from '@/components/ui/card'
@@ -28,94 +28,103 @@ export default function MyStudentsPage() {
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
 
-  const isMounted = useRef(true)
-
-  const fetchData = async () => {
-    if (!authUser) {
-      if (isMounted.current) {
-        setLoading(false)
-        setError('User tidak ditemukan')
-      }
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      if (!token) {
-        throw new Error('Token tidak ditemukan')
-      }
-
-      const res = await fetch('/api/matches', {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Gagal mengambil data matches')
-      }
-
-      const allMatches = await res.json()
-
-      if (isMounted.current) {
-        setMatches(allMatches)
-        const pending = allMatches.filter(
-          (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-        )
-        const active = allMatches.filter(
-          (m: any) => ['matched', 'active'].includes(m.status)
-        )
-        setPendingCount(pending.length)
-        setTotalStudents(active.length)
-        setError(null)
-      }
-    } catch (err: any) {
-      console.error('[MyStudents] Fetch error:', err)
-      if (isMounted.current) {
-        setError(err.message || 'Terjadi kesalahan')
-      }
-    } finally {
-      if (isMounted.current) {
-        setLoading(false)
-      }
-    }
-  }
-
   useEffect(() => {
-    isMounted.current = true
+    let isMounted = true
+
+    const fetchData = async () => {
+      if (!authUser) {
+        if (isMounted) {
+          setLoading(false)
+          setError('User tidak ditemukan')
+        }
+        return
+      }
+
+      try {
+        setLoading(true)
+        setError(null)
+
+        const supabase = createClient()
+
+        // 1. Ambil tutor ID
+        const { data: tutorData, error: tutorError } = await supabase
+          .from('tutors')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .single()
+
+        if (tutorError || !tutorData) {
+          throw new Error('Tutor tidak ditemukan')
+        }
+
+        // 2. Ambil matches dengan join langsung ke students (tanpa users_profile)
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            subject,
+            lesson_frequency,
+            start_date,
+            status,
+            initiated_by,
+            students:student_id (
+              id,
+              name,
+              grade_level,
+              subjects,
+              budget_per_month,
+              sessions_per_month,
+              preferred_schedule,
+              address,
+              avatar_url,
+              phone
+            )
+          `)
+          .eq('tutor_id', tutorData.id)
+
+        if (matchesError) {
+          throw new Error('Gagal mengambil data matches: ' + matchesError.message)
+        }
+
+        if (isMounted) {
+          setMatches(matchesData || [])
+          const pending = (matchesData || []).filter(
+            (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+          )
+          const active = (matchesData || []).filter(
+            (m: any) => ['matched', 'active'].includes(m.status)
+          )
+          setPendingCount(pending.length)
+          setTotalStudents(active.length)
+          setError(null)
+        }
+      } catch (err: any) {
+        console.error('[MyStudents] Error:', err)
+        if (isMounted) {
+          setError(err.message || 'Terjadi kesalahan')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
     if (authLoading) return
     if (!authUser) {
       setLoading(false)
       return
     }
+
     fetchData()
 
-    // Safety timeout: jika loading masih true setelah 8 detik, force selesai
-    const timeout = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('⚠️ MyStudents timeout, force setLoading(false)')
-        setLoading(false)
-        setError('Waktu muat habis, silakan refresh halaman')
-      }
-    }, 8000)
-
     return () => {
-      isMounted.current = false
-      clearTimeout(timeout)
+      isMounted = false
     }
   }, [authUser?.id, authLoading])
 
   const handleRefresh = () => {
-    fetchData()
+    window.location.reload()
   }
 
   const formatDate = (dateStr: string) => {
