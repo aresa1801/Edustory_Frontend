@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get tutor ID from user
+    // Get tutor ID
     const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
       .select('id')
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // Fetch matches for this tutor with complete student data
+    // Fetch matches with complete student data
     const { data: matches, error: matchErr } = await supabase
       .from('matches')
       .select(`
