@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // Fetch matches with complete student data from students table
+    // Fetch matches with complete student data (from matches static fields, no join needed)
+    // For backward compatibility, we still join, but we can also fetch from matches directly.
+    // We'll keep join for now.
     const { data: matches, error: matchErr } = await supabase
       .from('matches')
       .select(`
@@ -42,6 +44,18 @@ export async function GET(request: NextRequest) {
         start_date,
         created_at,
         initiated_by,
+        student_full_name,
+        student_grade,
+        student_subjects,
+        student_budget_per_month,
+        student_sessions_per_month,
+        student_schedule,
+        student_address,
+        student_avatar,
+        student_phone,
+        student_latitude,
+        student_longitude,
+        student_is_online,
         students:student_id(
           id,
           name,
@@ -52,7 +66,10 @@ export async function GET(request: NextRequest) {
           preferred_schedule,
           address,
           avatar_url,
-          phone
+          phone,
+          latitude,
+          longitude,
+          is_online
         )
       `)
       .eq('tutor_id', tutorData.id)
@@ -87,6 +104,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
     }
 
+    // Ambil data student untuk diisi ke kolom statis
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online')
+      .eq('id', student_id)
+      .single()
+
+    if (studentError || !student) {
+      console.error('[API] Student not found:', studentError)
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    }
+
+    // Insert ke matches dengan data statis
     const { data, error } = await supabase
       .from('matches')
       .insert({
@@ -97,6 +127,18 @@ export async function POST(request: NextRequest) {
         initiated_by: initiated_by || 'tutor',
         lesson_frequency: lesson_frequency || 'flexible',
         start_date: start_date || new Date().toISOString().split('T')[0],
+        student_full_name: student.name,
+        student_grade: student.grade_level,
+        student_subjects: student.subjects,
+        student_budget_per_month: student.budget_per_month,
+        student_sessions_per_month: student.sessions_per_month,
+        student_schedule: student.preferred_schedule,
+        student_address: student.address,
+        student_avatar: student.avatar_url,
+        student_phone: student.phone,
+        student_latitude: student.latitude,
+        student_longitude: student.longitude,
+        student_is_online: student.is_online ?? true,
       })
       .select()
 
