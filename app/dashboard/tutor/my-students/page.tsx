@@ -8,12 +8,14 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import {
+  DollarSign,
+  MapPin,
   BookMarked,
-  CalendarDays,
   Clock,
   Users,
   MessageCircle,
   RefreshCw,
+  CalendarDays,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/auth'
@@ -32,27 +34,16 @@ export default function MyStudentsPage() {
     const fetchData = async () => {
       try {
         console.log('🚀 [MyStudents] fetchData mulai')
-        setError(null)
-
-        // 1. Tunggu auth selesai
-        if (authLoading) {
-          console.log('⏳ [MyStudents] authLoading true, tunggu...')
-          return
-        }
-
         if (!authUser) {
-          console.log('❌ [MyStudents] authUser null')
+          console.log('❌ [MyStudents] authUser null, set loading false')
           if (isMounted) setLoading(false)
           return
         }
 
-        console.log('✅ [MyStudents] authUser:', authUser.email)
-
-        // 2. Buat Supabase client
         const supabase = createClient()
+        console.log('✅ [MyStudents] supabase client created')
 
-        // 3. Ambil tutor ID dari user_id
-        console.log('🔍 [MyStudents] mengambil tutor ID...')
+        // 1. Ambil tutor ID
         const { data: tutorData, error: tutorError } = await supabase
           .from('tutors')
           .select('id')
@@ -60,15 +51,12 @@ export default function MyStudentsPage() {
           .single()
 
         if (tutorError || !tutorData) {
-          console.error('❌ [MyStudents] gagal ambil tutor:', tutorError)
-          throw new Error('Data tutor tidak ditemukan')
+          console.error('❌ [MyStudents] tutor error:', tutorError)
+          throw new Error('Tutor tidak ditemukan')
         }
+        console.log('✅ [MyStudents] tutor ID:', tutorData.id)
 
-        const tutorId = tutorData.id
-        console.log('✅ [MyStudents] tutor ID:', tutorId)
-
-        // 4. Ambil semua matches untuk tutor ini dengan join ke students dan users_profile
-        console.log('🔍 [MyStudents] mengambil matches...')
+        // 2. Ambil semua match untuk tutor ini dengan join ke student dan profile
         const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
           .select(`
@@ -81,6 +69,11 @@ export default function MyStudentsPage() {
             students:student_id (
               id,
               grade_level,
+              subjects,
+              budget_per_month,
+              sessions_per_month,
+              preferred_schedule,
+              address,
               avatar_url,
               users_profile:user_id (
                 full_name,
@@ -88,14 +81,15 @@ export default function MyStudentsPage() {
               )
             )
           `)
-          .eq('tutor_id', tutorId)
+          .eq('tutor_id', tutorData.id)
 
         if (matchesError) {
-          console.error('❌ [MyStudents] error ambil matches:', matchesError)
+          console.error('❌ [MyStudents] matches error:', matchesError)
           throw new Error(matchesError.message)
         }
 
-        console.log(`✅ [MyStudents] matches diterima: ${matchesData?.length || 0}`)
+        console.log(`✅ [MyStudents] matches ditemukan: ${matchesData?.length || 0}`)
+
         if (isMounted) {
           setMatches(matchesData || [])
           const pending = (matchesData || []).filter(
@@ -118,7 +112,7 @@ export default function MyStudentsPage() {
     }
 
     if (authLoading) {
-      console.log('⏳ [MyStudents] authLoading true, return...')
+      console.log('⏳ [MyStudents] authLoading true, menunggu...')
       return
     }
 
@@ -137,6 +131,13 @@ export default function MyStudentsPage() {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString('id-ID')
+  }
+
+  const getStudentRate = (student: any) => {
+    if (student?.budget_per_month && student?.sessions_per_month && student.sessions_per_month > 0) {
+      return Math.round(student.budget_per_month / student.sessions_per_month)
+    }
+    return 0
   }
 
   if (authLoading || loading) {
@@ -168,7 +169,6 @@ export default function MyStudentsPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Siswa Saya</h1>
@@ -180,7 +180,6 @@ export default function MyStudentsPage() {
         </Button>
       </div>
 
-      {/* Statistik */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3">
@@ -206,7 +205,6 @@ export default function MyStudentsPage() {
         </Card>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="requests" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="requests">
@@ -234,7 +232,10 @@ export default function MyStudentsPage() {
                 const profile = student?.users_profile || {}
                 const fullName = profile.full_name || 'Siswa'
                 const grade = student?.grade_level || ''
-                const subjects = match.subject || 'Umum'
+                const subjects = student?.subjects || []
+                const rate = getStudentRate(student)
+                const address = student?.address || ''
+                const schedule = student?.preferred_schedule || ''
                 const frequency = match.lesson_frequency || 'Flexible'
                 const startDate = match.start_date
 
@@ -243,7 +244,11 @@ export default function MyStudentsPage() {
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                          {fullName.charAt(0).toUpperCase()}
+                          {student?.avatar_url ? (
+                            <img src={student.avatar_url} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            fullName.charAt(0).toUpperCase()
+                          )}
                         </div>
                         <div>
                           <h3 className="font-semibold">{fullName}</h3>
@@ -259,18 +264,37 @@ export default function MyStudentsPage() {
                       </div>
 
                       <div className="space-y-1.5 text-sm">
+                        <div className="flex items-center">
+                          <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                          <span className="text-muted-foreground">
+                            {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                          </span>
+                        </div>
+
                         <div className="flex items-start">
                           <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
-                            <span className="font-medium">Mapel:</span> {subjects}
+                            {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
                           </span>
                         </div>
+
+                        <div className="flex items-start">
+                          <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                        </div>
+
+                        <div className="flex items-start">
+                          <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
+                        </div>
+
                         <div className="flex items-start">
                           <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             <span className="font-medium">Jumlah pertemuan:</span> {frequency}
                           </span>
                         </div>
+
                         {startDate && (
                           <div className="flex items-start">
                             <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
@@ -308,7 +332,10 @@ export default function MyStudentsPage() {
                 const profile = student?.users_profile || {}
                 const fullName = profile.full_name || 'Siswa'
                 const grade = student?.grade_level || ''
-                const subjects = match.subject || 'Umum'
+                const subjects = student?.subjects || []
+                const rate = getStudentRate(student)
+                const address = student?.address || ''
+                const schedule = student?.preferred_schedule || ''
                 const frequency = match.lesson_frequency || 'Flexible'
                 const startDate = match.start_date
                 const status = match.status
@@ -327,7 +354,11 @@ export default function MyStudentsPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3 flex-1">
                           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                            {fullName.charAt(0).toUpperCase()}
+                            {student?.avatar_url ? (
+                              <img src={student.avatar_url} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                            ) : (
+                              fullName.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div>
                             <h3 className="font-semibold">{fullName}</h3>
@@ -342,18 +373,37 @@ export default function MyStudentsPage() {
                       </div>
 
                       <div className="space-y-1.5 text-sm">
+                        <div className="flex items-center">
+                          <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                          <span className="text-muted-foreground">
+                            {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                          </span>
+                        </div>
+
                         <div className="flex items-start">
                           <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
-                            <span className="font-medium">Mapel:</span> {subjects}
+                            {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
                           </span>
                         </div>
+
+                        <div className="flex items-start">
+                          <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                        </div>
+
+                        <div className="flex items-start">
+                          <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                          <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
+                        </div>
+
                         <div className="flex items-start">
                           <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                           <span className="text-muted-foreground">
                             <span className="font-medium">Jumlah pertemuan:</span> {frequency}
                           </span>
                         </div>
+
                         {startDate && (
                           <div className="flex items-start">
                             <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
