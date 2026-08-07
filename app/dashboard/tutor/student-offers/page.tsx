@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/auth'
 import {
   DollarSign,
   MapPin,
@@ -94,6 +95,7 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
+  const [sentStudentIds, setSentStudentIds] = useState<Set<string>>(new Set())
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
@@ -129,6 +131,33 @@ export default function StudentOffersPage() {
           is_online: s.is_online ?? true,
         }))
         setStudents(studentsWithOnline)
+      }
+
+      // Fetch existing matches to filter out already-sent students
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (token) {
+          const matchRes = await fetch('/api/matches', {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              Authorization: `******
+            },
+          })
+          if (matchRes.ok) {
+            const existingMatches = await matchRes.json()
+            if (isMounted.current) {
+              const ids = new Set<string>(
+                existingMatches.map((m: any) => m.students?.id).filter(Boolean)
+              )
+              setSentStudentIds(ids)
+            }
+          }
+        }
+      } catch {
+        // Non-fatal: silently ignore if matches fetch fails
       }
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
@@ -199,7 +228,7 @@ export default function StudentOffersPage() {
   const filteredAndSortedStudents = (() => {
     if (!tutorProfile) return students
 
-    let result = [...students]
+    let result = [...students].filter(student => !sentStudentIds.has(student.id))
 
     if (mode === 'online') {
       result = result.filter(student => student.is_online === true)
@@ -329,6 +358,7 @@ export default function StudentOffersPage() {
         throw new Error(err.error || 'Gagal')
       }
       alert('✅ Penawaran berhasil dikirim!')
+      setSentStudentIds(prev => new Set([...prev, student.id]))
     } catch (err: any) {
       alert('❌ Gagal: ' + err.message)
     } finally {

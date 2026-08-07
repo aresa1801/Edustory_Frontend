@@ -46,6 +46,11 @@ export async function GET(request: NextRequest) {
         students:student_id(
           id,
           grade_level,
+          subjects,
+          budget_per_month,
+          sessions_per_month,
+          preferred_schedule,
+          address,
           avatar_url,
           users_profile:user_id(
             full_name,
