@@ -94,6 +94,7 @@ export default function StudentOffersPage() {
   const [error, setError] = useState<string | null>(null)
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
+  const [matchedStudentIds, setMatchedStudentIds] = useState<Set<string>>(new Set())
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
@@ -108,6 +109,7 @@ export default function StudentOffersPage() {
       setLoading(true)
       setError(null)
 
+      // 1. Ambil profil tutor
       const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
@@ -117,18 +119,53 @@ export default function StudentOffersPage() {
         if (isMounted.current) setTutorProfile(result.tutor)
       }
 
+      // 2. Ambil semua siswa
       const res = await fetch('/api/tutors/students', {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()
+      const allStudents = (data.students || []).map((s: any) => ({
+        ...s,
+        is_online: s.is_online ?? true,
+      }))
+
+      // 3. Ambil token untuk akses /api/matches
+      const { createClient } = await import('@/lib/auth')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      let matchedIds = new Set<string>()
+      if (token && tutorProfile?.id) {
+        const matchRes = await fetch('/api/matches', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (matchRes.ok) {
+          const matches = await matchRes.json()
+          // Ambil student_id dari semua match yang dibuat oleh tutor ini
+          matches.forEach((m: any) => {
+            if (m.tutor_id === tutorProfile.id) {
+              matchedIds.add(m.student_id)
+            }
+          })
+        }
+      }
+
+      // 4. Filter siswa yang belum memiliki match dengan tutor ini
+      const filteredStudents = allStudents.filter(
+        (s: Student) => !matchedIds.has(s.id)
+      )
+
       if (isMounted.current) {
-        const studentsWithOnline = (data.students || []).map((s: any) => ({
-          ...s,
-          is_online: s.is_online ?? true,
-        }))
-        setStudents(studentsWithOnline)
+        setStudents(filteredStudents)
+        setMatchedStudentIds(matchedIds)
+        setError(null)
       }
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
@@ -294,9 +331,6 @@ export default function StudentOffersPage() {
   const isVerified = tutorProfile?.verified === true
   const profileComplete = isProfileComplete(tutorProfile)
 
-  // BYPASS: tombol kirim selalu aktif
-  const canSendOffer = true
-
   const openConfirmDialog = (student: Student) => {
     setSelectedStudent(student)
     setShowConfirmDialog(true)
@@ -329,6 +363,8 @@ export default function StudentOffersPage() {
         throw new Error(err.error || 'Gagal')
       }
       alert('✅ Penawaran berhasil dikirim!')
+      // Refresh data agar siswa hilang dari daftar
+      fetchData()
     } catch (err: any) {
       alert('❌ Gagal: ' + err.message)
     } finally {
@@ -362,6 +398,8 @@ export default function StudentOffersPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* ... (header, alert, filter, dan daftar siswa seperti sebelumnya) ... */}
+      {/* Saya singkat karena kode panjang, tapi strukturnya tetap sama */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Daftar Siswa</h1>
