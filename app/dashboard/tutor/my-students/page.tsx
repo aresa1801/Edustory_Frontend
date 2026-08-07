@@ -43,55 +43,36 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
+      // Ambil token untuk Authorization header
       const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
 
-      // 1. Ambil tutor ID
-      const { data: tutorData, error: tutorError } = await supabase
-        .from('tutors')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .single()
-
-      if (tutorError || !tutorData) {
-        throw new Error('Tutor tidak ditemukan')
+      if (!token) {
+        throw new Error('Token tidak ditemukan')
       }
 
-      // 2. Ambil semua matches untuk tutor ini, ambil semua kolom statis student
-      const { data: matchesData, error: matchesError } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          subject,
-          lesson_frequency,
-          start_date,
-          status,
-          initiated_by,
-          student_full_name,
-          student_grade,
-          student_subjects,
-          student_budget_per_month,
-          student_sessions_per_month,
-          student_schedule,
-          student_address,
-          student_avatar,
-          student_phone,
-          student_latitude,
-          student_longitude,
-          student_is_online
-        `)
-        .eq('tutor_id', tutorData.id)
-        .order('created_at', { ascending: false })
+      const res = await fetch('/api/matches', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-      if (matchesError) {
-        throw new Error('Gagal mengambil data matches: ' + matchesError.message)
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Gagal mengambil data matches')
       }
+
+      const allMatches = await res.json()
 
       if (isMounted.current) {
-        setMatches(matchesData || [])
-        const pending = (matchesData || []).filter(
+        setMatches(allMatches)
+        const pending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
-        const active = (matchesData || []).filter(
+        const active = allMatches.filter(
           (m: any) => ['matched', 'active'].includes(m.status)
         )
         setPendingCount(pending.length)
@@ -99,7 +80,7 @@ export default function MyStudentsPage() {
         setError(null)
       }
     } catch (err: any) {
-      console.error('[MyStudents] Error:', err)
+      console.error('[MyStudents] Fetch error:', err)
       if (isMounted.current) {
         setError(err.message || 'Terjadi kesalahan')
       }
@@ -119,14 +100,14 @@ export default function MyStudentsPage() {
     }
     fetchData()
 
-    // Safety timeout 8 detik (opsional, mencegah loading forever)
+    // Safety timeout 10 detik
     const timeout = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('⚠️ MyStudents timeout, force setLoading(false)')
         setLoading(false)
         setError('Waktu muat habis, silakan refresh halaman')
       }
-    }, 8000)
+    }, 10000)
 
     return () => {
       isMounted.current = false
