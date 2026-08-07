@@ -1,119 +1,91 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  DollarSign,
-  MapPin,
-  BookMarked,
-  Clock,
-  Users,
-  MessageCircle,
-  RefreshCw,
-  CalendarDays,
-} from 'lucide-react'
 
 export default function MyStudentsPage() {
-  const { user: authUser, loading: authLoading } = useAuth()
-  const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [totalStudents, setTotalStudents] = useState(0)
-  const [pendingCount, setPendingCount] = useState(0)
+  const [data, setData] = useState<any>(null)
 
   useEffect(() => {
     let isMounted = true
 
     const fetchData = async () => {
-      if (!authUser) {
-        if (isMounted) {
-          setLoading(false)
-          setError('User tidak ditemukan')
-        }
-        return
-      }
-
       try {
-        setLoading(true)
-        setError(null)
-
+        console.log('1️⃣ Mulai fetchData')
         const supabase = createClient()
 
-        // 1. Ambil tutor ID
-        const { data: tutorData, error: tutorError } = await supabase
+        // Ambil user
+        console.log('2️⃣ Ambil user...')
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          throw new Error('User error: ' + userError?.message)
+        }
+        console.log('✅ User:', user.email)
+
+        // Ambil tutor ID
+        console.log('3️⃣ Ambil tutor...')
+        const { data: tutor, error: tutorError } = await supabase
           .from('tutors')
           .select('id')
-          .eq('user_id', authUser.id)
+          .eq('user_id', user.id)
           .single()
 
-        if (tutorError || !tutorData) {
-          throw new Error('Tutor tidak ditemukan')
+        if (tutorError || !tutor) {
+          throw new Error('Tutor error: ' + tutorError?.message)
         }
+        console.log('✅ Tutor ID:', tutor.id)
 
-        // 2. Ambil matches dengan join langsung ke students (tanpa users_profile)
-        const { data: matchesData, error: matchesError } = await supabase
+        // Ambil semua matches
+        console.log('4️⃣ Ambil matches...')
+        const { data: matches, error: matchesError } = await supabase
           .from('matches')
-          .select(`
-            id,
-            subject,
-            lesson_frequency,
-            start_date,
-            status,
-            initiated_by,
-            students:student_id (
-              id,
-              name,
-              grade_level,
-              subjects,
-              budget_per_month,
-              sessions_per_month,
-              preferred_schedule,
-              address,
-              avatar_url,
-              phone
-            )
-          `)
-          .eq('tutor_id', tutorData.id)
+          .select('*')
+          .eq('tutor_id', tutor.id)
 
         if (matchesError) {
-          throw new Error('Gagal mengambil data matches: ' + matchesError.message)
+          throw new Error('Matches error: ' + matchesError.message)
+        }
+        console.log('✅ Matches:', matches)
+
+        if (!matches || matches.length === 0) {
+          setData({ matches: [], students: [] })
+          setLoading(false)
+          return
         }
 
+        // Ambil semua student_id dari matches
+        const studentIds = matches.map(m => m.student_id)
+        console.log('5️⃣ Student IDs:', studentIds)
+
+        // Ambil data student
+        console.log('6️⃣ Ambil students...')
+        const { data: students, error: studentsError } = await supabase
+          .from('students')
+          .select('*')
+          .in('id', studentIds)
+
+        if (studentsError) {
+          throw new Error('Students error: ' + studentsError.message)
+        }
+        console.log('✅ Students:', students)
+
         if (isMounted) {
-          setMatches(matchesData || [])
-          const pending = (matchesData || []).filter(
-            (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-          )
-          const active = (matchesData || []).filter(
-            (m: any) => ['matched', 'active'].includes(m.status)
-          )
-          setPendingCount(pending.length)
-          setTotalStudents(active.length)
+          setData({ matches, students })
           setError(null)
         }
       } catch (err: any) {
-        console.error('[MyStudents] Error:', err)
+        console.error('❌ Error:', err)
         if (isMounted) {
           setError(err.message || 'Terjadi kesalahan')
         }
       } finally {
         if (isMounted) {
           setLoading(false)
+          console.log('7️⃣ Selesai, loading false')
         }
       }
-    }
-
-    if (authLoading) return
-    if (!authUser) {
-      setLoading(false)
-      return
     }
 
     fetchData()
@@ -121,28 +93,12 @@ export default function MyStudentsPage() {
     return () => {
       isMounted = false
     }
-  }, [authUser?.id, authLoading])
+  }, [])
 
-  const handleRefresh = () => {
-    window.location.reload()
-  }
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('id-ID')
-  }
-
-  const getStudentRate = (student: any) => {
-    if (student?.budget_per_month && student?.sessions_per_month && student.sessions_per_month > 0) {
-      return Math.round(student.budget_per_month / student.sessions_per_month)
-    }
-    return 0
-  }
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Spinner className="h-8 w-8" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <p className="ml-3">Memuat...</p>
       </div>
     )
@@ -150,291 +106,21 @@ export default function MyStudentsPage() {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertDescription>❌ {error}</AlertDescription>
-        </Alert>
-        <Button onClick={handleRefresh} className="mt-4">Refresh Halaman</Button>
-      </div>
-    )
-  }
-
-  const pendingMatches = matches.filter(
-    (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
-  )
-  const activeMatches = matches.filter(
-    (m: any) => ['matched', 'active', 'completed'].includes(m.status)
-  )
-
-  const renderPendingCards = () => {
-    if (pendingMatches.length === 0) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan dari siswa.
-          </CardContent>
-        </Card>
-      )
-    }
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {pendingMatches.map((match: any) => {
-          const student = match.students
-          const fullName = student?.name || 'Siswa'
-          const grade = student?.grade_level || ''
-          const subjects = student?.subjects || []
-          const rate = getStudentRate(student)
-          const address = student?.address || ''
-          const schedule = student?.preferred_schedule || ''
-          const frequency = match.lesson_frequency || 'Flexible'
-          const startDate = match.start_date
-
-          return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {student?.avatar_url ? (
-                      <img src={student.avatar_url} alt={fullName} className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      fullName.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{fullName}</h3>
-                    {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                        {grade}
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Pending
-                  </Badge>
-                </div>
-
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                    <span className="text-muted-foreground">
-                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
-                    </span>
-                  </div>
-                  <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
-                    </span>
-                  </div>
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Jumlah pertemuan:</span> {frequency}
-                    </span>
-                  </div>
-                  {startDate && (
-                    <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4">
-                  <Button size="sm" variant="outline" className="w-full" disabled>
-                    Menunggu konfirmasi siswa
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const renderActiveCards = () => {
-    if (activeMatches.length === 0) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada pencocokan yang dikonfirmasi.
-          </CardContent>
-        </Card>
-      )
-    }
-    const statusMap: Record<string, { label: string; color: string }> = {
-      matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
-      completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
-    }
-
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {activeMatches.map((match: any) => {
-          const student = match.students
-          const fullName = student?.name || 'Siswa'
-          const grade = student?.grade_level || ''
-          const subjects = student?.subjects || []
-          const rate = getStudentRate(student)
-          const address = student?.address || ''
-          const schedule = student?.preferred_schedule || ''
-          const frequency = match.lesson_frequency || 'Flexible'
-          const startDate = match.start_date
-          const status = match.status
-          const phone = student?.phone || ''
-          const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
-
-          return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                      {student?.avatar_url ? (
-                        <img src={student.avatar_url} alt={fullName} className="w-full h-full object-cover rounded-full" />
-                      ) : (
-                        fullName.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{fullName}</h3>
-                      {grade && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                          {grade}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
-                </div>
-
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                    <span className="text-muted-foreground">
-                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
-                    </span>
-                  </div>
-                  <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
-                    </span>
-                  </div>
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Jumlah pertemuan:</span> {frequency}
-                    </span>
-                  </div>
-                  {startDate && (
-                    <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {status === 'matched' && phone && (
-                  <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
-                    <p className="text-xs font-medium text-green-700">
-                      ✓ Pencocokan dikonfirmasi! Hubungi siswa.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-                      onClick={() =>
-                        window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank')
-                      }
-                    >
-                      💬 WhatsApp
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+      <div className="max-w-4xl mx-auto p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700 font-semibold">❌ Error:</p>
+          <p className="text-red-600">{error}</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Siswa Saya</h1>
-          <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
-          <RefreshCw className="w-4 h-4" />
-          Refresh Data
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Siswa Aktif</p>
-              <p className="text-2xl font-bold">{totalStudents}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-yellow-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Baru</p>
-              <p className="text-2xl font-bold">{pendingCount}</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="requests" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="requests">
-            Permintaan Masuk
-            {pendingCount > 0 && (
-              <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {pendingCount}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="active">Pencocokan Aktif</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="requests">{renderPendingCards()}</TabsContent>
-        <TabsContent value="active">{renderActiveCards()}</TabsContent>
-      </Tabs>
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Debug Data</h1>
+      <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-auto max-h-[70vh]">
+        {JSON.stringify(data, null, 2)}
+      </pre>
     </div>
   )
 }
