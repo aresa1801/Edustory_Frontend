@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/auth' // ✅ import supabase
 import {
   DollarSign,
   MapPin,
@@ -95,6 +96,9 @@ export default function StudentOffersPage() {
   const [filterOption, setFilterOption] = useState<FilterOption>('all')
   const [mode, setMode] = useState<ModeOption>('online')
 
+  // ✅ state untuk menyimpan ID siswa yang sudah ditawari
+  const [offeredStudentIds, setOfferedStudentIds] = useState<Set<string>>(new Set())
+
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
@@ -108,27 +112,55 @@ export default function StudentOffersPage() {
       setLoading(true)
       setError(null)
 
+      // 1. Ambil profil tutor
       const tutorRes = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
+      let tutorId: string | null = null
       if (tutorRes.ok) {
         const result = await tutorRes.json()
-        if (isMounted.current) setTutorProfile(result.tutor)
+        if (isMounted.current) {
+          setTutorProfile(result.tutor)
+          tutorId = result.tutor.id
+        }
       }
 
+      // 2. Ambil semua siswa
       const res = await fetch('/api/tutors/students', {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()
+      const studentsWithOnline = (data.students || []).map((s: any) => ({
+        ...s,
+        is_online: s.is_online ?? true,
+      }))
+
+      // 3. Jika ada tutorId, ambil daftar student_id yang sudah punya match
+      let offeredIds = new Set<string>()
+      if (tutorId) {
+        const supabase = createClient()
+        const { data: matches, error: matchErr } = await supabase
+          .from('matches')
+          .select('student_id')
+          .eq('tutor_id', tutorId)
+
+        if (!matchErr && matches) {
+          offeredIds = new Set(matches.map((m: any) => m.student_id))
+        }
+      }
+
+      // 4. Filter siswa yang belum ditawari
+      const filteredStudents = studentsWithOnline.filter(
+        (s: Student) => !offeredIds.has(s.id)
+      )
+
       if (isMounted.current) {
-        const studentsWithOnline = (data.students || []).map((s: any) => ({
-          ...s,
-          is_online: s.is_online ?? true,
-        }))
-        setStudents(studentsWithOnline)
+        setStudents(filteredStudents)
+        setOfferedStudentIds(offeredIds)
+        setError(null)
       }
     } catch (err: any) {
       if (isMounted.current) setError(err.message)
@@ -302,6 +334,12 @@ export default function StudentOffersPage() {
     setShowConfirmDialog(true)
   }
 
+  // ✅ Fungsi untuk menghapus siswa dari daftar setelah berhasil kirim
+  const removeStudentFromList = (studentId: string) => {
+    setStudents(prev => prev.filter(s => s.id !== studentId))
+    setOfferedStudentIds(prev => new Set(prev).add(studentId))
+  }
+
   const handleConfirmSend = async () => {
     if (!selectedStudent || !tutorProfile) return
 
@@ -329,6 +367,8 @@ export default function StudentOffersPage() {
         throw new Error(err.error || 'Gagal')
       }
       alert('✅ Penawaran berhasil dikirim!')
+      // ✅ Hapus siswa dari daftar
+      removeStudentFromList(student.id)
     } catch (err: any) {
       alert('❌ Gagal: ' + err.message)
     } finally {
@@ -388,7 +428,7 @@ export default function StudentOffersPage() {
 
       {tutorProfile && !profileComplete && (
         <Alert className="mt-4 border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTriangle className="w-4 h-4 text-amber-500" />
           <AlertDescription className="text-amber-700">
             Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
             <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
