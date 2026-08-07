@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // Fetch matches with complete student data
+    // Fetch matches with complete student data from students table
     const { data: matches, error: matchErr } = await supabase
       .from('matches')
       .select(`
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         initiated_by,
         students:student_id(
           id,
+          name,
           grade_level,
           subjects,
           budget_per_month,
@@ -51,10 +52,7 @@ export async function GET(request: NextRequest) {
           preferred_schedule,
           address,
           avatar_url,
-          users_profile:user_id(
-            full_name,
-            phone
-          )
+          phone
         )
       `)
       .eq('tutor_id', tutorData.id)
