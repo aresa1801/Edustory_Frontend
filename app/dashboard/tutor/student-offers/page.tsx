@@ -303,39 +303,45 @@ export default function StudentOffersPage() {
   }
 
   const handleConfirmSend = async () => {
-    if (!selectedStudent || !tutorProfile) return
+  if (!selectedStudent || !tutorProfile) return
 
-    const student = selectedStudent
-    setShowConfirmDialog(false)
-    setSending(student.id)
+  const student = selectedStudent
+  setShowConfirmDialog(false)
+  setSending(student.id)
 
-    try {
-      const subject = student.subjects?.[0] || 'Umum'
-      const res = await fetch('/api/matches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tutor_id: tutorProfile.id,
-          student_id: student.id,
-          subject,
-          status: 'pending',
-          initiated_by: 'tutor',
-          lesson_frequency: 'flexible',
-          start_date: new Date().toISOString().split('T')[0],
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Gagal')
-      }
-      alert('✅ Penawaran berhasil dikirim!')
-    } catch (err: any) {
-      alert('❌ Gagal: ' + err.message)
-    } finally {
-      setSending(null)
-      setSelectedStudent(null)
+  try {
+    // Hitung mata pelajaran yang cocok
+    const matchedSubjects = getMatchedSubjects(student, tutorProfile)
+
+    // Ambil subject pertama untuk kompatibilitas (atau bisa gunakan matchedSubjects[0])
+    const primarySubject = matchedSubjects.length > 0 ? matchedSubjects[0] : 'Umum'
+
+    const res = await fetch('/api/matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tutor_id: tutorProfile.id,
+        student_id: student.id,
+        subject: primarySubject, // tetap kirim untuk kompatibilitas
+        matched_subjects: matchedSubjects, // kirim array semua yang cocok
+        status: 'pending',
+        initiated_by: 'tutor',
+        lesson_frequency: 'flexible',
+        start_date: new Date().toISOString().split('T')[0],
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Gagal')
     }
+    alert('✅ Penawaran berhasil dikirim!')
+  } catch (err: any) {
+    alert('❌ Gagal: ' + err.message)
+  } finally {
+    setSending(null)
+    setSelectedStudent(null)
   }
+}
 
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)

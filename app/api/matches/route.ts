@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     )
 
     const body = await request.json()
-    const { tutor_id, student_id, subject, status, initiated_by, lesson_frequency, start_date } = body
+    const { tutor_id, student_id, subject, status, initiated_by, lesson_frequency, start_date, matched_subjects } = body
 
     if (!tutor_id || !student_id) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
         tutor_id,
         student_id,
         subject: subject || 'Umum',
+        matched_subjects: matched_subjects || [],
         status: status || 'pending',
         initiated_by: initiated_by || 'tutor',
         lesson_frequency: lesson_frequency || 'flexible',

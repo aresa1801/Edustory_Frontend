@@ -168,7 +168,13 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
-          const subject = match.subject || 'Data tidak cocok'
+
+          // ✅ Mata pelajaran: gunakan matched_subjects jika ada, fallback ke subject
+          const matchedSubjects = match.matched_subjects || []
+          const subjectDisplay = matchedSubjects.length > 0
+            ? matchedSubjects.join(', ')
+            : (match.subject || 'Data tidak cocok')
+          const isNoMatch = matchedSubjects.length === 0 && (!match.subject || match.subject === 'Data tidak cocok')
 
           const lat = match.student_latitude
           const lng = match.student_longitude
@@ -208,8 +214,8 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${subject === 'Data tidak cocok' ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
-                      {subject}
+                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subjectDisplay}
                     </span>
                   </div>
 
@@ -298,7 +304,14 @@ export default function MyStudentsPage() {
           const status = match.status
           const phone = match.student_phone || ''
           const avatar = match.student_avatar
-          const subject = match.subject || 'Data tidak cocok'
+
+          // ✅ Mata pelajaran: gunakan matched_subjects jika ada, fallback ke subject
+          const matchedSubjects = match.matched_subjects || []
+          const subjectDisplay = matchedSubjects.length > 0
+            ? matchedSubjects.join(', ')
+            : (match.subject || 'Data tidak cocok')
+          const isNoMatch = matchedSubjects.length === 0 && (!match.subject || match.subject === 'Data tidak cocok')
+
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
 
           const lat = match.student_latitude
@@ -339,8 +352,8 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${subject === 'Data tidak cocok' ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
-                      {subject}
+                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subjectDisplay}
                     </span>
                   </div>
 
