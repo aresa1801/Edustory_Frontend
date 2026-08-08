@@ -17,6 +17,7 @@ import {
   MessageCircle,
   RefreshCw,
   CalendarDays,
+  Map,
 } from 'lucide-react'
 
 export default function MyStudentsPage() {
@@ -42,7 +43,6 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
-      // ✅ Gunakan API /api/tutors/my-matches (sesuai folder)
       const res = await fetch(`/api/tutors/my-matches?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
@@ -88,7 +88,6 @@ export default function MyStudentsPage() {
     }
     fetchData()
 
-    // Safety timeout 10 detik
     const timeout = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('⚠️ MyStudents timeout, force setLoading(false)')
@@ -146,6 +145,7 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed'].includes(m.status)
   )
 
+  // === RENDER PENDING ===
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -161,13 +161,18 @@ export default function MyStudentsPage() {
         {pendingMatches.map((match: any) => {
           const fullName = match.student_full_name || 'Siswa'
           const grade = match.student_grade || ''
-          const subjects = match.student_subjects || []
           const rate = getStudentRate(match)
           const address = match.student_address || ''
           const schedule = match.student_schedule || ''
-          const frequency = match.lesson_frequency || 'Flexible'
+          const sessionsPerMonth = match.student_sessions_per_month || 0
+          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
+          const subject = match.subject || 'Data tidak cocok'
+
+          const lat = match.student_latitude
+          const lng = match.student_longitude
+          const hasCoords = lat != null && lng != null && address
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
@@ -200,26 +205,45 @@ export default function MyStudentsPage() {
                       {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                     </span>
                   </div>
+
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
+                    <span className={`${subject === 'Data tidak cocok' ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subject}
                     </span>
                   </div>
+
                   <div className="flex items-start">
                     <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                     <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    {hasCoords && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                          window.open(url, '_blank')
+                        }}
+                        title="Buka Google Maps & lihat rute"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
+
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                     <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                   </div>
+
                   <div className="flex items-start">
                     <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                     <span className="text-muted-foreground">
-                      <span className="font-medium">Jumlah pertemuan:</span> {frequency}
+                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
                     </span>
                   </div>
+
                   {startDate && (
                     <div className="flex items-start">
                       <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
@@ -243,6 +267,7 @@ export default function MyStudentsPage() {
     )
   }
 
+  // === RENDER ACTIVE ===
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -264,16 +289,21 @@ export default function MyStudentsPage() {
         {activeMatches.map((match: any) => {
           const fullName = match.student_full_name || 'Siswa'
           const grade = match.student_grade || ''
-          const subjects = match.student_subjects || []
           const rate = getStudentRate(match)
           const address = match.student_address || ''
           const schedule = match.student_schedule || ''
-          const frequency = match.lesson_frequency || 'Flexible'
+          const sessionsPerMonth = match.student_sessions_per_month || 0
+          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const status = match.status
           const phone = match.student_phone || ''
           const avatar = match.student_avatar
+          const subject = match.subject || 'Data tidak cocok'
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+
+          const lat = match.student_latitude
+          const lng = match.student_longitude
+          const hasCoords = lat != null && lng != null && address
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
@@ -306,26 +336,45 @@ export default function MyStudentsPage() {
                       {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                     </span>
                   </div>
+
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      {subjects.length > 0 ? subjects.join(', ') : 'Belum ada mapel'}
+                    <span className={`${subject === 'Data tidak cocok' ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subject}
                     </span>
                   </div>
+
                   <div className="flex items-start">
                     <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                     <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    {hasCoords && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                          window.open(url, '_blank')
+                        }}
+                        title="Buka Google Maps & lihat rute"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
+
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                     <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                   </div>
+
                   <div className="flex items-start">
                     <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
                     <span className="text-muted-foreground">
-                      <span className="font-medium">Jumlah pertemuan:</span> {frequency}
+                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
                     </span>
                   </div>
+
                   {startDate && (
                     <div className="flex items-start">
                       <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
