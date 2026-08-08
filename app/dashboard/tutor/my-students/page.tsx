@@ -169,12 +169,12 @@ export default function MyStudentsPage() {
           const startDate = match.start_date
           const avatar = match.student_avatar
 
-          // ✅ Mata pelajaran: gunakan matched_subjects jika ada, fallback ke subject
+          // ✅ Hanya gunakan matched_subjects, tanpa fallback ke subject
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay = matchedSubjects.length > 0
             ? matchedSubjects.join(', ')
-            : (match.subject || 'Data tidak cocok')
-          const isNoMatch = matchedSubjects.length === 0 && (!match.subject || match.subject === 'Data tidak cocok')
+            : 'Tidak ada mata pelajaran yang cocok'
+          const isNoMatch = matchedSubjects.length === 0
 
           const lat = match.student_latitude
           const lng = match.student_longitude
@@ -305,12 +305,12 @@ export default function MyStudentsPage() {
           const phone = match.student_phone || ''
           const avatar = match.student_avatar
 
-          // ✅ Mata pelajaran: gunakan matched_subjects jika ada, fallback ke subject
+          // ✅ Hanya gunakan matched_subjects, tanpa fallback ke subject
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay = matchedSubjects.length > 0
             ? matchedSubjects.join(', ')
-            : (match.subject || 'Data tidak cocok')
-          const isNoMatch = matchedSubjects.length === 0 && (!match.subject || match.subject === 'Data tidak cocok')
+            : 'Tidak ada mata pelajaran yang cocok'
+          const isNoMatch = matchedSubjects.length === 0
 
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
 
