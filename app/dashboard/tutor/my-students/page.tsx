@@ -42,8 +42,8 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
-      // ✅ Panggil API khusus (tanpa token, pakai user_id)
-      const res = await fetch(`/api/tutor/my-matches?user_id=${authUser.id}`, {
+      // ✅ Gunakan API /api/tutors/my-matches (sesuai folder)
+      const res = await fetch(`/api/tutors/my-matches?user_id=${authUser.id}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
