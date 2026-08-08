@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -43,21 +42,10 @@ export default function MyStudentsPage() {
       setLoading(true)
       setError(null)
 
-      // Ambil token untuk Authorization header
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      if (!token) {
-        throw new Error('Token tidak ditemukan')
-      }
-
-      const res = await fetch('/api/matches', {
+      // ✅ Panggil API khusus (tanpa token, pakai user_id)
+      const res = await fetch(`/api/tutor/my-matches?user_id=${authUser.id}`, {
         cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       })
 
       if (!res.ok) {
