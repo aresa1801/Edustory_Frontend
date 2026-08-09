@@ -1,11 +1,8 @@
 // app/api/matches/route.ts
-
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-// ============================================================
-// GET – Mendukung tutor (default) dan student (dengan query ?student_id=...)
-// ============================================================
+// GET (tidak berubah)
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -31,7 +28,6 @@ export async function GET(request: NextRequest) {
     let query = supabase.from('matches').select('*')
 
     if (studentId) {
-      // Mode student: verifikasi bahwa user ini adalah student yang sesuai
       const { data: studentData, error: studentErr } = await supabase
         .from('students')
         .select('id')
@@ -46,7 +42,6 @@ export async function GET(request: NextRequest) {
       }
       query = query.eq('student_id', studentId)
     } else {
-      // Mode tutor: ambil match milik tutor yang login
       const { data: tutorData, error: tutorErr } = await supabase
         .from('tutors')
         .select('id')
@@ -76,9 +71,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ============================================================
-// POST – Membuat match baru (dengan data statis student + tutor)
-// ============================================================
+// POST – dengan tambahan tutor_avatar_url
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -93,10 +86,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
     }
 
-    // 1. Ambil data tutor dari tabel tutors (full_name, bio, dll sudah ada di sini)
+    // 1. Ambil data tutor (termasuk avatar_url)
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
-      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels')
+      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url')
       .eq('id', tutor_id)
       .single()
 
@@ -105,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // 2. Ambil data student dari tabel students
+    // 2. Ambil data student
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online')
@@ -117,7 +110,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // 3. Insert dengan semua data statis (student + tutor)
+    // 3. Insert dengan semua kolom statis
     const { data, error } = await supabase
       .from('matches')
       .insert({
@@ -143,7 +136,7 @@ export async function POST(request: NextRequest) {
         student_longitude: student.longitude,
         student_is_online: student.is_online ?? true,
 
-        // Statis tutor (semua dari tabel tutors)
+        // Statis tutor (tambah avatar_url)
         tutor_full_name: tutor.full_name,
         tutor_bio: tutor.bio,
         tutor_experience_years: tutor.experience_years,
@@ -151,6 +144,7 @@ export async function POST(request: NextRequest) {
         tutor_rating: tutor.rating,
         tutor_total_reviews: tutor.total_reviews,
         tutor_verified_grade_levels: tutor.verified_grade_levels,
+        tutor_avatar_url: tutor.avatar_url, // ✅ baru
       })
       .select()
 

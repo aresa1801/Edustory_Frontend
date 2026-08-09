@@ -45,6 +45,7 @@ interface Match {
   tutor_rating: number
   tutor_total_reviews: number
   tutor_verified_grade_levels: string[]
+  tutor_avatar_url?: string | null
 }
 
 export default function TutorOffersPage() {
@@ -314,8 +315,12 @@ function OfferCard({
         )}
 
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-            {offer.tutor_full_name?.charAt(0).toUpperCase() || '?'}
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+            {offer.tutor_avatar_url ? (
+              <img src={offer.tutor_avatar_url} alt={offer.tutor_full_name} className="w-full h-full object-cover" />
+            ) : (
+              offer.tutor_full_name?.charAt(0).toUpperCase() || '?'
+            )}
           </div>
           <div className="flex-1">
             <h3 className="font-semibold">{offer.tutor_full_name || 'Tutor'}</h3>
