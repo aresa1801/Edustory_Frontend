@@ -12,11 +12,10 @@ import {
   Star,
   Award,
   BookOpen,
-  Clock,
-  CheckCircle,
-  Trash2,
   RefreshCw,
   User,
+  Calendar,
+  XCircle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -214,7 +213,10 @@ export default function TutorOffersPage() {
                     key={offer.id}
                     offer={offer}
                     processing={processingId === offer.id}
-                    onAccept={() => openConfirmDialog(offer, 'accept')}
+                    onSchedule={() => {
+                      // Nanti arahkan ke halaman atur jadwal
+                      alert('Fungsi atur jadwal akan segera hadir!')
+                    }}
                     onReject={() => openConfirmDialog(offer, 'reject')}
                   />
                 ))}
@@ -281,13 +283,13 @@ export default function TutorOffersPage() {
 function OfferCard({
   offer,
   processing,
-  onAccept,
+  onSchedule,
   onReject,
   readonly = false,
 }: {
   offer: Match
   processing: boolean
-  onAccept?: () => void
+  onSchedule?: () => void
   onReject?: () => void
   readonly?: boolean
 }) {
@@ -303,17 +305,7 @@ function OfferCard({
   return (
     <Card className="border shadow-sm hover:shadow-md transition-shadow relative">
       <CardContent className="p-5">
-        {!readonly && offer.status === 'pending' && (
-          <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition-colors"
-            onClick={onReject}
-            disabled={processing}
-            title="Tolak penawaran"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-        )}
-
+        {/* Header */}
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
             {offer.tutor_avatar_url ? (
@@ -337,6 +329,7 @@ function OfferCard({
           </Badge>
         </div>
 
+        {/* Detail tanpa lesson_frequency */}
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-green-500" />
@@ -362,21 +355,28 @@ function OfferCard({
               <span className="font-medium">Mapel:</span> {offer.matched_subjects?.join(', ') || offer.subject}
             </span>
           </div>
-          <div className="flex items-start gap-2">
-            <Clock className="w-4 h-4 text-orange-500 mt-0.5" />
-            <span>Frekuensi: {offer.lesson_frequency || 'flexible'}</span>
-          </div>
+          {/* baris lesson_frequency dihilangkan */}
         </div>
 
+        {/* Tombol Aksi untuk pending */}
         {!readonly && offer.status === 'pending' && (
-          <div className="mt-4">
+          <div className="mt-4 flex gap-2">
             <Button
-              className="w-full bg-green-600 hover:bg-green-700 text-white gap-1.5"
-              onClick={onAccept}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+              onClick={onSchedule}
               disabled={processing}
             >
-              {processing ? <Spinner className="h-3.5 w-3.5" /> : <CheckCircle className="w-4 h-4" />}
-              Setuju & Atur Jadwal
+              <Calendar className="w-4 h-4" />
+              Atur Jadwal
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 gap-1.5"
+              onClick={onReject}
+              disabled={processing}
+            >
+              <XCircle className="w-4 h-4" />
+              Tolak Permintaan
             </Button>
           </div>
         )}
