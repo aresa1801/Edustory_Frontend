@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import {
   DollarSign,
   Star,
@@ -27,9 +27,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-// ============================================================
-// INTERFACE
-// ============================================================
 interface Match {
   id: string
   tutor_id: string
@@ -41,7 +38,6 @@ interface Match {
   lesson_frequency: string
   start_date: string
   created_at: string
-  // statis tutor
   tutor_full_name: string
   tutor_bio: string
   tutor_experience_years: number
@@ -52,6 +48,7 @@ interface Match {
 }
 
 export default function TutorOffersPage() {
+  const { user, loading: authLoading } = useAuth()
   const [offers, setOffers] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -63,7 +60,8 @@ export default function TutorOffersPage() {
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
 
-  const fetchOffers = async () => {
+  const fetchData = async () => {
+    if (!user) return
     if (fetchDone.current) return
     fetchDone.current = true
 
@@ -71,82 +69,52 @@ export default function TutorOffersPage() {
     setError(null)
 
     try {
-      console.log('[TutorOffers] Fetching...')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        setOffers([])
-        return
+      const res = await fetch(`/api/students/my-matches?user_id=${user.id}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      })
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Gagal mengambil penawaran')
       }
-
-      // 1. Dapatkan student_id
-      const { data: student, error: studentErr } = await supabase
-        .from('students')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (studentErr) {
-        console.error('[TutorOffers] Student error:', studentErr)
-        throw studentErr
-      }
-
-      if (!student) {
-        setOffers([])
-        return
-      }
-
-      // 2. Ambil semua match untuk student ini, hanya yang initiated_by = 'tutor'
-      const { data, error: matchErr } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('student_id', student.id)
-        .eq('initiated_by', 'tutor')
-        .order('created_at', { ascending: false })
-
-      if (matchErr) {
-        console.error('[TutorOffers] Match error:', matchErr)
-        throw matchErr
-      }
-
+      const data = await res.json()
       if (isMounted.current) {
-        setOffers(data || [])
+        setOffers(data)
         setError(null)
-        console.log('[TutorOffers] Loaded:', data?.length)
       }
     } catch (err: any) {
-      console.error('[TutorOffers] Error:', err)
       if (isMounted.current) {
-        setError(err.message || 'Gagal memuat penawaran')
+        setError(err.message || 'Terjadi kesalahan')
         setOffers([])
       }
     } finally {
       if (isMounted.current) {
         setLoading(false)
-        console.log('[TutorOffers] Done')
       }
     }
   }
 
   useEffect(() => {
     isMounted.current = true
-    fetchDone.current = false
-    fetchOffers()
-    return () => {
-      isMounted.current = false
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
     }
-  }, [])
+    fetchData()
+    return () => { isMounted.current = false }
+  }, [user?.id, authLoading])
 
   const handleRefresh = () => {
     if (!isMounted.current) return
     fetchDone.current = false
-    fetchOffers()
+    fetchData()
   }
 
   const handleAction = async (offerId: string, action: 'accept' | 'reject') => {
     setProcessingId(offerId)
     try {
+      const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || ''
@@ -159,13 +127,10 @@ export default function TutorOffersPage() {
         },
         body: JSON.stringify({ action }),
       })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Gagal memperbarui status')
-      }
+      if (!res.ok) throw new Error('Gagal memperbarui status')
 
       fetchDone.current = false
-      await fetchOffers()
+      await fetchData()
       alert(action === 'accept' ? '✅ Penawaran diterima!' : '✅ Penawaran ditolak.')
     } catch (err: any) {
       alert('❌ ' + err.message)
@@ -183,7 +148,7 @@ export default function TutorOffersPage() {
     setShowConfirmDialog(true)
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
@@ -230,46 +195,48 @@ export default function TutorOffersPage() {
         </Card>
       </div>
 
-      {offers.length === 0 && (
+      {offers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <User className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p>Belum ada penawaran dari tutor.</p>
           </CardContent>
         </Card>
-      )}
+      ) : (
+        <>
+          {pendingOffers.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {pendingOffers.map(offer => (
+                  <OfferCard
+                    key={offer.id}
+                    offer={offer}
+                    processing={processingId === offer.id}
+                    onAccept={() => openConfirmDialog(offer, 'accept')}
+                    onReject={() => openConfirmDialog(offer, 'reject')}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {pendingOffers.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {pendingOffers.map(offer => (
-              <OfferCard
-                key={offer.id}
-                offer={offer}
-                processing={processingId === offer.id}
-                onAccept={() => openConfirmDialog(offer, 'accept')}
-                onReject={() => openConfirmDialog(offer, 'reject')}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {decidedOffers.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {decidedOffers.map(offer => (
-              <OfferCard
-                key={offer.id}
-                offer={offer}
-                processing={false}
-                readonly
-              />
-            ))}
-          </div>
-        </div>
+          {decidedOffers.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {decidedOffers.map(offer => (
+                  <OfferCard
+                    key={offer.id}
+                    offer={offer}
+                    processing={false}
+                    readonly
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
@@ -310,9 +277,6 @@ export default function TutorOffersPage() {
   )
 }
 
-// ============================================================
-// OfferCard
-// ============================================================
 function OfferCard({
   offer,
   processing,
