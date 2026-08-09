@@ -124,7 +124,6 @@ export async function POST(request: NextRequest) {
         // Kolom wajib
         tutor_id,
         student_id,
-        subject: subject || 'Umum',
         matched_subjects: matched_subjects || [],
         status: status || 'pending',
         initiated_by: initiated_by || 'tutor',
