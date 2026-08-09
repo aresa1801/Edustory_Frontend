@@ -1,418 +1,417 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useRef } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
 import {
-  Star, BookOpen, Clock, GraduationCap, User, CheckCircle, X,
-  Award, MapPin, MessageCircle
+  DollarSign,
+  Star,
+  Award,
+  BookOpen,
+  Clock,
+  CheckCircle,
+  Trash2,
+  RefreshCw,
+  User,
 } from 'lucide-react'
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  accepted: 'bg-green-500/20 text-green-300 border-green-500/30',
-  rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Menunggu Keputusan',
-  accepted: 'Diterima',
-  rejected: 'Ditolak',
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { useAuth } from '@/lib/auth-context'
 
 interface TutorOffer {
   id: string
-  status: string
+  tutor_id: string
+  student_id: string
   subject: string
+  matched_subjects: string[]
+  status: 'pending' | 'matched' | 'active' | 'completed' | 'cancelled'
+  initiated_by: 'student' | 'tutor'
+  lesson_frequency: string
+  start_date: string
   created_at: string
-  tutor: {
-    id: string
-    hourly_rate: number
-    experience_years: number
-    rating: number
-    total_reviews: number
-    specializations: string[]
-    verified: boolean
-    city?: string
-    bio?: string
-    name: string
-    gender: string
-  }
+  // statis tutor
+  tutor_full_name: string
+  tutor_bio: string
+  tutor_experience_years: number
+  tutor_hourly_rate: number
+  tutor_rating: number
+  tutor_total_reviews: number
+  tutor_verified_grade_levels: string[]
 }
 
 export default function TutorOffersPage() {
+  const { user, loading: authLoading } = useAuth()
   const [offers, setOffers] = useState<TutorOffer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedOffer, setSelectedOffer] = useState<TutorOffer | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [showDetail, setShowDetail] = useState(false)
+  const [actionType, setActionType] = useState<'accept' | 'reject' | null>(null)
+
+  const isMounted = useRef(true)
 
   const fetchOffers = async () => {
-    setLoading(true)
+    if (!user) return
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      setLoading(true)
+      setError(null)
 
-      const { data: studentData } = await supabase
+      const supabase = createClient()
+      // Ambil student_id
+      const { data: studentData, error: studentErr } = await supabase
         .from('students')
         .select('id')
         .eq('user_id', user.id)
         .single()
 
-      if (!studentData) {
-        setError('Profil siswa tidak ditemukan. Harap lengkapi profil terlebih dahulu.')
-        return
+      if (studentErr || !studentData) {
+        throw new Error('Data siswa tidak ditemukan')
       }
 
-      const { data: matchData, error: matchErr } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          status,
-          subject,
-          created_at,
-          tutors:tutor_id(
-            id,
-            hourly_rate,
-            experience_years,
-            rating,
-            total_reviews,
-            specializations,
-            verified,
-            user_profiles:user_id(name, gender, bio)
-          )
-        `)
-        .eq('student_id', studentData.id)
-        .eq('initiated_by', 'tutor')
-        .order('created_at', { ascending: false })
+      const studentId = studentData.id
 
-      if (matchErr) throw matchErr
+      // Ambil token
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
 
-      const formatted: TutorOffer[] = (matchData || []).map((m: any) => ({
-        id: m.id,
-        status: m.status,
-        subject: m.subject,
-        created_at: m.created_at,
-        tutor: {
-          id: m.tutors?.id,
-          hourly_rate: m.tutors?.hourly_rate || 0,
-          experience_years: m.tutors?.experience_years || 0,
-          rating: m.tutors?.rating || 0,
-          total_reviews: m.tutors?.total_reviews || 0,
-          specializations: m.tutors?.specializations || [],
-          verified: m.tutors?.verified || false,
-          bio: m.tutors?.user_profiles?.bio || '',
-          name: m.tutors?.user_profiles?.name || 'Tutor',
-          gender: m.tutors?.user_profiles?.gender || '',
+      const res = await fetch(`/api/matches?student_id=${studentId}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Authorization: `Bearer ${token}`,
         },
-      }))
+      })
+      if (!res.ok) throw new Error('Gagal mengambil penawaran')
+      const data = await res.json()
 
-      setOffers(formatted)
-      setError(null)
-    } catch (err) {
-      console.error('Failed to load tutor offers:', err)
-      // Show empty state instead of blocking the page with an error
-      setOffers([])
-      setError('Gagal memuat penawaran. Coba muat ulang halaman.')
+      // Filter hanya yang initiated_by tutor
+      const tutorOffers = data.filter((m: any) => m.initiated_by === 'tutor')
+      if (isMounted.current) {
+        setOffers(tutorOffers)
+        setError(null)
+      }
+    } catch (err: any) {
+      if (isMounted.current) setError(err.message || 'Terjadi kesalahan')
     } finally {
-      setLoading(false)
+      if (isMounted.current) setLoading(false)
     }
   }
 
-  useEffect(() => { fetchOffers() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    isMounted.current = true
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    fetchOffers()
+    return () => { isMounted.current = false }
+  }, [user?.id, authLoading])
 
   const handleAction = async (offerId: string, action: 'accept' | 'reject') => {
-    setActionLoading(offerId)
+    setProcessingId(offerId)
     try {
       const supabase = createClient()
-      const { error: updateErr } = await supabase
-        .from('matches')
-        .update({ status: action === 'accept' ? 'matched' : 'cancelled' })
-        .eq('id', offerId)
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
 
-      if (updateErr) throw updateErr
-      setShowDetail(false)
-      setSelectedOffer(null)
+      const res = await fetch(`/api/matches/${offerId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) throw new Error('Gagal memperbarui status')
+
       await fetchOffers()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Terjadi kesalahan')
+      alert(action === 'accept' ? '✅ Penawaran diterima!' : '✅ Penawaran ditolak.')
+    } catch (err: any) {
+      alert('❌ ' + err.message)
     } finally {
-      setActionLoading(null)
+      setProcessingId(null)
+      setShowConfirmDialog(false)
+      setSelectedOffer(null)
+      setActionType(null)
     }
   }
 
-  if (loading) {
+  const openConfirmDialog = (offer: TutorOffer, action: 'accept' | 'reject') => {
+    setSelectedOffer(offer)
+    setActionType(action)
+    setShowConfirmDialog(true)
+  }
+
+  const handleRefresh = () => {
+    if (!isMounted.current) return
+    fetchOffers()
+  }
+
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
+        <p className="ml-3">Memuat penawaran...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertDescription>❌ {error}</AlertDescription>
+        </Alert>
+        <Button onClick={handleRefresh} className="mt-4">Refresh</Button>
       </div>
     )
   }
 
   const pendingOffers = offers.filter(o => o.status === 'pending')
-  const decidedOffers = offers.filter(o => ['matched', 'accepted', 'rejected', 'cancelled'].includes(o.status))
+  const decidedOffers = offers.filter(o => ['matched', 'active', 'completed', 'cancelled'].includes(o.status))
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Penawaran Tutor</h1>
-        <p className="text-muted-foreground">
-          Tutor yang menawarkan diri untuk mengajar Anda. Tinjau profil dan pilih yang paling sesuai.
-        </p>
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Penawaran Tutor</h1>
+          <p className="text-muted-foreground">Lihat dan kelola penawaran dari tutor.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </Button>
       </div>
-
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Total Penawaran</p>
-          <p className="text-2xl font-bold text-foreground">{offers.length}</p>
+          <p className="text-sm text-muted-foreground">Menunggu Keputusan</p>
+          <p className="text-2xl font-bold text-yellow-600">{pendingOffers.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Menunggu Keputusan</p>
-          <p className="text-2xl font-bold text-yellow-300">{pendingOffers.length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Sudah Diputuskan</p>
-          <p className="text-2xl font-bold text-green-300">{decidedOffers.length}</p>
+          <p className="text-sm text-muted-foreground">Sudah Diputuskan</p>
+          <p className="text-2xl font-bold text-green-600">{decidedOffers.length}</p>
         </Card>
       </div>
-
-      {pendingOffers.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            Menunggu Keputusan Anda ({pendingOffers.length})
-          </h2>
-          <div className="space-y-4">
-            {pendingOffers.map(offer => (
-              <TutorOfferCard
-                key={offer.id}
-                offer={offer}
-                onView={() => { setSelectedOffer(offer); setShowDetail(true) }}
-                onAccept={() => handleAction(offer.id, 'accept')}
-                onReject={() => handleAction(offer.id, 'reject')}
-                actionLoading={actionLoading === offer.id}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {decidedOffers.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-gray-400" />
-            Riwayat Penawaran
-          </h2>
-          <div className="space-y-3">
-            {decidedOffers.map(offer => (
-              <TutorOfferCard
-                key={offer.id}
-                offer={offer}
-                onView={() => { setSelectedOffer(offer); setShowDetail(true) }}
-                actionLoading={false}
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
       {offers.length === 0 && (
         <Card>
-          <CardContent className="py-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <User className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Belum Ada Penawaran Tutor</h3>
-            <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-              Tutor yang sesuai dengan kebutuhan belajar Anda akan muncul di sini setelah deposit Anda dikonfirmasi.
-            </p>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <User className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p>Belum ada penawaran dari tutor.</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Detail Dialog */}
-      <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-w-lg">
+      {/* Pending Offers */}
+      {pendingOffers.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {pendingOffers.map(offer => (
+              <OfferCard
+                key={offer.id}
+                offer={offer}
+                processing={processingId === offer.id}
+                onAccept={() => openConfirmDialog(offer, 'accept')}
+                onReject={() => openConfirmDialog(offer, 'reject')}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Decided Offers */}
+      {decidedOffers.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {decidedOffers.map(offer => (
+              <OfferCard
+                key={offer.id}
+                offer={offer}
+                processing={false}
+                readonly
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Konfirmasi */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Detail Profil Tutor</DialogTitle>
-            <DialogDescription>Tinjau profil lengkap tutor sebelum membuat keputusan</DialogDescription>
+            <DialogTitle>
+              {actionType === 'accept' ? 'Setuju Penawaran' : 'Tolak Penawaran'}
+            </DialogTitle>
+            <DialogDescription>
+              {actionType === 'accept'
+                ? 'Anda akan menyetujui penawaran dari '
+                : 'Anda akan menolak penawaran dari '}
+              <strong>{selectedOffer?.tutor_full_name}</strong>.
+              {actionType === 'accept' && ' Setelah disetujui, Anda dapat mengatur jadwal.'}
+              <br /><br />
+              Apakah Anda yakin?
+            </DialogDescription>
           </DialogHeader>
-          {selectedOffer && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0">
-                  {selectedOffer.tutor.name[0]?.toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-foreground text-lg">{selectedOffer.tutor.name}</h3>
-                    {selectedOffer.tutor.verified && (
-                      <Badge className="bg-green-500 text-white text-xs">✓ Terverifikasi</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOffer.tutor.gender === 'male' ? 'Laki-laki' : selectedOffer.tutor.gender === 'female' ? 'Perempuan' : ''}
-                  </p>
-                  {selectedOffer.tutor.rating > 0 && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span className="text-sm font-semibold">{selectedOffer.tutor.rating.toFixed(1)}</span>
-                      <span className="text-xs text-muted-foreground">({selectedOffer.tutor.total_reviews} ulasan)</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-muted/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Pengalaman</p>
-                  <p className="font-semibold text-foreground">{selectedOffer.tutor.experience_years} tahun</p>
-                </div>
-                <div className="p-3 bg-muted/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Tarif/Jam</p>
-                  <p className="font-semibold text-foreground">
-                    Rp {selectedOffer.tutor.hourly_rate.toLocaleString('id-ID')}
-                  </p>
-                </div>
-              </div>
-
-              {selectedOffer.tutor.specializations?.length > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Spesialisasi</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedOffer.tutor.specializations.map((s: string) => (
-                      <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedOffer.tutor.bio && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Tentang Tutor</p>
-                  <p className="text-sm text-foreground leading-relaxed">{selectedOffer.tutor.bio}</p>
-                </div>
-              )}
-
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs font-semibold text-blue-800">Mata Pelajaran yang Ditawarkan</p>
-                <p className="text-sm text-blue-700 font-medium mt-0.5">{selectedOffer.subject}</p>
-              </div>
-
-              {selectedOffer.status === 'pending' && (
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={actionLoading === selectedOffer.id}
-                    onClick={() => handleAction(selectedOffer.id, 'accept')}
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" /> Setuju dan pilih jadwal
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Batal
+            </Button>
+            <Button
+              variant={actionType === 'accept' ? 'default' : 'destructive'}
+              onClick={() => {
+                if (selectedOffer && actionType) {
+                  handleAction(selectedOffer.id, actionType)
+                }
+              }}
+              disabled={processingId !== null}
+            >
+              {processingId ? <Spinner className="h-4 w-4" /> : (actionType === 'accept' ? 'Ya, Setuju' : 'Ya, Tolak')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
 }
 
-function TutorOfferCard({
-  offer, onView, onAccept, onReject, actionLoading,
+// ====================================================================
+// KOMPONEN CARD
+// ====================================================================
+function OfferCard({
+  offer,
+  processing,
+  onAccept,
+  onReject,
+  readonly = false,
 }: {
   offer: TutorOffer
-  onView: () => void
+  processing: boolean
   onAccept?: () => void
   onReject?: () => void
-  actionLoading: boolean
+  readonly?: boolean
 }) {
-  const statusColor = STATUS_COLORS[offer.status] || STATUS_COLORS.pending
-  const statusLabel = STATUS_LABELS[offer.status] || offer.status
+  const statusMap: Record<string, { label: string; color: string }> = {
+    pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' },
+    matched: { label: 'Disetujui', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+    active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+    completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
+    cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
+  }
+  const status = statusMap[offer.status] || { label: offer.status, color: 'bg-gray-200' }
 
   return (
-    <Card className="hover:shadow-md transition-shadow border-l-4 border-l-primary/30">
+    <Card className="border shadow-sm hover:shadow-md transition-shadow relative">
       <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary flex-shrink-0">
-              {offer.tutor.name[0]?.toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-foreground">{offer.tutor.name}</h3>
-                {offer.tutor.verified && (
-                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">✓ Verified</Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
-                {offer.tutor.rating > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                    {offer.tutor.rating.toFixed(1)} ({offer.tutor.total_reviews})
-                  </span>
-                )}
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Award className="w-3 h-3" />
-                  {offer.tutor.experience_years} thn pengalaman
-                </span>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <BookOpen className="w-3 h-3" />
-                  {offer.subject}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-sm font-semibold text-primary">
-                  Rp {offer.tutor.hourly_rate.toLocaleString('id-ID')}/jam
-                </span>
-                <span className="text-xs text-muted-foreground">·</span>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(offer.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-              </div>
+        {/* Tombol trash (hanya untuk pending) */}
+        {!readonly && offer.status === 'pending' && (
+          <button
+            className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition-colors"
+            onClick={onReject}
+            disabled={processing}
+            title="Tolak penawaran"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Header: Avatar (inisial) + Nama + Status */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+            {offer.tutor_full_name?.charAt(0).toUpperCase() || '?'}
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold">{offer.tutor_full_name || 'Tutor'}</h3>
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {offer.tutor_verified_grade_levels?.map((grade, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                  {grade}
+                </Badge>
+              ))}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <Badge variant="outline" className={`${statusColor} border text-xs`}>
-              {statusLabel}
-            </Badge>
+          <Badge className={`${status.color} text-xs border`}>
+            {status.label}
+          </Badge>
+        </div>
+
+        {/* Detail Tutor */}
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-green-500" />
+            <span className="font-medium">Rp {offer.tutor_hourly_rate?.toLocaleString('id-ID') || 0}/jam</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 text-yellow-500" />
+            <span>{offer.tutor_rating || 0} ({offer.tutor_total_reviews || 0} ulasan)</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Award className="w-4 h-4 text-blue-500 mt-0.5" />
+            <span>{offer.tutor_experience_years || 0} tahun pengalaman</span>
+          </div>
+          {offer.tutor_bio && (
+            <div className="flex items-start gap-2">
+              <BookOpen className="w-4 h-4 text-purple-500 mt-0.5" />
+              <span className="text-muted-foreground line-clamp-2">{offer.tutor_bio}</span>
+            </div>
+          )}
+          <div className="flex items-start gap-2">
+            <BookOpen className="w-4 h-4 text-indigo-500 mt-0.5" />
+            <span>
+              <span className="font-medium">Mapel:</span> {offer.matched_subjects?.join(', ') || offer.subject}
+            </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Clock className="w-4 h-4 text-orange-500 mt-0.5" />
+            <span>Frekuensi: {offer.lesson_frequency || 'flexible'}</span>
           </div>
         </div>
 
-        <div className="flex gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={onView}>
-            Lihat Profil
-          </Button>
-          {offer.status === 'pending' && onAccept && (
+        {/* Tombol Aksi (hanya untuk pending) */}
+        {!readonly && offer.status === 'pending' && (
+          <div className="mt-4">
             <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="w-full bg-green-600 hover:bg-green-700 text-white gap-1.5"
               onClick={onAccept}
-              disabled={actionLoading}
+              disabled={processing}
             >
-              {actionLoading ? (
-                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
-              ) : (
-                <CheckCircle className="w-3 h-3 mr-1" />
-              )}
-              Setuju dan pilih jadwal
+              {processing ? <Spinner className="h-3.5 w-3.5" /> : <CheckCircle className="w-4 h-4" />}
+              Setuju & Atur Jadwal
             </Button>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Jika sudah matched, tampilkan pesan dan tombol "Atur Jadwal" (disabled) */}
+        {offer.status === 'matched' && (
+          <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
+            <p className="text-xs font-medium text-green-700">
+              ✓ Penawaran telah disetujui. Silakan atur jadwal dengan tutor.
+            </p>
+            <Button size="sm" variant="outline" className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8" disabled>
+              Atur Jadwal (belum aktif)
+            </Button>
+          </div>
+        )}
+        {offer.status === 'cancelled' && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
+            ✗ Penawaran ditolak.
+          </div>
+        )}
       </CardContent>
     </Card>
   )
