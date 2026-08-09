@@ -26,9 +26,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useAuth } from '@/lib/auth-context'
 
-interface TutorOffer {
+// ============================================================
+// INTERFACE
+// ============================================================
+interface Match {
   id: string
   tutor_id: string
   student_id: string
@@ -50,74 +52,97 @@ interface TutorOffer {
 }
 
 export default function TutorOffersPage() {
-  const { user, loading: authLoading } = useAuth()
-  const [offers, setOffers] = useState<TutorOffer[]>([])
+  const [offers, setOffers] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [selectedOffer, setSelectedOffer] = useState<TutorOffer | null>(null)
+  const [selectedOffer, setSelectedOffer] = useState<Match | null>(null)
   const [actionType, setActionType] = useState<'accept' | 'reject' | null>(null)
 
   const isMounted = useRef(true)
+  const fetchDone = useRef(false)
 
   const fetchOffers = async () => {
-    if (!user) return
-    try {
-      setLoading(true)
-      setError(null)
+    if (fetchDone.current) return
+    fetchDone.current = true
 
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('[TutorOffers] Fetching...')
       const supabase = createClient()
-      // Ambil student_id
-      const { data: studentData, error: studentErr } = await supabase
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        setOffers([])
+        return
+      }
+
+      // 1. Dapatkan student_id
+      const { data: student, error: studentErr } = await supabase
         .from('students')
         .select('id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (studentErr || !studentData) {
-        throw new Error('Data siswa tidak ditemukan')
+      if (studentErr) {
+        console.error('[TutorOffers] Student error:', studentErr)
+        throw studentErr
       }
 
-      const studentId = studentData.id
+      if (!student) {
+        setOffers([])
+        return
+      }
 
-      // Ambil token
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
+      // 2. Ambil semua match untuk student ini, hanya yang initiated_by = 'tutor'
+      const { data, error: matchErr } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('student_id', student.id)
+        .eq('initiated_by', 'tutor')
+        .order('created_at', { ascending: false })
 
-      const res = await fetch(`/api/matches?student_id=${studentId}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (!res.ok) throw new Error('Gagal mengambil penawaran')
-      const data = await res.json()
+      if (matchErr) {
+        console.error('[TutorOffers] Match error:', matchErr)
+        throw matchErr
+      }
 
-      // Filter hanya yang initiated_by tutor
-      const tutorOffers = data.filter((m: any) => m.initiated_by === 'tutor')
       if (isMounted.current) {
-        setOffers(tutorOffers)
+        setOffers(data || [])
         setError(null)
+        console.log('[TutorOffers] Loaded:', data?.length)
       }
     } catch (err: any) {
-      if (isMounted.current) setError(err.message || 'Terjadi kesalahan')
+      console.error('[TutorOffers] Error:', err)
+      if (isMounted.current) {
+        setError(err.message || 'Gagal memuat penawaran')
+        setOffers([])
+      }
     } finally {
-      if (isMounted.current) setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+        console.log('[TutorOffers] Done')
+      }
     }
   }
 
   useEffect(() => {
     isMounted.current = true
-    if (authLoading) return
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    fetchDone.current = false
     fetchOffers()
-    return () => { isMounted.current = false }
-  }, [user?.id, authLoading])
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  const handleRefresh = () => {
+    if (!isMounted.current) return
+    fetchDone.current = false
+    fetchOffers()
+  }
 
   const handleAction = async (offerId: string, action: 'accept' | 'reject') => {
     setProcessingId(offerId)
@@ -134,8 +159,12 @@ export default function TutorOffersPage() {
         },
         body: JSON.stringify({ action }),
       })
-      if (!res.ok) throw new Error('Gagal memperbarui status')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Gagal memperbarui status')
+      }
 
+      fetchDone.current = false
       await fetchOffers()
       alert(action === 'accept' ? '✅ Penawaran diterima!' : '✅ Penawaran ditolak.')
     } catch (err: any) {
@@ -148,27 +177,22 @@ export default function TutorOffersPage() {
     }
   }
 
-  const openConfirmDialog = (offer: TutorOffer, action: 'accept' | 'reject') => {
+  const openConfirmDialog = (offer: Match, action: 'accept' | 'reject') => {
     setSelectedOffer(offer)
     setActionType(action)
     setShowConfirmDialog(true)
   }
 
-  const handleRefresh = () => {
-    if (!isMounted.current) return
-    fetchOffers()
-  }
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3">Memuat penawaran...</p>
+        <p className="mt-3 text-sm text-muted-foreground">Memuat penawaran...</p>
       </div>
     )
   }
 
-  if (error) {
+  if (error && offers.length === 0) {
     return (
       <div className="max-w-6xl mx-auto p-4">
         <Alert variant="destructive">
@@ -195,7 +219,6 @@ export default function TutorOffersPage() {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Menunggu Keputusan</p>
@@ -216,7 +239,6 @@ export default function TutorOffersPage() {
         </Card>
       )}
 
-      {/* Pending Offers */}
       {pendingOffers.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
@@ -234,7 +256,6 @@ export default function TutorOffersPage() {
         </div>
       )}
 
-      {/* Decided Offers */}
       {decidedOffers.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
@@ -251,7 +272,6 @@ export default function TutorOffersPage() {
         </div>
       )}
 
-      {/* Dialog Konfirmasi */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
@@ -290,9 +310,9 @@ export default function TutorOffersPage() {
   )
 }
 
-// ====================================================================
-// KOMPONEN CARD
-// ====================================================================
+// ============================================================
+// OfferCard
+// ============================================================
 function OfferCard({
   offer,
   processing,
@@ -300,7 +320,7 @@ function OfferCard({
   onReject,
   readonly = false,
 }: {
-  offer: TutorOffer
+  offer: Match
   processing: boolean
   onAccept?: () => void
   onReject?: () => void
@@ -318,7 +338,6 @@ function OfferCard({
   return (
     <Card className="border shadow-sm hover:shadow-md transition-shadow relative">
       <CardContent className="p-5">
-        {/* Tombol trash (hanya untuk pending) */}
         {!readonly && offer.status === 'pending' && (
           <button
             className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition-colors"
@@ -330,7 +349,6 @@ function OfferCard({
           </button>
         )}
 
-        {/* Header: Avatar (inisial) + Nama + Status */}
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
             {offer.tutor_full_name?.charAt(0).toUpperCase() || '?'}
@@ -350,7 +368,6 @@ function OfferCard({
           </Badge>
         </div>
 
-        {/* Detail Tutor */}
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-green-500" />
@@ -382,7 +399,6 @@ function OfferCard({
           </div>
         </div>
 
-        {/* Tombol Aksi (hanya untuk pending) */}
         {!readonly && offer.status === 'pending' && (
           <div className="mt-4">
             <Button
@@ -396,7 +412,6 @@ function OfferCard({
           </div>
         )}
 
-        {/* Jika sudah matched, tampilkan pesan dan tombol "Atur Jadwal" (disabled) */}
         {offer.status === 'matched' && (
           <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
             <p className="text-xs font-medium text-green-700">
