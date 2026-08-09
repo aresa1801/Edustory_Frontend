@@ -134,7 +134,6 @@ export async function POST(request: NextRequest) {
         // Statis student
         student_full_name: student.name,
         student_grade: student.grade_level,
-        student_subjects: student.subjects,
         student_budget_per_month: student.budget_per_month,
         student_sessions_per_month: student.sessions_per_month,
         student_schedule: student.preferred_schedule,
