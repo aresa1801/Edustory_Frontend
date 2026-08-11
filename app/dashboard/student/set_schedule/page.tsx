@@ -10,14 +10,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
 
-// ---------- KONFIGURASI JAM (DUMMY, nanti dari student_schedule) ----------
+// ---------- KONFIGURASI JAM ----------
 const TIME_SLOTS = [
   { label: '12.00 - 13.00', start: 12, end: 13 },
   { label: '13.00 - 14.00', start: 13, end: 14 },
   { label: '14.00 - 15.00', start: 14, end: 15 },
 ]
 
-// Fungsi untuk menghasilkan tanggal dalam bulan tertentu
 const getDatesInMonth = (year: number, month: number) => {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
@@ -42,23 +41,35 @@ function SetScheduleContent() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
 
-  // Tanggal dummy (Agustus 2026) - nanti dari student_schedule
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // 1. FETCH DATA MATCH
+  // FETCH DATA MATCH
   useEffect(() => {
+    console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
+
     if (!matchId) {
       setError('Tidak ada ID match. Silakan buka melalui tombol "Atur Jadwal".')
       setLoadingMatch(false)
       return
     }
 
+    if (!user) {
+      console.log('[set_schedule] User not logged in, skip fetch')
+      setError('Silakan login terlebih dahulu.')
+      setLoadingMatch(false)
+      return
+    }
+
     const fetchMatch = async () => {
+      console.log('[set_schedule] fetchMatch mulai')
       setLoadingMatch(true)
       setError(null)
       try {
+        console.log('[set_schedule] createClient...')
         const supabase = createClient()
+        console.log('[set_schedule] client created, querying matches...')
+
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
@@ -91,48 +102,60 @@ function SetScheduleContent() {
           .eq('id', matchId)
           .single()
 
-        if (matchErr) throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
+        console.log('[set_schedule] query done, match =', match ? 'found' : 'null', 'error =', matchErr)
+
+        if (matchErr) {
+          console.error('[set_schedule] Supabase error:', matchErr)
+          throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
+        }
+
+        if (!match) {
+          throw new Error('Data match tidak ditemukan.')
+        }
 
         setMatchData(match)
 
-        // Inisialisasi selectedSubjects dari matched_subjects atau subject
+        // Inisialisasi selectedSubjects
         if (match.matched_subjects && match.matched_subjects.length > 0) {
           setSelectedSubjects(match.matched_subjects.slice(0, 2))
         } else if (match.subject) {
           setSelectedSubjects([match.subject])
         }
+        console.log('[set_schedule] selectedSubjects =', selectedSubjects)
+
       } catch (err: any) {
+        console.error('[set_schedule] ERROR:', err)
         setError(err.message || 'Terjadi kesalahan')
       } finally {
+        console.log('[set_schedule] finally, set loading false')
         setLoadingMatch(false)
       }
     }
 
     fetchMatch()
-  }, [matchId])
+  }, [matchId, user]) // tambahkan user sebagai dependency
 
-  // 2. FUNGSI TOGGLE PILIHAN MATA PELAJARAN (MAKS 2)
+  // ... (toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary) tetap sama
+
+  // Fungsi toggle pilihan mata pelajaran (maks 2)
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
       if (index !== -1) {
-        // Jika sudah dipilih, hapus
         return prev.filter(s => s !== subject)
       } else {
-        // Jika belum dan masih kurang dari 2, tambahkan
         if (prev.length >= 2) return prev
         return [...prev, subject]
       }
     })
   }
 
-  // 3. FUNGSI KLIK SLOT KALENDER
+  // Fungsi klik slot kalender
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const currentSubject = schedule[key]
 
     if (currentSubject) {
-      // HAPUS: jika slot sudah terisi, hapus dan semua mirror-nya
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const dayOfWeek = date.getDay()
@@ -146,19 +169,14 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
-      // ISI: jika slot kosong
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran terlebih dahulu!')
         return
       }
-
-      // Hitung jumlah slot per subjek untuk menjaga keseimbangan
       const subjectCounts: Record<string, number> = {}
       Object.values(schedule).forEach(subj => {
         subjectCounts[subj] = (subjectCounts[subj] || 0) + 1
       })
-
-      // Pilih subjek dengan jumlah paling sedikit
       let selectedSubject = selectedSubjects[0]
       if (selectedSubjects.length > 1) {
         let minCount = Infinity
@@ -170,11 +188,7 @@ function SetScheduleContent() {
           }
         }
       }
-
-      // Isi slot utama
       const newSchedule = { ...schedule, [key]: selectedSubject }
-
-      // MIRROR: isi semua tanggal dengan hari yang sama
       const dayOfWeek = date.getDay()
       dates.forEach(d => {
         if (d.getDay() === dayOfWeek) {
@@ -184,31 +198,26 @@ function SetScheduleContent() {
           }
         }
       })
-
       setSchedule(newSchedule)
     }
   }
 
-  // Helper: cek apakah slot terisi
   const isSlotFilled = (date: Date, timeSlotLabel: string): boolean => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     return !!schedule[key]
   }
 
-  // Helper: ambil subjek di slot
   const getSlotSubject = (date: Date, timeSlotLabel: string): string | null => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     return schedule[key] || null
   }
 
-  // 4. RINGKASAN JADWAL
+  // Ringkasan jadwal
   const generateSummary = () => {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
       return <p className="text-muted-foreground">Belum ada jadwal dipilih.</p>
     }
-
-    // Kelompokkan berdasarkan: subjek + hari + jam
     const grouped: Record<string, { subject: string; day: string; time: string; count: number }> = {}
     entries.forEach(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|')
@@ -220,7 +229,6 @@ function SetScheduleContent() {
       }
       grouped[groupKey].count += 1
     })
-
     return (
       <ul className="space-y-1">
         {Object.values(grouped).map((item, idx) => (
@@ -234,11 +242,13 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
+  console.log('[set_schedule] render, authLoading =', authLoading, 'loadingMatch =', loadingMatch, 'error =', error)
+
   if (authLoading || loadingMatch) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3">Memuat data jadwal...</p>
+        <p className="ml-3">{authLoading ? 'Memuat sesi...' : 'Memuat data jadwal...'}</p>
       </div>
     )
   }
@@ -376,7 +386,7 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan (nanti) */}
+      {/* Tombol Simpan */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
