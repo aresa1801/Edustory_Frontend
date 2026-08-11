@@ -113,12 +113,13 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
+  // ========== PERBAIKAN UTAMA DI SINI ==========
   const handleSchedule = async (offer: Match) => {
     setProcessingId(offer.id)
-    try {
-      console.log('[handleSchedule] offer:', offer.id, offer.status)
+    console.log('[handleSchedule] START for offer:', offer.id, 'status:', offer.status)
 
-      // Jika masih pending, kita setujui dulu
+    try {
+      // Jika masih pending, setujui dulu
       if (offer.status === 'pending') {
         console.log('[handleSchedule] accepting offer...')
         const { createClient } = await import('@/lib/auth')
@@ -136,20 +137,35 @@ export default function TutorOffersPage() {
         })
         if (!res.ok) {
           const errText = await res.text()
-          throw new Error(`Gagal menyetujui: ${res.status} ${errText}`)
+          throw new Error(`Gagal menyetujui (${res.status}): ${errText}`)
         }
         console.log('[handleSchedule] accept success')
+      } else {
+        console.log('[handleSchedule] offer already accepted, skip API call')
       }
 
-      // Redirect ke halaman set schedule
-      console.log('[handleSchedule] redirecting to /dashboard/student/set_schedule?matchId=' + offer.id)
-      router.push(`/dashboard/student/set_schedule?matchId=${offer.id}`)
+      // Redirect ke halaman set_schedule
+      const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
+      console.log('[handleSchedule] redirecting to:', redirectUrl)
+
+      // Gunakan window.location.href sebagai fallback jika router.push bermasalah
+      try {
+        await router.push(redirectUrl)
+        console.log('[handleSchedule] router.push executed')
+      } catch (navErr) {
+        console.warn('[handleSchedule] router.push error, using window.location:', navErr)
+        window.location.href = redirectUrl
+      }
     } catch (err: any) {
-      console.error('[handleSchedule] error:', err)
+      console.error('[handleSchedule] ERROR:', err)
       alert('❌ ' + err.message)
-      setProcessingId(null) // reset agar tombol tidak meredup
+    } finally {
+      // Pastikan processingId di-reset agar tombol kembali aktif
+      setProcessingId(null)
+      console.log('[handleSchedule] FINALLY, processingId reset')
     }
   }
+  // ========== END PERBAIKAN ==========
 
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
