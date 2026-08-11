@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth' // ← IMPORT STATIS
 import {
   DollarSign,
   Star,
@@ -112,61 +111,33 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  // ========== PERBAIKAN: PAKAI SUPABASE LANGSUNG ==========
-  const handleSchedule = async (offer: Match) => {
-    console.log('>>> [handleSchedule] START, offer.id =', offer.id, 'status =', offer.status)
-    setProcessingId(offer.id)
-
-    try {
-      // Jika masih pending, setujui dulu dengan Supabase langsung
-      if (offer.status === 'pending') {
-        console.log('>>> [handleSchedule] accepting offer via Supabase...')
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('>>> [handleSchedule] session:', session ? 'OK' : 'NO')
-
-        if (!session) {
-          throw new Error('Sesi tidak ditemukan. Silakan login ulang.')
-        }
-
-        // Update status match langsung di Supabase
-        const { error: updateError } = await supabase
-          .from('matches')
-          .update({ status: 'matched' })
-          .eq('id', offer.id)
-
-        if (updateError) {
-          console.error('>>> [handleSchedule] update error:', updateError)
-          throw new Error(`Gagal menyetujui: ${updateError.message}`)
-        }
-        console.log('>>> [handleSchedule] accept success')
-      }
-
-      // Redirect ke halaman set_schedule
-      const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
-      console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
-      window.location.replace(redirectUrl)
-    } catch (err: any) {
-      console.error('>>> [handleSchedule] ERROR:', err)
-      alert('❌ ' + err.message)
-      setProcessingId(null)
-    }
+  // ============ PALING SEDERHANA, LANGSUNG REDIRECT ============
+  const handleSchedule = (offer: Match) => {
+    console.log('>>> handleSchedule, offer.id =', offer.id)
+    // Langsung redirect tanpa await apapun
+    const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
+    console.log('>>> redirecting to:', url)
+    window.location.href = url
   }
-  // ========== AKHIR PERBAIKAN ==========
+  // =============================================================
 
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
     try {
+      const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Sesi tidak ditemukan.')
+      const token = session?.access_token || ''
 
-      const { error } = await supabase
-        .from('matches')
-        .update({ status: 'cancelled' })
-        .eq('id', offerId)
-
-      if (error) throw new Error(`Gagal menolak: ${error.message}`)
+      const res = await fetch(`/api/matches/${offerId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'reject' }),
+      })
+      if (!res.ok) throw new Error('Gagal menolak penawaran')
 
       fetchDone.current = false
       await fetchData()
@@ -316,7 +287,7 @@ export default function TutorOffersPage() {
   )
 }
 
-// ========== KOMPONEN OfferCard (sama seperti sebelumnya) ==========
+// ========== KOMPONEN OfferCard ==========
 function OfferCard({
   offer,
   processing,
@@ -397,7 +368,7 @@ function OfferCard({
             <Button
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
               onClick={() => {
-                console.log('>>> [Tombol] diklik untuk offer:', offer.id)
+                console.log('>>> Tombol diklik, offer.id =', offer.id)
                 if (onSchedule) onSchedule()
               }}
               disabled={processing}
