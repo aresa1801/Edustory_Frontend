@@ -147,6 +147,7 @@ export default function TutorOffersPage() {
       // Redirect ke halaman set_schedule
       const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
       console.log('[handleSchedule] redirecting to:', redirectUrl)
+      window.location.href = redirectUrl
 
       // Gunakan window.location.href sebagai fallback jika router.push bermasalah
       try {
