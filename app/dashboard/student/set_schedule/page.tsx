@@ -1,3 +1,4 @@
+// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
@@ -72,70 +73,28 @@ function SetScheduleContent() {
         console.log('[set_schedule] Mencari student_id untuk user:', user.id)
         const { data: studentData, error: studentErr } = await supabase
           .from('students')
-          .select('id, user_id')
+          .select('id')
           .eq('user_id', user.id)
           .maybeSingle()
 
-        console.log('[set_schedule] Hasil query students:', studentData)
+        console.log('[set_schedule] studentData:', studentData)
+        console.log('[set_schedule] studentErr:', studentErr)
+
         if (studentErr) {
           console.error('[set_schedule] Error query students:', studentErr)
+          throw new Error(`Gagal mengambil data student: ${studentErr.message}`)
         }
 
+        // Jika tidak ada student untuk user ini, tampilkan error
         if (!studentData) {
-          // Jika tidak ada students untuk user ini, coba cari student_id dari match langsung (tanpa filter student_id)
-          console.log('[set_schedule] Tidak ada student untuk user ini. Coba ambil match langsung (tanpa filter student_id)')
-          const { data: matchRaw, error: matchRawErr } = await supabase
-            .from('matches')
-            .select(`
-              id,
-              subject,
-              matched_subjects,
-              status,
-              lesson_frequency,
-              start_date,
-              tutor_id,
-              student_id,
-              tutors:tutor_id (
-                id,
-                hourly_rate,
-                user_id,
-                user_profiles:user_id (
-                  full_name,
-                  avatar_url
-                )
-              ),
-              students:student_id (
-                id,
-                grade_level,
-                user_id,
-                user_profiles:user_id (
-                  full_name
-                )
-              )
-            `)
-            .eq('id', matchId)
-            .maybeSingle()
-
-          console.log('[set_schedule] matchRaw:', matchRaw ? 'found' : 'null', 'error:', matchRawErr)
-          if (matchRawErr) throw new Error(`Gagal mengambil match: ${matchRawErr.message}`)
-          if (!matchRaw) throw new Error('Match tidak ditemukan')
-          
-          setMatchData(matchRaw)
-          // Inisialisasi selectedSubjects
-          if (matchRaw.matched_subjects && matchRaw.matched_subjects.length > 0) {
-            setSelectedSubjects(matchRaw.matched_subjects.slice(0, 2))
-          } else if (matchRaw.subject) {
-            setSelectedSubjects([matchRaw.subject])
-          }
-          console.log('[set_schedule] selectedSubjects =', selectedSubjects)
-          return
+          throw new Error('User ini tidak terdaftar sebagai student. Pastikan Anda memiliki role student dan data students.')
         }
 
         const studentId = studentData.id
         console.log('[set_schedule] student_id ditemukan:', studentId)
 
-        // 2. Ambil match dengan filter student_id
-        console.log('[set_schedule] Query match dengan student_id:', studentId)
+        // 2. Ambil match dengan filter student_id dan matchId
+        console.log('[set_schedule] Query match dengan student_id:', studentId, 'matchId:', matchId)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
@@ -169,7 +128,8 @@ function SetScheduleContent() {
           .eq('student_id', studentId)
           .maybeSingle()
 
-        console.log('[set_schedule] match query result:', match ? 'found' : 'null', 'error:', matchErr)
+        console.log('[set_schedule] match query result:', match ? 'found' : 'null')
+        console.log('[set_schedule] matchErr:', matchErr)
 
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
@@ -204,7 +164,7 @@ function SetScheduleContent() {
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi-fungsi lainnya (toggleSubject, handleSlotClick, dll) ---
+  // --- Fungsi toggle pilihan mata pelajaran (maks 2) ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -217,11 +177,13 @@ function SetScheduleContent() {
     })
   }
 
+  // --- Fungsi klik slot kalender ---
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const currentSubject = schedule[key]
 
     if (currentSubject) {
+      // Hapus
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const dayOfWeek = date.getDay()
@@ -235,6 +197,7 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
+      // Isi
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran terlebih dahulu!')
         return
@@ -268,6 +231,7 @@ function SetScheduleContent() {
     }
   }
 
+  // Helper: cek slot terisi
   const isSlotFilled = (date: Date, timeSlotLabel: string): boolean => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     return !!schedule[key]
@@ -278,6 +242,7 @@ function SetScheduleContent() {
     return schedule[key] || null
   }
 
+  // Ringkasan
   const generateSummary = () => {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
@@ -450,7 +415,7 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan */}
+      {/* Tombol Simpan (placeholder) */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
