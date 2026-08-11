@@ -113,12 +113,14 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  // Handler untuk tombol "Setuju & Atur Jadwal"
   const handleSchedule = async (offer: Match) => {
     setProcessingId(offer.id)
     try {
-      // Jika status masih pending, kita setujui dulu
+      console.log('[handleSchedule] offer:', offer.id, offer.status)
+
+      // Jika masih pending, kita setujui dulu
       if (offer.status === 'pending') {
+        console.log('[handleSchedule] accepting offer...')
         const { createClient } = await import('@/lib/auth')
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
@@ -132,15 +134,20 @@ export default function TutorOffersPage() {
           },
           body: JSON.stringify({ action: 'accept' }),
         })
-        if (!res.ok) throw new Error('Gagal menyetujui penawaran')
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Gagal menyetujui: ${res.status} ${errText}`)
+        }
+        console.log('[handleSchedule] accept success')
       }
 
-      // Redirect ke halaman set schedule dengan membawa matchId
+      // Redirect ke halaman set schedule
+      console.log('[handleSchedule] redirecting to /dashboard/student/set_schedule?matchId=' + offer.id)
       router.push(`/dashboard/student/set_schedule?matchId=${offer.id}`)
     } catch (err: any) {
+      console.error('[handleSchedule] error:', err)
       alert('❌ ' + err.message)
-    } finally {
-      setProcessingId(null)
+      setProcessingId(null) // reset agar tombol tidak meredup
     }
   }
 
@@ -420,7 +427,7 @@ function OfferCard({
               variant="outline"
               className="border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
               onClick={onSchedule}
-              disabled={!onSchedule}
+              disabled={!onSchedule || processing}
             >
               <Calendar className="w-3.5 h-3.5 mr-1" />
               Atur Jadwal
@@ -442,7 +449,7 @@ function OfferCard({
               variant="outline"
               className="border-blue-300 text-blue-700 hover:bg-blue-100 text-xs h-8"
               onClick={onSchedule}
-              disabled={!onSchedule}
+              disabled={!onSchedule || processing}
             >
               <Calendar className="w-3.5 h-3.5 mr-1" />
               Atur Jadwal
