@@ -43,7 +43,7 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // FETCH DATA MATCH PAKAI SUPABASE CLIENT (langsung, tanpa API)
+  // FETCH DATA MATCH
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
 
@@ -54,20 +54,39 @@ function SetScheduleContent() {
     }
 
     if (!user) {
-      console.log('[set_schedule] User not logged in, skip fetch')
       setError('Silakan login terlebih dahulu.')
       setLoadingMatch(false)
       return
     }
 
     const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai (pakai Supabase client)')
+      console.log('[set_schedule] fetchMatch mulai')
       setLoadingMatch(true)
       setError(null)
+
       try {
         const supabase = createClient()
-        console.log('[set_schedule] Supabase client created, querying...')
+        console.log('[set_schedule] Supabase client created')
 
+        // 1. Cari student_id dari user yang login
+        console.log('[set_schedule] mencari student_id untuk user:', user.id)
+        const { data: studentData, error: studentErr } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        console.log('[set_schedule] studentData:', studentData, 'error:', studentErr)
+
+        if (studentErr || !studentData) {
+          throw new Error('Data siswa tidak ditemukan. Pastikan Anda adalah student.')
+        }
+
+        const studentId = studentData.id
+        console.log('[set_schedule] student_id ditemukan:', studentId)
+
+        // 2. Ambil match dengan filter student_id dan matchId
+        console.log('[set_schedule] querying matches dengan student_id dan matchId')
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
@@ -98,9 +117,10 @@ function SetScheduleContent() {
             )
           `)
           .eq('id', matchId)
-          .single()
+          .eq('student_id', studentId)
+          .maybeSingle()
 
-        console.log('[set_schedule] Supabase response:', match ? 'match found' : 'null', 'error:', matchErr)
+        console.log('[set_schedule] match query result:', match ? 'found' : 'null', 'error:', matchErr)
 
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
@@ -108,7 +128,7 @@ function SetScheduleContent() {
         }
 
         if (!match) {
-          throw new Error('Data match tidak ditemukan.')
+          throw new Error('Data match tidak ditemukan atau Anda tidak memiliki akses.')
         }
 
         setMatchData(match)
@@ -130,7 +150,6 @@ function SetScheduleContent() {
       }
     }
 
-    // Tunggu auth selesai baru fetch
     if (!authLoading) {
       fetchMatch()
     }
