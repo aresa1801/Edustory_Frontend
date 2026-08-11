@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 
 // ---------- KONFIGURASI JAM ----------
 const TIME_SLOTS = [
@@ -37,105 +36,67 @@ function SetScheduleContent() {
   const [loadingMatch, setLoadingMatch] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // State untuk pilihan mata pelajaran dan jadwal
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
 
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // FETCH DATA MATCH
+  // FETCH DATA MATCH via API (lebih aman)
   useEffect(() => {
-    console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
+    console.log('[set_schedule] useEffect, matchId =', matchId)
 
     if (!matchId) {
-      setError('Tidak ada ID match. Silakan buka melalui tombol "Atur Jadwal".')
+      setError('Tidak ada ID match.')
       setLoadingMatch(false)
       return
     }
 
     if (!user) {
-      console.log('[set_schedule] User not logged in, skip fetch')
       setError('Silakan login terlebih dahulu.')
       setLoadingMatch(false)
       return
     }
 
     const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai')
+      console.log('[set_schedule] fetchMatch via API')
       setLoadingMatch(true)
       setError(null)
       try {
-        console.log('[set_schedule] createClient...')
-        const supabase = createClient()
-        console.log('[set_schedule] client created, querying matches...')
+        const res = await fetch(`/api/matches/${matchId}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
 
-        const { data: match, error: matchErr } = await supabase
-          .from('matches')
-          .select(`
-            id,
-            subject,
-            matched_subjects,
-            status,
-            lesson_frequency,
-            start_date,
-            tutor_id,
-            student_id,
-            tutors:tutor_id (
-              id,
-              hourly_rate,
-              user_id,
-              user_profiles:user_id (
-                full_name,
-                avatar_url
-              )
-            ),
-            students:student_id (
-              id,
-              grade_level,
-              user_id,
-              user_profiles:user_id (
-                full_name
-              )
-            )
-          `)
-          .eq('id', matchId)
-          .single()
+        console.log('[set_schedule] API response status:', res.status)
 
-        console.log('[set_schedule] query done, match =', match ? 'found' : 'null', 'error =', matchErr)
-
-        if (matchErr) {
-          console.error('[set_schedule] Supabase error:', matchErr)
-          throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Gagal mengambil data match (${res.status}): ${errText}`)
         }
 
-        if (!match) {
-          throw new Error('Data match tidak ditemukan.')
-        }
-
-        setMatchData(match)
+        const data = await res.json()
+        console.log('[set_schedule] data match:', data ? 'OK' : 'null')
+        setMatchData(data)
 
         // Inisialisasi selectedSubjects
-        if (match.matched_subjects && match.matched_subjects.length > 0) {
-          setSelectedSubjects(match.matched_subjects.slice(0, 2))
-        } else if (match.subject) {
-          setSelectedSubjects([match.subject])
+        if (data.matched_subjects && data.matched_subjects.length > 0) {
+          setSelectedSubjects(data.matched_subjects.slice(0, 2))
+        } else if (data.subject) {
+          setSelectedSubjects([data.subject])
         }
-        console.log('[set_schedule] selectedSubjects =', selectedSubjects)
-
       } catch (err: any) {
         console.error('[set_schedule] ERROR:', err)
         setError(err.message || 'Terjadi kesalahan')
       } finally {
-        console.log('[set_schedule] finally, set loading false')
         setLoadingMatch(false)
       }
     }
 
     fetchMatch()
-  }, [matchId, user]) // tambahkan user sebagai dependency
+  }, [matchId, user])
 
-  // ... (toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary) tetap sama
+  // ... (fungsi toggleSubject, handleSlotClick, dll sama seperti sebelumnya)
 
   // Fungsi toggle pilihan mata pelajaran (maks 2)
   const toggleSubject = (subject: string) => {
@@ -242,8 +203,6 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, authLoading =', authLoading, 'loadingMatch =', loadingMatch, 'error =', error)
-
   if (authLoading || loadingMatch) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -282,12 +241,14 @@ function SetScheduleContent() {
       ? matchData.matched_subjects
       : [matchData.subject].filter(Boolean)
 
+  const tutorName = matchData.tutors?.user_profiles?.full_name || 'tutor'
+
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
       <p className="text-muted-foreground">
         Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-        <span className="font-medium">{matchData.tutors?.user_profiles?.full_name || 'tutor'}</span>.
+        <span className="font-medium">{tutorName}</span>.
       </p>
 
       {/* Pilihan Mata Pelajaran */}
@@ -321,12 +282,8 @@ function SetScheduleContent() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>
-              ←
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              →
-            </Button>
+            <Button variant="outline" size="sm" disabled>←</Button>
+            <Button variant="outline" size="sm" disabled>→</Button>
           </div>
         </CardHeader>
         <CardContent>
