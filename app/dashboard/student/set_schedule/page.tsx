@@ -1,4 +1,3 @@
-// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
@@ -44,7 +43,7 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // FETCH DATA MATCH
+  // FETCH DATA MATCH - LANGSUNG AMBIL MATCH TANPA FILTER STUDENT_ID
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
 
@@ -69,32 +68,8 @@ function SetScheduleContent() {
         const supabase = createClient()
         console.log('[set_schedule] Supabase client created')
 
-        // 1. Cari student_id dari user yang login
-        console.log('[set_schedule] Mencari student_id untuk user:', user.id)
-        const { data: studentData, error: studentErr } = await supabase
-          .from('students')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        console.log('[set_schedule] studentData:', studentData)
-        console.log('[set_schedule] studentErr:', studentErr)
-
-        if (studentErr) {
-          console.error('[set_schedule] Error query students:', studentErr)
-          throw new Error(`Gagal mengambil data student: ${studentErr.message}`)
-        }
-
-        // Jika tidak ada student untuk user ini, tampilkan error
-        if (!studentData) {
-          throw new Error('User ini tidak terdaftar sebagai student. Pastikan Anda memiliki role student dan data students.')
-        }
-
-        const studentId = studentData.id
-        console.log('[set_schedule] student_id ditemukan:', studentId)
-
-        // 2. Ambil match dengan filter student_id dan matchId
-        console.log('[set_schedule] Query match dengan student_id:', studentId, 'matchId:', matchId)
+        // Langsung ambil match berdasarkan matchId, RLS akan mengecek akses
+        console.log('[set_schedule] Query match dengan matchId:', matchId)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
@@ -125,7 +100,6 @@ function SetScheduleContent() {
             )
           `)
           .eq('id', matchId)
-          .eq('student_id', studentId)
           .maybeSingle()
 
         console.log('[set_schedule] match query result:', match ? 'found' : 'null')
@@ -133,11 +107,15 @@ function SetScheduleContent() {
 
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
+          // Jika error 403/404, beri pesan yang sesuai
+          if (matchErr.code === 'PGRST116') {
+            throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
+          }
           throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
         }
 
         if (!match) {
-          throw new Error('Data match tidak ditemukan atau Anda tidak memiliki akses.')
+          throw new Error('Data match tidak ditemukan.')
         }
 
         setMatchData(match)
@@ -164,7 +142,8 @@ function SetScheduleContent() {
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi toggle pilihan mata pelajaran (maks 2) ---
+  // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
+  // (sama seperti sebelumnya, tidak perlu diubah)
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -177,13 +156,11 @@ function SetScheduleContent() {
     })
   }
 
-  // --- Fungsi klik slot kalender ---
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const currentSubject = schedule[key]
 
     if (currentSubject) {
-      // Hapus
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const dayOfWeek = date.getDay()
@@ -197,7 +174,6 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
-      // Isi
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran terlebih dahulu!')
         return
@@ -231,7 +207,6 @@ function SetScheduleContent() {
     }
   }
 
-  // Helper: cek slot terisi
   const isSlotFilled = (date: Date, timeSlotLabel: string): boolean => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     return !!schedule[key]
@@ -242,7 +217,6 @@ function SetScheduleContent() {
     return schedule[key] || null
   }
 
-  // Ringkasan
   const generateSummary = () => {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
@@ -415,7 +389,7 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan (placeholder) */}
+      {/* Tombol Simpan */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
