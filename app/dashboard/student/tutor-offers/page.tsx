@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,7 @@ interface Match {
 }
 
 export default function TutorOffersPage() {
+  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [offers, setOffers] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,7 +113,38 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  const handleAction = async (offerId: string, action: 'accept' | 'reject') => {
+  // Handler untuk tombol "Setuju & Atur Jadwal"
+  const handleSchedule = async (offer: Match) => {
+    setProcessingId(offer.id)
+    try {
+      // Jika status masih pending, kita setujui dulu
+      if (offer.status === 'pending') {
+        const { createClient } = await import('@/lib/auth')
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token || ''
+
+        const res = await fetch(`/api/matches/${offer.id}/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action: 'accept' }),
+        })
+        if (!res.ok) throw new Error('Gagal menyetujui penawaran')
+      }
+
+      // Redirect ke halaman set schedule dengan membawa matchId
+      router.push(`/dashboard/student/set_schedule?matchId=${offer.id}`)
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
     try {
       const { createClient } = await import('@/lib/auth')
@@ -125,13 +158,13 @@ export default function TutorOffersPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: 'reject' }),
       })
-      if (!res.ok) throw new Error('Gagal memperbarui status')
+      if (!res.ok) throw new Error('Gagal menolak penawaran')
 
       fetchDone.current = false
       await fetchData()
-      alert(action === 'accept' ? '✅ Penawaran diterima!' : '✅ Penawaran ditolak.')
+      alert('✅ Penawaran ditolak.')
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
@@ -213,10 +246,7 @@ export default function TutorOffersPage() {
                     key={offer.id}
                     offer={offer}
                     processing={processingId === offer.id}
-                    onSchedule={() => {
-                      // Nanti arahkan ke halaman atur jadwal
-                      alert('Fungsi atur jadwal akan segera hadir!')
-                    }}
+                    onSchedule={() => handleSchedule(offer)}
                     onReject={() => openConfirmDialog(offer, 'reject')}
                   />
                 ))}
@@ -234,6 +264,11 @@ export default function TutorOffersPage() {
                     offer={offer}
                     processing={false}
                     readonly
+                    onSchedule={
+                      offer.status === 'matched' || offer.status === 'active'
+                        ? () => handleSchedule(offer)
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -245,15 +280,10 @@ export default function TutorOffersPage() {
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {actionType === 'accept' ? 'Setuju Penawaran' : 'Tolak Penawaran'}
-            </DialogTitle>
+            <DialogTitle>Tolak Penawaran</DialogTitle>
             <DialogDescription>
-              {actionType === 'accept'
-                ? 'Anda akan menyetujui penawaran dari '
-                : 'Anda akan menolak penawaran dari '}
+              Anda akan menolak penawaran dari{' '}
               <strong>{selectedOffer?.tutor_full_name}</strong>.
-              {actionType === 'accept' && ' Setelah disetujui, Anda dapat mengatur jadwal.'}
               <br /><br />
               Apakah Anda yakin?
             </DialogDescription>
@@ -263,15 +293,15 @@ export default function TutorOffersPage() {
               Batal
             </Button>
             <Button
-              variant={actionType === 'accept' ? 'default' : 'destructive'}
+              variant="destructive"
               onClick={() => {
-                if (selectedOffer && actionType) {
-                  handleAction(selectedOffer.id, actionType)
+                if (selectedOffer) {
+                  handleReject(selectedOffer.id)
                 }
               }}
               disabled={processingId !== null}
             >
-              {processingId ? <Spinner className="h-4 w-4" /> : (actionType === 'accept' ? 'Ya, Setuju' : 'Ya, Tolak')}
+              {processingId ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -329,7 +359,7 @@ function OfferCard({
           </Badge>
         </div>
 
-        {/* Detail tanpa lesson_frequency */}
+        {/* Detail */}
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-green-500" />
@@ -355,10 +385,9 @@ function OfferCard({
               <span className="font-medium">Mapel:</span> {offer.matched_subjects?.join(', ') || offer.subject}
             </span>
           </div>
-          {/* baris lesson_frequency dihilangkan */}
         </div>
 
-        {/* Tombol Aksi untuk pending */}
+        {/* Tombol Aksi */}
         {!readonly && offer.status === 'pending' && (
           <div className="mt-4 flex gap-2">
             <Button
@@ -367,7 +396,7 @@ function OfferCard({
               disabled={processing}
             >
               <Calendar className="w-4 h-4" />
-              Atur Jadwal
+              Setuju & Atur Jadwal
             </Button>
             <Button
               variant="destructive"
@@ -376,24 +405,48 @@ function OfferCard({
               disabled={processing}
             >
               <XCircle className="w-4 h-4" />
-              Tolak Permintaan
+              Tolak
             </Button>
           </div>
         )}
 
         {offer.status === 'matched' && (
-          <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
+          <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 space-y-2">
             <p className="text-xs font-medium text-green-700">
-              ✓ Penawaran telah disetujui. Silakan atur jadwal dengan tutor.
+              ✓ Penawaran telah disetujui. Atur jadwal belajar sekarang.
             </p>
-            <Button size="sm" variant="outline" className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8" disabled>
-              Atur Jadwal (belum aktif)
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
+              onClick={onSchedule}
+              disabled={!onSchedule}
+            >
+              <Calendar className="w-3.5 h-3.5 mr-1" />
+              Atur Jadwal
             </Button>
           </div>
         )}
+
         {offer.status === 'cancelled' && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
             ✗ Penawaran ditolak.
+          </div>
+        )}
+
+        {offer.status === 'active' && (
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+            <p className="text-xs font-medium text-blue-700">✓ Pembelajaran sedang aktif.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-blue-300 text-blue-700 hover:bg-blue-100 text-xs h-8"
+              onClick={onSchedule}
+              disabled={!onSchedule}
+            >
+              <Calendar className="w-3.5 h-3.5 mr-1" />
+              Atur Jadwal
+            </Button>
           </div>
         )}
       </CardContent>
