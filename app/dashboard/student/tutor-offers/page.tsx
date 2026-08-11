@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/auth' // ← IMPORT STATIS
 import {
   DollarSign,
   Star,
@@ -111,68 +112,61 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  // ========== PERBAIKAN UTAMA ==========
+  // ========== PERBAIKAN: PAKAI SUPABASE LANGSUNG ==========
   const handleSchedule = async (offer: Match) => {
-  console.log('>>> [handleSchedule] START, offer.id =', offer.id)
-  setProcessingId(offer.id)
+    console.log('>>> [handleSchedule] START, offer.id =', offer.id, 'status =', offer.status)
+    setProcessingId(offer.id)
 
-  try {
-    if (offer.status === 'pending') {
-      console.log('>>> [handleSchedule] accepting offer...')
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
+    try {
+      // Jika masih pending, setujui dulu dengan Supabase langsung
+      if (offer.status === 'pending') {
+        console.log('>>> [handleSchedule] accepting offer via Supabase...')
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('>>> [handleSchedule] session:', session ? 'OK' : 'NO')
 
-      const res = await fetch(`/api/matches/${offer.id}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'accept' }),
-      })
+        if (!session) {
+          throw new Error('Sesi tidak ditemukan. Silakan login ulang.')
+        }
 
-      console.log('>>> [handleSchedule] fetch response status:', res.status)
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`Gagal menyetujui (${res.status}): ${errText}`)
+        // Update status match langsung di Supabase
+        const { error: updateError } = await supabase
+          .from('matches')
+          .update({ status: 'matched' })
+          .eq('id', offer.id)
+
+        if (updateError) {
+          console.error('>>> [handleSchedule] update error:', updateError)
+          throw new Error(`Gagal menyetujui: ${updateError.message}`)
+        }
+        console.log('>>> [handleSchedule] accept success')
       }
-      console.log('>>> [handleSchedule] accept success')
+
+      // Redirect ke halaman set_schedule
+      const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
+      console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
+      window.location.replace(redirectUrl)
+    } catch (err: any) {
+      console.error('>>> [handleSchedule] ERROR:', err)
+      alert('❌ ' + err.message)
+      setProcessingId(null)
     }
-
-    const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
-    console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
-
-    // GUNAKAN INI:
-    window.location.href = redirectUrl
-    console.log('>>> [handleSchedule] after window.location.href (should not appear)')
-  } catch (err: any) {
-    console.error('>>> [handleSchedule] ERROR:', err)
-    alert('❌ ' + err.message)
-    setProcessingId(null)
   }
-}
-
   // ========== AKHIR PERBAIKAN ==========
 
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
     try {
-      const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
+      if (!session) throw new Error('Sesi tidak ditemukan.')
 
-      const res = await fetch(`/api/matches/${offerId}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'reject' }),
-      })
-      if (!res.ok) throw new Error('Gagal menolak penawaran')
+      const { error } = await supabase
+        .from('matches')
+        .update({ status: 'cancelled' })
+        .eq('id', offerId)
+
+      if (error) throw new Error(`Gagal menolak: ${error.message}`)
 
       fetchDone.current = false
       await fetchData()
@@ -322,7 +316,7 @@ export default function TutorOffersPage() {
   )
 }
 
-// ========== KOMPONEN OfferCard (tetap sama) ==========
+// ========== KOMPONEN OfferCard (sama seperti sebelumnya) ==========
 function OfferCard({
   offer,
   processing,
@@ -404,12 +398,7 @@ function OfferCard({
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
               onClick={() => {
                 console.log('>>> [Tombol] diklik untuk offer:', offer.id)
-                if (onSchedule) {
-                  console.log('>>> [Tombol] memanggil onSchedule')
-                  onSchedule()
-                } else {
-                  alert('onSchedule tidak tersedia!')
-                }
+                if (onSchedule) onSchedule()
               }}
               disabled={processing}
             >
