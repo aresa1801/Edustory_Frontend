@@ -69,24 +69,73 @@ function SetScheduleContent() {
         console.log('[set_schedule] Supabase client created')
 
         // 1. Cari student_id dari user yang login
-        console.log('[set_schedule] mencari student_id untuk user:', user.id)
+        console.log('[set_schedule] Mencari student_id untuk user:', user.id)
         const { data: studentData, error: studentErr } = await supabase
           .from('students')
-          .select('id')
+          .select('id, user_id')
           .eq('user_id', user.id)
           .maybeSingle()
 
-        console.log('[set_schedule] studentData:', studentData, 'error:', studentErr)
+        console.log('[set_schedule] Hasil query students:', studentData)
+        if (studentErr) {
+          console.error('[set_schedule] Error query students:', studentErr)
+        }
 
-        if (studentErr || !studentData) {
-          throw new Error('Data siswa tidak ditemukan. Pastikan Anda adalah student.')
+        if (!studentData) {
+          // Jika tidak ada students untuk user ini, coba cari student_id dari match langsung (tanpa filter student_id)
+          console.log('[set_schedule] Tidak ada student untuk user ini. Coba ambil match langsung (tanpa filter student_id)')
+          const { data: matchRaw, error: matchRawErr } = await supabase
+            .from('matches')
+            .select(`
+              id,
+              subject,
+              matched_subjects,
+              status,
+              lesson_frequency,
+              start_date,
+              tutor_id,
+              student_id,
+              tutors:tutor_id (
+                id,
+                hourly_rate,
+                user_id,
+                user_profiles:user_id (
+                  full_name,
+                  avatar_url
+                )
+              ),
+              students:student_id (
+                id,
+                grade_level,
+                user_id,
+                user_profiles:user_id (
+                  full_name
+                )
+              )
+            `)
+            .eq('id', matchId)
+            .maybeSingle()
+
+          console.log('[set_schedule] matchRaw:', matchRaw ? 'found' : 'null', 'error:', matchRawErr)
+          if (matchRawErr) throw new Error(`Gagal mengambil match: ${matchRawErr.message}`)
+          if (!matchRaw) throw new Error('Match tidak ditemukan')
+          
+          setMatchData(matchRaw)
+          // Inisialisasi selectedSubjects
+          if (matchRaw.matched_subjects && matchRaw.matched_subjects.length > 0) {
+            setSelectedSubjects(matchRaw.matched_subjects.slice(0, 2))
+          } else if (matchRaw.subject) {
+            setSelectedSubjects([matchRaw.subject])
+          }
+          console.log('[set_schedule] selectedSubjects =', selectedSubjects)
+          return
         }
 
         const studentId = studentData.id
         console.log('[set_schedule] student_id ditemukan:', studentId)
 
-        // 2. Ambil match dengan filter student_id dan matchId
-        console.log('[set_schedule] querying matches dengan student_id dan matchId')
+        // 2. Ambil match dengan filter student_id
+        console.log('[set_schedule] Query match dengan student_id:', studentId)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
