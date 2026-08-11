@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -49,7 +48,6 @@ interface Match {
 }
 
 export default function TutorOffersPage() {
-  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [offers, setOffers] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,15 +111,15 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  // ========== PERBAIKAN UTAMA DI SINI ==========
+  // ==================== PERBAIKAN UTAMA ====================
   const handleSchedule = async (offer: Match) => {
-    setProcessingId(offer.id)
-    console.log('[handleSchedule] START for offer:', offer.id, 'status:', offer.status)
+    console.log('>>> [handleSchedule] START, offer.id =', offer.id, 'status =', offer.status)
 
+    setProcessingId(offer.id)
     try {
       // Jika masih pending, setujui dulu
       if (offer.status === 'pending') {
-        console.log('[handleSchedule] accepting offer...')
+        console.log('>>> [handleSchedule] accepting offer...')
         const { createClient } = await import('@/lib/auth')
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
@@ -139,34 +137,34 @@ export default function TutorOffersPage() {
           const errText = await res.text()
           throw new Error(`Gagal menyetujui (${res.status}): ${errText}`)
         }
-        console.log('[handleSchedule] accept success')
-      } else {
-        console.log('[handleSchedule] offer already accepted, skip API call')
+        console.log('>>> [handleSchedule] accept success')
       }
 
       // Redirect ke halaman set_schedule
       const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
-      console.log('[handleSchedule] redirecting to:', redirectUrl)
+      console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
+
+      // Gunakan window.location.href (paling aman)
       window.location.href = redirectUrl
 
-      // Gunakan window.location.href sebagai fallback jika router.push bermasalah
-      try {
-        await router.push(redirectUrl)
-        console.log('[handleSchedule] router.push executed')
-      } catch (navErr) {
-        console.warn('[handleSchedule] router.push error, using window.location:', navErr)
-        window.location.href = redirectUrl
-      }
+      // Fallback: jika setelah 500ms tidak berubah, coba pakai window.open
+      setTimeout(() => {
+        if (window.location.pathname !== '/dashboard/student/set_schedule') {
+          console.log('>>> [handleSchedule] fallback: window.open')
+          window.open(redirectUrl, '_self')
+        }
+      }, 500)
+
     } catch (err: any) {
-      console.error('[handleSchedule] ERROR:', err)
+      console.error('>>> [handleSchedule] ERROR:', err)
       alert('❌ ' + err.message)
     } finally {
-      // Pastikan processingId di-reset agar tombol kembali aktif
+      // Reset processing agar tombol kembali aktif (tapi redirect sudah terjadi)
       setProcessingId(null)
-      console.log('[handleSchedule] FINALLY, processingId reset')
+      console.log('>>> [handleSchedule] FINISHED (processingId reset)')
     }
   }
-  // ========== END PERBAIKAN ==========
+  // ==================== AKHIR PERBAIKAN ====================
 
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
@@ -416,7 +414,16 @@ function OfferCard({
           <div className="mt-4 flex gap-2">
             <Button
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-              onClick={onSchedule}
+              onClick={() => {
+                console.log('>>> [Tombol] diklik untuk offer:', offer.id)
+                if (onSchedule) {
+                  console.log('>>> [Tombol] memanggil onSchedule')
+                  onSchedule()
+                } else {
+                  console.log('>>> [Tombol] onSchedule undefined!')
+                  alert('onSchedule tidak tersedia!')
+                }
+              }}
               disabled={processing}
             >
               <Calendar className="w-4 h-4" />
@@ -425,7 +432,10 @@ function OfferCard({
             <Button
               variant="destructive"
               className="flex-1 gap-1.5"
-              onClick={onReject}
+              onClick={() => {
+                console.log('>>> [Tombol Tolak] diklik')
+                if (onReject) onReject()
+              }}
               disabled={processing}
             >
               <XCircle className="w-4 h-4" />
@@ -443,7 +453,10 @@ function OfferCard({
               size="sm"
               variant="outline"
               className="border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-              onClick={onSchedule}
+              onClick={() => {
+                console.log('>>> [Tombol Atur Jadwal matched] diklik')
+                if (onSchedule) onSchedule()
+              }}
               disabled={!onSchedule || processing}
             >
               <Calendar className="w-3.5 h-3.5 mr-1" />
@@ -465,7 +478,10 @@ function OfferCard({
               size="sm"
               variant="outline"
               className="border-blue-300 text-blue-700 hover:bg-blue-100 text-xs h-8"
-              onClick={onSchedule}
+              onClick={() => {
+                console.log('>>> [Tombol Atur Jadwal active] diklik')
+                if (onSchedule) onSchedule()
+              }}
               disabled={!onSchedule || processing}
             >
               <Calendar className="w-3.5 h-3.5 mr-1" />
