@@ -113,56 +113,47 @@ export default function TutorOffersPage() {
 
   // ========== PERBAIKAN UTAMA ==========
   const handleSchedule = async (offer: Match) => {
-    console.log('>>> [handleSchedule] START, offer.id =', offer.id, 'status =', offer.status)
-    setProcessingId(offer.id)
+  console.log('>>> [handleSchedule] START, offer.id =', offer.id)
+  setProcessingId(offer.id)
 
-    try {
-      // Jika masih pending, setujui dulu
-      if (offer.status === 'pending') {
-        console.log('>>> [handleSchedule] accepting offer...')
-        const { createClient } = await import('@/lib/auth')
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token || ''
+  try {
+    if (offer.status === 'pending') {
+      console.log('>>> [handleSchedule] accepting offer...')
+      const { createClient } = await import('@/lib/auth')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
 
-        const res = await fetch(`/api/matches/${offer.id}/confirm`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ action: 'accept' }),
-        })
+      const res = await fetch(`/api/matches/${offer.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'accept' }),
+      })
 
-        console.log('>>> [handleSchedule] fetch response status:', res.status)
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`Gagal menyetujui (${res.status}): ${errText}`)
-        }
-        console.log('>>> [handleSchedule] accept success')
+      console.log('>>> [handleSchedule] fetch response status:', res.status)
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(`Gagal menyetujui (${res.status}): ${errText}`)
       }
-
-      // Redirect ke halaman set_schedule
-      const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
-      console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
-
-      // === PASTIKAN INI YANG DIPAKAI ===
-      window.location.replace(redirectUrl)
-
-      // Log setelah redirect (tidak akan tercetak jika redirect sukses)
-      console.log('>>> [handleSchedule] after replace (should not appear)')
-    } catch (err: any) {
-      console.error('>>> [handleSchedule] ERROR:', err)
-      alert('❌ ' + err.message)
-      setProcessingId(null) // reset jika error
+      console.log('>>> [handleSchedule] accept success')
     }
-    // Tidak perlu finally karena redirect akan mengganti halaman
-    // Tapi jika redirect gagal, processingId tidak direset.
-    // Kita tambahkan timeout untuk reset jika redirect gagal.
-    setTimeout(() => {
-      setProcessingId(null)
-    }, 3000)
+
+    const redirectUrl = `/dashboard/student/set_schedule?matchId=${offer.id}`
+    console.log('>>> [handleSchedule] redirecting to:', redirectUrl)
+
+    // GUNAKAN INI:
+    window.location.href = redirectUrl
+    console.log('>>> [handleSchedule] after window.location.href (should not appear)')
+  } catch (err: any) {
+    console.error('>>> [handleSchedule] ERROR:', err)
+    alert('❌ ' + err.message)
+    setProcessingId(null)
   }
+}
+
   // ========== AKHIR PERBAIKAN ==========
 
   const handleReject = async (offerId: string) => {
