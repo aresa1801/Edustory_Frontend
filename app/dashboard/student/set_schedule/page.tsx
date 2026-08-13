@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/client' // <- sesuaikan path
 
 // ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
@@ -42,10 +42,12 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
 
 // ---------- KOMPONEN ----------
 function SetScheduleContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
   const { user, loading: authLoading } = useAuth()
 
+  // States
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -54,9 +56,14 @@ function SetScheduleContent() {
   const [schedule, setSchedule] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
 
+  // State untuk simpan
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
+  // Ambil data match
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId)
 
@@ -89,7 +96,6 @@ function SetScheduleContent() {
           setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
           setLoading(false)
           setError(null)
-          // Hapus sessionStorage agar tidak dipakai ulang
           sessionStorage.removeItem('scheduleData')
           return
         }
@@ -108,7 +114,6 @@ function SetScheduleContent() {
       setError(null)
 
       try {
-        // Ambil token
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
@@ -117,7 +122,6 @@ function SetScheduleContent() {
           throw new Error('Token tidak ditemukan.')
         }
 
-        // Fetch dengan timeout 5 detik
         const controller = new AbortController()
         timeoutId = setTimeout(() => controller.abort(), 5000)
 
@@ -175,7 +179,7 @@ function SetScheduleContent() {
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
+  // --- Fungsi interaksi ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -260,6 +264,47 @@ function SetScheduleContent() {
     )
   }
 
+  // --- FUNGSI SIMPAN ---
+  const handleSave = async () => {
+    const entries = Object.entries(schedule)
+    if (entries.length === 0) {
+      alert('Pilih minimal satu slot jadwal!')
+      return
+    }
+
+    const sessions = entries.map(([key, subject]) => {
+      const [dateStr, timeSlot] = key.split('|')
+      return { date: dateStr, timeSlot, subject }
+    })
+
+    setIsSaving(true)
+    setSaveMessage(null)
+
+    try {
+      const res = await fetch(`/api/matches/${matchId}/schedules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessions }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Gagal menyimpan jadwal')
+      }
+
+      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan!' })
+      // Redirect setelah 1.5 detik agar user melihat pesan sukses
+      setTimeout(() => {
+        router.push('/dashboard/student')
+      }, 1500)
+    } catch (err: any) {
+      setSaveMessage({ type: 'error', text: err.message })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   // ---------- RENDER ----------
   console.log('[set_schedule] render, loading =', loading, 'matchData =', !!matchData, 'error =', error)
 
@@ -318,11 +363,15 @@ function SetScheduleContent() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
-      <p className="text-muted-foreground">
-        Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-        <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
+          <p className="text-muted-foreground">
+            Pilih mata pelajaran dan tentukan jadwal untuk{' '}
+            <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
+          </p>
+        </div>
+      </div>
 
       {/* Pilihan Mata Pelajaran */}
       <Card>
@@ -412,10 +461,22 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan (placeholder) */}
+      {/* Pesan sukses/error */}
+      {saveMessage && (
+        <Alert variant={saveMessage.type === 'success' ? 'default' : 'destructive'}>
+          <AlertDescription>{saveMessage.text}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Tombol Simpan */}
       <div className="flex justify-end">
-        <Button className="bg-green-600 hover:bg-green-700 text-white">
-          Simpan Jadwal
+        <Button
+          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving && <Spinner className="h-4 w-4 mr-2" />}
+          {isSaving ? 'Menyimpan...' : 'Simpan Jadwal'}
         </Button>
       </div>
     </div>
