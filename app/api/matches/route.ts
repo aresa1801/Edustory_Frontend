@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+// GET (tidak berubah)
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST – dengan tambahan tutor_avatar_url
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('matches')
       .insert({
+        // Kolom wajib
         tutor_id,
         student_id,
         matched_subjects: matched_subjects || [],
@@ -119,6 +122,8 @@ export async function POST(request: NextRequest) {
         initiated_by: initiated_by || 'tutor',
         lesson_frequency: lesson_frequency || 'flexible',
         start_date: start_date || new Date().toISOString().split('T')[0],
+
+        // Statis student
         student_full_name: student.name,
         student_grade: student.grade_level,
         student_budget_per_month: student.budget_per_month,
@@ -130,6 +135,8 @@ export async function POST(request: NextRequest) {
         student_latitude: student.latitude,
         student_longitude: student.longitude,
         student_is_online: student.is_online ?? true,
+
+        // Statis tutor (tambah avatar_url)
         tutor_full_name: tutor.full_name,
         tutor_bio: tutor.bio,
         tutor_experience_years: tutor.experience_years,
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
         tutor_rating: tutor.rating,
         tutor_total_reviews: tutor.total_reviews,
         tutor_verified_grade_levels: tutor.verified_grade_levels,
-        tutor_avatar_url: tutor.avatar_url,
+        tutor_avatar_url: tutor.avatar_url, // ✅ baru
       })
       .select()
 
