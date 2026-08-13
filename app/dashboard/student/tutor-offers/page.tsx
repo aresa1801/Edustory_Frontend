@@ -1,3 +1,4 @@
+// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
@@ -8,6 +9,15 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+
+// ---------- DUMMY DATA (fallback) ----------
+const DUMMY_MATCH = {
+  id: 'dummy-id',
+  matched_subjects: ['Matematika', 'Kimia', 'Sejarah'],
+  student_schedule: 'Senin-Jumat 12.00-15.00',
+  tutor_full_name: 'Tutor Dummy',
+  status: 'pending',
+}
 
 // ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
@@ -48,6 +58,7 @@ function SetScheduleContent() {
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [usingDummy, setUsingDummy] = useState(false)
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
@@ -79,61 +90,88 @@ function SetScheduleContent() {
     let isMounted = true
     let timeoutId: NodeJS.Timeout
 
-    const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai')
+    const loadData = () => {
+      // --- PRIORITAS 1: sessionStorage ---
+      const stored = sessionStorage.getItem('scheduleData')
+      if (stored) {
+        try {
+          const data = JSON.parse(stored)
+          if (data.id === matchId) {
+            console.log('[set_schedule] Data dari sessionStorage:', data)
+            setMatchData(data)
+            setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+            setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+            setUsingDummy(false)
+            setLoading(false)
+            setError(null)
+            // Hapus sessionStorage agar tidak dipakai ulang
+            sessionStorage.removeItem('scheduleData')
+            return
+          }
+        } catch (e) {
+          console.warn('[set_schedule] Gagal parse sessionStorage', e)
+        }
+      }
+
+      // --- PRIORITAS 2: Fetch API ---
+      console.log('[set_schedule] fetchMatch mulai (API)')
       setLoading(true)
       setError(null)
 
-      try {
-        // Fetch tanpa header Authorization (karena API sudah bypass auth)
-        const controller = new AbortController()
-        timeoutId = setTimeout(() => controller.abort(), 8000)
+      const fetchMatch = async () => {
+        try {
+          const controller = new AbortController()
+          timeoutId = setTimeout(() => controller.abort(), 5000)
 
-        const res = await fetch(`/api/matches/${matchId}`, {
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' }
-        })
+          const res = await fetch(`/api/matches/${matchId}`, {
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' }
+          })
 
-        clearTimeout(timeoutId)
+          clearTimeout(timeoutId)
 
-        if (!isMounted) return
+          if (!isMounted) return
 
-        console.log('[set_schedule] API response status:', res.status)
+          if (!res.ok) {
+            const errText = await res.text()
+            throw new Error(`Gagal fetch (${res.status}): ${errText}`)
+          }
 
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
-        }
+          const data = await res.json()
+          console.log('[set_schedule] Data dari API:', data)
 
-        const data = await res.json()
-        console.log('[set_schedule] Data dari API:', data)
+          if (!data.matched_subjects) {
+            throw new Error('Data match tidak memiliki kolom matched_subjects.')
+          }
 
-        if (!data.matched_subjects) {
-          throw new Error('Data match tidak memiliki kolom matched_subjects.')
-        }
-
-        setMatchData(data)
-        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
-        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-      } catch (err: any) {
-        console.error('[set_schedule] Error:', err)
-        if (isMounted) {
-          if (err.name === 'AbortError') {
-            setError('Waktu pengambilan data habis (8 detik). Silakan coba lagi.')
-          } else {
-            setError(err.message || 'Terjadi kesalahan')
+          setMatchData(data)
+          setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+          setUsingDummy(false)
+          setError(null)
+        } catch (err: any) {
+          console.error('[set_schedule] Fetch error:', err)
+          if (isMounted) {
+            // --- PRIORITAS 3: Fallback dummy ---
+            console.log('[set_schedule] Gagal fetch, pakai dummy')
+            setMatchData(DUMMY_MATCH)
+            setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+            setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+            setUsingDummy(true)
+            setError(null)
+          }
+        } finally {
+          if (isMounted) {
+            setLoading(false)
+            clearTimeout(timeoutId)
           }
         }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-          console.log('[set_schedule] loading = false')
-        }
-        clearTimeout(timeoutId)
       }
+
+      fetchMatch()
     }
 
-    fetchMatch()
+    loadData()
 
     return () => {
       isMounted = false
@@ -227,7 +265,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, loading =', loading, 'matchData =', !!matchData, 'error =', error)
+  console.log('[set_schedule] render, loading =', loading, 'matchData =', !!matchData, 'usingDummy =', usingDummy)
 
   if (authLoading || loading) {
     return (
@@ -244,18 +282,9 @@ function SetScheduleContent() {
         <Alert variant="destructive">
           <AlertDescription>
             <strong>Error:</strong> {error}
-            <br />
-            <span className="text-sm mt-2 block">
-              Coba refresh atau kembali ke halaman penawaran.
-            </span>
           </AlertDescription>
         </Alert>
-        <div className="flex gap-2 mt-4">
-          <Button onClick={() => window.location.reload()} variant="outline">
-            Coba Lagi
-          </Button>
-          <Button onClick={() => window.history.back()}>Kembali</Button>
-        </div>
+        <Button onClick={() => window.location.reload()} className="mt-4">Coba Lagi</Button>
       </div>
     )
   }
@@ -264,7 +293,7 @@ function SetScheduleContent() {
     return (
       <div className="max-w-6xl mx-auto p-4">
         <Alert variant="destructive">
-          <AlertDescription>Data match tidak ditemukan.</AlertDescription>
+          <AlertDescription>Data tidak ditemukan.</AlertDescription>
         </Alert>
       </div>
     )
@@ -279,11 +308,28 @@ function SetScheduleContent() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
-      <p className="text-muted-foreground">
-        Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-        <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
+          <p className="text-muted-foreground">
+            Pilih mata pelajaran dan tentukan jadwal untuk{' '}
+            <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
+          </p>
+        </div>
+        {usingDummy && (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+            ⚠️ Data dummy (fallback)
+          </Badge>
+        )}
+      </div>
+
+      {usingDummy && (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertDescription className="text-yellow-800 text-sm">
+            ⚠️ Menggunakan data dummy karena API belum merespons. Data ini hanya contoh.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
