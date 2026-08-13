@@ -11,48 +11,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
 
-// ---------- KONFIGURASI JAM ----------
-const TIME_SLOTS = [
-  { label: '12.00 - 13.00', start: 12, end: 13 },
-  { label: '13.00 - 14.00', start: 13, end: 14 },
-  { label: '14.00 - 15.00', start: 14, end: 15 },
-]
-
+// ---------- PERBAIKAN: getDatesInMonth ----------
 const getDatesInMonth = (year: number, month: number) => {
-  const firstDay = new Date(year, month, 1)
-  const lastDay = new Date(year, month + 1, 0)
   const dates = []
-  for (let d = 1; d <= lastDay.getDate(); d++) {
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  for (let d = 1; d <= lastDay; d++) {
     dates.push(new Date(year, month, d))
   }
   return dates
-}
-
-// ---------- DUMMY DATA (fallback jika fetch gagal) ----------
-const dummyMatch = {
-  id: 'd695f951-171a-4ac2-a0b7-e1f1bd0f85f6',
-  subject: 'Matematika',
-  matched_subjects: ['Matematika', 'Kimia', 'Sejarah'],
-  status: 'pending',
-  lesson_frequency: '2x seminggu',
-  start_date: '2026-09-01',
-  tutor_id: 'tutor-id',
-  student_id: 'student-id',
-  tutors: {
-    id: 'tutor-id',
-    hourly_rate: 150000,
-    user_profiles: {
-      full_name: 'Tutor Dummy',
-      avatar_url: null,
-    },
-  },
-  students: {
-    id: 'student-id',
-    grade_level: 'SMA Kelas 11',
-    user_profiles: {
-      full_name: 'Student Dummy',
-    },
-  },
 }
 
 // ---------- KOMPONEN UTAMA ----------
@@ -64,10 +30,12 @@ function SetScheduleContent() {
   const [matchData, setMatchData] = useState<any>(null)
   const [loadingMatch, setLoadingMatch] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [usingDummy, setUsingDummy] = useState(false)
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
+
+  // Ambil student_schedule dari match, parse jadi TIME_SLOTS
+  const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
 
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
@@ -80,35 +48,23 @@ function SetScheduleContent() {
   }, [])
 
   useEffect(() => {
-    console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
-
     if (!matchId) {
-      setError('Tidak ada ID match. Silakan buka melalui tombol "Atur Jadwal".')
+      setError('Tidak ada ID match.')
       setLoadingMatch(false)
       return
     }
 
-    if (authLoading) {
-      console.log('[set_schedule] authLoading true, menunggu...')
-      return
-    }
-
+    if (authLoading) return
     if (!user) {
-      setError('Silakan login terlebih dahulu.')
+      setError('Silakan login.')
       setLoadingMatch(false)
       return
     }
 
-    if (hasFetched.current) {
-      console.log('[set_schedule] sudah fetch, skip')
-      return
-    }
+    if (hasFetched.current) return
     hasFetched.current = true
 
-    let timeoutId: NodeJS.Timeout
-
     const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai via API')
       setLoadingMatch(true)
       setError(null)
 
@@ -117,131 +73,112 @@ function SetScheduleContent() {
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
 
-        console.log('[set_schedule] token:', token ? 'ada' : 'tidak ada')
-
         const res = await fetch(`/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          },
-          credentials: 'include'
+          }
         })
-
-        console.log('[set_schedule] API response status:', res.status)
 
         if (!res.ok) {
           const errText = await res.text()
-          console.error('[set_schedule] Error response body:', errText)
           throw new Error(`Gagal fetch match (${res.status}): ${errText}`)
         }
 
-        const match = await res.json()
-        console.log('[set_schedule] match data:', match)
+        const data = await res.json()
+        console.log('[set_schedule] match data:', data)
 
         if (isMounted.current) {
-          setMatchData(match)
-          if (match.matched_subjects && match.matched_subjects.length > 0) {
-            setSelectedSubjects(match.matched_subjects.slice(0, 2))
-          } else if (match.subject) {
-            setSelectedSubjects([match.subject])
+          setMatchData(data)
+
+          // Set selected subjects (maks 2)
+          if (data.matched_subjects && data.matched_subjects.length > 0) {
+            setSelectedSubjects(data.matched_subjects.slice(0, 2))
           }
-          setUsingDummy(false)
+
+          // Parse student_schedule ke TIME_SLOTS
+          const scheduleStr = data.student_schedule || ''
+          const timeMatch = scheduleStr.match(/(\d{2}\.\d{2})\s*-\s*(\d{2}\.\d{2})/)
+          if (timeMatch) {
+            const start = parseFloat(timeMatch[1].replace('.', ':'))
+            const end = parseFloat(timeMatch[2].replace('.', ':'))
+            const slots = []
+            for (let h = start; h < end; h++) {
+              const next = h + 1
+              const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
+              slots.push({ label })
+            }
+            setTimeSlots(slots)
+          } else {
+            // Fallback default
+            setTimeSlots([
+              { label: '12.00 - 13.00' },
+              { label: '13.00 - 14.00' },
+              { label: '14.00 - 15.00' },
+            ])
+          }
+
           setError(null)
         }
       } catch (err: any) {
         console.error('[set_schedule] ERROR:', err)
-        // Jika fetch gagal, gunakan dummy data
         if (isMounted.current) {
-          console.log('[set_schedule] Using dummy data as fallback')
-          setMatchData(dummyMatch)
-          setSelectedSubjects(dummyMatch.matched_subjects.slice(0, 2))
-          setUsingDummy(true)
-          setError(null) // tidak tampilkan error, tapi ada indikasi pakai dummy
+          setError(err.message || 'Terjadi kesalahan')
         }
       } finally {
         if (isMounted.current) {
-          console.log('[set_schedule] finally, set loading false')
           setLoadingMatch(false)
         }
-        clearTimeout(timeoutId)
       }
     }
 
     fetchMatch()
-    timeoutId = setTimeout(() => {
-      if (isMounted.current && loadingMatch) {
-        console.log('[set_schedule] TIMEOUT: forced loading false, using dummy')
-        setLoadingMatch(false)
-        setMatchData(dummyMatch)
-        setSelectedSubjects(dummyMatch.matched_subjects.slice(0, 2))
-        setUsingDummy(true)
-        setError('Waktu pengambilan data habis. Menampilkan data dummy.')
-      }
-    }, 10000)
-
-    return () => {
-      clearTimeout(timeoutId)
-    }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
+  // --- Fungsi toggleSubject ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
-      if (index !== -1) {
-        return prev.filter(s => s !== subject)
-      } else {
-        if (prev.length >= 2) return prev
-        return [...prev, subject]
-      }
+      if (index !== -1) return prev.filter(s => s !== subject)
+      if (prev.length >= 2) return prev
+      return [...prev, subject]
     })
   }
 
+  // --- Fungsi handleSlotClick ---
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
-    const currentSubject = schedule[key]
-
-    if (currentSubject) {
+    const current = schedule[key]
+    if (current) {
       const newSchedule = { ...schedule }
       delete newSchedule[key]
-      const dayOfWeek = date.getDay()
+      const day = date.getDay()
       dates.forEach(d => {
-        if (d.getDay() === dayOfWeek) {
+        if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (newSchedule[mirrorKey] === currentSubject) {
-            delete newSchedule[mirrorKey]
-          }
+          if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
         }
       })
       setSchedule(newSchedule)
     } else {
       if (selectedSubjects.length === 0) {
-        alert('Pilih mata pelajaran terlebih dahulu!')
+        alert('Pilih mata pelajaran dulu!')
         return
       }
-      const subjectCounts: Record<string, number> = {}
-      Object.values(schedule).forEach(subj => {
-        subjectCounts[subj] = (subjectCounts[subj] || 0) + 1
+      const counts: Record<string, number> = {}
+      Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
+      let chosen = selectedSubjects[0]
+      let min = Infinity
+      selectedSubjects.forEach(s => {
+        const c = counts[s] || 0
+        if (c < min) { min = c; chosen = s }
       })
-      let selectedSubject = selectedSubjects[0]
-      if (selectedSubjects.length > 1) {
-        let minCount = Infinity
-        for (const subj of selectedSubjects) {
-          const count = subjectCounts[subj] || 0
-          if (count < minCount) {
-            minCount = count
-            selectedSubject = subj
-          }
-        }
-      }
-      const newSchedule = { ...schedule, [key]: selectedSubject }
-      const dayOfWeek = date.getDay()
+      const newSchedule = { ...schedule, [key]: chosen }
+      const day = date.getDay()
       dates.forEach(d => {
-        if (d.getDay() === dayOfWeek) {
+        if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (!newSchedule[mirrorKey]) {
-            newSchedule[mirrorKey] = selectedSubject
-          }
+          if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
         }
       })
       setSchedule(newSchedule)
@@ -263,16 +200,14 @@ function SetScheduleContent() {
     if (entries.length === 0) {
       return <p className="text-muted-foreground">Belum ada jadwal dipilih.</p>
     }
-    const grouped: Record<string, { subject: string; day: string; time: string; count: number }> = {}
+    const grouped: Record<string, any> = {}
     entries.forEach(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|')
       const date = new Date(dateStr)
       const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' })
-      const groupKey = `${subject}-${dayName}-${timeSlot}`
-      if (!grouped[groupKey]) {
-        grouped[groupKey] = { subject, day: dayName, time: timeSlot, count: 0 }
-      }
-      grouped[groupKey].count += 1
+      const gk = `${subject}-${dayName}-${timeSlot}`
+      if (!grouped[gk]) grouped[gk] = { subject, day: dayName, time: timeSlot, count: 0 }
+      grouped[gk].count += 1
     })
     return (
       <ul className="space-y-1">
@@ -287,26 +222,22 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, authLoading =', authLoading, 'loadingMatch =', loadingMatch, 'error =', error)
-
   if (authLoading || loadingMatch) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex justify-center py-16">
         <Spinner className="h-8 w-8" />
-        <p className="ml-3">{authLoading ? 'Memuat sesi...' : 'Memuat data jadwal...'}</p>
+        <p className="ml-3">Memuat data...</p>
       </div>
     )
   }
 
-  if (error && !matchData) {
+  if (error) {
     return (
       <div className="max-w-6xl mx-auto p-4">
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Refresh
-        </Button>
+        <Button onClick={() => window.history.back()} className="mt-4">Kembali</Button>
       </div>
     )
   }
@@ -321,26 +252,20 @@ function SetScheduleContent() {
     )
   }
 
-  const availableSubjects =
-    matchData.matched_subjects && matchData.matched_subjects.length > 0
-      ? matchData.matched_subjects
-      : [matchData.subject].filter(Boolean)
+  const availableSubjects = matchData.matched_subjects || []
+  const TIME_SLOTS = timeSlots.length > 0 ? timeSlots : [
+    { label: '12.00 - 13.00' },
+    { label: '13.00 - 14.00' },
+    { label: '14.00 - 15.00' },
+  ]
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
       <p className="text-muted-foreground">
         Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-        <span className="font-medium">{matchData.tutors?.user_profiles?.full_name || 'tutor'}</span>.
+        <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
       </p>
-
-      {usingDummy && (
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <AlertDescription className="text-yellow-800">
-            ⚠️ Menggunakan data dummy sementara (fetch API gagal).
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Pilihan Mata Pelajaran */}
       <Card>
@@ -372,14 +297,6 @@ function SetScheduleContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>
-              ←
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              →
-            </Button>
-          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -448,7 +365,7 @@ function SetScheduleContent() {
   )
 }
 
-// ---------- PAGE UTAMA dengan SUSPENSE ----------
+// ---------- PAGE UTAMA ----------
 export default function SetSchedulePage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
