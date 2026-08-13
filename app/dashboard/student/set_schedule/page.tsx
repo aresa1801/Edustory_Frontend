@@ -1,212 +1,105 @@
+// app/dashboard/student/set_schedule/page.tsx (sementara: hardcoded)
 'use client'
 
-import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 
-// ---------- KONFIGURASI JAM ----------
 const TIME_SLOTS = [
-  { label: '12.00 - 13.00', start: 12, end: 13 },
-  { label: '13.00 - 14.00', start: 13, end: 14 },
-  { label: '14.00 - 15.00', start: 14, end: 15 },
+  { label: '12.00 - 13.00' },
+  { label: '13.00 - 14.00' },
+  { label: '14.00 - 15.00' },
 ]
 
+// Dummy data sementara
+const dummyMatch = {
+  id: 'd695f951-171a-4ac2-a0b7-e1f1bd0f85f6',
+  subject: 'Matematika',
+  matched_subjects: ['Matematika', 'Kimia'],
+  status: 'pending',
+  lesson_frequency: '2x seminggu',
+  start_date: '2026-09-01',
+  tutor_id: 'tutor-id',
+  student_id: 'student-id',
+  tutors: {
+    id: 'tutor-id',
+    hourly_rate: 150000,
+    user_profiles: {
+      full_name: 'Tutor Dummy',
+      avatar_url: null,
+    },
+  },
+  students: {
+    id: 'student-id',
+    grade_level: 'SMA Kelas 11',
+    user_profiles: {
+      full_name: 'Student Dummy',
+    },
+  },
+}
+
 const getDatesInMonth = (year: number, month: number) => {
-  const firstDay = new Date(year, month, 1)
-  const lastDay = new Date(year, month + 1, 0)
   const dates = []
-  for (let d = 1; d <= lastDay.getDate(); d++) {
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  for (let d = 1; d <= lastDay; d++) {
     dates.push(new Date(year, month, d))
   }
   return dates
 }
 
-// ---------- KOMPONEN UTAMA ----------
-function SetScheduleContent() {
-  const searchParams = useSearchParams()
-  const matchId = searchParams.get('matchId')
-  const { user, loading: authLoading } = useAuth()
-
-  const [matchData, setMatchData] = useState<any>(null)
-  const [loadingMatch, setLoadingMatch] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+export default function SetSchedulePage() {
+  const [matchData] = useState(dummyMatch)
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(dummyMatch.matched_subjects.slice(0, 2))
   const [schedule, setSchedule] = useState<Record<string, string>>({})
 
-  const dates = useMemo(() => getDatesInMonth(2026, 7), [])
+  const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
-
-  const hasFetched = useRef(false)
-  const isMounted = useRef(true)
-
-  useEffect(() => {
-    return () => { isMounted.current = false }
-  }, [])
-
-  useEffect(() => {
-    console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
-
-    if (!matchId) {
-      setError('Tidak ada ID match. Silakan buka melalui tombol "Atur Jadwal".')
-      setLoadingMatch(false)
-      return
-    }
-
-    if (authLoading) {
-      console.log('[set_schedule] authLoading true, menunggu...')
-      return
-    }
-
-    if (!user) {
-      setError('Silakan login terlebih dahulu.')
-      setLoadingMatch(false)
-      return
-    }
-
-    if (hasFetched.current) {
-      console.log('[set_schedule] sudah fetch, skip')
-      return
-    }
-    hasFetched.current = true
-
-    let timeoutId: NodeJS.Timeout
-
-    const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai via API')
-      setLoadingMatch(true)
-      setError(null)
-
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
-
-        console.log('[set_schedule] token:', token ? 'ada' : 'tidak ada')
-
-        const res = await fetch(`/api/matches/${matchId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include' // tambahkan ini agar cookie ikut
-        })
-
-        console.log('[set_schedule] API response status:', res.status)
-
-        if (!res.ok) {
-          const errText = await res.text()
-          console.error('[set_schedule] Error response body:', errText)
-          throw new Error(`Gagal fetch match (${res.status}): ${errText}`)
-        }
-
-        const match = await res.json()
-        console.log('[set_schedule] match data:', match)
-
-        if (isMounted.current) {
-          setMatchData(match)
-
-          if (match.matched_subjects && match.matched_subjects.length > 0) {
-            setSelectedSubjects(match.matched_subjects.slice(0, 2))
-          } else if (match.subject) {
-            setSelectedSubjects([match.subject])
-          }
-          console.log('[set_schedule] selectedSubjects =', selectedSubjects)
-          setError(null)
-        }
-      } catch (err: any) {
-        console.error('[set_schedule] ERROR:', err)
-        if (isMounted.current) {
-          setError(err.message || 'Terjadi kesalahan')
-        }
-      } finally {
-        if (isMounted.current) {
-          console.log('[set_schedule] finally, set loading false')
-          setLoadingMatch(false)
-        }
-        clearTimeout(timeoutId)
-      }
-    }
-
-    fetchMatch()
-    timeoutId = setTimeout(() => {
-      if (isMounted.current && loadingMatch) {
-        console.log('[set_schedule] TIMEOUT: forced loading false')
-        setLoadingMatch(false)
-        setError('Waktu pengambilan data habis. Silakan refresh halaman.')
-      }
-    }, 10000)
-
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [matchId, user, authLoading])
-
-  // ... (fungsi toggleSubject, handleSlotClick, dll sama persis seperti sebelumnya, tidak diubah)
 
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
-      if (index !== -1) {
-        return prev.filter(s => s !== subject)
-      } else {
-        if (prev.length >= 2) return prev
-        return [...prev, subject]
-      }
+      if (index !== -1) return prev.filter(s => s !== subject)
+      if (prev.length >= 2) return prev
+      return [...prev, subject]
     })
   }
 
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
-    const currentSubject = schedule[key]
-
-    if (currentSubject) {
+    const current = schedule[key]
+    if (current) {
       const newSchedule = { ...schedule }
       delete newSchedule[key]
-      const dayOfWeek = date.getDay()
+      // hapus mirror
+      const day = date.getDay()
       dates.forEach(d => {
-        if (d.getDay() === dayOfWeek) {
+        if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (newSchedule[mirrorKey] === currentSubject) {
-            delete newSchedule[mirrorKey]
-          }
+          if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
         }
       })
       setSchedule(newSchedule)
     } else {
       if (selectedSubjects.length === 0) {
-        alert('Pilih mata pelajaran terlebih dahulu!')
+        alert('Pilih mata pelajaran dulu!')
         return
       }
-      const subjectCounts: Record<string, number> = {}
-      Object.values(schedule).forEach(subj => {
-        subjectCounts[subj] = (subjectCounts[subj] || 0) + 1
+      // pilih subject dengan count paling sedikit
+      const counts: Record<string, number> = {}
+      Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
+      let chosen = selectedSubjects[0]
+      let min = Infinity
+      selectedSubjects.forEach(s => {
+        const c = counts[s] || 0
+        if (c < min) { min = c; chosen = s }
       })
-      let selectedSubject = selectedSubjects[0]
-      if (selectedSubjects.length > 1) {
-        let minCount = Infinity
-        for (const subj of selectedSubjects) {
-          const count = subjectCounts[subj] || 0
-          if (count < minCount) {
-            minCount = count
-            selectedSubject = subj
-          }
-        }
-      }
-      const newSchedule = { ...schedule, [key]: selectedSubject }
-      const dayOfWeek = date.getDay()
+      const newSchedule = { ...schedule, [key]: chosen }
+      const day = date.getDay()
       dates.forEach(d => {
-        if (d.getDay() === dayOfWeek) {
+        if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (!newSchedule[mirrorKey]) {
-            newSchedule[mirrorKey] = selectedSubject
-          }
+          if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
         }
       })
       setSchedule(newSchedule)
@@ -225,19 +118,15 @@ function SetScheduleContent() {
 
   const generateSummary = () => {
     const entries = Object.entries(schedule)
-    if (entries.length === 0) {
-      return <p className="text-muted-foreground">Belum ada jadwal dipilih.</p>
-    }
-    const grouped: Record<string, { subject: string; day: string; time: string; count: number }> = {}
+    if (entries.length === 0) return <p className="text-muted-foreground">Belum ada jadwal.</p>
+    const grouped: Record<string, any> = {}
     entries.forEach(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|')
       const date = new Date(dateStr)
       const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' })
-      const groupKey = `${subject}-${dayName}-${timeSlot}`
-      if (!grouped[groupKey]) {
-        grouped[groupKey] = { subject, day: dayName, time: timeSlot, count: 0 }
-      }
-      grouped[groupKey].count += 1
+      const gk = `${subject}-${dayName}-${timeSlot}`
+      if (!grouped[gk]) grouped[gk] = { subject, day: dayName, time: timeSlot, count: 0 }
+      grouped[gk].count += 1
     })
     return (
       <ul className="space-y-1">
@@ -250,46 +139,6 @@ function SetScheduleContent() {
       </ul>
     )
   }
-
-  // ---------- RENDER ----------
-  console.log('[set_schedule] render, authLoading =', authLoading, 'loadingMatch =', loadingMatch, 'error =', error)
-
-  if (authLoading || loadingMatch) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Spinner className="h-8 w-8" />
-        <p className="ml-3">{authLoading ? 'Memuat sesi...' : 'Memuat data jadwal...'}</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-6xl mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={() => window.history.back()} className="mt-4">
-          Kembali
-        </Button>
-      </div>
-    )
-  }
-
-  if (!matchData) {
-    return (
-      <div className="max-w-6xl mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertDescription>Data match tidak ditemukan.</AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
-
-  const availableSubjects =
-    matchData.matched_subjects && matchData.matched_subjects.length > 0
-      ? matchData.matched_subjects
-      : [matchData.subject].filter(Boolean)
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
@@ -304,7 +153,7 @@ function SetScheduleContent() {
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
         </CardHeader>
         <CardContent className="flex gap-3 flex-wrap">
-          {availableSubjects.map((subj: string) => {
+          {matchData.matched_subjects?.map((subj: string) => {
             const isSelected = selectedSubjects.includes(subj)
             return (
               <Button
@@ -327,10 +176,6 @@ function SetScheduleContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>←</Button>
-            <Button variant="outline" size="sm" disabled>→</Button>
-          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -394,13 +239,5 @@ function SetScheduleContent() {
         </Button>
       </div>
     </div>
-  )
-}
-
-export default function SetSchedulePage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
-      <SetScheduleContent />
-    </Suspense>
   )
 }
