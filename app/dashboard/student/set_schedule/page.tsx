@@ -68,11 +68,21 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  const hasLoaded = useRef(false)
+  const isMounted = useRef(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // === FETCH DATA LANGSUNG DARI SUPABASE ===
+  // Cleanup
   useEffect(() => {
-    console.log('[set_schedule] useEffect, matchId:', matchId, 'user:', user?.id)
+    return () => {
+      isMounted.current = false
+      if (abortControllerRef.current) abortControllerRef.current.abort()
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, user: user?.id })
 
     if (!matchId) {
       setError('Tidak ada ID match.')
@@ -91,63 +101,99 @@ function SetScheduleContent() {
       return
     }
 
-    if (hasLoaded.current) {
-      console.log('[set_schedule] sudah loaded, skip')
-      return
-    }
-    hasLoaded.current = true
+    // Reset state
+    setLoadingMatch(true)
+    setError(null)
+    setUsingDummy(false)
 
-    const fetchMatch = async () => {
-      setLoadingMatch(true)
-      setError(null)
+    // Buat AbortController untuk fetch
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
 
+    // Timeout 5 detik -> paksa pakai dummy
+    const timeoutId = setTimeout(() => {
+      console.log('[set_schedule] TIMEOUT 5s, pakai dummy')
+      if (isMounted.current && loadingMatch) {
+        setMatchData(DUMMY_MATCH)
+        setUsingDummy(true)
+        setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+        setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+        setLoadingMatch(false)
+        setError(null)
+        console.log('[set_schedule] dummy applied due timeout')
+      }
+    }, 5000)
+    timeoutRef.current = timeoutId
+
+    // Fetch data
+    const fetchData = async () => {
+      console.log('[set_schedule] mulai fetch data dari Supabase')
       try {
         const supabase = createClient()
-        console.log('[set_schedule] Query Supabase untuk matchId:', matchId)
-
         const { data, error: supabaseError } = await supabase
           .from('matches')
           .select('matched_subjects, student_schedule, tutor_full_name, status')
           .eq('id', matchId)
           .maybeSingle()
 
+        // Jika sudah unmount atau di-abort, berhenti
+        if (!isMounted.current || abortController.signal.aborted) {
+          console.log('[set_schedule] fetch dibatalkan (unmount/abort)')
+          return
+        }
+
         if (supabaseError) {
           console.error('[set_schedule] Supabase error:', supabaseError)
-          throw new Error(`Supabase error: ${supabaseError.message}`)
+          throw supabaseError
         }
 
         if (data) {
           console.log('[set_schedule] Data dari Supabase:', data)
-          setMatchData(data)
-          setUsingDummy(false)
-          if (data.matched_subjects && data.matched_subjects.length > 0) {
-            setSelectedSubjects(data.matched_subjects.slice(0, 2))
+          if (isMounted.current) {
+            setMatchData(data)
+            setUsingDummy(false)
+            if (data.matched_subjects && data.matched_subjects.length > 0) {
+              setSelectedSubjects(data.matched_subjects.slice(0, 2))
+            }
+            setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+            setLoadingMatch(false)
+            setError(null)
+            // Bersihkan timeout karena sudah sukses
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
           }
-          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-          setError(null)
         } else {
-          console.warn('[set_schedule] Match tidak ditemukan, pakai dummy')
+          console.warn('[set_schedule] Data tidak ditemukan, pakai dummy')
+          if (isMounted.current) {
+            setMatchData(DUMMY_MATCH)
+            setUsingDummy(true)
+            setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+            setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+            setLoadingMatch(false)
+            setError(null)
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          }
+        }
+      } catch (err: any) {
+        console.error('[set_schedule] Fetch error:', err)
+        if (isMounted.current && !abortController.signal.aborted) {
+          // Jika error, pakai dummy
           setMatchData(DUMMY_MATCH)
           setUsingDummy(true)
           setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
           setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+          setLoadingMatch(false)
           setError(null)
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
         }
-      } catch (err: any) {
-        console.error('[set_schedule] Error catch:', err)
-        // Jika error, pakai dummy
-        setMatchData(DUMMY_MATCH)
-        setUsingDummy(true)
-        setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
-        setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
-        setError(null)
-      } finally {
-        setLoadingMatch(false)
-        console.log('[set_schedule] loadingMatch set false')
       }
     }
 
-    fetchMatch()
+    fetchData()
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (abortControllerRef.current) abortControllerRef.current.abort()
+    }
   }, [matchId, user, authLoading])
 
   // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
@@ -236,7 +282,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData)
+  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData, 'error:', error)
 
   if (authLoading || loadingMatch) {
     return (
