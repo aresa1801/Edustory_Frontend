@@ -43,7 +43,7 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // FETCH DATA MATCH - LANGSUNG AMBIL MATCH TANPA FILTER STUDENT_ID
+  // FETCH DATA MATCH - LANGSUNG BERDASARKAN matchId
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
 
@@ -68,7 +68,7 @@ function SetScheduleContent() {
         const supabase = createClient()
         console.log('[set_schedule] Supabase client created')
 
-        // Langsung ambil match berdasarkan matchId, RLS akan mengecek akses
+        // Query langsung berdasarkan matchId (tanpa filter student_id)
         console.log('[set_schedule] Query match dengan matchId:', matchId)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
@@ -107,7 +107,7 @@ function SetScheduleContent() {
 
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
-          // Jika error 403/404, beri pesan yang sesuai
+          // Jika error 404/not found, beri pesan yang sesuai
           if (matchErr.code === 'PGRST116') {
             throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
           }
@@ -143,7 +143,6 @@ function SetScheduleContent() {
   }, [matchId, user, authLoading])
 
   // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
-  // (sama seperti sebelumnya, tidak perlu diubah)
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
