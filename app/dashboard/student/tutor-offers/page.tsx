@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 
-// ---------- DUMMY DATA ----------
+// ---------- DUMMY DATA (fallback jika API gagal) ----------
 const DUMMY_MATCH = {
   matched_subjects: ['Matematika', 'Kimia', 'Sejarah'],
   student_schedule: 'Senin-Jumat 12.00-15.00',
@@ -68,15 +68,92 @@ function SetScheduleContent() {
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId)
 
-    // Hanya untuk testing: langsung tampilkan dummy tanpa fetch
-    console.log('[set_schedule] LANGSUNG PAKAI DUMMY (test)')
-    setMatchData(DUMMY_MATCH)
-    setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2) || [])
-    setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
-    setUsingDummy(true)
-    setLoading(false)
-    setError(null)
-  }, []) // <-- kosong, hanya sekali
+    if (authLoading) {
+      console.log('[set_schedule] authLoading true, menunggu...')
+      return
+    }
+
+    if (!user) {
+      setError('Silakan login terlebih dahulu.')
+      setLoading(false)
+      return
+    }
+
+    if (!matchId) {
+      setError('Tidak ada ID match di URL.')
+      setLoading(false)
+      return
+    }
+
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
+
+    const fetchMatch = async () => {
+      console.log('[set_schedule] fetchMatch mulai')
+      setLoading(true)
+      setError(null)
+      setUsingDummy(false)
+
+      try {
+        const controller = new AbortController()
+        timeoutId = setTimeout(() => controller.abort(), 5000)
+
+        const res = await fetch(`/api/matches/${matchId}`, {
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!isMounted) return
+
+        console.log('[set_schedule] API response status:', res.status)
+
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
+        }
+
+        const data = await res.json()
+        console.log('[set_schedule] Data dari API:', data)
+
+        if (!data.matched_subjects) {
+          throw new Error('Data match tidak memiliki kolom matched_subjects.')
+        }
+
+        // Sukses
+        setMatchData(data)
+        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
+        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+        setUsingDummy(false)
+        setError(null)
+      } catch (err: any) {
+        console.error('[set_schedule] Error:', err)
+        if (isMounted) {
+          // Jika gagal atau timeout, pakai dummy
+          console.log('[set_schedule] Menggunakan data dummy')
+          setMatchData(DUMMY_MATCH)
+          setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+          setUsingDummy(true)
+          setError(null) // tidak tampilkan error
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+          console.log('[set_schedule] loading = false')
+        }
+        clearTimeout(timeoutId)
+      }
+    }
+
+    fetchMatch()
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [matchId, user, authLoading])
 
   // --- Fungsi interaksi ---
   const toggleSubject = (subject: string) => {
@@ -175,6 +252,7 @@ function SetScheduleContent() {
     )
   }
 
+  // Jika ada error dan tidak pakai dummy (seharusnya tidak terjadi)
   if (error && !usingDummy) {
     return (
       <div className="max-w-6xl mx-auto p-4">
@@ -225,7 +303,7 @@ function SetScheduleContent() {
       {usingDummy && (
         <Alert className="bg-yellow-50 border-yellow-200">
           <AlertDescription className="text-yellow-800 text-sm">
-            ⚠️ Menggunakan data dummy (testing, tanpa fetch).
+            ⚠️ Menggunakan data dummy karena API tidak merespons.
           </AlertDescription>
         </Alert>
       )}
