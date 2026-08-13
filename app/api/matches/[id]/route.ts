@@ -21,10 +21,14 @@ export async function GET(
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token)
 
     if (userErr || !user) {
+      console.error('[API] Auth error:', userErr)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Ambil data match berdasarkan ID dengan join ke tutor dan student
+    const { id } = params
+    console.log('[API] Fetching match with id:', id)
+
+    // 1. Ambil match utama
     const { data: match, error: matchErr } = await supabase
       .from('matches')
       .select(`
@@ -35,26 +39,9 @@ export async function GET(
         lesson_frequency,
         start_date,
         tutor_id,
-        student_id,
-        tutors:tutor_id (
-          id,
-          hourly_rate,
-          user_id,
-          user_profiles:user_id (
-            full_name,
-            avatar_url
-          )
-        ),
-        students:student_id (
-          id,
-          grade_level,
-          user_id,
-          user_profiles:user_id (
-            full_name
-          )
-        )
+        student_id
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (matchErr) {
@@ -62,7 +49,68 @@ export async function GET(
       return NextResponse.json({ error: matchErr.message }, { status: 500 })
     }
 
-    return NextResponse.json(match)
+    if (!match) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    }
+
+    // 2. Ambil data tutor
+    let tutorData: any = null
+    const { data: tutor, error: tutorErr } = await supabase
+      .from('tutors')
+      .select('id, hourly_rate, user_id')
+      .eq('id', match.tutor_id)
+      .single()
+
+    if (!tutorErr && tutor) {
+      tutorData = tutor
+      // Ambil profil tutor
+      const { data: tutorProfile, error: tpErr } = await supabase
+        .from('user_profiles')
+        .select('full_name, avatar_url')
+        .eq('id', tutor.user_id)
+        .single()
+      if (!tpErr && tutorProfile) {
+        tutorData.user_profiles = tutorProfile
+      }
+    }
+
+    // 3. Ambil data student
+    let studentData: any = null
+    const { data: student, error: studentErr } = await supabase
+      .from('students')
+      .select('id, grade_level, user_id')
+      .eq('id', match.student_id)
+      .single()
+
+    if (!studentErr && student) {
+      studentData = student
+      // Ambil profil student
+      const { data: studentProfile, error: spErr } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('id', student.user_id)
+        .single()
+      if (!spErr && studentProfile) {
+        studentData.user_profiles = studentProfile
+      }
+    }
+
+    // 4. Buat response object baru
+    const response = {
+      id: match.id,
+      subject: match.subject,
+      matched_subjects: match.matched_subjects,
+      status: match.status,
+      lesson_frequency: match.lesson_frequency,
+      start_date: match.start_date,
+      tutor_id: match.tutor_id,
+      student_id: match.student_id,
+      tutors: tutorData,
+      students: studentData
+    }
+
+    console.log('[API] Match fetched successfully')
+    return NextResponse.json(response)
   } catch (err) {
     console.error('[API] Unexpected error:', err)
     return NextResponse.json(

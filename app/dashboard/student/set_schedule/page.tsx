@@ -43,7 +43,6 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // Flag untuk mencegah fetch ganda
   const hasFetched = useRef(false)
   const isMounted = useRef(true)
 
@@ -85,25 +84,25 @@ function SetScheduleContent() {
       setError(null)
 
       try {
-        // Ambil session untuk token
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
 
         console.log('[set_schedule] token:', token ? 'ada' : 'tidak ada')
 
-        // Panggil API route
         const res = await fetch(`/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          credentials: 'include' // tambahkan ini agar cookie ikut
         })
 
         console.log('[set_schedule] API response status:', res.status)
 
         if (!res.ok) {
           const errText = await res.text()
+          console.error('[set_schedule] Error response body:', errText)
           throw new Error(`Gagal fetch match (${res.status}): ${errText}`)
         }
 
@@ -113,7 +112,6 @@ function SetScheduleContent() {
         if (isMounted.current) {
           setMatchData(match)
 
-          // Inisialisasi selectedSubjects
           if (match.matched_subjects && match.matched_subjects.length > 0) {
             setSelectedSubjects(match.matched_subjects.slice(0, 2))
           } else if (match.subject) {
@@ -150,7 +148,8 @@ function SetScheduleContent() {
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
+  // ... (fungsi toggleSubject, handleSlotClick, dll sama persis seperti sebelumnya, tidak diubah)
+
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -300,7 +299,6 @@ function SetScheduleContent() {
         <span className="font-medium">{matchData.tutors?.user_profiles?.full_name || 'tutor'}</span>.
       </p>
 
-      {/* Pilihan Mata Pelajaran */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
@@ -326,17 +324,12 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Kalender */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>
-              ←
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              →
-            </Button>
+            <Button variant="outline" size="sm" disabled>←</Button>
+            <Button variant="outline" size="sm" disabled>→</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -388,7 +381,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Ringkasan */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
@@ -396,7 +388,6 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
@@ -406,7 +397,6 @@ function SetScheduleContent() {
   )
 }
 
-// ---------- PAGE UTAMA dengan SUSPENSE ----------
 export default function SetSchedulePage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
