@@ -1,393 +1,157 @@
-'use client'
+// app/api/matches/route.ts
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
-// ---------- HELPER ----------
-const getDatesInMonth = (year: number, month: number) => {
-  const dates = []
-  const lastDay = new Date(year, month + 1, 0).getDate()
-  for (let d = 1; d <= lastDay; d++) {
-    dates.push(new Date(year, month, d))
-  }
-  return dates
-}
-
-const parseScheduleToTimeSlots = (scheduleStr: string) => {
-  const timeMatch = scheduleStr.match(/(\d{2}\.\d{2})\s*-\s*(\d{2}\.\d{2})/)
-  if (timeMatch) {
-    const start = parseFloat(timeMatch[1].replace('.', ':'))
-    const end = parseFloat(timeMatch[2].replace('.', ':'))
-    const slots = []
-    for (let h = start; h < end; h++) {
-      const next = h + 1
-      const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
-      slots.push({ label })
-    }
-    return slots
-  }
-  return [
-    { label: '12.00 - 13.00' },
-    { label: '13.00 - 14.00' },
-    { label: '14.00 - 15.00' },
-  ]
-}
-
-// ---------- KOMPONEN ----------
-function SetScheduleContent() {
-  const searchParams = useSearchParams()
-  const matchId = searchParams.get('matchId')
-  const { user, loading: authLoading } = useAuth()
-
-  console.log('[set_schedule] RENDER, matchId =', matchId, 'authLoading =', authLoading, 'user =', user?.id)
-
-  const [matchData, setMatchData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
-  const [schedule, setSchedule] = useState<Record<string, string>>({})
-  const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
-
-  const dates = getDatesInMonth(2026, 7)
-  const monthName = 'Agustus 2026'
-
-  useEffect(() => {
-    console.log('[set_schedule] useEffect START, matchId =', matchId)
-
-    if (authLoading) {
-      console.log('[set_schedule] authLoading true, skip')
-      return
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'No authorization header' }, { status: 401 })
     }
 
-    if (!user) {
-      setError('Silakan login.')
-      setLoading(false)
-      return
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token)
+
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!matchId) {
-      setError('Tidak ada ID match.')
-      setLoading(false)
-      return
-    }
+    const { searchParams } = new URL(request.url)
+    const studentId = searchParams.get('student_id')
 
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
+    let query = supabase.from('matches').select('*')
 
-    const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai, matchId =', matchId)
-      setLoading(true)
-      setError(null)
+    if (studentId) {
+      const { data: studentData, error: studentErr } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
 
-      try {
-        // === LANGSUNG PAKAI SUPABASE CLIENT ===
-        const supabase = createClient()
-        console.log('[set_schedule] Supabase client created')
-
-        // Tambahkan timeout 5 detik
-        const fetchPromise = supabase
-          .from('matches')
-          .select('matched_subjects, student_schedule, tutor_full_name, status')
-          .eq('id', matchId)
-          .maybeSingle()
-
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('Timeout 5 detik')), 5000)
-        })
-
-        const result = await Promise.race([fetchPromise, timeoutPromise]) as any
-        clearTimeout(timeoutId)
-
-        if (!isMounted) return
-
-        if (result.error) {
-          console.error('[set_schedule] Supabase error:', result.error)
-          throw new Error(`Supabase error: ${result.error.message}`)
-        }
-
-        const data = result.data
-        console.log('[set_schedule] Data dari Supabase:', data)
-
-        if (!data) {
-          throw new Error('Data match tidak ditemukan.')
-        }
-
-        if (!data.matched_subjects) {
-          throw new Error('Data match tidak memiliki kolom matched_subjects.')
-        }
-
-        setMatchData(data)
-        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
-        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-        console.log('[set_schedule] Set state success')
-      } catch (err: any) {
-        console.error('[set_schedule] Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Terjadi kesalahan')
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-          console.log('[set_schedule] loading = false')
-        }
-        clearTimeout(timeoutId)
+      if (studentErr || !studentData) {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
       }
-    }
-
-    fetchMatch()
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-    }
-  }, [matchId, user, authLoading])
-
-  // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
-  const toggleSubject = (subject: string) => {
-    setSelectedSubjects(prev => {
-      const index = prev.indexOf(subject)
-      if (index !== -1) return prev.filter(s => s !== subject)
-      if (prev.length >= 2) return prev
-      return [...prev, subject]
-    })
-  }
-
-  const handleSlotClick = (date: Date, timeSlotLabel: string) => {
-    const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
-    const current = schedule[key]
-    if (current) {
-      const newSchedule = { ...schedule }
-      delete newSchedule[key]
-      const day = date.getDay()
-      dates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
-        }
-      })
-      setSchedule(newSchedule)
+      if (studentData.id !== studentId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      query = query.eq('student_id', studentId)
     } else {
-      if (selectedSubjects.length === 0) {
-        alert('Pilih mata pelajaran dulu!')
-        return
+      const { data: tutorData, error: tutorErr } = await supabase
+        .from('tutors')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (tutorErr || !tutorData) {
+        return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
       }
-      const counts: Record<string, number> = {}
-      Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
-      let chosen = selectedSubjects[0]
-      let min = Infinity
-      selectedSubjects.forEach(s => {
-        const c = counts[s] || 0
-        if (c < min) { min = c; chosen = s }
-      })
-      const newSchedule = { ...schedule, [key]: chosen }
-      const day = date.getDay()
-      dates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
-        }
-      })
-      setSchedule(newSchedule)
+      query = query.eq('tutor_id', tutorData.id)
     }
-  }
 
-  const isSlotFilled = (date: Date, timeSlotLabel: string): boolean => {
-    const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
-    return !!schedule[key]
-  }
+    const { data: matches, error: matchErr } = await query.order('created_at', { ascending: false })
 
-  const getSlotSubject = (date: Date, timeSlotLabel: string): string | null => {
-    const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
-    return schedule[key] || null
-  }
-
-  const generateSummary = () => {
-    const entries = Object.entries(schedule)
-    if (entries.length === 0) {
-      return <p className="text-muted-foreground">Belum ada jadwal dipilih.</p>
+    if (matchErr) {
+      console.error('[API] Fetch matches error:', matchErr)
+      return NextResponse.json({ error: matchErr.message }, { status: 500 })
     }
-    const grouped: Record<string, any> = {}
-    entries.forEach(([key, subject]) => {
-      const [dateStr, timeSlot] = key.split('|')
-      const date = new Date(dateStr)
-      const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' })
-      const gk = `${subject}-${dayName}-${timeSlot}`
-      if (!grouped[gk]) grouped[gk] = { subject, day: dayName, time: timeSlot, count: 0 }
-      grouped[gk].count += 1
-    })
-    return (
-      <ul className="space-y-1">
-        {Object.values(grouped).map((item, idx) => (
-          <li key={idx} className="text-sm">
-            <Badge variant="outline" className="mr-2">{item.subject}</Badge>
-            {item.day}, {item.time} ({item.count} sesi)
-          </li>
-        ))}
-      </ul>
+
+    return NextResponse.json(matches || [])
+  } catch (err) {
+    console.error('[API] Unexpected error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal error' },
+      { status: 500 }
     )
   }
-
-  // ---------- RENDER ----------
-  console.log('[set_schedule] render akhir, loading =', loading, 'matchData =', !!matchData, 'error =', error)
-
-  if (authLoading || loading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner className="h-8 w-8" />
-        <p className="ml-3">Memuat data...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-6xl mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertDescription>
-            <strong>Error:</strong> {error}
-          </AlertDescription>
-        </Alert>
-        <Button onClick={() => window.location.reload()} className="mt-4">Refresh</Button>
-      </div>
-    )
-  }
-
-  if (!matchData) {
-    return (
-      <div className="max-w-6xl mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertDescription>Data match tidak ditemukan.</AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
-
-  const availableSubjects = matchData.matched_subjects || []
-  const TIME_SLOTS = timeSlots.length > 0 ? timeSlots : [
-    { label: '12.00 - 13.00' },
-    { label: '13.00 - 14.00' },
-    { label: '14.00 - 15.00' },
-  ]
-
-  return (
-    <div className="max-w-7xl mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
-      <p className="text-muted-foreground">
-        Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-        <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
-      </p>
-
-      {/* Pilihan Mata Pelajaran */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
-        </CardHeader>
-        <CardContent className="flex gap-3 flex-wrap">
-          {availableSubjects.map((subj: string) => {
-            const isSelected = selectedSubjects.includes(subj)
-            return (
-              <Button
-                key={subj}
-                variant={isSelected ? 'default' : 'outline'}
-                onClick={() => toggleSubject(subj)}
-                disabled={!isSelected && selectedSubjects.length >= 2}
-                className="capitalize"
-              >
-                {subj} {isSelected && '✓'}
-              </Button>
-            )
-          })}
-          <span className="text-sm text-muted-foreground ml-2">
-            {selectedSubjects.length}/2 terpilih
-          </span>
-        </CardContent>
-      </Card>
-
-      {/* Kalender */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{monthName}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className="border p-1 min-w-[100px] text-left">Jam</th>
-                  {dates.map((date, idx) => (
-                    <th key={idx} className="border p-1 text-center min-w-[44px]">
-                      <div>{date.getDate()}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {date.toLocaleDateString('id-ID', { weekday: 'short' })}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {TIME_SLOTS.map((slot, rowIdx) => (
-                  <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs">{slot.label}</td>
-                    {dates.map((date, colIdx) => {
-                      const filled = isSlotFilled(date, slot.label)
-                      const subject = getSlotSubject(date, slot.label)
-                      return (
-                        <td
-                          key={colIdx}
-                          className="border p-0.5 text-center cursor-pointer hover:bg-gray-50"
-                          onClick={() => handleSlotClick(date, slot.label)}
-                        >
-                          <div
-                            className={`w-full h-10 flex items-center justify-center rounded transition-colors ${
-                              filled
-                                ? 'bg-primary/20 text-primary font-bold'
-                                : 'bg-gray-100 hover:bg-gray-200'
-                            }`}
-                          >
-                            {filled ? subject?.charAt(0).toUpperCase() : 'O'}
-                          </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Ringkasan */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
-        </CardHeader>
-        <CardContent>{generateSummary()}</CardContent>
-      </Card>
-
-      {/* Tombol Simpan */}
-      <div className="flex justify-end">
-        <Button className="bg-green-600 hover:bg-green-700 text-white">
-          Simpan Jadwal
-        </Button>
-      </div>
-    </div>
-  )
 }
 
-// ---------- PAGE ----------
-export default function SetSchedulePage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
-      <SetScheduleContent />
-    </Suspense>
-  )
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const body = await request.json()
+    const { tutor_id, student_id, subject, status, initiated_by, lesson_frequency, start_date, matched_subjects } = body
+
+    if (!tutor_id || !student_id) {
+      return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
+    }
+
+    // 1. Ambil data tutor (termasuk avatar_url)
+    const { data: tutor, error: tutorErr } = await supabase
+      .from('tutors')
+      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url')
+      .eq('id', tutor_id)
+      .single()
+
+    if (tutorErr || !tutor) {
+      console.error('[API] Tutor error:', tutorErr)
+      return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
+    }
+
+    // 2. Ambil data student
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online')
+      .eq('id', student_id)
+      .single()
+
+    if (studentError || !student) {
+      console.error('[API] Student error:', studentError)
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    }
+
+    // 3. Insert dengan semua kolom statis
+    const { data, error } = await supabase
+      .from('matches')
+      .insert({
+        tutor_id,
+        student_id,
+        matched_subjects: matched_subjects || [],
+        status: status || 'pending',
+        initiated_by: initiated_by || 'tutor',
+        lesson_frequency: lesson_frequency || 'flexible',
+        start_date: start_date || new Date().toISOString().split('T')[0],
+        student_full_name: student.name,
+        student_grade: student.grade_level,
+        student_budget_per_month: student.budget_per_month,
+        student_sessions_per_month: student.sessions_per_month,
+        student_schedule: student.preferred_schedule,
+        student_address: student.address,
+        student_avatar: student.avatar_url,
+        student_phone: student.phone,
+        student_latitude: student.latitude,
+        student_longitude: student.longitude,
+        student_is_online: student.is_online ?? true,
+        tutor_full_name: tutor.full_name,
+        tutor_bio: tutor.bio,
+        tutor_experience_years: tutor.experience_years,
+        tutor_hourly_rate: tutor.hourly_rate,
+        tutor_rating: tutor.rating,
+        tutor_total_reviews: tutor.total_reviews,
+        tutor_verified_grade_levels: tutor.verified_grade_levels,
+        tutor_avatar_url: tutor.avatar_url,
+      })
+      .select()
+
+    if (error) {
+      console.error('[API] Insert match error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data: data?.[0] || null })
+  } catch (err) {
+    console.error('[API] Unexpected error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal error' },
+      { status: 500 }
+    )
+  }
 }
