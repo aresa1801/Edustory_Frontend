@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/auth'
 
 // ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
@@ -76,38 +77,102 @@ function SetScheduleContent() {
       return
     }
 
-    // Ambil data dari sessionStorage
+    // --- 1. Cek sessionStorage ---
     const stored = sessionStorage.getItem('scheduleData')
-    console.log('[set_schedule] sessionStorage item:', stored)
-
     if (stored) {
       try {
         const data = JSON.parse(stored)
-        console.log('[set_schedule] Data dari sessionStorage:', data)
-
-        // Pastikan ID match sesuai
         if (data.id === matchId) {
+          console.log('[set_schedule] Data dari sessionStorage:', data)
           setMatchData(data)
           setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
           setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
           setLoading(false)
           setError(null)
-          // Hapus sessionStorage agar tidak dipakai ulang (opsional)
-          // sessionStorage.removeItem('scheduleData')
-          console.log('[set_schedule] Data berhasil dimuat dari sessionStorage')
+          // Hapus sessionStorage agar tidak dipakai ulang
+          sessionStorage.removeItem('scheduleData')
           return
-        } else {
-          console.warn('[set_schedule] ID mismatch:', data.id, 'vs', matchId)
         }
       } catch (e) {
-        console.error('[set_schedule] Gagal parse sessionStorage:', e)
+        console.warn('[set_schedule] Gagal parse sessionStorage', e)
       }
     }
 
-    // Jika tidak ada data di sessionStorage
-    console.error('[set_schedule] Data tidak ditemukan di sessionStorage')
-    setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran dan coba lagi.')
-    setLoading(false)
+    // --- 2. Fallback: fetch dari API ---
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
+
+    const fetchMatch = async () => {
+      console.log('[set_schedule] fetchMatch mulai (fallback API)')
+      setLoading(true)
+      setError(null)
+
+      try {
+        // Ambil token
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+
+        if (!token) {
+          throw new Error('Token tidak ditemukan.')
+        }
+
+        // Fetch dengan timeout 5 detik
+        const controller = new AbortController()
+        timeoutId = setTimeout(() => controller.abort(), 5000)
+
+        const res = await fetch(`/api/matches/${matchId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!isMounted) return
+
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
+        }
+
+        const data = await res.json()
+        console.log('[set_schedule] Data dari API:', data)
+
+        if (!data.matched_subjects) {
+          throw new Error('Data match tidak memiliki kolom matched_subjects.')
+        }
+
+        setMatchData(data)
+        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
+        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+        setError(null)
+      } catch (err: any) {
+        console.error('[set_schedule] Fetch error:', err)
+        if (isMounted) {
+          if (err.name === 'AbortError') {
+            setError('Waktu pengambilan data habis (timeout 5 detik). Silakan coba lagi.')
+          } else {
+            setError(err.message || 'Terjadi kesalahan saat mengambil data.')
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+          console.log('[set_schedule] loading = false')
+        }
+        clearTimeout(timeoutId)
+      }
+    }
+
+    fetchMatch()
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [matchId, user, authLoading])
 
   // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
@@ -213,11 +278,20 @@ function SetScheduleContent() {
         <Alert variant="destructive">
           <AlertDescription>
             <strong>Error:</strong> {error}
+            <br />
+            <span className="text-sm mt-2 block">
+              Pastikan Anda sudah membuka dari halaman penawaran atau koneksi internet stabil.
+            </span>
           </AlertDescription>
         </Alert>
-        <Button onClick={() => window.history.back()} className="mt-4">
-          Kembali ke Penawaran
-        </Button>
+        <div className="flex gap-2 mt-4">
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Coba Lagi
+          </Button>
+          <Button onClick={() => window.history.back()}>
+            Kembali ke Penawaran
+          </Button>
+        </div>
       </div>
     )
   }
@@ -228,6 +302,9 @@ function SetScheduleContent() {
         <Alert variant="destructive">
           <AlertDescription>Data match tidak ditemukan.</AlertDescription>
         </Alert>
+        <Button onClick={() => window.location.reload()} className="mt-4">
+          Coba Lagi
+        </Button>
       </div>
     )
   }
@@ -335,7 +412,7 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan */}
+      {/* Tombol Simpan (placeholder) */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
