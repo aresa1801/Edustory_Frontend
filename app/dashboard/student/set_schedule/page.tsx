@@ -1,3 +1,4 @@
+// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
@@ -43,7 +44,7 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  // FETCH DATA MATCH - LANGSUNG BERDASARKAN matchId
+  // FETCH DATA MATCH
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
 
@@ -59,6 +60,8 @@ function SetScheduleContent() {
       return
     }
 
+    let timeoutId: NodeJS.Timeout | null = null
+
     const fetchMatch = async () => {
       console.log('[set_schedule] fetchMatch mulai')
       setLoadingMatch(true)
@@ -68,8 +71,25 @@ function SetScheduleContent() {
         const supabase = createClient()
         console.log('[set_schedule] Supabase client created')
 
-        // Query langsung berdasarkan matchId (tanpa filter student_id)
-        console.log('[set_schedule] Query match dengan matchId:', matchId)
+        // Cek apakah user terdaftar sebagai student
+        console.log('[set_schedule] Cek student untuk user:', user.id)
+        const { data: studentData, error: studentErr } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        console.log('[set_schedule] studentData:', studentData)
+        if (studentErr) {
+          console.warn('[set_schedule] studentErr:', studentErr)
+        }
+        if (!studentData) {
+          // User bukan student, tampilkan error
+          throw new Error('User ini tidak terdaftar sebagai student. Hubungi admin.')
+        }
+
+        // Query match berdasarkan matchId dan student_id
+        console.log('[set_schedule] Query match dengan matchId:', matchId, 'student_id:', studentData.id)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
           .select(`
@@ -100,6 +120,7 @@ function SetScheduleContent() {
             )
           `)
           .eq('id', matchId)
+          .eq('student_id', studentData.id)
           .maybeSingle()
 
         console.log('[set_schedule] match query result:', match ? 'found' : 'null')
@@ -107,15 +128,11 @@ function SetScheduleContent() {
 
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
-          // Jika error 404/not found, beri pesan yang sesuai
-          if (matchErr.code === 'PGRST116') {
-            throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
-          }
           throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
         }
 
         if (!match) {
-          throw new Error('Data match tidak ditemukan.')
+          throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
         }
 
         setMatchData(match)
@@ -134,15 +151,30 @@ function SetScheduleContent() {
       } finally {
         console.log('[set_schedule] finally, set loading false')
         setLoadingMatch(false)
+        if (timeoutId) clearTimeout(timeoutId)
       }
     }
+
+    // Timeout untuk mencegah infinite loading (misal, jika fetch macet)
+    timeoutId = setTimeout(() => {
+      if (loadingMatch) {
+        console.warn('[set_schedule] Timeout! Set loading false dan error.')
+        setLoadingMatch(false)
+        setError('Timeout: Gagal mengambil data. Coba refresh halaman.')
+      }
+    }, 10000) // 10 detik
 
     if (!authLoading) {
       fetchMatch()
     }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [matchId, user, authLoading])
 
   // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
+  // (sama seperti sebelumnya)
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
