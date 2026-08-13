@@ -1,6 +1,7 @@
+// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
-import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,7 @@ const DUMMY_MATCH = {
   status: 'pending',
 }
 
-// ---------- FUNGSI HELPER ----------
+// ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
   const dates = []
   const lastDay = new Date(year, month + 1, 0).getDate()
@@ -49,7 +50,7 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ---------- KOMPONEN UTAMA ----------
+// ---------- KOMPONEN ----------
 function SetScheduleContent() {
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
@@ -64,24 +65,30 @@ function SetScheduleContent() {
   const [schedule, setSchedule] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
 
-  const dates = useMemo(() => getDatesInMonth(2026, 7), [])
+  const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  const isMounted = useRef(true)
-  const hasFetched = useRef(false)
+  const hasLoaded = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    return () => {
-      isMounted.current = false
-      if (abortControllerRef.current) abortControllerRef.current.abort()
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+  // Fungsi untuk mengisi data (dari API atau dummy)
+  const applyData = (data: any, isDummy: boolean) => {
+    console.log('[set_schedule] applyData, isDummy:', isDummy)
+    setMatchData(data)
+    setUsingDummy(isDummy)
+    if (data.matched_subjects && data.matched_subjects.length > 0) {
+      setSelectedSubjects(data.matched_subjects.slice(0, 2))
     }
-  }, [])
+    setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+    setError(null)
+    setLoadingMatch(false)
+    console.log('[set_schedule] applyData done, loadingMatch set false')
+  }
 
+  // Efek utama untuk fetch data
   useEffect(() => {
-    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, user: user?.id })
+    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, userId: user?.id })
 
     if (!matchId) {
       setError('Tidak ada ID match.')
@@ -90,7 +97,7 @@ function SetScheduleContent() {
     }
 
     if (authLoading) {
-      console.log('[set_schedule] authLoading true, wait...')
+      console.log('[set_schedule] authLoading true, menunggu...')
       return
     }
 
@@ -100,44 +107,51 @@ function SetScheduleContent() {
       return
     }
 
-    if (hasFetched.current) {
-      console.log('[set_schedule] already fetched, skip')
+    if (hasLoaded.current) {
+      console.log('[set_schedule] sudah loaded, skip')
       return
     }
-    hasFetched.current = true
 
-    console.log('[set_schedule] start fetch...')
+    // Tandai sudah mulai
+    hasLoaded.current = true
+    setLoadingMatch(true)
+    setError(null)
 
+    // Buat AbortController
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
+    console.log('[set_schedule] mulai fetch, timeout 7s')
+
+    // Timeout: jika lebih dari 7 detik, abort dan pakai dummy
+    const timeoutId = setTimeout(() => {
+      console.log('[set_schedule] TIMEOUT 7s, abort fetch, pakai dummy')
+      abortController.abort()
+      if (!hasLoaded.current) return
+      applyData(DUMMY_MATCH, true)
+    }, 7000)
+    timeoutRef.current = timeoutId
+
+    // Jalankan fetch
     const fetchData = async () => {
       try {
-        // Setup AbortController untuk timeout
-        abortControllerRef.current = new AbortController()
-        const signal = abortControllerRef.current.signal
-
-        // Timeout 7 detik
-        timeoutRef.current = setTimeout(() => {
-          if (abortControllerRef.current) {
-            console.log('[set_schedule] timeout 7s, abort fetch')
-            abortControllerRef.current.abort()
-          }
-        }, 7000)
-
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
 
-        console.log('[set_schedule] fetching API...')
         const res = await fetch(`/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          signal
+          signal: abortController.signal
         })
 
-        clearTimeout(timeoutRef.current!)
-
-        console.log('[set_schedule] API status:', res.status)
+        // Jika sudah di-abort, stop
+        if (abortController.signal.aborted) {
+          console.log('[set_schedule] fetch dibatalkan karena timeout')
+          return
+        }
 
         if (!res.ok) {
           const errText = await res.text()
@@ -145,42 +159,37 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] API success:', data)
+        console.log('[set_schedule] fetch success, data:', data)
 
-        if (isMounted.current) {
-          setMatchData(data)
-          setUsingDummy(false)
-          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-          setError(null)
+        // Jika belum di-abort dan belum timeout, pakai data
+        if (!abortController.signal.aborted && hasLoaded.current) {
+          applyData(data, false)
         }
       } catch (err: any) {
-        // Jika fetch gagal atau abort (timeout), pakai dummy
-        console.warn('[set_schedule] fetch gagal, pakai dummy:', err.message)
-        if (isMounted.current) {
-          setMatchData(DUMMY_MATCH)
-          setUsingDummy(true)
-          setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
-          setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
-          setError(null)
+        // Jika error karena abort, abaikan (sudah ditangani timeout)
+        if (err.name === 'AbortError') {
+          console.log('[set_schedule] fetch di-abort (timeout)')
+          return
         }
-      } finally {
-        if (isMounted.current) {
-          console.log('[set_schedule] set loading false')
-          setLoadingMatch(false)
+        console.error('[set_schedule] fetch error:', err)
+        // Jika terjadi error lain dan belum di-resolve, pakai dummy
+        if (hasLoaded.current && loadingMatch) {
+          applyData(DUMMY_MATCH, true)
         }
       }
     }
 
     fetchData()
 
+    // Cleanup
     return () => {
-      if (abortControllerRef.current) abortControllerRef.current.abort()
+      console.log('[set_schedule] cleanup')
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (abortControllerRef.current) abortControllerRef.current.abort()
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi toggleSubject ---
+  // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -190,7 +199,6 @@ function SetScheduleContent() {
     })
   }
 
-  // --- Fungsi handleSlotClick ---
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
@@ -267,7 +275,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render', { authLoading, loadingMatch, error, usingDummy })
+  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData, 'error:', error)
 
   if (authLoading || loadingMatch) {
     return (
@@ -326,7 +334,7 @@ function SetScheduleContent() {
       {usingDummy && (
         <Alert className="bg-yellow-50 border-yellow-200">
           <AlertDescription className="text-yellow-800 text-sm">
-            ⚠️ Menggunakan data dummy karena API belum merespons. Silakan refresh jika ingin mencoba lagi.
+            ⚠️ Menggunakan data dummy karena API belum merespons.
           </AlertDescription>
         </Alert>
       )}
@@ -429,7 +437,7 @@ function SetScheduleContent() {
   )
 }
 
-// ---------- PAGE UTAMA ----------
+// ---------- PAGE ----------
 export default function SetSchedulePage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
