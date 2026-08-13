@@ -69,26 +69,10 @@ function SetScheduleContent() {
   const monthName = 'Agustus 2026'
 
   const hasLoaded = useRef(false)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Fungsi untuk mengisi data (dari API atau dummy)
-  const applyData = (data: any, isDummy: boolean) => {
-    console.log('[set_schedule] applyData, isDummy:', isDummy)
-    setMatchData(data)
-    setUsingDummy(isDummy)
-    if (data.matched_subjects && data.matched_subjects.length > 0) {
-      setSelectedSubjects(data.matched_subjects.slice(0, 2))
-    }
-    setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-    setError(null)
-    setLoadingMatch(false)
-    console.log('[set_schedule] applyData done, loadingMatch set false')
-  }
-
-  // Efek utama untuk fetch data
+  // === FETCH DATA LANGSUNG DARI SUPABASE ===
   useEffect(() => {
-    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, userId: user?.id })
+    console.log('[set_schedule] useEffect, matchId:', matchId, 'user:', user?.id)
 
     if (!matchId) {
       setError('Tidak ada ID match.')
@@ -111,82 +95,59 @@ function SetScheduleContent() {
       console.log('[set_schedule] sudah loaded, skip')
       return
     }
-
-    // Tandai sudah mulai
     hasLoaded.current = true
-    setLoadingMatch(true)
-    setError(null)
 
-    // Buat AbortController
-    const abortController = new AbortController()
-    abortControllerRef.current = abortController
+    const fetchMatch = async () => {
+      setLoadingMatch(true)
+      setError(null)
 
-    console.log('[set_schedule] mulai fetch, timeout 7s')
-
-    // Timeout: jika lebih dari 7 detik, abort dan pakai dummy
-    const timeoutId = setTimeout(() => {
-      console.log('[set_schedule] TIMEOUT 7s, abort fetch, pakai dummy')
-      abortController.abort()
-      if (!hasLoaded.current) return
-      applyData(DUMMY_MATCH, true)
-    }, 7000)
-    timeoutRef.current = timeoutId
-
-    // Jalankan fetch
-    const fetchData = async () => {
       try {
         const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
+        console.log('[set_schedule] Query Supabase untuk matchId:', matchId)
 
-        const res = await fetch(`/api/matches/${matchId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          signal: abortController.signal
-        })
+        const { data, error: supabaseError } = await supabase
+          .from('matches')
+          .select('matched_subjects, student_schedule, tutor_full_name, status')
+          .eq('id', matchId)
+          .maybeSingle()
 
-        // Jika sudah di-abort, stop
-        if (abortController.signal.aborted) {
-          console.log('[set_schedule] fetch dibatalkan karena timeout')
-          return
+        if (supabaseError) {
+          console.error('[set_schedule] Supabase error:', supabaseError)
+          throw new Error(`Supabase error: ${supabaseError.message}`)
         }
 
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
-        }
-
-        const data = await res.json()
-        console.log('[set_schedule] fetch success, data:', data)
-
-        // Jika belum di-abort dan belum timeout, pakai data
-        if (!abortController.signal.aborted && hasLoaded.current) {
-          applyData(data, false)
+        if (data) {
+          console.log('[set_schedule] Data dari Supabase:', data)
+          setMatchData(data)
+          setUsingDummy(false)
+          if (data.matched_subjects && data.matched_subjects.length > 0) {
+            setSelectedSubjects(data.matched_subjects.slice(0, 2))
+          }
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+          setError(null)
+        } else {
+          console.warn('[set_schedule] Match tidak ditemukan, pakai dummy')
+          setMatchData(DUMMY_MATCH)
+          setUsingDummy(true)
+          setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+          setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+          setError(null)
         }
       } catch (err: any) {
-        // Jika error karena abort, abaikan (sudah ditangani timeout)
-        if (err.name === 'AbortError') {
-          console.log('[set_schedule] fetch di-abort (timeout)')
-          return
-        }
-        console.error('[set_schedule] fetch error:', err)
-        // Jika terjadi error lain dan belum di-resolve, pakai dummy
-        if (hasLoaded.current && loadingMatch) {
-          applyData(DUMMY_MATCH, true)
-        }
+        console.error('[set_schedule] Error catch:', err)
+        // Jika error, pakai dummy
+        setMatchData(DUMMY_MATCH)
+        setUsingDummy(true)
+        setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+        setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+        setError(null)
+      } finally {
+        setLoadingMatch(false)
+        console.log('[set_schedule] loadingMatch set false')
       }
     }
 
-    fetchData()
-
-    // Cleanup
-    return () => {
-      console.log('[set_schedule] cleanup')
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (abortControllerRef.current) abortControllerRef.current.abort()
-    }
+    fetchMatch()
   }, [matchId, user, authLoading])
 
   // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
@@ -275,7 +236,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData, 'error:', error)
+  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData)
 
   if (authLoading || loadingMatch) {
     return (
@@ -334,7 +295,7 @@ function SetScheduleContent() {
       {usingDummy && (
         <Alert className="bg-yellow-50 border-yellow-200">
           <AlertDescription className="text-yellow-800 text-sm">
-            ⚠️ Menggunakan data dummy karena API belum merespons.
+            ⚠️ Menggunakan data dummy. Pastikan database memiliki data match ini.
           </AlertDescription>
         </Alert>
       )}
