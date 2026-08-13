@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,15 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
+  // Flag untuk mencegah fetch ganda
+  const hasFetched = useRef(false)
+  const isMounted = useRef(true)
+
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => { isMounted.current = false }
+  }, [])
+
   useEffect(() => {
     console.log('[set_schedule] useEffect, matchId =', matchId, 'user =', user?.id)
 
@@ -52,7 +61,6 @@ function SetScheduleContent() {
       return
     }
 
-    // Jika auth masih loading, tunggu
     if (authLoading) {
       console.log('[set_schedule] authLoading true, menunggu...')
       return
@@ -64,8 +72,13 @@ function SetScheduleContent() {
       return
     }
 
-    // Flag untuk mencegah multiple fetch
-    let isMounted = true
+    // Hanya jalankan sekali
+    if (hasFetched.current) {
+      console.log('[set_schedule] sudah fetch, skip')
+      return
+    }
+    hasFetched.current = true
+
     let timeoutId: NodeJS.Timeout
 
     const fetchMatch = async () => {
@@ -77,7 +90,6 @@ function SetScheduleContent() {
         const supabase = createClient()
         console.log('[set_schedule] Supabase client created')
 
-        // Query match berdasarkan matchId
         console.log('[set_schedule] Query match dengan matchId:', matchId)
         const { data: match, error: matchErr } = await supabase
           .from('matches')
@@ -112,8 +124,11 @@ function SetScheduleContent() {
           .maybeSingle()
 
         console.log('[set_schedule] match query result:', match ? 'found' : 'null')
+        console.log('[set_schedule] matchErr:', matchErr)
+
         if (matchErr) {
           console.error('[set_schedule] Supabase error:', matchErr)
+          // Jika error 404/not found, beri pesan yang sesuai
           if (matchErr.code === 'PGRST116') {
             throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
           }
@@ -124,7 +139,7 @@ function SetScheduleContent() {
           throw new Error('Data match tidak ditemukan.')
         }
 
-        if (isMounted) {
+        if (isMounted.current) {
           setMatchData(match)
 
           // Inisialisasi selectedSubjects
@@ -138,32 +153,32 @@ function SetScheduleContent() {
         }
       } catch (err: any) {
         console.error('[set_schedule] ERROR:', err)
-        if (isMounted) {
+        if (isMounted.current) {
           setError(err.message || 'Terjadi kesalahan')
         }
       } finally {
-        if (isMounted) {
+        if (isMounted.current) {
           console.log('[set_schedule] finally, set loading false')
           setLoadingMatch(false)
         }
+        clearTimeout(timeoutId)
       }
     }
 
-    // Jalankan fetch, tapi dengan timeout untuk mencegah infinite loading
+    // Jalankan fetch dengan timeout 10 detik
     fetchMatch()
     timeoutId = setTimeout(() => {
-      if (isMounted && loadingMatch) {
+      if (isMounted.current && loadingMatch) {
         console.log('[set_schedule] TIMEOUT: forced loading false')
         setLoadingMatch(false)
         setError('Waktu pengambilan data habis. Silakan refresh halaman.')
       }
-    }, 10000) // 10 detik timeout
+    }, 10000)
 
     return () => {
-      isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [matchId, user, authLoading]) // <-- dependensi hanya matchId, user, authLoading
+  }, [matchId, user, authLoading]) // dependensi hanya matchId, user, authLoading
 
   // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
   const toggleSubject = (subject: string) => {
