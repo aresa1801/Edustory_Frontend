@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 
 // ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
@@ -46,8 +45,6 @@ function SetScheduleContent() {
   const matchId = searchParams.get('matchId')
   const { user, loading: authLoading } = useAuth()
 
-  console.log('[set_schedule] RENDER, matchId =', matchId, 'authLoading =', authLoading, 'user =', user?.id)
-
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,94 +57,57 @@ function SetScheduleContent() {
   const monthName = 'Agustus 2026'
 
   useEffect(() => {
-    console.log('[set_schedule] useEffect START, matchId =', matchId)
+    console.log('[set_schedule] useEffect, matchId =', matchId)
 
     if (authLoading) {
-      console.log('[set_schedule] authLoading true, skip')
+      console.log('[set_schedule] authLoading true, menunggu...')
       return
     }
 
     if (!user) {
-      setError('Silakan login.')
+      setError('Silakan login terlebih dahulu.')
       setLoading(false)
       return
     }
 
     if (!matchId) {
-      setError('Tidak ada ID match.')
+      setError('Tidak ada ID match di URL.')
       setLoading(false)
       return
     }
 
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
+    // Ambil data dari sessionStorage
+    const stored = sessionStorage.getItem('scheduleData')
+    console.log('[set_schedule] sessionStorage item:', stored)
 
-    const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai, matchId =', matchId)
-      setLoading(true)
-      setError(null)
-
+    if (stored) {
       try {
-        // === LANGSUNG PAKAI SUPABASE CLIENT ===
-        const supabase = createClient()
-        console.log('[set_schedule] Supabase client created')
+        const data = JSON.parse(stored)
+        console.log('[set_schedule] Data dari sessionStorage:', data)
 
-        // Tambahkan timeout 5 detik
-        const fetchPromise = supabase
-          .from('matches')
-          .select('matched_subjects, student_schedule, tutor_full_name, status')
-          .eq('id', matchId)
-          .maybeSingle()
-
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('Timeout 5 detik')), 5000)
-        })
-
-        const result = await Promise.race([fetchPromise, timeoutPromise]) as any
-        clearTimeout(timeoutId)
-
-        if (!isMounted) return
-
-        if (result.error) {
-          console.error('[set_schedule] Supabase error:', result.error)
-          throw new Error(`Supabase error: ${result.error.message}`)
-        }
-
-        const data = result.data
-        console.log('[set_schedule] Data dari Supabase:', data)
-
-        if (!data) {
-          throw new Error('Data match tidak ditemukan.')
-        }
-
-        if (!data.matched_subjects) {
-          throw new Error('Data match tidak memiliki kolom matched_subjects.')
-        }
-
-        setMatchData(data)
-        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
-        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-        console.log('[set_schedule] Set state success')
-      } catch (err: any) {
-        console.error('[set_schedule] Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Terjadi kesalahan')
-        }
-      } finally {
-        if (isMounted) {
+        // Pastikan ID match sesuai
+        if (data.id === matchId) {
+          setMatchData(data)
+          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
           setLoading(false)
-          console.log('[set_schedule] loading = false')
+          setError(null)
+          // Hapus sessionStorage agar tidak dipakai ulang (opsional)
+          // sessionStorage.removeItem('scheduleData')
+          console.log('[set_schedule] Data berhasil dimuat dari sessionStorage')
+          return
+        } else {
+          console.warn('[set_schedule] ID mismatch:', data.id, 'vs', matchId)
         }
-        clearTimeout(timeoutId)
+      } catch (e) {
+        console.error('[set_schedule] Gagal parse sessionStorage:', e)
       }
     }
 
-    fetchMatch()
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-    }
+    // Jika tidak ada data di sessionStorage
+    console.error('[set_schedule] Data tidak ditemukan di sessionStorage')
+    setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran dan coba lagi.')
+    setLoading(false)
   }, [matchId, user, authLoading])
 
   // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
@@ -236,7 +196,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render akhir, loading =', loading, 'matchData =', !!matchData, 'error =', error)
+  console.log('[set_schedule] render, loading =', loading, 'matchData =', !!matchData, 'error =', error)
 
   if (authLoading || loading) {
     return (
@@ -255,7 +215,9 @@ function SetScheduleContent() {
             <strong>Error:</strong> {error}
           </AlertDescription>
         </Alert>
-        <Button onClick={() => window.location.reload()} className="mt-4">Refresh</Button>
+        <Button onClick={() => window.history.back()} className="mt-4">
+          Kembali ke Penawaran
+        </Button>
       </div>
     )
   }
