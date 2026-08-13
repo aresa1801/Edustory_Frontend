@@ -76,8 +76,8 @@ function SetScheduleContent() {
       return
     }
 
-    // === FETCH DATA DARI API ===
     let isMounted = true
+    let timeoutId: NodeJS.Timeout
 
     const fetchMatch = async () => {
       console.log('[set_schedule] fetchMatch mulai')
@@ -85,11 +85,16 @@ function SetScheduleContent() {
       setError(null)
 
       try {
+        // Fetch tanpa header Authorization (karena API sudah bypass auth)
+        const controller = new AbortController()
+        timeoutId = setTimeout(() => controller.abort(), 8000)
+
         const res = await fetch(`/api/matches/${matchId}`, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' }
         })
+
+        clearTimeout(timeoutId)
 
         if (!isMounted) return
 
@@ -113,13 +118,18 @@ function SetScheduleContent() {
       } catch (err: any) {
         console.error('[set_schedule] Error:', err)
         if (isMounted) {
-          setError(err.message || 'Terjadi kesalahan')
+          if (err.name === 'AbortError') {
+            setError('Waktu pengambilan data habis (8 detik). Silakan coba lagi.')
+          } else {
+            setError(err.message || 'Terjadi kesalahan')
+          }
         }
       } finally {
         if (isMounted) {
           setLoading(false)
           console.log('[set_schedule] loading = false')
         }
+        clearTimeout(timeoutId)
       }
     }
 
@@ -127,10 +137,11 @@ function SetScheduleContent() {
 
     return () => {
       isMounted = false
+      clearTimeout(timeoutId)
     }
   }, [matchId, user, authLoading])
 
-  // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
+  // --- Fungsi interaksi ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -235,7 +246,7 @@ function SetScheduleContent() {
             <strong>Error:</strong> {error}
             <br />
             <span className="text-sm mt-2 block">
-              Pastikan API /api/matches/[id] berfungsi dan match ID valid.
+              Coba refresh atau kembali ke halaman penawaran.
             </span>
           </AlertDescription>
         </Alert>
@@ -274,7 +285,6 @@ function SetScheduleContent() {
         <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
       </p>
 
-      {/* Pilihan Mata Pelajaran */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
@@ -300,7 +310,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Kalender */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
@@ -354,7 +363,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Ringkasan */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
@@ -362,7 +370,6 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Tombol Simpan */}
       <div className="flex justify-end">
         <Button className="bg-green-600 hover:bg-green-700 text-white">
           Simpan Jadwal
