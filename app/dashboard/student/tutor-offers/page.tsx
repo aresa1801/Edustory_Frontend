@@ -45,7 +45,6 @@ interface Match {
   tutor_total_reviews: number
   tutor_verified_grade_levels: string[]
   tutor_avatar_url?: string | null
-  student_schedule?: string
 }
 
 export default function TutorOffersPage() {
@@ -113,42 +112,13 @@ export default function TutorOffersPage() {
   }
 
   // ============ PALING SEDERHANA, LANGSUNG REDIRECT ============
-  const handleSchedule = async (offer: Match) => {
-  console.log('>>> handleSchedule, offer.id =', offer.id)
-  setProcessingId(offer.id)
-
-  try {
-    // Update status ke 'matched' (jika pending)
-    if (offer.status === 'pending') {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('matches')
-        .update({ status: 'matched' })
-        .eq('id', offer.id)
-      if (error) throw error
-    }
-
-    // Simpan data match ke sessionStorage
-    const matchData = {
-      id: offer.id,
-      matched_subjects: offer.matched_subjects || [offer.subject],
-      student_schedule: offer.student_schedule || 'Senin-Jumat 12.00-15.00',
-      tutor_full_name: offer.tutor_full_name || 'Tutor',
-      status: offer.status === 'pending' ? 'matched' : offer.status,
-    }
-    sessionStorage.setItem('matchData', JSON.stringify(matchData))
-
-    // Redirect ke halaman set_schedule
+  const handleSchedule = (offer: Match) => {
+    console.log('>>> handleSchedule, offer.id =', offer.id)
+    // Langsung redirect tanpa await apapun
     const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
     console.log('>>> redirecting to:', url)
     window.location.href = url
-  } catch (err: any) {
-    console.error('Error:', err)
-    alert('❌ ' + err.message)
-    setProcessingId(null)
   }
-}
   // =============================================================
 
   const handleReject = async (offerId: string) => {
