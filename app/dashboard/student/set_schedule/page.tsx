@@ -1,4 +1,3 @@
-// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
@@ -11,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/auth'
 
-// ---------- DUMMY DATA (fallback jika API gagal) ----------
+// ---------- DUMMY DATA ----------
 const DUMMY_MATCH = {
   id: 'dummy-id',
   matched_subjects: ['Matematika', 'Kimia', 'Sejarah'],
@@ -68,54 +67,77 @@ function SetScheduleContent() {
   const dates = useMemo(() => getDatesInMonth(2026, 7), [])
   const monthName = 'Agustus 2026'
 
-  const hasFetched = useRef(false)
   const isMounted = useRef(true)
+  const hasFetched = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    return () => { isMounted.current = false }
+    return () => {
+      isMounted.current = false
+      if (abortControllerRef.current) abortControllerRef.current.abort()
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
   }, [])
 
   useEffect(() => {
+    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, user: user?.id })
+
     if (!matchId) {
       setError('Tidak ada ID match.')
       setLoadingMatch(false)
       return
     }
 
-    if (authLoading) return
+    if (authLoading) {
+      console.log('[set_schedule] authLoading true, wait...')
+      return
+    }
+
     if (!user) {
       setError('Silakan login.')
       setLoadingMatch(false)
       return
     }
 
-    if (hasFetched.current) return
+    if (hasFetched.current) {
+      console.log('[set_schedule] already fetched, skip')
+      return
+    }
     hasFetched.current = true
 
-    let timeoutId: NodeJS.Timeout
+    console.log('[set_schedule] start fetch...')
 
-    const loadData = async () => {
-      setLoadingMatch(true)
-      setError(null)
-
+    const fetchData = async () => {
       try {
+        // Setup AbortController untuk timeout
+        abortControllerRef.current = new AbortController()
+        const signal = abortControllerRef.current.signal
+
+        // Timeout 7 detik
+        timeoutRef.current = setTimeout(() => {
+          if (abortControllerRef.current) {
+            console.log('[set_schedule] timeout 7s, abort fetch')
+            abortControllerRef.current.abort()
+          }
+        }, 7000)
+
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
 
-        // Fetch dengan timeout menggunakan Promise.race
-        const fetchPromise = fetch(`/api/matches/${matchId}`, {
+        console.log('[set_schedule] fetching API...')
+        const res = await fetch(`/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal
         })
 
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('Timeout 8 detik')), 8000)
-        })
+        clearTimeout(timeoutRef.current!)
 
-        const res = await Promise.race([fetchPromise, timeoutPromise]) as Response
+        console.log('[set_schedule] API status:', res.status)
 
         if (!res.ok) {
           const errText = await res.text()
@@ -123,46 +145,38 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] Data dari API:', data)
+        console.log('[set_schedule] API success:', data)
 
         if (isMounted.current) {
           setMatchData(data)
           setUsingDummy(false)
-
-          if (data.matched_subjects && data.matched_subjects.length > 0) {
-            setSelectedSubjects(data.matched_subjects.slice(0, 2))
-          }
-
+          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
           setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
           setError(null)
         }
       } catch (err: any) {
-        console.error('[set_schedule] Fetch error, pakai dummy:', err.message)
-
-        // GAGAL → pakai DUMMY
+        // Jika fetch gagal atau abort (timeout), pakai dummy
+        console.warn('[set_schedule] fetch gagal, pakai dummy:', err.message)
         if (isMounted.current) {
           setMatchData(DUMMY_MATCH)
           setUsingDummy(true)
-
-          if (DUMMY_MATCH.matched_subjects && DUMMY_MATCH.matched_subjects.length > 0) {
-            setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
-          }
-
+          setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
           setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
           setError(null)
         }
       } finally {
         if (isMounted.current) {
+          console.log('[set_schedule] set loading false')
           setLoadingMatch(false)
         }
-        clearTimeout(timeoutId)
       }
     }
 
-    loadData()
+    fetchData()
 
     return () => {
-      clearTimeout(timeoutId)
+      if (abortControllerRef.current) abortControllerRef.current.abort()
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
   }, [matchId, user, authLoading])
 
@@ -253,6 +267,8 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
+  console.log('[set_schedule] render', { authLoading, loadingMatch, error, usingDummy })
+
   if (authLoading || loadingMatch) {
     return (
       <div className="flex justify-center py-16">
