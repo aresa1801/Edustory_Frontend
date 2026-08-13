@@ -48,7 +48,6 @@ function SetScheduleContent() {
   const isMounted = useRef(true)
 
   useEffect(() => {
-    // Cleanup on unmount
     return () => { isMounted.current = false }
   }, [])
 
@@ -72,7 +71,6 @@ function SetScheduleContent() {
       return
     }
 
-    // Hanya jalankan sekali
     if (hasFetched.current) {
       console.log('[set_schedule] sudah fetch, skip')
       return
@@ -82,62 +80,35 @@ function SetScheduleContent() {
     let timeoutId: NodeJS.Timeout
 
     const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai')
+      console.log('[set_schedule] fetchMatch mulai via API')
       setLoadingMatch(true)
       setError(null)
 
       try {
+        // Ambil session untuk token
         const supabase = createClient()
-        console.log('[set_schedule] Supabase client created')
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
 
-        console.log('[set_schedule] Query match dengan matchId:', matchId)
-        const { data: match, error: matchErr } = await supabase
-          .from('matches')
-          .select(`
-            id,
-            subject,
-            matched_subjects,
-            status,
-            lesson_frequency,
-            start_date,
-            tutor_id,
-            student_id,
-            tutors:tutor_id (
-              id,
-              hourly_rate,
-              user_id,
-              user_profiles:user_id (
-                full_name,
-                avatar_url
-              )
-            ),
-            students:student_id (
-              id,
-              grade_level,
-              user_id,
-              user_profiles:user_id (
-                full_name
-              )
-            )
-          `)
-          .eq('id', matchId)
-          .maybeSingle()
+        console.log('[set_schedule] token:', token ? 'ada' : 'tidak ada')
 
-        console.log('[set_schedule] match query result:', match ? 'found' : 'null')
-        console.log('[set_schedule] matchErr:', matchErr)
-
-        if (matchErr) {
-          console.error('[set_schedule] Supabase error:', matchErr)
-          // Jika error 404/not found, beri pesan yang sesuai
-          if (matchErr.code === 'PGRST116') {
-            throw new Error('Match tidak ditemukan atau Anda tidak memiliki akses.')
+        // Panggil API route
+        const res = await fetch(`/api/matches/${matchId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-          throw new Error(`Gagal mengambil data match: ${matchErr.message}`)
+        })
+
+        console.log('[set_schedule] API response status:', res.status)
+
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Gagal fetch match (${res.status}): ${errText}`)
         }
 
-        if (!match) {
-          throw new Error('Data match tidak ditemukan.')
-        }
+        const match = await res.json()
+        console.log('[set_schedule] match data:', match)
 
         if (isMounted.current) {
           setMatchData(match)
@@ -165,7 +136,6 @@ function SetScheduleContent() {
       }
     }
 
-    // Jalankan fetch dengan timeout 10 detik
     fetchMatch()
     timeoutId = setTimeout(() => {
       if (isMounted.current && loadingMatch) {
@@ -178,7 +148,7 @@ function SetScheduleContent() {
     return () => {
       clearTimeout(timeoutId)
     }
-  }, [matchId, user, authLoading]) // dependensi hanya matchId, user, authLoading
+  }, [matchId, user, authLoading])
 
   // --- Fungsi toggleSubject, handleSlotClick, isSlotFilled, getSlotSubject, generateSummary ---
   const toggleSubject = (subject: string) => {
