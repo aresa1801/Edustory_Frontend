@@ -6,6 +6,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const startTime = Date.now()
+  console.log(`[API] /matches/${params.id} START`)
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,34 +16,28 @@ export async function GET(
     )
 
     const authHeader = request.headers.get('authorization')
+    console.log('[API] authHeader:', authHeader ? 'present' : 'missing')
     if (!authHeader) {
       return NextResponse.json({ error: 'No authorization header' }, { status: 401 })
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token)
+    console.log('[API] token (first 10 chars):', token.substring(0, 10))
 
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token)
     if (userErr || !user) {
       console.error('[API] Auth error:', userErr)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('[API] User authenticated:', user.id)
 
     const { id } = params
     console.log('[API] Fetching match with id:', id)
 
-    // 1. Ambil match utama
+    // Ambil match
     const { data: match, error: matchErr } = await supabase
       .from('matches')
-      .select(`
-        id,
-        subject,
-        matched_subjects,
-        status,
-        lesson_frequency,
-        start_date,
-        tutor_id,
-        student_id
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
@@ -48,71 +45,71 @@ export async function GET(
       console.error('[API] Fetch match error:', matchErr)
       return NextResponse.json({ error: matchErr.message }, { status: 500 })
     }
-
+    console.log('[API] Match found:', match ? 'yes' : 'no')
     if (!match) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 })
     }
 
-    // 2. Ambil data tutor
-    let tutorData: any = null
+    // Ambil tutor data
+    console.log('[API] Fetching tutor for tutor_id:', match.tutor_id)
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
       .select('id, hourly_rate, user_id')
       .eq('id', match.tutor_id)
       .single()
+    if (tutorErr) console.warn('[API] Tutor fetch error:', tutorErr)
+    console.log('[API] Tutor fetched:', tutor ? 'yes' : 'no')
 
-    if (!tutorErr && tutor) {
-      tutorData = tutor
-      // Ambil profil tutor
-      const { data: tutorProfile, error: tpErr } = await supabase
+    let tutorProfile = null
+    if (tutor) {
+      console.log('[API] Fetching tutor profile for user_id:', tutor.user_id)
+      const { data: tp, error: tpErr } = await supabase
         .from('user_profiles')
         .select('full_name, avatar_url')
         .eq('id', tutor.user_id)
         .single()
-      if (!tpErr && tutorProfile) {
-        tutorData.user_profiles = tutorProfile
-      }
+      if (tpErr) console.warn('[API] Tutor profile error:', tpErr)
+      tutorProfile = tp
+      console.log('[API] Tutor profile fetched:', tutorProfile ? 'yes' : 'no')
     }
 
-    // 3. Ambil data student
-    let studentData: any = null
+    // Ambil student data
+    console.log('[API] Fetching student for student_id:', match.student_id)
     const { data: student, error: studentErr } = await supabase
       .from('students')
       .select('id, grade_level, user_id')
       .eq('id', match.student_id)
       .single()
+    if (studentErr) console.warn('[API] Student fetch error:', studentErr)
+    console.log('[API] Student fetched:', student ? 'yes' : 'no')
 
-    if (!studentErr && student) {
-      studentData = student
-      // Ambil profil student
-      const { data: studentProfile, error: spErr } = await supabase
+    let studentProfile = null
+    if (student) {
+      console.log('[API] Fetching student profile for user_id:', student.user_id)
+      const { data: sp, error: spErr } = await supabase
         .from('user_profiles')
         .select('full_name')
         .eq('id', student.user_id)
         .single()
-      if (!spErr && studentProfile) {
-        studentData.user_profiles = studentProfile
-      }
+      if (spErr) console.warn('[API] Student profile error:', spErr)
+      studentProfile = sp
+      console.log('[API] Student profile fetched:', studentProfile ? 'yes' : 'no')
     }
 
-    // 4. Buat response object baru
+    // Build response
     const response = {
-      id: match.id,
-      subject: match.subject,
-      matched_subjects: match.matched_subjects,
-      status: match.status,
-      lesson_frequency: match.lesson_frequency,
-      start_date: match.start_date,
-      tutor_id: match.tutor_id,
-      student_id: match.student_id,
-      tutors: tutorData,
-      students: studentData
+      ...match,
+      tutors: tutor ? { ...tutor, user_profiles: tutorProfile } : null,
+      students: student ? { ...student, user_profiles: studentProfile } : null
     }
 
-    console.log('[API] Match fetched successfully')
+    const duration = Date.now() - startTime
+    console.log(`[API] /matches/${params.id} DONE in ${duration}ms`)
     return NextResponse.json(response)
+
   } catch (err) {
-    console.error('[API] Unexpected error:', err)
+    const duration = Date.now() - startTime
+    console.error(`[API] /matches/${params.id} ERROR after ${duration}ms:`, err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Internal error' },
       { status: 500 }
