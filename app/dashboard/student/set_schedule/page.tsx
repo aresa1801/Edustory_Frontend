@@ -60,62 +60,65 @@ function SetScheduleContent() {
   const monthName = 'Agustus 2026'
 
   useEffect(() => {
-    console.log('[set_schedule] useEffect START, matchId =', matchId, 'authLoading =', authLoading, 'user =', user?.id)
+    console.log('[set_schedule] useEffect START, matchId =', matchId)
 
-    // Jika auth masih loading, tunggu
     if (authLoading) {
-      console.log('[set_schedule] authLoading true, skip fetch')
+      console.log('[set_schedule] authLoading true, skip')
       return
     }
 
     if (!user) {
-      console.log('[set_schedule] user not found, set error')
-      setError('Silakan login terlebih dahulu.')
+      setError('Silakan login.')
       setLoading(false)
       return
     }
 
     if (!matchId) {
-      console.log('[set_schedule] matchId not found, set error')
       setError('Tidak ada ID match.')
       setLoading(false)
       return
     }
 
-    // Eksekusi fetch
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
+
     const fetchMatch = async () => {
       console.log('[set_schedule] fetchMatch mulai, matchId =', matchId)
       setLoading(true)
       setError(null)
 
       try {
+        // === LANGSUNG PAKAI SUPABASE CLIENT ===
         const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
+        console.log('[set_schedule] Supabase client created')
 
-        console.log('[set_schedule] token =', token ? 'ada' : 'tidak ada')
+        // Tambahkan timeout 5 detik
+        const fetchPromise = supabase
+          .from('matches')
+          .select('matched_subjects, student_schedule, tutor_full_name, status')
+          .eq('id', matchId)
+          .maybeSingle()
 
-        if (!token) {
-          throw new Error('Token tidak ditemukan. Silakan login ulang.')
-        }
-
-        console.log('[set_schedule] fetch ke API /api/matches/' + matchId)
-        const res = await fetch(`/api/matches/${matchId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Timeout 5 detik')), 5000)
         })
 
-        console.log('[set_schedule] API response status =', res.status)
+        const result = await Promise.race([fetchPromise, timeoutPromise]) as any
+        clearTimeout(timeoutId)
 
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
+        if (!isMounted) return
+
+        if (result.error) {
+          console.error('[set_schedule] Supabase error:', result.error)
+          throw new Error(`Supabase error: ${result.error.message}`)
         }
 
-        const data = await res.json()
-        console.log('[set_schedule] Data dari API:', data)
+        const data = result.data
+        console.log('[set_schedule] Data dari Supabase:', data)
+
+        if (!data) {
+          throw new Error('Data match tidak ditemukan.')
+        }
 
         if (!data.matched_subjects) {
           throw new Error('Data match tidak memiliki kolom matched_subjects.')
@@ -127,17 +130,27 @@ function SetScheduleContent() {
         console.log('[set_schedule] Set state success')
       } catch (err: any) {
         console.error('[set_schedule] Error:', err)
-        setError(err.message || 'Terjadi kesalahan')
+        if (isMounted) {
+          setError(err.message || 'Terjadi kesalahan')
+        }
       } finally {
-        setLoading(false)
-        console.log('[set_schedule] fetchMatch selesai, loading = false')
+        if (isMounted) {
+          setLoading(false)
+          console.log('[set_schedule] loading = false')
+        }
+        clearTimeout(timeoutId)
       }
     }
 
     fetchMatch()
-  }, [matchId, user, authLoading]) // dependensi lengkap
 
-  // --- Fungsi interaksi ---
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [matchId, user, authLoading])
+
+  // --- Fungsi interaksi (toggleSubject, handleSlotClick, dll) ---
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -240,8 +253,6 @@ function SetScheduleContent() {
         <Alert variant="destructive">
           <AlertDescription>
             <strong>Error:</strong> {error}
-            <br />
-            <span className="text-sm">Pastikan API /api/matches/[id] berfungsi dan match ID valid.</span>
           </AlertDescription>
         </Alert>
         <Button onClick={() => window.location.reload()} className="mt-4">Refresh</Button>
