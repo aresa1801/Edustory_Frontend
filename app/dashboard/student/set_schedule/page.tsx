@@ -1,4 +1,3 @@
-// app/dashboard/student/set_schedule/page.tsx
 'use client'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
@@ -9,9 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 
-// ---------- DUMMY DATA ----------
+// ---------- DUMMY DATA (fallback) ----------
 const DUMMY_MATCH = {
   id: 'dummy-id',
   matched_subjects: ['Matematika', 'Kimia', 'Sejarah'],
@@ -69,20 +67,13 @@ function SetScheduleContent() {
   const monthName = 'Agustus 2026'
 
   const isMounted = useRef(true)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Cleanup
   useEffect(() => {
-    return () => {
-      isMounted.current = false
-      if (abortControllerRef.current) abortControllerRef.current.abort()
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    }
+    return () => { isMounted.current = false }
   }, [])
 
   useEffect(() => {
-    console.log('[set_schedule] useEffect triggered', { matchId, authLoading, user: user?.id })
+    console.log('[set_schedule] useEffect', { matchId, authLoading, user: user?.id })
 
     if (!matchId) {
       setError('Tidak ada ID match.')
@@ -90,45 +81,51 @@ function SetScheduleContent() {
       return
     }
 
-    if (authLoading) {
-      console.log('[set_schedule] authLoading true, menunggu...')
-      return
-    }
-
-    if (!user) {
-      setError('Silakan login.')
+    if (authLoading || !user) {
+      if (!user) setError('Silakan login.')
       setLoadingMatch(false)
       return
     }
 
-    // Reset state
-    setLoadingMatch(true)
-    setError(null)
-    setUsingDummy(false)
+    // === PRIORITAS 1: Ambil dari sessionStorage ===
+    const stored = sessionStorage.getItem('matchData')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        if (data.id === matchId) {
+          console.log('[set_schedule] Data dari sessionStorage:', data)
+          setMatchData(data)
+          setUsingDummy(false)
+          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+          setLoadingMatch(false)
+          setError(null)
+          // Hapus sessionStorage setelah digunakan agar tidak dipakai ulang
+          sessionStorage.removeItem('matchData')
+          return
+        }
+      } catch (e) {
+        console.warn('[set_schedule] Gagal parse sessionStorage', e)
+      }
+    }
 
-    // Buat AbortController untuk fetch
+    // === PRIORITAS 2: Fetch dari Supabase (dengan timeout) ===
     const abortController = new AbortController()
-    abortControllerRef.current = abortController
-
-    // Timeout 5 detik -> paksa pakai dummy
     const timeoutId = setTimeout(() => {
-      console.log('[set_schedule] TIMEOUT 5s, pakai dummy')
       if (isMounted.current && loadingMatch) {
+        console.log('[set_schedule] TIMEOUT, pakai dummy')
         setMatchData(DUMMY_MATCH)
         setUsingDummy(true)
         setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
         setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
         setLoadingMatch(false)
         setError(null)
-        console.log('[set_schedule] dummy applied due timeout')
       }
-    }, 5000)
-    timeoutRef.current = timeoutId
+    }, 3000) // 3 detik saja
 
-    // Fetch data
     const fetchData = async () => {
-      console.log('[set_schedule] mulai fetch data dari Supabase')
       try {
+        const { createClient } = await import('@/lib/auth')
         const supabase = createClient()
         const { data, error: supabaseError } = await supabase
           .from('matches')
@@ -136,54 +133,40 @@ function SetScheduleContent() {
           .eq('id', matchId)
           .maybeSingle()
 
-        // Jika sudah unmount atau di-abort, berhenti
-        if (!isMounted.current || abortController.signal.aborted) {
-          console.log('[set_schedule] fetch dibatalkan (unmount/abort)')
-          return
-        }
+        if (!isMounted.current || abortController.signal.aborted) return
 
-        if (supabaseError) {
-          console.error('[set_schedule] Supabase error:', supabaseError)
-          throw supabaseError
-        }
+        if (supabaseError) throw supabaseError
 
         if (data) {
           console.log('[set_schedule] Data dari Supabase:', data)
-          if (isMounted.current) {
-            setMatchData(data)
-            setUsingDummy(false)
-            if (data.matched_subjects && data.matched_subjects.length > 0) {
-              setSelectedSubjects(data.matched_subjects.slice(0, 2))
-            }
-            setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-            setLoadingMatch(false)
-            setError(null)
-            // Bersihkan timeout karena sudah sukses
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-          }
+          setMatchData(data)
+          setUsingDummy(false)
+          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+          setLoadingMatch(false)
+          setError(null)
+          clearTimeout(timeoutId)
         } else {
+          // Data tidak ditemukan, pakai dummy
           console.warn('[set_schedule] Data tidak ditemukan, pakai dummy')
-          if (isMounted.current) {
-            setMatchData(DUMMY_MATCH)
-            setUsingDummy(true)
-            setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
-            setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
-            setLoadingMatch(false)
-            setError(null)
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-          }
-        }
-      } catch (err: any) {
-        console.error('[set_schedule] Fetch error:', err)
-        if (isMounted.current && !abortController.signal.aborted) {
-          // Jika error, pakai dummy
           setMatchData(DUMMY_MATCH)
           setUsingDummy(true)
           setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
           setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
           setLoadingMatch(false)
           setError(null)
-          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          clearTimeout(timeoutId)
+        }
+      } catch (err: any) {
+        console.error('[set_schedule] Fetch error:', err)
+        if (isMounted.current && !abortController.signal.aborted) {
+          setMatchData(DUMMY_MATCH)
+          setUsingDummy(true)
+          setSelectedSubjects(DUMMY_MATCH.matched_subjects.slice(0, 2))
+          setTimeSlots(parseScheduleToTimeSlots(DUMMY_MATCH.student_schedule))
+          setLoadingMatch(false)
+          setError(null)
+          clearTimeout(timeoutId)
         }
       }
     }
@@ -191,8 +174,8 @@ function SetScheduleContent() {
     fetchData()
 
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (abortControllerRef.current) abortControllerRef.current.abort()
+      clearTimeout(timeoutId)
+      abortController.abort()
     }
   }, [matchId, user, authLoading])
 
@@ -282,7 +265,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData, 'error:', error)
+  console.log('[set_schedule] render, loadingMatch:', loadingMatch, 'matchData:', !!matchData)
 
   if (authLoading || loadingMatch) {
     return (
@@ -341,7 +324,7 @@ function SetScheduleContent() {
       {usingDummy && (
         <Alert className="bg-yellow-50 border-yellow-200">
           <AlertDescription className="text-yellow-800 text-sm">
-            ⚠️ Menggunakan data dummy. Pastikan database memiliki data match ini.
+            ⚠️ Menggunakan data dummy. Jika Anda melihat ini, pastikan data match tersimpan di sessionStorage atau database.
           </AlertDescription>
         </Alert>
       )}
