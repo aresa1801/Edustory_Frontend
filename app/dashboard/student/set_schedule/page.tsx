@@ -8,16 +8,33 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// ========== HELPER ==========
-const getDatesInMonth = (year: number, month: number) => {
+// ========== HELPER BARU ==========
+// Ambil 30 hari ke depan dari hari ini
+const getNext30Days = () => {
+  const today = new Date()
   const dates = []
-  const lastDay = new Date(year, month + 1, 0).getDate()
-  for (let d = 1; d <= lastDay; d++) {
-    dates.push(new Date(year, month, d))
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today)
+    d.setDate(today.getDate() + i)
+    dates.push(d)
   }
   return dates
 }
 
+// Buat label rentang bulan (misal "Agustus - September 2026")
+const getMonthRangeLabel = (dates: Date[]) => {
+  if (dates.length === 0) return ''
+  const first = dates[0]
+  const last = dates[dates.length - 1]
+  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+  if (first.getMonth() === last.getMonth()) {
+    return `${monthNames[first.getMonth()]} ${first.getFullYear()}`
+  } else {
+    return `${monthNames[first.getMonth()]} - ${monthNames[last.getMonth()]} ${last.getFullYear()}`
+  }
+}
+
+// Parsing student_schedule (tetap sama)
 const parseScheduleToTimeSlots = (scheduleStr: string) => {
   if (!scheduleStr) {
     return [
@@ -57,10 +74,11 @@ function SetScheduleContent() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  const dates = getDatesInMonth(2026, 7)
-  const monthName = 'Agustus 2026'
+  // Kalender 30 hari ke depan
+  const dates = getNext30Days()
+  const monthName = getMonthRangeLabel(dates)
 
-  // Hitung jumlah sesi yang sudah dipilih
+  // Hitung jumlah sesi
   const totalSelected = Object.keys(schedule).length
   const maxSessions = matchData?.student_sessions_per_month ?? 0
   const remainingSessions = maxSessions - totalSelected
@@ -103,6 +121,7 @@ function SetScheduleContent() {
       // Hapus slot
       const newSchedule = { ...schedule }
       delete newSchedule[key]
+      // Mirroring: hapus juga di tanggal lain dengan hari yang sama
       const day = date.getDay()
       dates.forEach(d => {
         if (d.getDay() === day) {
@@ -121,6 +140,7 @@ function SetScheduleContent() {
         alert('Pilih mata pelajaran dulu!')
         return
       }
+      // Pilih subject dengan jumlah paling sedikit
       const counts: Record<string, number> = {}
       Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
       let chosen = selectedSubjects[0]
@@ -130,6 +150,7 @@ function SetScheduleContent() {
         if (c < min) { min = c; chosen = s }
       })
       const newSchedule = { ...schedule, [key]: chosen }
+      // Mirroring: tambahkan di tanggal lain dengan hari yang sama
       const day = date.getDay()
       dates.forEach(d => {
         if (d.getDay() === day) {
@@ -354,7 +375,7 @@ function SetScheduleContent() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 min-w-[100px] text-left">Jam</th>
+                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-white z-10">Jam</th>
                   {dates.map((date, idx) => (
                     <th key={idx} className="border p-1 text-center min-w-[44px]">
                       <div>{date.getDate()}</div>
@@ -368,7 +389,7 @@ function SetScheduleContent() {
               <tbody>
                 {TIME_SLOTS.map((slot, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs">{slot.label}</td>
+                    <td className="border p-1 font-medium text-xs sticky left-0 bg-white z-10">{slot.label}</td>
                     {dates.map((date, colIdx) => {
                       const filled = isSlotFilled(date, slot.label)
                       const subject = getSlotSubject(date, slot.label)
