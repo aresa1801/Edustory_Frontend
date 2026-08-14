@@ -60,6 +60,11 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
+  // Hitung jumlah sesi yang sudah dipilih
+  const totalSelected = Object.keys(schedule).length
+  const maxSessions = matchData?.student_sessions_per_month ?? 0
+  const remainingSessions = maxSessions - totalSelected
+
   useEffect(() => {
     // Ambil data dari sessionStorage
     try {
@@ -71,8 +76,6 @@ function SetScheduleContent() {
         setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
         setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
         setLoading(false)
-        // Hapus setelah dipakai? Lebih baik kita hapus setelah berhasil disimpan nanti, atau biarkan saja
-        // sessionStorage.removeItem('scheduleData')
       } else {
         setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
         setLoading(false)
@@ -83,7 +86,7 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== INTERAKSI (sama) ==========
+  // ========== INTERAKSI ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -97,6 +100,7 @@ function SetScheduleContent() {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
     if (current) {
+      // Hapus slot
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const day = date.getDay()
@@ -108,6 +112,11 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
+      // Cek kuota
+      if (remainingSessions <= 0) {
+        alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
+        return
+      }
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran dulu!')
         return
@@ -169,9 +178,6 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
-    // Untuk simpan, kita perlu token. Ambil dari localStorage atau sessionStorage.
-    // Tapi kita bisa juga panggil Supabase client langsung.
-    // Kita akan buat sederhana: gunakan fetch dengan token dari localStorage.
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
       alert('Pilih minimal satu slot jadwal!')
@@ -300,8 +306,20 @@ function SetScheduleContent() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
+          <Badge variant="outline" className="text-sm font-normal">
+            📊 Sesi tersisa:{' '}
+            <span className={`font-bold ${
+              remainingSessions <= 0 ? 'text-red-500' :
+              remainingSessions <= 3 ? 'text-orange-500' :
+              'text-green-600'
+            }`}>
+              {remainingSessions}
+            </span>
+            {' / '}
+            {maxSessions}
+          </Badge>
         </CardHeader>
         <CardContent className="flex gap-3 flex-wrap">
           {availableSubjects.map((subj: string) => {
@@ -327,6 +345,9 @@ function SetScheduleContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
+          <span className="text-sm text-muted-foreground">
+            {totalSelected} sesi dipilih
+          </span>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -394,7 +415,7 @@ function SetScheduleContent() {
         <Button
           className="bg-green-600 hover:bg-green-700 text-white"
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || totalSelected === 0}
         >
           {isSaving && <Spinner className="h-4 w-4 mr-2" />}
           {isSaving ? 'Menyimpan...' : 'Simpan Jadwal'}
