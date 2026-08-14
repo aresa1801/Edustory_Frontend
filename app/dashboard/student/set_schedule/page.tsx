@@ -66,7 +66,7 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ========== FETCH DATA DENGAN TIMEOUT FALLBACK ==========
+  // ========== FETCH DATA ==========
   useEffect(() => {
     let isMounted = true
     let fetchTimeout: NodeJS.Timeout
@@ -74,28 +74,50 @@ function SetScheduleContent() {
 
     const fetchMatch = async () => {
       try {
-        // 1. Ambil session
+        console.log('[set_schedule] 🔍 Starting fetch...')
+
+        // --- 1. Ambil session dengan retry ---
         const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const user = session?.user
+        let session = null
+        let user = null
+        let attempts = 0
+
+        while (attempts < 3 && !session) {
+          try {
+            const { data: { session: s } } = await supabase.auth.getSession()
+            session = s
+            if (session) {
+              console.log('[set_schedule] ✅ Session found after', attempts + 1, 'attempts')
+              break
+            }
+          } catch (e) {
+            console.warn('[set_schedule] ⚠️ getSession attempt', attempts + 1, 'failed:', e)
+          }
+          attempts++
+          if (attempts < 3) await new Promise(r => setTimeout(r, 500))
+        }
+
+        // Jika masih tidak ada session, coba getUser
+        if (!session) {
+          console.log('[set_schedule] 🔄 No session, trying getUser...')
+          const { data: { user: u } } = await supabase.auth.getUser()
+          user = u
+          if (user) {
+            console.log('[set_schedule] ✅ User found via getUser')
+          }
+        } else {
+          user = session.user
+        }
 
         if (!user) {
-          if (isMounted) {
-            setError('Silakan login terlebih dahulu.')
-            setLoading(false)
-          }
-          return
+          throw new Error('Tidak ada sesi login. Silakan login ulang.')
         }
 
         if (!matchId) {
-          if (isMounted) {
-            setError('Tidak ada ID match di URL.')
-            setLoading(false)
-          }
-          return
+          throw new Error('ID match tidak ditemukan di URL.')
         }
 
-        // 2. Cek sessionStorage
+        // --- 2. Cek sessionStorage ---
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -113,13 +135,17 @@ function SetScheduleContent() {
               return
             }
           } catch (e) {
-            console.warn('[set_schedule] Gagal parse sessionStorage', e)
+            console.warn('[set_schedule] ⚠️ Gagal parse sessionStorage', e)
           }
         }
 
-        // 3. Fetch dari API dengan timeout 5 detik
+        // --- 3. Fetch dari API ---
+        const token = session?.access_token
+        if (!token) {
+          throw new Error('Token tidak tersedia.')
+        }
+
         console.log('[set_schedule] 🔄 Fetch dari API...')
-        const token = session.access_token
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
 
@@ -166,14 +192,14 @@ function SetScheduleContent() {
       }
     }
 
-    // ===== TIMEOUT FALLBACK: paksa loading false setelah 10 detik =====
+    // --- Force stop after 6 seconds ---
     forceStopTimeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ Force stop loading (10s timeout)')
+        console.warn('[set_schedule] ⏱️ Force stop loading (6s timeout)')
         setLoading(false)
         setError('Waktu muat terlalu lama. Silakan refresh halaman.')
       }
-    }, 10000)
+    }, 6000)
 
     fetchMatch()
 
@@ -182,9 +208,9 @@ function SetScheduleContent() {
       clearTimeout(fetchTimeout)
       clearTimeout(forceStopTimeout)
     }
-  }, [matchId]) // Hanya bergantung pada matchId
+  }, [matchId])
 
-  // ---------- Interaksi (sama seperti sebelumnya) ----------
+  // ---------- Interaksi (tetap sama) ----------
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
