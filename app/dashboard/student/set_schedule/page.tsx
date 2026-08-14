@@ -50,6 +50,9 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
 function SetScheduleContent() {
   const router = useRouter()
 
+  // Ambil matchId dari URL pake window.location (lebih aman)
+  const [matchId, setMatchId] = useState<string | null>(null)
+
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,49 +67,64 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ========== SATU USEFFECT UNTUK SEMUA ==========
+  // ===== STEP 1: Ambil matchId dari URL (hanya sekali) =====
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const id = params.get('matchId')
+      console.log('[set_schedule] 📍 matchId dari URL:', id)
+      setMatchId(id)
+    }
+  }, [])
+
+  // ===== STEP 2: Fetch data saat matchId tersedia =====
+  useEffect(() => {
+    if (!matchId) {
+      console.log('[set_schedule] ⏳ matchId masih null, belum fetch')
+      return
+    }
+
     let isMounted = true
     let fetchTimeout: NodeJS.Timeout
     let forceStopTimeout: NodeJS.Timeout
 
     const fetchMatch = async () => {
       try {
-        // 1. Ambil matchId dari URL
-        let matchId: string | null = null
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search)
-          matchId = params.get('matchId')
-          console.log('[set_schedule] matchId from URL:', matchId)
-        }
+        console.log('[set_schedule] 🔍 Mulai fetch untuk matchId:', matchId)
 
-        if (!matchId) {
-          throw new Error('ID match tidak ditemukan di URL.')
-        }
-
-        // 2. Ambil session
+        // --- Ambil session ---
         const supabase = createClient()
         let token: string | null = null
 
+        // Coba getSession dengan retry 3x
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             const { data: { session } } = await supabase.auth.getSession()
             if (session?.access_token) {
               token = session.access_token
-              console.log('[set_schedule] ✅ Token found on attempt', attempt + 1)
+              console.log('[set_schedule] ✅ Token ditemukan di attempt', attempt + 1)
               break
             }
           } catch (e) {
-            console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'failed')
+            console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'gagal')
           }
           if (attempt < 2) await new Promise(r => setTimeout(r, 300))
+        }
+
+        if (!token) {
+          console.log('[set_schedule] 🔄 Coba getUser...')
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: { session } } = await supabase.auth.getSession()
+            token = session?.access_token || null
+          }
         }
 
         if (!token) {
           throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
-        // 3. Cek sessionStorage
+        // --- Cek sessionStorage ---
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -128,7 +146,7 @@ function SetScheduleContent() {
           }
         }
 
-        // 4. Fetch dari API
+        // --- Fetch dari API ---
         console.log('[set_schedule] 🔄 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -192,7 +210,7 @@ function SetScheduleContent() {
       clearTimeout(fetchTimeout)
       clearTimeout(forceStopTimeout)
     }
-  }, []) // Hanya dijalankan sekali saat mount
+  }, [matchId])
 
   // ---------- Interaksi ----------
   const toggleSubject = (subject: string) => {
@@ -283,17 +301,6 @@ function SetScheduleContent() {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
       alert('Pilih minimal satu slot jadwal!')
-      return
-    }
-
-    // Ambil matchId dari URL
-    let matchId: string | null = null
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      matchId = params.get('matchId')
-    }
-    if (!matchId) {
-      alert('ID match tidak ditemukan.')
       return
     }
 
