@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { createClient } from '@/lib/supabase/client'
 
 // ========== HELPER ==========
 const getDatesInMonth = (year: number, month: number) => {
@@ -46,11 +45,20 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ========== AMBIL TOKEN ==========
-async function getToken(): Promise<string | null> {
+// ========== AMBIL TOKEN DARI STORAGE (TANPA Supabase Client) ==========
+function getTokenFromStorage(): string | null {
   if (typeof window === 'undefined') return null
 
-  // 1. Coba dari localStorage (key yang tepat)
+  // 1. Prioritaskan dari sessionStorage (disimpan oleh tutor-offers)
+  try {
+    const token = sessionStorage.getItem('sb-access-token')
+    if (token) {
+      console.log('[set_schedule] ✅ Token dari sessionStorage')
+      return token
+    }
+  } catch (e) {}
+
+  // 2. Coba dari localStorage (fallback)
   try {
     const keys = Object.keys(localStorage)
     for (const key of keys) {
@@ -65,41 +73,9 @@ async function getToken(): Promise<string | null> {
         }
       }
     }
-  } catch (e) {
-    console.warn('[set_schedule] localStorage gagal:', e)
-  }
+  } catch (e) {}
 
-  // 2. Coba dari Supabase client (getUser lebih cepat)
-  try {
-    const supabase = createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (user && !error) {
-      // Setelah getUser, coba ambil session
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) {
-        console.log('[set_schedule] ✅ Token dari Supabase (getUser)')
-        return session.access_token
-      }
-    }
-  } catch (e) {
-    console.warn('[set_schedule] Supabase getUser gagal:', e)
-  }
-
-  // 3. Coba langsung getSession dengan timeout
-  try {
-    const supabase = createClient()
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
-    const sessionPromise = supabase.auth.getSession()
-    const result = await Promise.race([sessionPromise, timeout]) as any
-    if (result?.data?.session?.access_token) {
-      console.log('[set_schedule] ✅ Token dari Supabase (getSession)')
-      return result.data.session.access_token
-    }
-  } catch (e) {
-    console.warn('[set_schedule] getSession timeout atau gagal:', e)
-  }
-
-  console.warn('[set_schedule] ❌ Tidak ada token ditemukan')
+  console.warn('[set_schedule] ❌ Token tidak ditemukan di storage')
   return null
 }
 
@@ -139,15 +115,15 @@ function SetScheduleContent() {
           throw new Error('matchId tidak ditemukan di URL')
         }
 
-        // 2. Ambil token
-        const token = await getToken()
+        // 2. Ambil token dari storage (tanpa Supabase client)
+        const token = getTokenFromStorage()
         console.log('[set_schedule] 🔑 Token ada?', !!token)
 
         if (!token) {
-          throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
+          throw new Error('Token tidak ditemukan. Silakan kembali ke halaman penawaran dan coba lagi.')
         }
 
-        // 3. Cek sessionStorage (data match dari tutor-offers)
+        // 3. Cek sessionStorage untuk data match (sudah disimpan dari tutor-offers)
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -159,7 +135,9 @@ function SetScheduleContent() {
                 setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
                 setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
                 setLoading(false)
+                // Hapus setelah dipakai
                 sessionStorage.removeItem('scheduleData')
+                sessionStorage.removeItem('sb-access-token')
               }
               return
             }
@@ -168,7 +146,7 @@ function SetScheduleContent() {
           }
         }
 
-        // 4. Fetch API
+        // 4. Jika tidak ada di sessionStorage, fetch dari API
         console.log('[set_schedule] 🌐 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -211,14 +189,14 @@ function SetScheduleContent() {
 
     run()
 
-    // Force stop setelah 8 detik
+    // Force stop setelah 6 detik (lebih cepat)
     forceStop = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ FORCE STOP (8s)')
+        console.warn('[set_schedule] ⏱️ FORCE STOP (6s)')
         setLoading(false)
         setError('Waktu muat terlalu lama. Silakan refresh.')
       }
-    }, 8000)
+    }, 6000)
 
     return () => {
       isMounted = false
@@ -227,7 +205,7 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== INTERAKSI (tidak berubah) ==========
+  // ========== INTERAKSI (sama) ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
