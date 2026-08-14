@@ -46,6 +46,27 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
+// ========== FUNGSI AMBIL TOKEN DARI LOCALSTORAGE ==========
+function getTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!projectUrl) return null
+    // Ekstrak project ref dari URL, misal https://xxxxx.supabase.co -> xxxxx
+    const match = projectUrl.match(/https?:\/\/([^.]+)\.supabase\.co/)
+    if (!match) return null
+    const projectRef = match[1]
+    const key = `sb-${projectRef}-auth-token`
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.access_token || null
+  } catch (e) {
+    console.warn('[set_schedule] Gagal baca token dari localStorage:', e)
+    return null
+  }
+}
+
 // ========== KOMPONEN ==========
 function SetScheduleContent() {
   const router = useRouter()
@@ -64,7 +85,6 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ========== SATU USEFFECT UNTUK SEMUA ==========
   useEffect(() => {
     let isMounted = true
     let forceStop: NodeJS.Timeout
@@ -83,36 +103,23 @@ function SetScheduleContent() {
           throw new Error('matchId tidak ditemukan di URL')
         }
 
-        // 2. Ambil session
-        console.log('[set_schedule] 🔐 Ambil session...')
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
-        console.log('[set_schedule] 🔑 Token ada?', !!token)
+        // 2. Coba ambil token dari localStorage (cepat)
+        let token = getTokenFromStorage()
+        console.log('[set_schedule] 🔑 Token dari localStorage:', !!token)
 
         if (!token) {
-          // Coba getUser sebagai fallback
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const { data: { session: s } } = await supabase.auth.getSession()
-            if (s?.access_token) {
-              console.log('[set_schedule] ✅ Token didapat via getUser')
-              const res = await fetch(`/api/matches/${matchId}`, {
-                headers: { 'Authorization': `Bearer ${s.access_token}` },
-              })
-              if (!res.ok) throw new Error(`HTTP ${res.status}`)
-              const data = await res.json()
-              console.log('[set_schedule] ✅ Data dari API (fallback)')
-              if (isMounted) {
-                setMatchData(data)
-                setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-                setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-                setLoading(false)
-              }
-              return
-            }
-          }
-          throw new Error('Tidak ada token akses')
+          // Fallback: coba dari Supabase client (dengan timeout)
+          console.log('[set_schedule] 🔐 Coba dari Supabase client...')
+          const supabase = createClient()
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 3000))
+          const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+          token = session?.access_token
+          console.log('[set_schedule] 🔑 Token dari Supabase:', !!token)
+        }
+
+        if (!token) {
+          throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
         // 3. Cek sessionStorage
@@ -177,7 +184,6 @@ function SetScheduleContent() {
       }
     }
 
-    // Jalankan fetch
     run()
 
     // Force stop setelah 6 detik
@@ -194,9 +200,9 @@ function SetScheduleContent() {
       clearTimeout(forceStop)
       clearTimeout(fetchTimeout)
     }
-  }, []) // Kosong → hanya dijalankan sekali
+  }, [])
 
-  // ========== INTERAKSI ==========
+  // ========== INTERAKSI (tidak berubah) ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
