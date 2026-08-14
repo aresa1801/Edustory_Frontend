@@ -375,7 +375,9 @@ function SetScheduleContent() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-white z-10">Jam</th>
+                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-50 z-10 border-r-2 font-semibold text-gray-700">
+                    Jam
+                  </th>
                   {dates.map((date, idx) => (
                     <th key={idx} className="border p-1 text-center min-w-[44px]">
                       <div>{date.getDate()}</div>
@@ -389,7 +391,9 @@ function SetScheduleContent() {
               <tbody>
                 {TIME_SLOTS.map((slot, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs sticky left-0 bg-white z-10">{slot.label}</td>
+                    <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-50 z-10 border-r-2 text-gray-700">
+                      {slot.label}
+                    </td>
                     {dates.map((date, colIdx) => {
                       const filled = isSlotFilled(date, slot.label)
                       const subject = getSlotSubject(date, slot.label)
