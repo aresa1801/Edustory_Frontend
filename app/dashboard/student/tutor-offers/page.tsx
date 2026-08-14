@@ -112,13 +112,56 @@ export default function TutorOffersPage() {
   }
 
   // ============ PALING SEDERHANA, LANGSUNG REDIRECT ============
-  const handleSchedule = (offer: Match) => {
-    console.log('>>> handleSchedule, offer.id =', offer.id)
-    // Langsung redirect tanpa await apapun
+  const handleSchedule = async (offer: Match) => {
+  console.log('>>> handleSchedule, offer.id =', offer.id)
+
+  try {
+    // Ambil token dari Supabase session
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    let token = session?.access_token
+
+    // Jika tidak ada, coba dari localStorage
+    if (!token) {
+      const keys = Object.keys(localStorage)
+      for (const key of keys) {
+        if (key.includes('sb-') && key.includes('auth-token')) {
+          try {
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                token = parsed.access_token
+                break
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    // Simpan token ke sessionStorage
+    if (token) {
+      sessionStorage.setItem('sb-access-token', token)
+      console.log('✅ Token saved to sessionStorage')
+    } else {
+      console.warn('⚠️ No token found')
+    }
+
+    // Simpan data match (sudah ada)
+    sessionStorage.setItem('scheduleData', JSON.stringify(offer))
+
+    // Redirect
     const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
     console.log('>>> redirecting to:', url)
     window.location.href = url
+  } catch (err) {
+    console.error('Error in handleSchedule:', err)
+    // Tetap redirect walau token gagal
+    window.location.href = `/dashboard/student/set_schedule?matchId=${offer.id}`
   }
+}
   // =============================================================
 
   const handleReject = async (offerId: string) => {
