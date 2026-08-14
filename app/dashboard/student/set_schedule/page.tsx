@@ -375,13 +375,13 @@ function SetScheduleContent() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-50 z-10 border-r-2 font-semibold text-gray-700">
+                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
                     Jam
                   </th>
                   {dates.map((date, idx) => (
-                    <th key={idx} className="border p-1 text-center min-w-[44px]">
+                    <th key={idx} className="border p-1 text-center min-w-[44px] bg-gray-800 text-white">
                       <div>{date.getDate()}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-gray-300">
                         {date.toLocaleDateString('id-ID', { weekday: 'short' })}
                       </div>
                     </th>
@@ -391,7 +391,7 @@ function SetScheduleContent() {
               <tbody>
                 {TIME_SLOTS.map((slot, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-50 z-10 border-r-2 text-gray-700">
+                    <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
                       {slot.label}
                     </td>
                     {dates.map((date, colIdx) => {
