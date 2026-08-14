@@ -27,7 +27,6 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
       { label: '14.00 - 15.00' },
     ]
   }
-  // Coba berbagai format: "12.00 - 15.00", "12.00-15.00", "12.00–15.00"
   const match = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
   if (match) {
     const start = parseFloat(match[1].replace('.', ':'))
@@ -40,7 +39,6 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
     }
     return slots
   }
-  // Fallback default
   return [
     { label: '12.00 - 13.00' },
     { label: '13.00 - 14.00' },
@@ -54,7 +52,6 @@ function SetScheduleContent() {
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
 
-  // State
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,43 +66,50 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ========== FETCH DATA ==========
+  // ========== FETCH DATA DENGAN TIMEOUT FALLBACK ==========
   useEffect(() => {
     let isMounted = true
-    let timeoutId: NodeJS.Timeout
+    let fetchTimeout: NodeJS.Timeout
+    let forceStopTimeout: NodeJS.Timeout
 
     const fetchMatch = async () => {
       try {
-        // 1. Ambil session langsung dari Supabase
+        // 1. Ambil session
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const user = session?.user
 
         if (!user) {
-          setError('Silakan login terlebih dahulu.')
-          setLoading(false)
+          if (isMounted) {
+            setError('Silakan login terlebih dahulu.')
+            setLoading(false)
+          }
           return
         }
 
         if (!matchId) {
-          setError('Tidak ada ID match di URL.')
-          setLoading(false)
+          if (isMounted) {
+            setError('Tidak ada ID match di URL.')
+            setLoading(false)
+          }
           return
         }
 
-        // 2. Cek sessionStorage (dari tutor-offers)
+        // 2. Cek sessionStorage
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
             const data = JSON.parse(stored)
             if (data.id === matchId) {
-              console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
-              setMatchData(data)
-              setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-              setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-              setLoading(false)
-              setError(null)
-              sessionStorage.removeItem('scheduleData')
+              console.log('[set_schedule] ✅ Data dari sessionStorage')
+              if (isMounted) {
+                setMatchData(data)
+                setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+                setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+                setLoading(false)
+                setError(null)
+                sessionStorage.removeItem('scheduleData')
+              }
               return
             }
           } catch (e) {
@@ -113,11 +117,11 @@ function SetScheduleContent() {
           }
         }
 
-        // 3. Fetch dari API
+        // 3. Fetch dari API dengan timeout 5 detik
         console.log('[set_schedule] 🔄 Fetch dari API...')
         const token = session.access_token
         const controller = new AbortController()
-        timeoutId = setTimeout(() => controller.abort(), 5000)
+        fetchTimeout = setTimeout(() => controller.abort(), 5000)
 
         const res = await fetch(`/api/matches/${matchId}`, {
           headers: {
@@ -127,7 +131,7 @@ function SetScheduleContent() {
           signal: controller.signal
         })
 
-        clearTimeout(timeoutId)
+        clearTimeout(fetchTimeout)
 
         if (!isMounted) return
 
@@ -137,22 +141,15 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] ✅ Data dari API:', data)
+        console.log('[set_schedule] ✅ Data dari API')
 
-        // Validasi kolom penting
-        if (!data.matched_subjects || data.matched_subjects.length === 0) {
-          console.warn('[set_schedule] ⚠️ matched_subjects kosong, gunakan fallback')
-          // Bisa set fallback atau biarkan error
+        if (isMounted) {
+          setMatchData(data)
+          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+          setError(null)
+          setLoading(false)
         }
-        if (!data.student_schedule) {
-          console.warn('[set_schedule] ⚠️ student_schedule kosong, gunakan fallback')
-        }
-
-        setMatchData(data)
-        setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-        setError(null)
-        setLoading(false)
 
       } catch (err: any) {
         console.error('[set_schedule] ❌ Error:', err)
@@ -165,19 +162,29 @@ function SetScheduleContent() {
           setLoading(false)
         }
       } finally {
-        clearTimeout(timeoutId)
+        clearTimeout(fetchTimeout)
       }
     }
+
+    // ===== TIMEOUT FALLBACK: paksa loading false setelah 10 detik =====
+    forceStopTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[set_schedule] ⏱️ Force stop loading (10s timeout)')
+        setLoading(false)
+        setError('Waktu muat terlalu lama. Silakan refresh halaman.')
+      }
+    }, 10000)
 
     fetchMatch()
 
     return () => {
       isMounted = false
-      clearTimeout(timeoutId)
+      clearTimeout(fetchTimeout)
+      clearTimeout(forceStopTimeout)
     }
   }, [matchId]) // Hanya bergantung pada matchId
 
-  // ---------- Interaksi ----------
+  // ---------- Interaksi (sama seperti sebelumnya) ----------
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -191,7 +198,6 @@ function SetScheduleContent() {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
     if (current) {
-      // Hapus
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const day = date.getDay()
@@ -203,12 +209,10 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
-      // Tambah
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran dulu!')
         return
       }
-      // Pilih subject dengan jumlah paling sedikit
       const counts: Record<string, number> = {}
       Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
       let chosen = selectedSubjects[0]
@@ -217,9 +221,7 @@ function SetScheduleContent() {
         const c = counts[s] || 0
         if (c < min) { min = c; chosen = s }
       })
-
       const newSchedule = { ...schedule, [key]: chosen }
-      // Mirroring: sama jam di hari yang sama dalam sebulan
       const day = date.getDay()
       dates.forEach(d => {
         if (d.getDay() === day) {
@@ -267,7 +269,6 @@ function SetScheduleContent() {
     )
   }
 
-  // ---------- Simpan ----------
   const handleSave = async () => {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
@@ -373,7 +374,6 @@ function SetScheduleContent() {
         </div>
       </div>
 
-      {/* Pilihan Mata Pelajaran */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
@@ -399,7 +399,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Kalender */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
@@ -453,7 +452,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* Ringkasan */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
@@ -461,14 +459,12 @@ function SetScheduleContent() {
         <CardContent>{generateSummary()}</CardContent>
       </Card>
 
-      {/* Pesan sukses/error */}
       {saveMessage && (
         <Alert variant={saveMessage.type === 'success' ? 'default' : 'destructive'}>
           <AlertDescription>{saveMessage.text}</AlertDescription>
         </Alert>
       )}
 
-      {/* Tombol Simpan */}
       <div className="flex justify-end">
         <Button
           className="bg-green-600 hover:bg-green-700 text-white"
