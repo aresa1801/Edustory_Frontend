@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 
-// ---------- HELPER ----------
+// ========== HELPER ==========
 const getDatesInMonth = (year: number, month: number) => {
   const dates = []
   const lastDay = new Date(year, month + 1, 0).getDate()
@@ -46,12 +46,9 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ---------- KOMPONEN ----------
+// ========== KOMPONEN ==========
 function SetScheduleContent() {
   const router = useRouter()
-
-  // Ambil matchId dari URL pake window.location (lebih aman)
-  const [matchId, setMatchId] = useState<string | null>(null)
 
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -67,64 +64,58 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ===== STEP 1: Ambil matchId dari URL (hanya sekali) =====
+  // ========== SATU USEFFECT UNTUK SEMUA ==========
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const id = params.get('matchId')
-      console.log('[set_schedule] 📍 matchId dari URL:', id)
-      setMatchId(id)
-    }
-  }, [])
-
-  // ===== STEP 2: Fetch data saat matchId tersedia =====
-  useEffect(() => {
-    if (!matchId) {
-      console.log('[set_schedule] ⏳ matchId masih null, belum fetch')
-      return
-    }
-
     let isMounted = true
+    let forceStop: NodeJS.Timeout
     let fetchTimeout: NodeJS.Timeout
-    let forceStopTimeout: NodeJS.Timeout
 
-    const fetchMatch = async () => {
+    const run = async () => {
       try {
-        console.log('[set_schedule] 🔍 Mulai fetch untuk matchId:', matchId)
+        console.log('[set_schedule] 🚀 START')
 
-        // --- Ambil session ---
-        const supabase = createClient()
-        let token: string | null = null
+        // 1. Ambil matchId dari URL
+        const params = new URLSearchParams(window.location.search)
+        const matchId = params.get('matchId')
+        console.log('[set_schedule] 📍 matchId =', matchId)
 
-        // Coba getSession dengan retry 3x
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (session?.access_token) {
-              token = session.access_token
-              console.log('[set_schedule] ✅ Token ditemukan di attempt', attempt + 1)
-              break
-            }
-          } catch (e) {
-            console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'gagal')
-          }
-          if (attempt < 2) await new Promise(r => setTimeout(r, 300))
+        if (!matchId) {
+          throw new Error('matchId tidak ditemukan di URL')
         }
 
+        // 2. Ambil session
+        console.log('[set_schedule] 🔐 Ambil session...')
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        console.log('[set_schedule] 🔑 Token ada?', !!token)
+
         if (!token) {
-          console.log('[set_schedule] 🔄 Coba getUser...')
+          // Coba getUser sebagai fallback
           const { data: { user } } = await supabase.auth.getUser()
           if (user) {
-            const { data: { session } } = await supabase.auth.getSession()
-            token = session?.access_token || null
+            const { data: { session: s } } = await supabase.auth.getSession()
+            if (s?.access_token) {
+              console.log('[set_schedule] ✅ Token didapat via getUser')
+              const res = await fetch(`/api/matches/${matchId}`, {
+                headers: { 'Authorization': `Bearer ${s.access_token}` },
+              })
+              if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              const data = await res.json()
+              console.log('[set_schedule] ✅ Data dari API (fallback)')
+              if (isMounted) {
+                setMatchData(data)
+                setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+                setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+                setLoading(false)
+              }
+              return
+            }
           }
+          throw new Error('Tidak ada token akses')
         }
 
-        if (!token) {
-          throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
-        }
-
-        // --- Cek sessionStorage ---
+        // 3. Cek sessionStorage
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -136,18 +127,17 @@ function SetScheduleContent() {
                 setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
                 setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
                 setLoading(false)
-                setError(null)
                 sessionStorage.removeItem('scheduleData')
               }
               return
             }
           } catch (e) {
-            console.warn('[set_schedule] ⚠️ Gagal parse sessionStorage')
+            console.warn('[set_schedule] ⚠️ sessionStorage gagal parse')
           }
         }
 
-        // --- Fetch dari API ---
-        console.log('[set_schedule] 🔄 Fetch dari API...')
+        // 4. Fetch API
+        console.log('[set_schedule] 🌐 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
 
@@ -164,8 +154,8 @@ function SetScheduleContent() {
         if (!isMounted) return
 
         if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`Gagal fetch (${res.status}): ${errText}`)
+          const text = await res.text()
+          throw new Error(`HTTP ${res.status}: ${text}`)
         }
 
         const data = await res.json()
@@ -175,44 +165,38 @@ function SetScheduleContent() {
           setMatchData(data)
           setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
           setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-          setError(null)
           setLoading(false)
         }
 
       } catch (err: any) {
         console.error('[set_schedule] ❌ Error:', err)
         if (isMounted) {
-          if (err.name === 'AbortError') {
-            setError('Waktu pengambilan data habis. Silakan coba lagi.')
-          } else {
-            setError(err.message || 'Terjadi kesalahan saat mengambil data.')
-          }
+          setError(err.message || 'Terjadi kesalahan')
           setLoading(false)
         }
-      } finally {
-        clearTimeout(fetchTimeout)
       }
     }
 
-    // --- Force stop setelah 8 detik ---
-    forceStopTimeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ Force stop loading (8s timeout)')
-        setLoading(false)
-        setError('Waktu muat terlalu lama. Silakan refresh halaman.')
-      }
-    }, 8000)
+    // Jalankan fetch
+    run()
 
-    fetchMatch()
+    // Force stop setelah 6 detik
+    forceStop = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[set_schedule] ⏱️ FORCE STOP (6s)')
+        setLoading(false)
+        setError('Waktu muat terlalu lama. Silakan refresh.')
+      }
+    }, 6000)
 
     return () => {
       isMounted = false
+      clearTimeout(forceStop)
       clearTimeout(fetchTimeout)
-      clearTimeout(forceStopTimeout)
     }
-  }, [matchId])
+  }, []) // Kosong → hanya dijalankan sekali
 
-  // ---------- Interaksi ----------
+  // ========== INTERAKSI ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -313,7 +297,7 @@ function SetScheduleContent() {
     setSaveMessage(null)
 
     try {
-      const res = await fetch(`/api/matches/${matchId}/schedules`, {
+      const res = await fetch(`/api/matches/${matchData?.id}/schedules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessions }),
@@ -336,7 +320,7 @@ function SetScheduleContent() {
     }
   }
 
-  // ---------- RENDER ----------
+  // ========== RENDER ==========
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -507,7 +491,7 @@ function SetScheduleContent() {
   )
 }
 
-// ---------- PAGE ----------
+// ========== PAGE ==========
 export default function SetSchedulePage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>}>
