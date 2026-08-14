@@ -46,32 +46,11 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ========== AMBIL TOKEN DARI COOKIE ==========
-function getTokenFromCookie(): string | null {
-  if (typeof document === 'undefined') return null
-  try {
-    const cookies = document.cookie.split('; ')
-    for (const cookie of cookies) {
-      const [name, value] = cookie.split('=')
-      if (name && name.includes('sb-') && name.includes('auth-token')) {
-        const decoded = decodeURIComponent(value)
-        const parsed = JSON.parse(decoded)
-        if (parsed?.access_token) {
-          console.log('[set_schedule] ✅ Token dari cookie:', name)
-          return parsed.access_token
-        }
-      }
-    }
-    return null
-  } catch (e) {
-    console.warn('[set_schedule] Gagal baca cookie:', e)
-    return null
-  }
-}
-
-// ========== AMBIL TOKEN DARI LOCALSTORAGE ==========
-function getTokenFromStorage(): string | null {
+// ========== AMBIL TOKEN ==========
+async function getToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null
+
+  // 1. Coba dari localStorage (key yang tepat)
   try {
     const keys = Object.keys(localStorage)
     for (const key of keys) {
@@ -80,17 +59,48 @@ function getTokenFromStorage(): string | null {
         if (raw) {
           const parsed = JSON.parse(raw)
           if (parsed?.access_token) {
-            console.log('[set_schedule] ✅ Token ditemukan di localStorage:', key)
+            console.log('[set_schedule] ✅ Token dari localStorage')
             return parsed.access_token
           }
         }
       }
     }
-    return null
   } catch (e) {
-    console.warn('[set_schedule] Gagal baca localStorage:', e)
-    return null
+    console.warn('[set_schedule] localStorage gagal:', e)
   }
+
+  // 2. Coba dari Supabase client (getUser lebih cepat)
+  try {
+    const supabase = createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (user && !error) {
+      // Setelah getUser, coba ambil session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        console.log('[set_schedule] ✅ Token dari Supabase (getUser)')
+        return session.access_token
+      }
+    }
+  } catch (e) {
+    console.warn('[set_schedule] Supabase getUser gagal:', e)
+  }
+
+  // 3. Coba langsung getSession dengan timeout
+  try {
+    const supabase = createClient()
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+    const sessionPromise = supabase.auth.getSession()
+    const result = await Promise.race([sessionPromise, timeout]) as any
+    if (result?.data?.session?.access_token) {
+      console.log('[set_schedule] ✅ Token dari Supabase (getSession)')
+      return result.data.session.access_token
+    }
+  } catch (e) {
+    console.warn('[set_schedule] getSession timeout atau gagal:', e)
+  }
+
+  console.warn('[set_schedule] ❌ Tidak ada token ditemukan')
+  return null
 }
 
 // ========== KOMPONEN ==========
@@ -129,42 +139,15 @@ function SetScheduleContent() {
           throw new Error('matchId tidak ditemukan di URL')
         }
 
-        // 2. Coba ambil token dari cookie (paling cepat)
-        let token = getTokenFromCookie()
-        console.log('[set_schedule] 🔑 Token dari cookie:', !!token)
-
-        // 3. Jika tidak ada, coba dari localStorage
-        if (!token) {
-          token = getTokenFromStorage()
-          console.log('[set_schedule] 🔑 Token dari localStorage:', !!token)
-        }
-
-        // 4. Jika masih tidak ada, coba dari Supabase client (dengan retry cepat)
-        if (!token) {
-          console.log('[set_schedule] 🔐 Coba dari Supabase client...')
-          const supabase = createClient()
-          
-          // Coba getSession dengan retry 2x (timeout total 2 detik)
-          for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-              const { data: { session } } = await supabase.auth.getSession()
-              if (session?.access_token) {
-                token = session.access_token
-                console.log('[set_schedule] ✅ Token dari Supabase attempt', attempt + 1)
-                break
-              }
-            } catch (e) {
-              console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'gagal')
-            }
-            if (attempt < 1) await new Promise(r => setTimeout(r, 300))
-          }
-        }
+        // 2. Ambil token
+        const token = await getToken()
+        console.log('[set_schedule] 🔑 Token ada?', !!token)
 
         if (!token) {
           throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
-        // 5. Cek sessionStorage (data match dari tutor-offers)
+        // 3. Cek sessionStorage (data match dari tutor-offers)
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -185,7 +168,7 @@ function SetScheduleContent() {
           }
         }
 
-        // 6. Fetch API
+        // 4. Fetch API
         console.log('[set_schedule] 🌐 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -244,7 +227,7 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== INTERAKSI (sama) ==========
+  // ========== INTERAKSI (tidak berubah) ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
