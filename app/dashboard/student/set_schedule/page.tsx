@@ -45,52 +45,15 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ========== AMBIL TOKEN DARI STORAGE (TANPA Supabase Client) ==========
-function getTokenFromStorage(): string | null {
-  if (typeof window === 'undefined') return null
-
-  // 1. Prioritaskan dari sessionStorage (disimpan oleh tutor-offers)
-  try {
-    const token = sessionStorage.getItem('sb-access-token')
-    if (token) {
-      console.log('[set_schedule] ✅ Token dari sessionStorage')
-      return token
-    }
-  } catch (e) {}
-
-  // 2. Coba dari localStorage (fallback)
-  try {
-    const keys = Object.keys(localStorage)
-    for (const key of keys) {
-      if (key.includes('sb-') && key.includes('auth-token')) {
-        const raw = localStorage.getItem(key)
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (parsed?.access_token) {
-            console.log('[set_schedule] ✅ Token dari localStorage')
-            return parsed.access_token
-          }
-        }
-      }
-    }
-  } catch (e) {}
-
-  console.warn('[set_schedule] ❌ Token tidak ditemukan di storage')
-  return null
-}
-
 // ========== KOMPONEN ==========
 function SetScheduleContent() {
   const router = useRouter()
-
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
-
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
@@ -98,110 +61,25 @@ function SetScheduleContent() {
   const monthName = 'Agustus 2026'
 
   useEffect(() => {
-    let isMounted = true
-    let forceStop: NodeJS.Timeout
-    let fetchTimeout: NodeJS.Timeout
-
-    const run = async () => {
-      try {
-        console.log('[set_schedule] 🚀 START')
-
-        // 1. Ambil matchId dari URL
-        const params = new URLSearchParams(window.location.search)
-        const matchId = params.get('matchId')
-        console.log('[set_schedule] 📍 matchId =', matchId)
-
-        if (!matchId) {
-          throw new Error('matchId tidak ditemukan di URL')
-        }
-
-        // 2. Ambil token dari storage (tanpa Supabase client)
-        const token = getTokenFromStorage()
-        console.log('[set_schedule] 🔑 Token ada?', !!token)
-
-        if (!token) {
-          throw new Error('Token tidak ditemukan. Silakan kembali ke halaman penawaran dan coba lagi.')
-        }
-
-        // 3. Cek sessionStorage untuk data match (sudah disimpan dari tutor-offers)
-        const stored = sessionStorage.getItem('scheduleData')
-        if (stored) {
-          try {
-            const data = JSON.parse(stored)
-            if (data.id === matchId) {
-              console.log('[set_schedule] ✅ Data dari sessionStorage')
-              if (isMounted) {
-                setMatchData(data)
-                setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-                setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-                setLoading(false)
-                // Hapus setelah dipakai
-                sessionStorage.removeItem('scheduleData')
-                sessionStorage.removeItem('sb-access-token')
-              }
-              return
-            }
-          } catch (e) {
-            console.warn('[set_schedule] ⚠️ sessionStorage gagal parse')
-          }
-        }
-
-        // 4. Jika tidak ada di sessionStorage, fetch dari API
-        console.log('[set_schedule] 🌐 Fetch dari API...')
-        const controller = new AbortController()
-        fetchTimeout = setTimeout(() => controller.abort(), 5000)
-
-        const res = await fetch(`/api/matches/${matchId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal
-        })
-
-        clearTimeout(fetchTimeout)
-
-        if (!isMounted) return
-
-        if (!res.ok) {
-          const text = await res.text()
-          throw new Error(`HTTP ${res.status}: ${text}`)
-        }
-
-        const data = await res.json()
-        console.log('[set_schedule] ✅ Data dari API')
-
-        if (isMounted) {
-          setMatchData(data)
-          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-          setLoading(false)
-        }
-
-      } catch (err: any) {
-        console.error('[set_schedule] ❌ Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Terjadi kesalahan')
-          setLoading(false)
-        }
-      }
-    }
-
-    run()
-
-    // Force stop setelah 6 detik (lebih cepat)
-    forceStop = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ FORCE STOP (6s)')
+    // Ambil data dari sessionStorage
+    try {
+      const stored = sessionStorage.getItem('scheduleData')
+      if (stored) {
+        const data = JSON.parse(stored)
+        console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
+        setMatchData(data)
+        setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
         setLoading(false)
-        setError('Waktu muat terlalu lama. Silakan refresh.')
+        // Hapus setelah dipakai? Lebih baik kita hapus setelah berhasil disimpan nanti, atau biarkan saja
+        // sessionStorage.removeItem('scheduleData')
+      } else {
+        setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
+        setLoading(false)
       }
-    }, 6000)
-
-    return () => {
-      isMounted = false
-      clearTimeout(forceStop)
-      clearTimeout(fetchTimeout)
+    } catch (e) {
+      setError('Data jadwal tidak valid. Silakan kembali ke halaman penawaran.')
+      setLoading(false)
     }
   }, [])
 
@@ -291,9 +169,35 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
+    // Untuk simpan, kita perlu token. Ambil dari localStorage atau sessionStorage.
+    // Tapi kita bisa juga panggil Supabase client langsung.
+    // Kita akan buat sederhana: gunakan fetch dengan token dari localStorage.
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
       alert('Pilih minimal satu slot jadwal!')
+      return
+    }
+
+    // Ambil token dari localStorage
+    let token: string | null = null
+    try {
+      const keys = Object.keys(localStorage)
+      for (const key of keys) {
+        if (key.includes('sb-') && key.includes('auth-token')) {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              token = parsed.access_token
+              break
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.')
       return
     }
 
@@ -308,7 +212,10 @@ function SetScheduleContent() {
     try {
       const res = await fetch(`/api/matches/${matchData?.id}/schedules`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ sessions }),
       })
 
@@ -347,16 +254,13 @@ function SetScheduleContent() {
             <strong>Error:</strong> {error}
             <br />
             <span className="text-sm mt-2 block">
-              Pastikan Anda sudah login dan membuka dari halaman penawaran.
+              Silakan kembali ke halaman penawaran dan coba lagi.
             </span>
           </AlertDescription>
         </Alert>
         <div className="flex gap-2 mt-4">
-          <Button onClick={() => window.location.reload()} variant="outline">
-            Coba Lagi
-          </Button>
           <Button onClick={() => window.history.back()}>
-            Kembali
+            Kembali ke Penawaran
           </Button>
         </div>
       </div>
@@ -369,8 +273,8 @@ function SetScheduleContent() {
         <Alert variant="destructive">
           <AlertDescription>Data match tidak ditemukan.</AlertDescription>
         </Alert>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Coba Lagi
+        <Button onClick={() => window.history.back()} className="mt-4">
+          Kembali
         </Button>
       </div>
     )
