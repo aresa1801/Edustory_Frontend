@@ -46,23 +46,28 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ========== FUNGSI AMBIL TOKEN DARI LOCALSTORAGE ==========
+// ========== AMBIL TOKEN DARI LOCALSTORAGE (lebih akurat) ==========
 function getTokenFromStorage(): string | null {
   if (typeof window === 'undefined') return null
   try {
-    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    if (!projectUrl) return null
-    // Ekstrak project ref dari URL, misal https://xxxxx.supabase.co -> xxxxx
-    const match = projectUrl.match(/https?:\/\/([^.]+)\.supabase\.co/)
-    if (!match) return null
-    const projectRef = match[1]
-    const key = `sb-${projectRef}-auth-token`
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return parsed?.access_token || null
+    // Cari semua key yang mengandung 'sb-' dan 'auth-token'
+    const keys = Object.keys(localStorage)
+    for (const key of keys) {
+      if (key.includes('sb-') && key.includes('auth-token')) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed?.access_token) {
+            console.log('[set_schedule] ✅ Token ditemukan di key:', key)
+            return parsed.access_token
+          }
+        }
+      }
+    }
+    console.warn('[set_schedule] ⚠️ Tidak ada token di localStorage')
+    return null
   } catch (e) {
-    console.warn('[set_schedule] Gagal baca token dari localStorage:', e)
+    console.warn('[set_schedule] Gagal baca localStorage:', e)
     return null
   }
 }
@@ -103,26 +108,49 @@ function SetScheduleContent() {
           throw new Error('matchId tidak ditemukan di URL')
         }
 
-        // 2. Coba ambil token dari localStorage (cepat)
+        // 2. Coba ambil token dari localStorage
         let token = getTokenFromStorage()
         console.log('[set_schedule] 🔑 Token dari localStorage:', !!token)
 
+        // 3. Jika tidak ada, coba dari Supabase client (dengan retry)
         if (!token) {
-          // Fallback: coba dari Supabase client (dengan timeout)
           console.log('[set_schedule] 🔐 Coba dari Supabase client...')
           const supabase = createClient()
-          const sessionPromise = supabase.auth.getSession()
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 3000))
-          const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-          token = session?.access_token
-          console.log('[set_schedule] 🔑 Token dari Supabase:', !!token)
+          
+          // Coba getSession dengan retry 3x
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const { data: { session } } = await supabase.auth.getSession()
+              if (session?.access_token) {
+                token = session.access_token
+                console.log('[set_schedule] ✅ Token dari Supabase attempt', attempt + 1)
+                break
+              }
+            } catch (e) {
+              console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'gagal')
+            }
+            if (attempt < 2) await new Promise(r => setTimeout(r, 300))
+          }
+        }
+
+        // 4. Jika masih tidak ada, coba getUser (untuk refresh session)
+        if (!token) {
+          console.log('[set_schedule] 🔄 Coba getUser...')
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            // Setelah getUser, coba getSession lagi
+            const { data: { session } } = await supabase.auth.getSession()
+            token = session?.access_token || null
+            console.log('[set_schedule] 🔑 Token setelah getUser:', !!token)
+          }
         }
 
         if (!token) {
           throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
-        // 3. Cek sessionStorage
+        // 5. Cek sessionStorage (data match dari tutor-offers)
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -143,7 +171,7 @@ function SetScheduleContent() {
           }
         }
 
-        // 4. Fetch API
+        // 6. Fetch API
         console.log('[set_schedule] 🌐 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -166,7 +194,7 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] ✅ Data dari API:', data)
+        console.log('[set_schedule] ✅ Data dari API')
 
         if (isMounted) {
           setMatchData(data)
@@ -186,14 +214,14 @@ function SetScheduleContent() {
 
     run()
 
-    // Force stop setelah 6 detik
+    // Force stop setelah 8 detik (lebih panjang)
     forceStop = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ FORCE STOP (6s)')
+        console.warn('[set_schedule] ⏱️ FORCE STOP (8s)')
         setLoading(false)
         setError('Waktu muat terlalu lama. Silakan refresh.')
       }
-    }, 6000)
+    }, 8000)
 
     return () => {
       isMounted = false
