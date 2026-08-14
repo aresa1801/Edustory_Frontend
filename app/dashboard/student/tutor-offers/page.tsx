@@ -116,44 +116,39 @@ export default function TutorOffersPage() {
   const handleSchedule = (offer: Match) => {
   console.log('>>> handleSchedule, offer.id =', offer.id)
 
-  // Simpan data match terlebih dahulu (paling penting)
+  // 1. Simpan data match ke sessionStorage (PASTI)
   sessionStorage.setItem('scheduleData', JSON.stringify(offer))
 
-  // Coba ambil token, tapi jangan sampai menggagalkan redirect
+  // 2. Ambil token dari localStorage (tanpa Supabase client!)
+  let token: string | null = null
   try {
-    const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const token = session?.access_token
-      if (token) {
-        sessionStorage.setItem('sb-access-token', token)
-        console.log('✅ Token saved to sessionStorage')
-      } else {
-        // Fallback: cari dari localStorage
-        const keys = Object.keys(localStorage)
-        for (const key of keys) {
-          if (key.includes('sb-') && key.includes('auth-token')) {
-            try {
-              const raw = localStorage.getItem(key)
-              if (raw) {
-                const parsed = JSON.parse(raw)
-                if (parsed?.access_token) {
-                  sessionStorage.setItem('sb-access-token', parsed.access_token)
-                  console.log('✅ Token from localStorage saved')
-                  break
-                }
-              }
-            } catch (e) {}
+    const keys = Object.keys(localStorage)
+    for (const key of keys) {
+      if (key.includes('sb-') && key.includes('auth-token')) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed?.access_token) {
+            token = parsed.access_token
+            console.log('✅ Token ditemukan di localStorage')
+            break
           }
         }
       }
-    }).catch(err => {
-      console.warn('⚠️ Failed to get session, but continuing:', err)
-    })
-  } catch (err) {
-    console.warn('⚠️ Error in token handling, but continuing:', err)
+    }
+  } catch (e) {
+    console.warn('⚠️ Gagal baca localStorage:', e)
   }
 
-  // Redirect (PASTIKAN selalu dijalankan)
+  // 3. Simpan token ke sessionStorage (jika ada)
+  if (token) {
+    sessionStorage.setItem('sb-access-token', token)
+    console.log('✅ Token saved to sessionStorage')
+  } else {
+    console.warn('⚠️ Token tidak ditemukan di localStorage')
+  }
+
+  // 4. Redirect (PASTI)
   const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
   console.log('>>> redirecting to:', url)
   window.location.href = url
