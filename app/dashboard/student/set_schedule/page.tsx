@@ -8,8 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// ========== HELPER BARU ==========
-// Ambil 30 hari ke depan dari hari ini
+// ========== HELPER: Ambil 30 hari ke depan ==========
 const getNext30Days = () => {
   const today = new Date()
   const dates = []
@@ -21,7 +20,7 @@ const getNext30Days = () => {
   return dates
 }
 
-// Buat label rentang bulan (misal "Agustus - September 2026")
+// ========== HELPER: Label rentang bulan ==========
 const getMonthRangeLabel = (dates: Date[]) => {
   if (dates.length === 0) return ''
   const first = dates[0]
@@ -34,32 +33,90 @@ const getMonthRangeLabel = (dates: Date[]) => {
   }
 }
 
-// Parsing student_schedule (tetap sama)
-const parseScheduleToTimeSlots = (scheduleStr: string) => {
+// ========== PARSE STUDENT SCHEDULE ==========
+function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
-    return [
+    // Default: semua hari, jam standar
+    return {
+      allowedDays: [0,1,2,3,4,5,6],
+      timeSlots: [
+        { label: '12.00 - 13.00' },
+        { label: '13.00 - 14.00' },
+        { label: '14.00 - 15.00' },
+      ]
+    }
+  }
+
+  const lower = scheduleStr.toLowerCase()
+
+  // 1. Deteksi Senin - Jumat
+  if (lower.includes('senin') && lower.includes('jumat')) {
+    const allowedDays = [1, 2, 3, 4, 5] // Senin=1, Selasa=2, Rabu=3, Kamis=4, Jumat=5
+    const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
+    let timeSlots = []
+    if (timeMatch) {
+      const start = parseFloat(timeMatch[1].replace('.', ':'))
+      const end = parseFloat(timeMatch[2].replace('.', ':'))
+      for (let h = start; h < end; h++) {
+        const next = h + 1
+        const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
+        timeSlots.push({ label })
+      }
+    } else {
+      timeSlots = [
+        { label: '12.00 - 13.00' },
+        { label: '13.00 - 14.00' },
+        { label: '14.00 - 15.00' },
+      ]
+    }
+    return { allowedDays, timeSlots }
+  }
+
+  // 2. Deteksi Sabtu - Minggu
+  if (lower.includes('sabtu') && lower.includes('minggu')) {
+    const allowedDays = [0, 6] // Minggu=0, Sabtu=6
+    const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
+    let timeSlots = []
+    if (timeMatch) {
+      const start = parseFloat(timeMatch[1].replace('.', ':'))
+      const end = parseFloat(timeMatch[2].replace('.', ':'))
+      for (let h = start; h < end; h++) {
+        const next = h + 1
+        const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
+        timeSlots.push({ label })
+      }
+    } else {
+      timeSlots = [
+        { label: '12.00 - 13.00' },
+        { label: '13.00 - 14.00' },
+        { label: '14.00 - 15.00' },
+      ]
+    }
+    return { allowedDays, timeSlots }
+  }
+
+  // 3. Deteksi Fleksibel
+  if (lower.includes('fleksibel')) {
+    const allowedDays = [0, 1, 2, 3, 4, 5, 6] // Semua hari
+    const timeSlots = []
+    // Jam 07.00 - 20.00
+    for (let h = 7; h < 20; h++) {
+      const next = h + 1
+      const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
+      timeSlots.push({ label })
+    }
+    return { allowedDays, timeSlots }
+  }
+
+  // 4. Default: semua hari, jam standar
+  return {
+    allowedDays: [0,1,2,3,4,5,6],
+    timeSlots: [
       { label: '12.00 - 13.00' },
       { label: '13.00 - 14.00' },
       { label: '14.00 - 15.00' },
     ]
   }
-  const match = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
-  if (match) {
-    const start = parseFloat(match[1].replace('.', ':'))
-    const end = parseFloat(match[2].replace('.', ':'))
-    const slots = []
-    for (let h = start; h < end; h++) {
-      const next = h + 1
-      const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
-      slots.push({ label })
-    }
-    return slots
-  }
-  return [
-    { label: '12.00 - 13.00' },
-    { label: '13.00 - 14.00' },
-    { label: '14.00 - 15.00' },
-  ]
 }
 
 // ========== KOMPONEN ==========
@@ -71,12 +128,15 @@ function SetScheduleContent() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
+  const [allowedDays, setAllowedDays] = useState<number[]>([0,1,2,3,4,5,6])
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  // Kalender 30 hari ke depan
-  const dates = getNext30Days()
-  const monthName = getMonthRangeLabel(dates)
+  // 30 hari ke depan
+  const allDates = getNext30Days()
+  // Filter hari berdasarkan allowedDays
+  const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
+  const monthName = getMonthRangeLabel(visibleDates.length > 0 ? visibleDates : allDates)
 
   // Hitung jumlah sesi
   const totalSelected = Object.keys(schedule).length
@@ -92,7 +152,12 @@ function SetScheduleContent() {
         console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
         setMatchData(data)
         setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-        setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+
+        // Parse student_schedule
+        const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
+        setAllowedDays(days)
+        setTimeSlots(slots)
+
         setLoading(false)
       } else {
         setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
@@ -121,9 +186,9 @@ function SetScheduleContent() {
       // Hapus slot
       const newSchedule = { ...schedule }
       delete newSchedule[key]
-      // Mirroring: hapus juga di tanggal lain dengan hari yang sama
+      // Mirroring: hapus juga di tanggal lain dengan hari yang sama (hanya di visibleDates)
       const day = date.getDay()
-      dates.forEach(d => {
+      visibleDates.forEach(d => {
         if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
           if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
@@ -150,9 +215,9 @@ function SetScheduleContent() {
         if (c < min) { min = c; chosen = s }
       })
       const newSchedule = { ...schedule, [key]: chosen }
-      // Mirroring: tambahkan di tanggal lain dengan hari yang sama
+      // Mirroring: tambahkan di tanggal lain dengan hari yang sama (hanya di visibleDates)
       const day = date.getDay()
-      dates.forEach(d => {
+      visibleDates.forEach(d => {
         if (d.getDay() === day) {
           const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
           if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
@@ -378,7 +443,7 @@ function SetScheduleContent() {
                   <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
                     Jam
                   </th>
-                  {dates.map((date, idx) => (
+                  {visibleDates.map((date, idx) => (
                     <th key={idx} className="border p-1 text-center min-w-[44px] bg-gray-800 text-white">
                       <div>{date.getDate()}</div>
                       <div className="text-xs text-gray-300">
@@ -394,7 +459,7 @@ function SetScheduleContent() {
                     <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
                       {slot.label}
                     </td>
-                    {dates.map((date, colIdx) => {
+                    {visibleDates.map((date, colIdx) => {
                       const filled = isSlotFilled(date, slot.label)
                       const subject = getSlotSubject(date, slot.label)
                       return (
