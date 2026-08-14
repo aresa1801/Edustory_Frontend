@@ -36,7 +36,6 @@ const getMonthRangeLabel = (dates: Date[]) => {
 // ========== PARSE STUDENT SCHEDULE ==========
 function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
-    // Default: semua hari, jam standar
     return {
       allowedDays: [0,1,2,3,4,5,6],
       timeSlots: [
@@ -51,7 +50,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 1. Deteksi Senin - Jumat
   if (lower.includes('senin') && lower.includes('jumat')) {
-    const allowedDays = [1, 2, 3, 4, 5] // Senin=1, Selasa=2, Rabu=3, Kamis=4, Jumat=5
+    const allowedDays = [1, 2, 3, 4, 5]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
     let timeSlots = []
     if (timeMatch) {
@@ -74,7 +73,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 2. Deteksi Sabtu - Minggu
   if (lower.includes('sabtu') && lower.includes('minggu')) {
-    const allowedDays = [0, 6] // Minggu=0, Sabtu=6
+    const allowedDays = [0, 6]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
     let timeSlots = []
     if (timeMatch) {
@@ -97,9 +96,8 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 3. Deteksi Fleksibel
   if (lower.includes('fleksibel')) {
-    const allowedDays = [0, 1, 2, 3, 4, 5, 6] // Semua hari
+    const allowedDays = [0, 1, 2, 3, 4, 5, 6]
     const timeSlots = []
-    // Jam 07.00 - 20.00
     for (let h = 7; h < 20; h++) {
       const next = h + 1
       const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
@@ -108,7 +106,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
     return { allowedDays, timeSlots }
   }
 
-  // 4. Default: semua hari, jam standar
+  // 4. Default
   return {
     allowedDays: [0,1,2,3,4,5,6],
     timeSlots: [
@@ -143,31 +141,19 @@ function SetScheduleContent() {
   const maxSessions = matchData?.student_sessions_per_month ?? 0
   const remainingSessions = maxSessions - totalSelected
 
-  useEffect(() => {
-    // Ambil data dari sessionStorage
-    try {
-      const stored = sessionStorage.getItem('scheduleData')
-      if (stored) {
-        const data = JSON.parse(stored)
-        console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
-        setMatchData(data)
-        setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+  // ========== FUNGSI UNTUK BATAS MIRRORING 4 ==========
+  // Untuk setiap hari (0-6), ambil maksimal 4 tanggal pertama
+  const getAllowedDatesForDay = (day: number): Date[] => {
+    const sameDayDates = visibleDates.filter(d => d.getDay() === day)
+    return sameDayDates.slice(0, 4) // ambil 4 pertama
+  }
 
-        // Parse student_schedule
-        const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
-        setAllowedDays(days)
-        setTimeSlots(slots)
-
-        setLoading(false)
-      } else {
-        setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
-        setLoading(false)
-      }
-    } catch (e) {
-      setError('Data jadwal tidak valid. Silakan kembali ke halaman penawaran.')
-      setLoading(false)
-    }
-  }, [])
+  // Cek apakah tanggal termasuk dalam 4 pertama untuk harinya
+  const isDateAllowed = (date: Date): boolean => {
+    const day = date.getDay()
+    const allowed = getAllowedDatesForDay(day)
+    return allowed.some(d => d.toDateString() === date.toDateString())
+  }
 
   // ========== INTERAKSI ==========
   const toggleSubject = (subject: string) => {
@@ -180,23 +166,28 @@ function SetScheduleContent() {
   }
 
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
+    const day = date.getDay()
+    
+    // 1. Periksa apakah tanggal termasuk dalam 4 pertama untuk harinya
+    if (!isDateAllowed(date)) {
+      alert(`Hari ${date.toLocaleDateString('id-ID', { weekday: 'long' })} hanya bisa diisi maksimal 4 pertemuan.`)
+      return
+    }
+
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
+    const allowedDates = getAllowedDatesForDay(day)
+
     if (current) {
-      // Hapus slot
+      // Hapus slot: hapus dari semua tanggal yang termasuk allowedDates (mirroring)
       const newSchedule = { ...schedule }
-      delete newSchedule[key]
-      // Mirroring: hapus juga di tanggal lain dengan hari yang sama (hanya di visibleDates)
-      const day = date.getDay()
-      visibleDates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
-        }
+      allowedDates.forEach(d => {
+        const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
+        if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
       })
       setSchedule(newSchedule)
     } else {
-      // Cek kuota
+      // Cek kuota total
       if (remainingSessions <= 0) {
         alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
         return
@@ -205,6 +196,7 @@ function SetScheduleContent() {
         alert('Pilih mata pelajaran dulu!')
         return
       }
+
       // Pilih subject dengan jumlah paling sedikit
       const counts: Record<string, number> = {}
       Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
@@ -214,15 +206,22 @@ function SetScheduleContent() {
         const c = counts[s] || 0
         if (c < min) { min = c; chosen = s }
       })
-      const newSchedule = { ...schedule, [key]: chosen }
-      // Mirroring: tambahkan di tanggal lain dengan hari yang sama (hanya di visibleDates)
-      const day = date.getDay()
-      visibleDates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
+
+      // Tambah slot: isi semua allowedDates (mirroring) untuk slot ini
+      const newSchedule = { ...schedule }
+      let added = 0
+      for (const d of allowedDates) {
+        const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
+        if (!newSchedule[mirrorKey]) {
+          newSchedule[mirrorKey] = chosen
+          added++
         }
-      })
+      }
+      // Jika tidak ada yang bertambah (misal semua sudah terisi), beri tahu
+      if (added === 0) {
+        alert('Semua slot untuk hari ini sudah terisi.')
+        return
+      }
       setSchedule(newSchedule)
     }
   }
@@ -443,14 +442,17 @@ function SetScheduleContent() {
                   <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
                     Jam
                   </th>
-                  {visibleDates.map((date, idx) => (
-                    <th key={idx} className="border p-1 text-center min-w-[44px] bg-gray-800 text-white">
-                      <div>{date.getDate()}</div>
-                      <div className="text-xs text-gray-300">
-                        {date.toLocaleDateString('id-ID', { weekday: 'short' })}
-                      </div>
-                    </th>
-                  ))}
+                  {visibleDates.map((date, idx) => {
+                    const isAllowed = isDateAllowed(date)
+                    return (
+                      <th key={idx} className={`border p-1 text-center min-w-[44px] ${isAllowed ? 'bg-gray-800 text-white' : 'bg-gray-600 text-gray-400'}`}>
+                        <div>{date.getDate()}</div>
+                        <div className={`text-xs ${isAllowed ? 'text-gray-300' : 'text-gray-500'}`}>
+                          {date.toLocaleDateString('id-ID', { weekday: 'short' })}
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -462,20 +464,28 @@ function SetScheduleContent() {
                     {visibleDates.map((date, colIdx) => {
                       const filled = isSlotFilled(date, slot.label)
                       const subject = getSlotSubject(date, slot.label)
+                      const isAllowed = isDateAllowed(date)
+                      
                       return (
                         <td
                           key={colIdx}
                           className="border p-0.5 text-center cursor-pointer hover:bg-gray-50"
-                          onClick={() => handleSlotClick(date, slot.label)}
+                          onClick={() => {
+                            if (isAllowed) {
+                              handleSlotClick(date, slot.label)
+                            }
+                          }}
                         >
                           <div
                             className={`w-full h-10 flex items-center justify-center rounded transition-colors ${
                               filled
                                 ? 'bg-primary/20 text-primary font-bold'
-                                : 'bg-gray-100 hover:bg-gray-200'
+                                : isAllowed
+                                ? 'bg-gray-100 hover:bg-gray-200 cursor-pointer'
+                                : 'bg-gray-300 opacity-50 cursor-not-allowed'
                             }`}
                           >
-                            {filled ? subject?.charAt(0).toUpperCase() : 'O'}
+                            {filled ? subject?.charAt(0).toUpperCase() : isAllowed ? 'O' : '✕'}
                           </div>
                         </td>
                       )
