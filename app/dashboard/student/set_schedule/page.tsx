@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/supabase/client' // <- sesuaikan path
+import { createClient } from '@/lib/supabase/client'
 
 // ---------- HELPER ----------
 const getDatesInMonth = (year: number, month: number) => {
@@ -21,10 +20,18 @@ const getDatesInMonth = (year: number, month: number) => {
 }
 
 const parseScheduleToTimeSlots = (scheduleStr: string) => {
-  const timeMatch = scheduleStr.match(/(\d{2}\.\d{2})\s*-\s*(\d{2}\.\d{2})/)
-  if (timeMatch) {
-    const start = parseFloat(timeMatch[1].replace('.', ':'))
-    const end = parseFloat(timeMatch[2].replace('.', ':'))
+  if (!scheduleStr) {
+    return [
+      { label: '12.00 - 13.00' },
+      { label: '13.00 - 14.00' },
+      { label: '14.00 - 15.00' },
+    ]
+  }
+  // Coba berbagai format: "12.00 - 15.00", "12.00-15.00", "12.00–15.00"
+  const match = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
+  if (match) {
+    const start = parseFloat(match[1].replace('.', ':'))
+    const end = parseFloat(match[2].replace('.', ':'))
     const slots = []
     for (let h = start; h < end; h++) {
       const next = h + 1
@@ -33,6 +40,7 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
     }
     return slots
   }
+  // Fallback default
   return [
     { label: '12.00 - 13.00' },
     { label: '13.00 - 14.00' },
@@ -45,9 +53,8 @@ function SetScheduleContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
-  const { user, loading: authLoading } = useAuth()
 
-  // States
+  // State
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,72 +63,59 @@ function SetScheduleContent() {
   const [schedule, setSchedule] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<{ label: string }[]>([])
 
-  // State untuk simpan
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // Ambil data match
+  // ========== FETCH DATA ==========
   useEffect(() => {
-    console.log('[set_schedule] useEffect, matchId =', matchId)
-
-    if (authLoading) {
-      console.log('[set_schedule] authLoading true, menunggu...')
-      return
-    }
-
-    if (!user) {
-      setError('Silakan login terlebih dahulu.')
-      setLoading(false)
-      return
-    }
-
-    if (!matchId) {
-      setError('Tidak ada ID match di URL.')
-      setLoading(false)
-      return
-    }
-
-    // --- 1. Cek sessionStorage ---
-    const stored = sessionStorage.getItem('scheduleData')
-    if (stored) {
-      try {
-        const data = JSON.parse(stored)
-        if (data.id === matchId) {
-          console.log('[set_schedule] Data dari sessionStorage:', data)
-          setMatchData(data)
-          setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-          setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
-          setLoading(false)
-          setError(null)
-          sessionStorage.removeItem('scheduleData')
-          return
-        }
-      } catch (e) {
-        console.warn('[set_schedule] Gagal parse sessionStorage', e)
-      }
-    }
-
-    // --- 2. Fallback: fetch dari API ---
     let isMounted = true
     let timeoutId: NodeJS.Timeout
 
     const fetchMatch = async () => {
-      console.log('[set_schedule] fetchMatch mulai (fallback API)')
-      setLoading(true)
-      setError(null)
-
       try {
+        // 1. Ambil session langsung dari Supabase
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
+        const user = session?.user
 
-        if (!token) {
-          throw new Error('Token tidak ditemukan.')
+        if (!user) {
+          setError('Silakan login terlebih dahulu.')
+          setLoading(false)
+          return
         }
 
+        if (!matchId) {
+          setError('Tidak ada ID match di URL.')
+          setLoading(false)
+          return
+        }
+
+        // 2. Cek sessionStorage (dari tutor-offers)
+        const stored = sessionStorage.getItem('scheduleData')
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            if (data.id === matchId) {
+              console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
+              setMatchData(data)
+              setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+              setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
+              setLoading(false)
+              setError(null)
+              sessionStorage.removeItem('scheduleData')
+              return
+            }
+          } catch (e) {
+            console.warn('[set_schedule] Gagal parse sessionStorage', e)
+          }
+        }
+
+        // 3. Fetch dari API
+        console.log('[set_schedule] 🔄 Fetch dari API...')
+        const token = session.access_token
         const controller = new AbortController()
         timeoutId = setTimeout(() => controller.abort(), 5000)
 
@@ -143,30 +137,34 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] Data dari API:', data)
+        console.log('[set_schedule] ✅ Data dari API:', data)
 
-        if (!data.matched_subjects) {
-          throw new Error('Data match tidak memiliki kolom matched_subjects.')
+        // Validasi kolom penting
+        if (!data.matched_subjects || data.matched_subjects.length === 0) {
+          console.warn('[set_schedule] ⚠️ matched_subjects kosong, gunakan fallback')
+          // Bisa set fallback atau biarkan error
+        }
+        if (!data.student_schedule) {
+          console.warn('[set_schedule] ⚠️ student_schedule kosong, gunakan fallback')
         }
 
         setMatchData(data)
-        setSelectedSubjects(data.matched_subjects.slice(0, 2) || [])
+        setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
         setTimeSlots(parseScheduleToTimeSlots(data.student_schedule || ''))
         setError(null)
+        setLoading(false)
+
       } catch (err: any) {
-        console.error('[set_schedule] Fetch error:', err)
+        console.error('[set_schedule] ❌ Error:', err)
         if (isMounted) {
           if (err.name === 'AbortError') {
-            setError('Waktu pengambilan data habis (timeout 5 detik). Silakan coba lagi.')
+            setError('Waktu pengambilan data habis (timeout). Silakan coba lagi.')
           } else {
             setError(err.message || 'Terjadi kesalahan saat mengambil data.')
           }
+          setLoading(false)
         }
       } finally {
-        if (isMounted) {
-          setLoading(false)
-          console.log('[set_schedule] loading = false')
-        }
         clearTimeout(timeoutId)
       }
     }
@@ -177,9 +175,9 @@ function SetScheduleContent() {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [matchId, user, authLoading])
+  }, [matchId]) // Hanya bergantung pada matchId
 
-  // --- Fungsi interaksi ---
+  // ---------- Interaksi ----------
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
@@ -193,6 +191,7 @@ function SetScheduleContent() {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
     if (current) {
+      // Hapus
       const newSchedule = { ...schedule }
       delete newSchedule[key]
       const day = date.getDay()
@@ -204,10 +203,12 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
+      // Tambah
       if (selectedSubjects.length === 0) {
         alert('Pilih mata pelajaran dulu!')
         return
       }
+      // Pilih subject dengan jumlah paling sedikit
       const counts: Record<string, number> = {}
       Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
       let chosen = selectedSubjects[0]
@@ -216,7 +217,9 @@ function SetScheduleContent() {
         const c = counts[s] || 0
         if (c < min) { min = c; chosen = s }
       })
+
       const newSchedule = { ...schedule, [key]: chosen }
+      // Mirroring: sama jam di hari yang sama dalam sebulan
       const day = date.getDay()
       dates.forEach(d => {
         if (d.getDay() === day) {
@@ -264,7 +267,7 @@ function SetScheduleContent() {
     )
   }
 
-  // --- FUNGSI SIMPAN ---
+  // ---------- Simpan ----------
   const handleSave = async () => {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
@@ -294,7 +297,6 @@ function SetScheduleContent() {
       }
 
       setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan!' })
-      // Redirect setelah 1.5 detik agar user melihat pesan sukses
       setTimeout(() => {
         router.push('/dashboard/student')
       }, 1500)
@@ -306,9 +308,7 @@ function SetScheduleContent() {
   }
 
   // ---------- RENDER ----------
-  console.log('[set_schedule] render, loading =', loading, 'matchData =', !!matchData, 'error =', error)
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex justify-center py-16">
         <Spinner className="h-8 w-8" />
@@ -325,7 +325,7 @@ function SetScheduleContent() {
             <strong>Error:</strong> {error}
             <br />
             <span className="text-sm mt-2 block">
-              Pastikan Anda sudah membuka dari halaman penawaran atau koneksi internet stabil.
+              Pastikan Anda sudah login dan membuka dari halaman penawaran.
             </span>
           </AlertDescription>
         </Alert>
@@ -334,7 +334,7 @@ function SetScheduleContent() {
             Coba Lagi
           </Button>
           <Button onClick={() => window.history.back()}>
-            Kembali ke Penawaran
+            Kembali
           </Button>
         </div>
       </div>
