@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -49,8 +49,8 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
 // ---------- KOMPONEN ----------
 function SetScheduleContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const matchId = searchParams.get('matchId')
+  // 👇 Ambil matchId dari URL langsung (tanpa useSearchParams)
+  const [matchId, setMatchId] = useState<string | null>(null)
 
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -66,58 +66,63 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // ========== FETCH DATA ==========
+  // Step 1: Ambil matchId dari URL (hanya sekali)
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const id = params.get('matchId')
+      console.log('[set_schedule] matchId from URL:', id)
+      setMatchId(id)
+    }
+  }, [])
+
+  // Step 2: Fetch data saat matchId tersedia
+  useEffect(() => {
+    if (!matchId) return
+
     let isMounted = true
     let fetchTimeout: NodeJS.Timeout
     let forceStopTimeout: NodeJS.Timeout
 
     const fetchMatch = async () => {
       try {
-        console.log('[set_schedule] 🔍 Starting fetch...')
+        console.log('[set_schedule] 🔍 Starting fetch for matchId:', matchId)
 
-        // --- 1. Ambil session dengan retry ---
+        // --- Ambil session ---
         const supabase = createClient()
-        let session = null
-        let user = null
-        let attempts = 0
+        let token: string | null = null
 
-        while (attempts < 3 && !session) {
+        // Coba getSession dengan retry 3x
+        for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            const { data: { session: s } } = await supabase.auth.getSession()
-            session = s
-            if (session) {
-              console.log('[set_schedule] ✅ Session found after', attempts + 1, 'attempts')
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.access_token) {
+              token = session.access_token
+              console.log('[set_schedule] ✅ Token found on attempt', attempt + 1)
               break
             }
           } catch (e) {
-            console.warn('[set_schedule] ⚠️ getSession attempt', attempts + 1, 'failed:', e)
+            console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'failed')
           }
-          attempts++
-          if (attempts < 3) await new Promise(r => setTimeout(r, 500))
+          if (attempt < 2) await new Promise(r => setTimeout(r, 300))
         }
 
-        // Jika masih tidak ada session, coba getUser
-        if (!session) {
-          console.log('[set_schedule] 🔄 No session, trying getUser...')
-          const { data: { user: u } } = await supabase.auth.getUser()
-          user = u
+        // Jika masih tidak ada token, coba getUser
+        if (!token) {
+          console.log('[set_schedule] 🔄 Trying getUser...')
+          const { data: { user } } = await supabase.auth.getUser()
           if (user) {
-            console.log('[set_schedule] ✅ User found via getUser')
+            // Dapatkan session baru
+            const { data: { session } } = await supabase.auth.getSession()
+            token = session?.access_token || null
           }
-        } else {
-          user = session.user
         }
 
-        if (!user) {
-          throw new Error('Tidak ada sesi login. Silakan login ulang.')
+        if (!token) {
+          throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
-        if (!matchId) {
-          throw new Error('ID match tidak ditemukan di URL.')
-        }
-
-        // --- 2. Cek sessionStorage ---
+        // --- Cek sessionStorage ---
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -135,16 +140,11 @@ function SetScheduleContent() {
               return
             }
           } catch (e) {
-            console.warn('[set_schedule] ⚠️ Gagal parse sessionStorage', e)
+            console.warn('[set_schedule] ⚠️ Gagal parse sessionStorage')
           }
         }
 
-        // --- 3. Fetch dari API ---
-        const token = session?.access_token
-        if (!token) {
-          throw new Error('Token tidak tersedia.')
-        }
-
+        // --- Fetch dari API ---
         console.log('[set_schedule] 🔄 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -167,7 +167,7 @@ function SetScheduleContent() {
         }
 
         const data = await res.json()
-        console.log('[set_schedule] ✅ Data dari API')
+        console.log('[set_schedule] ✅ Data dari API:', data)
 
         if (isMounted) {
           setMatchData(data)
@@ -181,7 +181,7 @@ function SetScheduleContent() {
         console.error('[set_schedule] ❌ Error:', err)
         if (isMounted) {
           if (err.name === 'AbortError') {
-            setError('Waktu pengambilan data habis (timeout). Silakan coba lagi.')
+            setError('Waktu pengambilan data habis. Silakan coba lagi.')
           } else {
             setError(err.message || 'Terjadi kesalahan saat mengambil data.')
           }
@@ -192,14 +192,14 @@ function SetScheduleContent() {
       }
     }
 
-    // --- Force stop after 6 seconds ---
+    // --- Force stop setelah 8 detik ---
     forceStopTimeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[set_schedule] ⏱️ Force stop loading (6s timeout)')
+        console.warn('[set_schedule] ⏱️ Force stop loading (8s timeout)')
         setLoading(false)
         setError('Waktu muat terlalu lama. Silakan refresh halaman.')
       }
-    }, 6000)
+    }, 8000)
 
     fetchMatch()
 
@@ -210,7 +210,7 @@ function SetScheduleContent() {
     }
   }, [matchId])
 
-  // ---------- Interaksi (tetap sama) ----------
+  // ---------- Interaksi ----------
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
