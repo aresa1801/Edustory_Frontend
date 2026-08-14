@@ -46,11 +46,33 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
   ]
 }
 
-// ========== AMBIL TOKEN DARI LOCALSTORAGE (lebih akurat) ==========
+// ========== AMBIL TOKEN DARI COOKIE ==========
+function getTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null
+  try {
+    const cookies = document.cookie.split('; ')
+    for (const cookie of cookies) {
+      const [name, value] = cookie.split('=')
+      if (name && name.includes('sb-') && name.includes('auth-token')) {
+        const decoded = decodeURIComponent(value)
+        const parsed = JSON.parse(decoded)
+        if (parsed?.access_token) {
+          console.log('[set_schedule] ✅ Token dari cookie:', name)
+          return parsed.access_token
+        }
+      }
+    }
+    return null
+  } catch (e) {
+    console.warn('[set_schedule] Gagal baca cookie:', e)
+    return null
+  }
+}
+
+// ========== AMBIL TOKEN DARI LOCALSTORAGE ==========
 function getTokenFromStorage(): string | null {
   if (typeof window === 'undefined') return null
   try {
-    // Cari semua key yang mengandung 'sb-' dan 'auth-token'
     const keys = Object.keys(localStorage)
     for (const key of keys) {
       if (key.includes('sb-') && key.includes('auth-token')) {
@@ -58,13 +80,12 @@ function getTokenFromStorage(): string | null {
         if (raw) {
           const parsed = JSON.parse(raw)
           if (parsed?.access_token) {
-            console.log('[set_schedule] ✅ Token ditemukan di key:', key)
+            console.log('[set_schedule] ✅ Token ditemukan di localStorage:', key)
             return parsed.access_token
           }
         }
       }
     }
-    console.warn('[set_schedule] ⚠️ Tidak ada token di localStorage')
     return null
   } catch (e) {
     console.warn('[set_schedule] Gagal baca localStorage:', e)
@@ -108,17 +129,23 @@ function SetScheduleContent() {
           throw new Error('matchId tidak ditemukan di URL')
         }
 
-        // 2. Coba ambil token dari localStorage
-        let token = getTokenFromStorage()
-        console.log('[set_schedule] 🔑 Token dari localStorage:', !!token)
+        // 2. Coba ambil token dari cookie (paling cepat)
+        let token = getTokenFromCookie()
+        console.log('[set_schedule] 🔑 Token dari cookie:', !!token)
 
-        // 3. Jika tidak ada, coba dari Supabase client (dengan retry)
+        // 3. Jika tidak ada, coba dari localStorage
+        if (!token) {
+          token = getTokenFromStorage()
+          console.log('[set_schedule] 🔑 Token dari localStorage:', !!token)
+        }
+
+        // 4. Jika masih tidak ada, coba dari Supabase client (dengan retry cepat)
         if (!token) {
           console.log('[set_schedule] 🔐 Coba dari Supabase client...')
           const supabase = createClient()
           
-          // Coba getSession dengan retry 3x
-          for (let attempt = 0; attempt < 3; attempt++) {
+          // Coba getSession dengan retry 2x (timeout total 2 detik)
+          for (let attempt = 0; attempt < 2; attempt++) {
             try {
               const { data: { session } } = await supabase.auth.getSession()
               if (session?.access_token) {
@@ -129,20 +156,7 @@ function SetScheduleContent() {
             } catch (e) {
               console.warn('[set_schedule] ⚠️ getSession attempt', attempt + 1, 'gagal')
             }
-            if (attempt < 2) await new Promise(r => setTimeout(r, 300))
-          }
-        }
-
-        // 4. Jika masih tidak ada, coba getUser (untuk refresh session)
-        if (!token) {
-          console.log('[set_schedule] 🔄 Coba getUser...')
-          const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            // Setelah getUser, coba getSession lagi
-            const { data: { session } } = await supabase.auth.getSession()
-            token = session?.access_token || null
-            console.log('[set_schedule] 🔑 Token setelah getUser:', !!token)
+            if (attempt < 1) await new Promise(r => setTimeout(r, 300))
           }
         }
 
@@ -214,7 +228,7 @@ function SetScheduleContent() {
 
     run()
 
-    // Force stop setelah 8 detik (lebih panjang)
+    // Force stop setelah 8 detik
     forceStop = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[set_schedule] ⏱️ FORCE STOP (8s)')
@@ -230,7 +244,7 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== INTERAKSI (tidak berubah) ==========
+  // ========== INTERAKSI (sama) ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
