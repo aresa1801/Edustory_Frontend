@@ -49,8 +49,6 @@ const parseScheduleToTimeSlots = (scheduleStr: string) => {
 // ---------- KOMPONEN ----------
 function SetScheduleContent() {
   const router = useRouter()
-  // 👇 Ambil matchId dari URL langsung (tanpa useSearchParams)
-  const [matchId, setMatchId] = useState<string | null>(null)
 
   const [matchData, setMatchData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -66,33 +64,30 @@ function SetScheduleContent() {
   const dates = getDatesInMonth(2026, 7)
   const monthName = 'Agustus 2026'
 
-  // Step 1: Ambil matchId dari URL (hanya sekali)
+  // ========== SATU USEFFECT UNTUK SEMUA ==========
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const id = params.get('matchId')
-      console.log('[set_schedule] matchId from URL:', id)
-      setMatchId(id)
-    }
-  }, [])
-
-  // Step 2: Fetch data saat matchId tersedia
-  useEffect(() => {
-    if (!matchId) return
-
     let isMounted = true
     let fetchTimeout: NodeJS.Timeout
     let forceStopTimeout: NodeJS.Timeout
 
     const fetchMatch = async () => {
       try {
-        console.log('[set_schedule] 🔍 Starting fetch for matchId:', matchId)
+        // 1. Ambil matchId dari URL
+        let matchId: string | null = null
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search)
+          matchId = params.get('matchId')
+          console.log('[set_schedule] matchId from URL:', matchId)
+        }
 
-        // --- Ambil session ---
+        if (!matchId) {
+          throw new Error('ID match tidak ditemukan di URL.')
+        }
+
+        // 2. Ambil session
         const supabase = createClient()
         let token: string | null = null
 
-        // Coba getSession dengan retry 3x
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             const { data: { session } } = await supabase.auth.getSession()
@@ -107,22 +102,11 @@ function SetScheduleContent() {
           if (attempt < 2) await new Promise(r => setTimeout(r, 300))
         }
 
-        // Jika masih tidak ada token, coba getUser
-        if (!token) {
-          console.log('[set_schedule] 🔄 Trying getUser...')
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            // Dapatkan session baru
-            const { data: { session } } = await supabase.auth.getSession()
-            token = session?.access_token || null
-          }
-        }
-
         if (!token) {
           throw new Error('Tidak dapat memperoleh token akses. Silakan login ulang.')
         }
 
-        // --- Cek sessionStorage ---
+        // 3. Cek sessionStorage
         const stored = sessionStorage.getItem('scheduleData')
         if (stored) {
           try {
@@ -144,7 +128,7 @@ function SetScheduleContent() {
           }
         }
 
-        // --- Fetch dari API ---
+        // 4. Fetch dari API
         console.log('[set_schedule] 🔄 Fetch dari API...')
         const controller = new AbortController()
         fetchTimeout = setTimeout(() => controller.abort(), 5000)
@@ -208,7 +192,7 @@ function SetScheduleContent() {
       clearTimeout(fetchTimeout)
       clearTimeout(forceStopTimeout)
     }
-  }, [matchId])
+  }, []) // Hanya dijalankan sekali saat mount
 
   // ---------- Interaksi ----------
   const toggleSubject = (subject: string) => {
@@ -299,6 +283,17 @@ function SetScheduleContent() {
     const entries = Object.entries(schedule)
     if (entries.length === 0) {
       alert('Pilih minimal satu slot jadwal!')
+      return
+    }
+
+    // Ambil matchId dari URL
+    let matchId: string | null = null
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      matchId = params.get('matchId')
+    }
+    if (!matchId) {
+      alert('ID match tidak ditemukan.')
       return
     }
 
