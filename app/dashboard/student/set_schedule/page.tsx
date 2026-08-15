@@ -48,7 +48,6 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   const lower = scheduleStr.toLowerCase()
 
-  // 1. Deteksi Senin - Jumat
   if (lower.includes('senin') && lower.includes('jumat')) {
     const allowedDays = [1, 2, 3, 4, 5]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
@@ -71,7 +70,6 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
     return { allowedDays, timeSlots }
   }
 
-  // 2. Deteksi Sabtu - Minggu
   if (lower.includes('sabtu') && lower.includes('minggu')) {
     const allowedDays = [0, 6]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
@@ -94,7 +92,6 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
     return { allowedDays, timeSlots }
   }
 
-  // 3. Deteksi Fleksibel
   if (lower.includes('fleksibel')) {
     const allowedDays = [0, 1, 2, 3, 4, 5, 6]
     const timeSlots = []
@@ -106,7 +103,6 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
     return { allowedDays, timeSlots }
   }
 
-  // 4. Default
   return {
     allowedDays: [0,1,2,3,4,5,6],
     timeSlots: [
@@ -129,7 +125,20 @@ function getSlotsPerKlik(totalSessions: number): number {
     16: 4,
     20: 5,
   }
-  return map[totalSessions] || 4 // default 4
+  return map[totalSessions] || 4
+}
+
+// ========== Tentukan STEP alokasi berdasarkan total sesi ==========
+function getAllocationStep(totalSessions: number): number {
+  // 2,4 → tidak boleh 2 pelajaran (step 0 artinya disable)
+  if (totalSessions <= 4) return 0
+  // 6,8,10 → step 1
+  if (totalSessions <= 10) return 1
+  // 12,16 → step 4
+  if (totalSessions === 12 || totalSessions === 16) return 4
+  // 20 → step 5
+  if (totalSessions === 20) return 5
+  return 1 // default
 }
 
 // ========== KOMPONEN ==========
@@ -148,16 +157,15 @@ function SetScheduleContent() {
   // ========== STATE ALOKASI PER MATA PELAJARAN ==========
   const [allocation, setAllocation] = useState<Record<string, number>>({})
 
-  // 30 hari ke depan
   const allDates = getNext30Days()
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
   const monthName = getMonthRangeLabel(visibleDates.length > 0 ? visibleDates : allDates)
 
-  // Hitung jumlah sesi
   const totalSelected = Object.keys(schedule).length
   const maxSessions = matchData?.student_sessions_per_month ?? 0
   const remainingSessions = maxSessions - totalSelected
   const slotsPerKlik = getSlotsPerKlik(maxSessions)
+  const step = getAllocationStep(maxSessions)
 
   // ========== EFFECT UNTUK INIT DATA ==========
   useEffect(() => {
@@ -183,38 +191,91 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== EFFECT UNTUK UPDATE ALOKASI SAAT SELECTED SUBJECTS BERUBAH ==========
+  // ========== EFFECT UNTUK UPDATE ALOKASI ==========
   useEffect(() => {
     if (maxSessions === 0 || selectedSubjects.length === 0) {
       setAllocation({})
       return
     }
+
+    // Jika step = 0 (total 2 atau 4), hanya boleh 1 mata pelajaran
+    if (step === 0 && selectedSubjects.length > 1) {
+      // Paksa hanya satu mata pelajaran (yang pertama)
+      setSelectedSubjects([selectedSubjects[0]])
+      return
+    }
+
     const newAlloc: Record<string, number> = {}
     if (selectedSubjects.length === 1) {
       newAlloc[selectedSubjects[0]] = maxSessions
     } else {
-      // Bagi rata, bulatkan ke bawah untuk kedua, sisanya ke yang pertama
-      const half = Math.floor(maxSessions / 2)
-      const remainder = maxSessions - half * 2
-      newAlloc[selectedSubjects[0]] = half + remainder
-      newAlloc[selectedSubjects[1]] = half
+      // Bagi rata dengan mempertimbangkan step
+      // Step 1: bagi rata, sisanya ke subject pertama
+      // Step 4: bagi rata kelipatan 4, misal 12 → 4 dan 8, 16 → 8 dan 8, 20 → 10 dan 10 (step5)
+      let first = Math.floor(maxSessions / 2)
+      let second = maxSessions - first
+      // Sesuaikan dengan step
+      if (step > 0) {
+        // Bulatkan first ke kelipatan step terdekat
+        const remainder = first % step
+        if (remainder !== 0) {
+          if (remainder < step / 2) {
+            first = first - remainder
+          } else {
+            first = first + (step - remainder)
+          }
+          second = maxSessions - first
+        }
+        // Pastikan kedua > 0
+        if (first <= 0) { first = step; second = maxSessions - step }
+        if (second <= 0) { second = step; first = maxSessions - step }
+      }
+      newAlloc[selectedSubjects[0]] = first
+      newAlloc[selectedSubjects[1]] = second
     }
     setAllocation(newAlloc)
-  }, [selectedSubjects, maxSessions])
+  }, [selectedSubjects, maxSessions, step])
 
   // ========== FUNGSI ADJUST ALOKASI ==========
   const adjustAllocation = (subject: string, delta: number) => {
+    if (step === 0) return // tidak boleh 2 pelajaran
     const otherSubject = selectedSubjects.find(s => s !== subject)
-    if (!otherSubject) return // seharusnya tidak terjadi
+    if (!otherSubject) return
     const currentAlloc = allocation[subject] || 0
     const otherAlloc = allocation[otherSubject] || 0
-    const newAlloc = currentAlloc + delta
-    if (newAlloc < 1) return // minimal 1
-    if (newAlloc + otherAlloc > maxSessions) {
+    let newAlloc = currentAlloc + delta
+    // Batas bawah 0
+    if (newAlloc < 0) newAlloc = 0
+    // Total harus tetap maxSessions
+    const newOther = maxSessions - newAlloc
+    if (newOther < 0) {
       alert(`Total alokasi tidak boleh melebihi ${maxSessions} sesi.`)
       return
     }
-    setAllocation(prev => ({ ...prev, [subject]: newAlloc }))
+    // Step harus kelipatan step (kecuali step=1)
+    if (step > 0 && newAlloc % step !== 0 && newAlloc !== 0) {
+      // Bulatkan ke kelipatan step terdekat
+      const remainder = newAlloc % step
+      if (remainder < step / 2) {
+        newAlloc = newAlloc - remainder
+      } else {
+        newAlloc = newAlloc + (step - remainder)
+      }
+    }
+    // Jika newAlloc 0, hapus subject ini
+    if (newAlloc === 0) {
+      setSelectedSubjects(prev => prev.filter(s => s !== subject))
+      return
+    }
+    // Pastikan newAlloc tidak melebihi max
+    if (newAlloc > maxSessions) newAlloc = maxSessions
+    // Pastikan other tetap > 0
+    const finalOther = maxSessions - newAlloc
+    if (finalOther <= 0) {
+      alert(`Alokasi untuk ${otherSubject} tidak boleh 0.`)
+      return
+    }
+    setAllocation(prev => ({ ...prev, [subject]: newAlloc, [otherSubject]: finalOther }))
   }
 
   // ========== INTERAKSI ==========
@@ -229,6 +290,11 @@ function SetScheduleContent() {
           alert('Maksimal 2 mata pelajaran yang dapat dipilih.')
           return prev
         }
+        // Jika step=0, tidak boleh 2 pelajaran
+        if (step === 0 && prev.length === 1) {
+          alert(`Dengan total ${maxSessions} sesi, hanya 1 mata pelajaran yang dapat dipilih.`)
+          return prev
+        }
         return [...prev, subject]
       }
     })
@@ -239,12 +305,10 @@ function SetScheduleContent() {
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
 
-    // Ambil semua tanggal dengan hari yang sama
     const sameDayDates = visibleDates.filter(d => d.getDay() === day)
     const mirrorDates = sameDayDates.slice(0, slotsPerKlik)
 
     if (current) {
-      // Hapus slot: hapus dari semua mirrorDates
       const newSchedule = { ...schedule }
       mirrorDates.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
@@ -252,7 +316,6 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
-      // Cek kuota total
       if (remainingSessions <= 0) {
         alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
         return
@@ -262,7 +325,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Slot yang masih kosong di mirror group
       const availableMirrors = mirrorDates.filter(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
         return !schedule[mirrorKey]
@@ -273,13 +335,12 @@ function SetScheduleContent() {
         return
       }
 
-      // Cek apakah menambahkan ini melebihi kuota
       if (totalSelected + availableMirrors.length > maxSessions) {
         alert(`Hanya tersisa ${remainingSessions} sesi, tidak cukup untuk mengisi ${availableMirrors.length} slot.`)
         return
       }
 
-      // Pilih mata pelajaran berdasarkan sisa alokasi terbanyak
+      // Pilih subject dengan sisa alokasi terbanyak
       let chosen = selectedSubjects[0]
       let maxRemaining = -1
       selectedSubjects.forEach(subj => {
@@ -296,7 +357,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Isi slot
       const newSchedule = { ...schedule }
       availableMirrors.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
@@ -507,7 +567,7 @@ function SetScheduleContent() {
           </div>
 
           {/* ========== ALOKASI PER MATA PELAJARAN ========== */}
-          {selectedSubjects.length === 2 && maxSessions > 0 && (
+          {selectedSubjects.length === 2 && step > 0 && maxSessions > 0 && (
             <div className="flex flex-wrap gap-6 mt-2 border-t pt-3">
               {selectedSubjects.map(subj => {
                 const used = Object.values(schedule).filter(s => s === subj).length
@@ -519,8 +579,8 @@ function SetScheduleContent() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => adjustAllocation(subj, -1)}
-                      disabled={allocated <= 1}
+                      onClick={() => adjustAllocation(subj, -step)}
+                      disabled={allocated <= 0}
                     >
                       -
                     </Button>
@@ -528,10 +588,8 @@ function SetScheduleContent() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => adjustAllocation(subj, 1)}
-                      disabled={
-                        allocated >= maxSessions - (allocation[selectedSubjects.find(s => s !== subj)!] || 0)
-                      }
+                      onClick={() => adjustAllocation(subj, step)}
+                      disabled={allocated >= maxSessions - (allocation[selectedSubjects.find(s => s !== subj)!] || 0)}
                     >
                       +
                     </Button>
@@ -544,6 +602,12 @@ function SetScheduleContent() {
                   </div>
                 )
               })}
+            </div>
+          )}
+          {selectedSubjects.length === 1 && maxSessions > 0 && (
+            <div className="mt-2 border-t pt-3 text-sm text-muted-foreground">
+              {selectedSubjects[0]}: {maxSessions} sesi
+              {step === 0 && " (hanya 1 mata pelajaran yang dapat dipilih)"}
             </div>
           )}
         </CardContent>
