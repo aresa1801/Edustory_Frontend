@@ -130,15 +130,13 @@ function getSlotsPerKlik(totalSessions: number): number {
 
 // ========== Tentukan STEP alokasi berdasarkan total sesi ==========
 function getAllocationStep(totalSessions: number): number {
-  // 2,4 → tidak boleh 2 pelajaran (step 0 artinya disable)
   if (totalSessions <= 4) return 0
-  // 6,8,10 → step 1
-  if (totalSessions <= 10) return 1
-  // 12,16 → step 4
+  if (totalSessions === 6) return 3
+  if (totalSessions === 8) return 4
+  if (totalSessions === 10) return 5
   if (totalSessions === 12 || totalSessions === 16) return 4
-  // 20 → step 5
   if (totalSessions === 20) return 5
-  return 1 // default
+  return 1
 }
 
 // ========== KOMPONEN ==========
@@ -198,9 +196,7 @@ function SetScheduleContent() {
       return
     }
 
-    // Jika step = 0 (total 2 atau 4), hanya boleh 1 mata pelajaran
     if (step === 0 && selectedSubjects.length > 1) {
-      // Paksa hanya satu mata pelajaran (yang pertama)
       setSelectedSubjects([selectedSubjects[0]])
       return
     }
@@ -209,14 +205,9 @@ function SetScheduleContent() {
     if (selectedSubjects.length === 1) {
       newAlloc[selectedSubjects[0]] = maxSessions
     } else {
-      // Bagi rata dengan mempertimbangkan step
-      // Step 1: bagi rata, sisanya ke subject pertama
-      // Step 4: bagi rata kelipatan 4, misal 12 → 4 dan 8, 16 → 8 dan 8, 20 → 10 dan 10 (step5)
       let first = Math.floor(maxSessions / 2)
       let second = maxSessions - first
-      // Sesuaikan dengan step
-      if (step > 0) {
-        // Bulatkan first ke kelipatan step terdekat
+      if (step > 1) {
         const remainder = first % step
         if (remainder !== 0) {
           if (remainder < step / 2) {
@@ -226,7 +217,6 @@ function SetScheduleContent() {
           }
           second = maxSessions - first
         }
-        // Pastikan kedua > 0
         if (first <= 0) { first = step; second = maxSessions - step }
         if (second <= 0) { second = step; first = maxSessions - step }
       }
@@ -238,44 +228,63 @@ function SetScheduleContent() {
 
   // ========== FUNGSI ADJUST ALOKASI ==========
   const adjustAllocation = (subject: string, delta: number) => {
-    if (step === 0) return // tidak boleh 2 pelajaran
+    if (step === 0) return
     const otherSubject = selectedSubjects.find(s => s !== subject)
     if (!otherSubject) return
-    const currentAlloc = allocation[subject] || 0
-    const otherAlloc = allocation[otherSubject] || 0
+
+    let currentAlloc = allocation[subject] || 0
+    let otherAlloc = allocation[otherSubject] || 0
     let newAlloc = currentAlloc + delta
-    // Batas bawah 0
+    let newOther = otherAlloc - delta
+
     if (newAlloc < 0) newAlloc = 0
-    // Total harus tetap maxSessions
-    const newOther = maxSessions - newAlloc
-    if (newOther < 0) {
-      alert(`Total alokasi tidak boleh melebihi ${maxSessions} sesi.`)
-      return
-    }
-    // Step harus kelipatan step (kecuali step=1)
-    if (step > 0 && newAlloc % step !== 0 && newAlloc !== 0) {
-      // Bulatkan ke kelipatan step terdekat
-      const remainder = newAlloc % step
-      if (remainder < step / 2) {
-        newAlloc = newAlloc - remainder
-      } else {
-        newAlloc = newAlloc + (step - remainder)
-      }
-    }
-    // Jika newAlloc 0, hapus subject ini
+    if (newOther < 0) newOther = 0
+
     if (newAlloc === 0) {
       setSelectedSubjects(prev => prev.filter(s => s !== subject))
       return
     }
-    // Pastikan newAlloc tidak melebihi max
-    if (newAlloc > maxSessions) newAlloc = maxSessions
-    // Pastikan other tetap > 0
-    const finalOther = maxSessions - newAlloc
-    if (finalOther <= 0) {
-      alert(`Alokasi untuk ${otherSubject} tidak boleh 0.`)
+    if (newOther === 0) {
+      setSelectedSubjects(prev => prev.filter(s => s !== otherSubject))
       return
     }
-    setAllocation(prev => ({ ...prev, [subject]: newAlloc, [otherSubject]: finalOther }))
+
+    let total = newAlloc + newOther
+    if (total !== maxSessions) {
+      const diff = maxSessions - total
+      if (newAlloc > newOther) {
+        newAlloc += diff
+      } else {
+        newOther += diff
+      }
+    }
+
+    if (step > 1) {
+      const remainder = newAlloc % step
+      if (remainder !== 0) {
+        if (remainder < step / 2) {
+          newAlloc = newAlloc - remainder
+        } else {
+          newAlloc = newAlloc + (step - remainder)
+        }
+        newOther = maxSessions - newAlloc
+      }
+      if (newOther < 0) {
+        newAlloc = maxSessions - step
+        newOther = step
+      }
+    }
+
+    if (newAlloc <= 0) {
+      setSelectedSubjects(prev => prev.filter(s => s !== subject))
+      return
+    }
+    if (newOther <= 0) {
+      setSelectedSubjects(prev => prev.filter(s => s !== otherSubject))
+      return
+    }
+
+    setAllocation(prev => ({ ...prev, [subject]: newAlloc, [otherSubject]: newOther }))
   }
 
   // ========== INTERAKSI ==========
@@ -283,14 +292,12 @@ function SetScheduleContent() {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
       if (index !== -1) {
-        // Hapus subject
         return prev.filter(s => s !== subject)
       } else {
         if (prev.length >= 2) {
           alert('Maksimal 2 mata pelajaran yang dapat dipilih.')
           return prev
         }
-        // Jika step=0, tidak boleh 2 pelajaran
         if (step === 0 && prev.length === 1) {
           alert(`Dengan total ${maxSessions} sesi, hanya 1 mata pelajaran yang dapat dipilih.`)
           return prev
@@ -340,7 +347,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Pilih subject dengan sisa alokasi terbanyak
       let chosen = selectedSubjects[0]
       let maxRemaining = -1
       selectedSubjects.forEach(subj => {
@@ -573,6 +579,8 @@ function SetScheduleContent() {
                 const used = Object.values(schedule).filter(s => s === subj).length
                 const allocated = allocation[subj] || 0
                 const remaining = allocated - used
+                const otherSubject = selectedSubjects.find(s => s !== subj)!
+                const otherAlloc = allocation[otherSubject] || 0
                 return (
                   <div key={subj} className="flex items-center gap-2">
                     <span className="font-medium capitalize min-w-[80px]">{subj}</span>
@@ -589,7 +597,7 @@ function SetScheduleContent() {
                       size="sm"
                       variant="outline"
                       onClick={() => adjustAllocation(subj, step)}
-                      disabled={allocated >= maxSessions - (allocation[selectedSubjects.find(s => s !== subj)!] || 0)}
+                      disabled={otherAlloc - step < 0 || allocated >= maxSessions}
                     >
                       +
                     </Button>
