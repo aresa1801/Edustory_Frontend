@@ -36,7 +36,6 @@ const getMonthRangeLabel = (dates: Date[]) => {
 // ========== PARSE STUDENT SCHEDULE ==========
 function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
-    // Default: semua hari, jam standar
     return {
       allowedDays: [0,1,2,3,4,5,6],
       timeSlots: [
@@ -51,7 +50,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 1. Deteksi Senin - Jumat
   if (lower.includes('senin') && lower.includes('jumat')) {
-    const allowedDays = [1, 2, 3, 4, 5] // Senin=1, Selasa=2, Rabu=3, Kamis=4, Jumat=5
+    const allowedDays = [1, 2, 3, 4, 5]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
     let timeSlots = []
     if (timeMatch) {
@@ -74,7 +73,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 2. Deteksi Sabtu - Minggu
   if (lower.includes('sabtu') && lower.includes('minggu')) {
-    const allowedDays = [0, 6] // Minggu=0, Sabtu=6
+    const allowedDays = [0, 6]
     const timeMatch = scheduleStr.match(/(\d{1,2}\.\d{2})\s*[-–]\s*(\d{1,2}\.\d{2})/)
     let timeSlots = []
     if (timeMatch) {
@@ -97,9 +96,8 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
 
   // 3. Deteksi Fleksibel
   if (lower.includes('fleksibel')) {
-    const allowedDays = [0, 1, 2, 3, 4, 5, 6] // Semua hari
+    const allowedDays = [0, 1, 2, 3, 4, 5, 6]
     const timeSlots = []
-    // Jam 07.00 - 20.00
     for (let h = 7; h < 20; h++) {
       const next = h + 1
       const label = `${String(h).padStart(2, '0')}.00 - ${String(next).padStart(2, '0')}.00`
@@ -108,7 +106,7 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
     return { allowedDays, timeSlots }
   }
 
-  // 4. Default: semua hari, jam standar
+  // 4. Default
   return {
     allowedDays: [0,1,2,3,4,5,6],
     timeSlots: [
@@ -117,6 +115,21 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
       { label: '14.00 - 15.00' },
     ]
   }
+}
+
+// ========== Tentukan jumlah slot per klik berdasarkan total sesi ==========
+function getSlotsPerKlik(totalSessions: number): number {
+  const map: Record<number, number> = {
+    2: 2,
+    4: 4,
+    6: 3,
+    8: 4,
+    10: 5,
+    12: 4,
+    16: 4,
+    20: 5,
+  }
+  return map[totalSessions] || 4 // default 4
 }
 
 // ========== KOMPONEN ==========
@@ -134,7 +147,6 @@ function SetScheduleContent() {
 
   // 30 hari ke depan
   const allDates = getNext30Days()
-  // Filter hari berdasarkan allowedDays
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
   const monthName = getMonthRangeLabel(visibleDates.length > 0 ? visibleDates : allDates)
 
@@ -142,9 +154,9 @@ function SetScheduleContent() {
   const totalSelected = Object.keys(schedule).length
   const maxSessions = matchData?.student_sessions_per_month ?? 0
   const remainingSessions = maxSessions - totalSelected
+  const slotsPerKlik = getSlotsPerKlik(maxSessions) // jumlah slot per klik
 
   useEffect(() => {
-    // Ambil data dari sessionStorage
     try {
       const stored = sessionStorage.getItem('scheduleData')
       if (stored) {
@@ -152,12 +164,9 @@ function SetScheduleContent() {
         console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
         setMatchData(data)
         setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
-
-        // Parse student_schedule
         const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
         setAllowedDays(days)
         setTimeSlots(slots)
-
         setLoading(false)
       } else {
         setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
@@ -180,23 +189,25 @@ function SetScheduleContent() {
   }
 
   const handleSlotClick = (date: Date, timeSlotLabel: string) => {
+    const day = date.getDay()
     const key = `${date.toISOString().split('T')[0]}|${timeSlotLabel}`
     const current = schedule[key]
+
+    // Ambil semua tanggal dengan hari yang sama
+    const sameDayDates = visibleDates.filter(d => d.getDay() === day)
+    // Hanya ambil slotsPerKlik pertama (mirror group)
+    const mirrorDates = sameDayDates.slice(0, slotsPerKlik)
+
     if (current) {
-      // Hapus slot
+      // Hapus slot: hapus dari semua mirrorDates
       const newSchedule = { ...schedule }
-      delete newSchedule[key]
-      // Mirroring: hapus juga di tanggal lain dengan hari yang sama (hanya di visibleDates)
-      const day = date.getDay()
-      visibleDates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
-        }
+      mirrorDates.forEach(d => {
+        const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
+        if (newSchedule[mirrorKey] === current) delete newSchedule[mirrorKey]
       })
       setSchedule(newSchedule)
     } else {
-      // Cek kuota
+      // Cek kuota total
       if (remainingSessions <= 0) {
         alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
         return
@@ -205,6 +216,24 @@ function SetScheduleContent() {
         alert('Pilih mata pelajaran dulu!')
         return
       }
+
+      // Slot yang masih kosong di mirror group
+      const availableMirrors = mirrorDates.filter(d => {
+        const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
+        return !schedule[mirrorKey]
+      })
+
+      if (availableMirrors.length === 0) {
+        alert('Semua slot untuk hari ini sudah terisi.')
+        return
+      }
+
+      // Cek apakah menambahkan ini melebihi kuota
+      if (totalSelected + availableMirrors.length > maxSessions) {
+        alert(`Hanya tersisa ${remainingSessions} sesi, tidak cukup untuk mengisi ${availableMirrors.length} slot.`)
+        return
+      }
+
       // Pilih subject dengan jumlah paling sedikit
       const counts: Record<string, number> = {}
       Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
@@ -214,14 +243,12 @@ function SetScheduleContent() {
         const c = counts[s] || 0
         if (c < min) { min = c; chosen = s }
       })
-      const newSchedule = { ...schedule, [key]: chosen }
-      // Mirroring: tambahkan di tanggal lain dengan hari yang sama (hanya di visibleDates)
-      const day = date.getDay()
-      visibleDates.forEach(d => {
-        if (d.getDay() === day) {
-          const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-          if (!newSchedule[mirrorKey]) newSchedule[mirrorKey] = chosen
-        }
+
+      // Isi slot
+      const newSchedule = { ...schedule }
+      availableMirrors.forEach(d => {
+        const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
+        newSchedule[mirrorKey] = chosen
       })
       setSchedule(newSchedule)
     }
@@ -270,7 +297,6 @@ function SetScheduleContent() {
       return
     }
 
-    // Ambil token dari localStorage
     let token: string | null = null
     try {
       const keys = Object.keys(localStorage)
