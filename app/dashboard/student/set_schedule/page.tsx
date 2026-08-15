@@ -145,6 +145,9 @@ function SetScheduleContent() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
+  // ========== STATE ALOKASI PER MATA PELAJARAN ==========
+  const [allocation, setAllocation] = useState<Record<string, number>>({})
+
   // 30 hari ke depan
   const allDates = getNext30Days()
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
@@ -154,8 +157,9 @@ function SetScheduleContent() {
   const totalSelected = Object.keys(schedule).length
   const maxSessions = matchData?.student_sessions_per_month ?? 0
   const remainingSessions = maxSessions - totalSelected
-  const slotsPerKlik = getSlotsPerKlik(maxSessions) // jumlah slot per klik
+  const slotsPerKlik = getSlotsPerKlik(maxSessions)
 
+  // ========== EFFECT UNTUK INIT DATA ==========
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('scheduleData')
@@ -163,7 +167,8 @@ function SetScheduleContent() {
         const data = JSON.parse(stored)
         console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
         setMatchData(data)
-        setSelectedSubjects(data.matched_subjects?.slice(0, 2) || [])
+        const subjects = data.matched_subjects?.slice(0, 2) || []
+        setSelectedSubjects(subjects)
         const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
         setAllowedDays(days)
         setTimeSlots(slots)
@@ -178,13 +183,54 @@ function SetScheduleContent() {
     }
   }, [])
 
+  // ========== EFFECT UNTUK UPDATE ALOKASI SAAT SELECTED SUBJECTS BERUBAH ==========
+  useEffect(() => {
+    if (maxSessions === 0 || selectedSubjects.length === 0) {
+      setAllocation({})
+      return
+    }
+    const newAlloc: Record<string, number> = {}
+    if (selectedSubjects.length === 1) {
+      newAlloc[selectedSubjects[0]] = maxSessions
+    } else {
+      // Bagi rata, bulatkan ke bawah untuk kedua, sisanya ke yang pertama
+      const half = Math.floor(maxSessions / 2)
+      const remainder = maxSessions - half * 2
+      newAlloc[selectedSubjects[0]] = half + remainder
+      newAlloc[selectedSubjects[1]] = half
+    }
+    setAllocation(newAlloc)
+  }, [selectedSubjects, maxSessions])
+
+  // ========== FUNGSI ADJUST ALOKASI ==========
+  const adjustAllocation = (subject: string, delta: number) => {
+    const otherSubject = selectedSubjects.find(s => s !== subject)
+    if (!otherSubject) return // seharusnya tidak terjadi
+    const currentAlloc = allocation[subject] || 0
+    const otherAlloc = allocation[otherSubject] || 0
+    const newAlloc = currentAlloc + delta
+    if (newAlloc < 1) return // minimal 1
+    if (newAlloc + otherAlloc > maxSessions) {
+      alert(`Total alokasi tidak boleh melebihi ${maxSessions} sesi.`)
+      return
+    }
+    setAllocation(prev => ({ ...prev, [subject]: newAlloc }))
+  }
+
   // ========== INTERAKSI ==========
   const toggleSubject = (subject: string) => {
     setSelectedSubjects(prev => {
       const index = prev.indexOf(subject)
-      if (index !== -1) return prev.filter(s => s !== subject)
-      if (prev.length >= 2) return prev
-      return [...prev, subject]
+      if (index !== -1) {
+        // Hapus subject
+        return prev.filter(s => s !== subject)
+      } else {
+        if (prev.length >= 2) {
+          alert('Maksimal 2 mata pelajaran yang dapat dipilih.')
+          return prev
+        }
+        return [...prev, subject]
+      }
     })
   }
 
@@ -195,7 +241,6 @@ function SetScheduleContent() {
 
     // Ambil semua tanggal dengan hari yang sama
     const sameDayDates = visibleDates.filter(d => d.getDay() === day)
-    // Hanya ambil slotsPerKlik pertama (mirror group)
     const mirrorDates = sameDayDates.slice(0, slotsPerKlik)
 
     if (current) {
@@ -234,15 +279,22 @@ function SetScheduleContent() {
         return
       }
 
-      // Pilih subject dengan jumlah paling sedikit
-      const counts: Record<string, number> = {}
-      Object.values(schedule).forEach(s => { counts[s] = (counts[s] || 0) + 1 })
+      // Pilih mata pelajaran berdasarkan sisa alokasi terbanyak
       let chosen = selectedSubjects[0]
-      let min = Infinity
-      selectedSubjects.forEach(s => {
-        const c = counts[s] || 0
-        if (c < min) { min = c; chosen = s }
+      let maxRemaining = -1
+      selectedSubjects.forEach(subj => {
+        const used = Object.values(schedule).filter(s => s === subj).length
+        const remaining = (allocation[subj] || 0) - used
+        if (remaining > maxRemaining) {
+          maxRemaining = remaining
+          chosen = subj
+        }
       })
+
+      if (maxRemaining <= 0) {
+        alert('Tidak ada sisa alokasi untuk mata pelajaran yang dipilih. Sesuaikan alokasi di atas.')
+        return
+      }
 
       // Isi slot
       const newSchedule = { ...schedule }
@@ -433,24 +485,67 @@ function SetScheduleContent() {
             {maxSessions}
           </Badge>
         </CardHeader>
-        <CardContent className="flex gap-3 flex-wrap">
-          {availableSubjects.map((subj: string) => {
-            const isSelected = selectedSubjects.includes(subj)
-            return (
-              <Button
-                key={subj}
-                variant={isSelected ? 'default' : 'outline'}
-                onClick={() => toggleSubject(subj)}
-                disabled={!isSelected && selectedSubjects.length >= 2}
-                className="capitalize"
-              >
-                {subj} {isSelected && '✓'}
-              </Button>
-            )
-          })}
-          <span className="text-sm text-muted-foreground ml-2">
-            {selectedSubjects.length}/2 terpilih
-          </span>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex gap-3 flex-wrap">
+            {availableSubjects.map((subj: string) => {
+              const isSelected = selectedSubjects.includes(subj)
+              return (
+                <Button
+                  key={subj}
+                  variant={isSelected ? 'default' : 'outline'}
+                  onClick={() => toggleSubject(subj)}
+                  disabled={!isSelected && selectedSubjects.length >= 2}
+                  className="capitalize"
+                >
+                  {subj} {isSelected && '✓'}
+                </Button>
+              )
+            })}
+            <span className="text-sm text-muted-foreground ml-2">
+              {selectedSubjects.length}/2 terpilih
+            </span>
+          </div>
+
+          {/* ========== ALOKASI PER MATA PELAJARAN ========== */}
+          {selectedSubjects.length === 2 && maxSessions > 0 && (
+            <div className="flex flex-wrap gap-6 mt-2 border-t pt-3">
+              {selectedSubjects.map(subj => {
+                const used = Object.values(schedule).filter(s => s === subj).length
+                const allocated = allocation[subj] || 0
+                const remaining = allocated - used
+                return (
+                  <div key={subj} className="flex items-center gap-2">
+                    <span className="font-medium capitalize min-w-[80px]">{subj}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => adjustAllocation(subj, -1)}
+                      disabled={allocated <= 1}
+                    >
+                      -
+                    </Button>
+                    <span className="w-8 text-center font-bold">{allocated}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => adjustAllocation(subj, 1)}
+                      disabled={
+                        allocated >= maxSessions - (allocation[selectedSubjects.find(s => s !== subj)!] || 0)
+                      }
+                    >
+                      +
+                    </Button>
+                    <span className="text-sm text-muted-foreground">/{maxSessions}</span>
+                    <span className={`text-xs ml-1 ${
+                      remaining > 0 ? 'text-green-600' : 'text-red-500'
+                    }`}>
+                      tersisa {remaining}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
