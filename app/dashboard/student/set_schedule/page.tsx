@@ -236,7 +236,6 @@ function SetScheduleContent() {
     const remaining = allocated - used
 
     if (remaining <= 0) {
-      // Cari subject lain yang masih punya sisa
       const next = selectedSubjects.find(subj => {
         const usedSubj = Object.values(schedule).filter(s => s === subj).length
         const allocSubj = allocation[subj] || 0
@@ -244,9 +243,6 @@ function SetScheduleContent() {
       })
       if (next) {
         setActiveSubject(next)
-      } else {
-        // Semua habis
-        // Tidak perlu alert di sini, karena akan muncul saat klik slot
       }
     }
   }, [schedule, allocation, selectedSubjects, activeSubject])
@@ -373,7 +369,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Cek activeSubject
       if (!activeSubject) {
         alert('Silakan pilih mata pelajaran aktif terlebih dahulu.')
         return
@@ -383,7 +378,6 @@ function SetScheduleContent() {
       const allocated = allocation[activeSubject] || 0
       const remaining = allocated - used
       if (remaining <= 0) {
-        // Coba pilih subject lain otomatis
         const next = selectedSubjects.find(subj => {
           const usedSubj = Object.values(schedule).filter(s => s === subj).length
           const allocSubj = allocation[subj] || 0
@@ -665,6 +659,7 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
+      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF (perbaikan warna) ========== */}
       {selectedSubjects.length >= 2 && (
         <Card>
           <CardHeader>
@@ -678,28 +673,34 @@ function SetScheduleContent() {
               const isActive = activeSubject === subj
               const isExhausted = remaining <= 0
 
+              // Jika exhausted, tombol abu-abu netral, tidak bisa diklik
+              if (isExhausted) {
+                return (
+                  <Button
+                    key={subj}
+                    variant="outline"
+                    disabled
+                    className="bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed capitalize"
+                  >
+                    {subj} {used}/{allocated}
+                  </Button>
+                )
+              }
+
+              // Jika tidak exhausted
               return (
                 <Button
                   key={subj}
                   variant={isActive ? 'default' : 'outline'}
-                  onClick={() => {
-                    if (isExhausted) {
-                      alert(`Sisa alokasi untuk ${subj} sudah habis. Silakan tambah alokasi atau pilih mata pelajaran lain.`)
-                      return
-                    }
-                    setActiveSubject(subj)
-                  }}
-                  disabled={isExhausted}
+                  onClick={() => setActiveSubject(subj)}
                   className={`capitalize ${
-                    isExhausted
-                      ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-100'
-                      : isActive
+                    isActive
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'hover:bg-gray-100'
                   }`}
                 >
                   {subj} {used}/{allocated}
-                  {isActive && !isExhausted && ' ✓'}
+                  {isActive && ' ✓'}
                 </Button>
               )
             })}
