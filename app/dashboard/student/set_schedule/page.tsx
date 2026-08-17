@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// ========== HELPER: Ambil 37 hari ke depan ==========
+// ========== HELPER ==========
 const getNext37Days = () => {
   const today = new Date()
   const dates = []
@@ -20,7 +20,6 @@ const getNext37Days = () => {
   return dates
 }
 
-// ========== HELPER: Label rentang bulan ==========
 const getMonthRangeLabel = (dates: Date[]) => {
   if (dates.length === 0) return ''
   const first = dates[0]
@@ -33,7 +32,6 @@ const getMonthRangeLabel = (dates: Date[]) => {
   }
 }
 
-// ========== PARSE STUDENT SCHEDULE ==========
 function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
     return {
@@ -113,7 +111,6 @@ function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], tim
   }
 }
 
-// ========== Tentukan jumlah slot per klik berdasarkan total sesi ==========
 function getSlotsPerKlik(totalSessions: number): number {
   const map: Record<number, number> = {
     2: 2,
@@ -128,7 +125,6 @@ function getSlotsPerKlik(totalSessions: number): number {
   return map[totalSessions] || 4
 }
 
-// ========== Tentukan STEP alokasi berdasarkan total sesi ==========
 function getAllocationStep(totalSessions: number): number {
   if (totalSessions <= 4) return 0
   if (totalSessions === 6) return 3
@@ -152,9 +148,7 @@ function SetScheduleContent() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  // ========== STATE ALOKASI ==========
   const [allocation, setAllocation] = useState<Record<string, number>>({})
-  // ========== STATE MATA PELAJARAN AKTIF ==========
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
 
   const allDates = getNext37Days()
@@ -167,7 +161,7 @@ function SetScheduleContent() {
   const slotsPerKlik = getSlotsPerKlik(maxSessions)
   const step = getAllocationStep(maxSessions)
 
-  // ========== EFFECT UNTUK INIT DATA ==========
+  // ========== EFFECT INIT ==========
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('scheduleData')
@@ -191,7 +185,7 @@ function SetScheduleContent() {
     }
   }, [])
 
-  // ========== EFFECT UNTUK UPDATE ALOKASI ==========
+  // ========== EFFECT ALOKASI ==========
   useEffect(() => {
     if (maxSessions === 0 || selectedSubjects.length === 0) {
       setAllocation({})
@@ -231,9 +225,33 @@ function SetScheduleContent() {
     if (!activeSubject || !selectedSubjects.includes(activeSubject)) {
       setActiveSubject(selectedSubjects[0])
     }
-  }, [selectedSubjects, maxSessions, step, activeSubject])
+  }, [selectedSubjects, maxSessions, step])
 
-  // ========== EFFECT UNTUK HAPUS SLOT SAAT MATA PELAJARAN DIHAPUS ==========
+  // ========== EFFECT OTOMATIS PILIH SUBJECT BERIKUTNYA ==========
+  useEffect(() => {
+    if (!activeSubject || selectedSubjects.length === 0) return
+
+    const used = Object.values(schedule).filter(s => s === activeSubject).length
+    const allocated = allocation[activeSubject] || 0
+    const remaining = allocated - used
+
+    if (remaining <= 0) {
+      // Cari subject lain yang masih punya sisa
+      const next = selectedSubjects.find(subj => {
+        const usedSubj = Object.values(schedule).filter(s => s === subj).length
+        const allocSubj = allocation[subj] || 0
+        return (allocSubj - usedSubj) > 0
+      })
+      if (next) {
+        setActiveSubject(next)
+      } else {
+        // Semua habis
+        // Tidak perlu alert di sini, karena akan muncul saat klik slot
+      }
+    }
+  }, [schedule, allocation, selectedSubjects, activeSubject])
+
+  // ========== EFFECT HAPUS SLOT ==========
   useEffect(() => {
     const activeSet = new Set(selectedSubjects)
     const newSchedule = { ...schedule }
@@ -249,7 +267,7 @@ function SetScheduleContent() {
     }
   }, [selectedSubjects])
 
-  // ========== FUNGSI ADJUST ALOKASI ==========
+  // ========== ADJUST ALOKASI ==========
   const adjustAllocation = (subject: string, delta: number) => {
     if (step === 0) return
     const otherSubject = selectedSubjects.find(s => s !== subject)
@@ -355,6 +373,7 @@ function SetScheduleContent() {
         return
       }
 
+      // Cek activeSubject
       if (!activeSubject) {
         alert('Silakan pilih mata pelajaran aktif terlebih dahulu.')
         return
@@ -364,8 +383,20 @@ function SetScheduleContent() {
       const allocated = allocation[activeSubject] || 0
       const remaining = allocated - used
       if (remaining <= 0) {
-        alert(`Sisa alokasi untuk ${activeSubject} sudah habis. Silakan pilih mata pelajaran lain atau tambah alokasi.`)
-        return
+        // Coba pilih subject lain otomatis
+        const next = selectedSubjects.find(subj => {
+          const usedSubj = Object.values(schedule).filter(s => s === subj).length
+          const allocSubj = allocation[subj] || 0
+          return (allocSubj - usedSubj) > 0
+        })
+        if (next) {
+          setActiveSubject(next)
+          alert(`Sisa alokasi untuk ${activeSubject} sudah habis. Otomatis beralih ke ${next}.`)
+          return
+        } else {
+          alert(`Semua mata pelajaran sudah habis alokasinya.`)
+          return
+        }
       }
 
       const availableMirrors = mirrorDates.filter(d => {
@@ -592,7 +623,6 @@ function SetScheduleContent() {
             </span>
           </div>
 
-          {/* ========== ALOKASI PER MATA PELAJARAN ========== */}
           {selectedSubjects.length === 2 && step > 0 && maxSessions > 0 && (
             <div className="flex flex-wrap gap-6 mt-2 border-t pt-3">
               {selectedSubjects.map(subj => {
@@ -635,7 +665,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF ========== */}
       {selectedSubjects.length >= 2 && (
         <Card>
           <CardHeader>
