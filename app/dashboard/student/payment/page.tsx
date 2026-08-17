@@ -121,16 +121,24 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Ambil data awal: token, saldo, config, riwayat
+  // Inisialisasi data
   useEffect(() => {
+    let isMounted = true
+
     const init = async () => {
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
+
         if (!session) {
-          router.push('/auth/login')
+          // ⚠️ Penting: set loading false sebelum redirect
+          if (isMounted) {
+            setLoading(false)
+            router.push('/auth/login')
+          }
           return
         }
+
         setToken(session.access_token)
 
         // 1. Ambil saldo dari API
@@ -138,9 +146,9 @@ function WalletContent() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
         const balanceData = await balanceRes.json()
-        if (balanceRes.ok) {
+        if (balanceRes.ok && isMounted) {
           setBalance(balanceData.balance ?? 0)
-        } else {
+        } else if (isMounted) {
           console.error('Gagal ambil saldo:', balanceData.error)
         }
 
@@ -148,7 +156,7 @@ function WalletContent() {
         const { data: cfgRows, error: cfgError } = await supabase
           .from('payment_config')
           .select('config_key, config_value')
-        if (!cfgError && cfgRows) {
+        if (!cfgError && cfgRows && isMounted) {
           const cfgMap: PaymentConfig = {}
           for (const row of cfgRows) {
             cfgMap[row.config_key] = row.config_value
@@ -164,21 +172,27 @@ function WalletContent() {
           .order('created_at', { ascending: false })
           .limit(20)
 
-        if (!payError && payRows) {
+        if (!payError && payRows && isMounted) {
           setHistory(payRows as TopUpHistory[])
         }
 
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       } catch (err: any) {
         console.error('Init error:', err)
-        setError('Gagal memuat data dompet. Silakan refresh halaman.')
-        setLoading(false)
+        if (isMounted) {
+          setError('Gagal memuat data dompet. Silakan refresh halaman.')
+          setLoading(false)
+        }
       }
     }
+
     init()
+    return () => { isMounted = false }
   }, [router])
 
-  // Generate QRIS jika metode qris dan amount valid
+  // Generate QRIS
   useEffect(() => {
     if (selectedMethod !== 'qris' || !token || !amount || parseFloat(amount) <= 0) {
       setQrisString(null)
@@ -202,7 +216,7 @@ function WalletContent() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [selectedMethod, amount, token])
 
-  // Handle top-up submit
+  // Submit top-up
   const handleTopUp = async () => {
     setSubmitError(null)
     setSuccess(false)
@@ -229,19 +243,22 @@ function WalletContent() {
           paymentMethod: selectedMethod,
           qrisDynamicString: selectedMethod === 'qris' ? qrisString : undefined,
           transactionRef: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-          isTopup: true, // ini yang penting
+          isTopup: true, // 🔑 ini penting
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Gagal melakukan top-up')
 
       setSuccess(true)
+
       // Refresh saldo
       const balanceRes = await fetch('/api/wallet/balance', {
         headers: { Authorization: `Bearer ${token}` },
       })
       const balanceData = await balanceRes.json()
-      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
+      if (balanceRes.ok) {
+        setBalance(balanceData.balance ?? 0)
+      }
 
       // Refresh riwayat
       const supabase = createClient()
@@ -251,7 +268,9 @@ function WalletContent() {
         .eq('payment_type', 'topup')
         .order('created_at', { ascending: false })
         .limit(20)
-      if (newHistory) setHistory(newHistory as TopUpHistory[])
+      if (newHistory) {
+        setHistory(newHistory as TopUpHistory[])
+      }
 
       // Reset form
       setAmount('')
@@ -263,6 +282,7 @@ function WalletContent() {
     }
   }
 
+  // Render loading
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
