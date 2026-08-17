@@ -671,7 +671,6 @@ function SetScheduleContent() {
                 >
                   {subj} {used}/{allocated}
                   {isActive && !isExhausted && ' ✓'}
-                  {isExhausted && ' ❌'}
                 </Button>
               )
             })}
