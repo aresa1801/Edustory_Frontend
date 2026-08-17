@@ -19,7 +19,7 @@ async function getAuthUser(request: NextRequest) {
   return user
 }
 
-// GET /api/payments — list deposit payments for the current student
+// GET /api/payments — list top-up payments for the current student
 export async function GET(request: NextRequest) {
   const supabase = getSupabase()
   try {
@@ -38,30 +38,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
+    // Hanya ambil top-up, atau semua? Kita filter untuk top-up saja (payment_type = 'topup')
+    // Namun jika ingin semua, hilangkan filter .eq('payment_type', 'topup')
     const { data, error } = await supabase
       .from('payment_deposits')
       .select(`
         id,
-        match_id,
         amount,
         payment_method,
         payment_status,
         created_at,
-        matches:match_id(subject, status)
+        transaction_ref
       `)
       .eq('student_id', student.id)
+      .eq('payment_type', 'topup') // hanya top-up
       .order('created_at', { ascending: false })
+      .limit(20)
 
     if (error) throw error
 
     return NextResponse.json(data || [])
   } catch (error) {
-    console.error('Error fetching payments:', error)
-    return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 })
+    console.error('Error fetching top-ups:', error)
+    return NextResponse.json({ error: 'Failed to fetch top-ups' }, { status: 500 })
   }
 }
 
-// POST /api/payments — record a new deposit payment
+// POST /api/payments — record a top-up (or session payment later)
 export async function POST(request: NextRequest) {
   const supabase = getSupabase()
   try {
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { matchId, tutorId, amount, paymentMethod, transactionRef, qrisDynamicString, isOnboardingDeposit } =
+    const { amount, paymentMethod, transactionRef, qrisDynamicString, isTopup } =
       await request.json()
 
     const VALID_METHODS = [
@@ -79,101 +82,105 @@ export async function POST(request: NextRequest) {
       'bca', 'bni', 'bri', 'mandiri', 'permata', 'cimb',
     ]
 
-    if (!amount || !paymentMethod) {
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
       return NextResponse.json(
-        { error: 'amount and paymentMethod are required' },
+        { error: 'amount must be a positive number' },
         { status: 400 }
       )
     }
 
-    if (!isOnboardingDeposit && !tutorId) {
-      return NextResponse.json(
-        { error: 'tutorId is required for session payments' },
-        { status: 400 }
-      )
-    }
-
-    if (!VALID_METHODS.includes(paymentMethod)) {
+    if (!paymentMethod || !VALID_METHODS.includes(paymentMethod)) {
       return NextResponse.json(
         { error: `paymentMethod must be one of: ${VALID_METHODS.join(', ')}` },
         { status: 400 }
       )
     }
 
-    const { data: student } = await supabase
+    // Ambil student
+    const { data: student, error: studentError } = await supabase
       .from('students')
       .select('id')
       .eq('user_id', user.id)
       .single()
 
-    if (!student) {
-      return NextResponse.json({ error: 'Student not found. Complete step 1-3 of onboarding first.' }, { status: 404 })
+    if (studentError || !student) {
+      return NextResponse.json({ error: 'Student profile not found' }, { status: 404 })
     }
 
-    // Full payload including columns added in migration 008/009
-    const fullPayload = {
+    // Jika isTopup true, langsung dianggap paid
+    const paymentStatus = isTopup ? 'paid' : 'pending'
+    const paymentType = isTopup ? 'topup' : 'session'
+    const paidAt = isTopup ? new Date().toISOString() : null
+
+    // Siapkan payload
+    const payload: any = {
       student_id: student.id,
-      tutor_id: tutorId || null,
-      match_id: matchId || null,
       amount,
       payment_method: paymentMethod,
-      payment_status: isOnboardingDeposit ? 'paid' : 'pending',
-      payment_type: isOnboardingDeposit ? 'onboarding_deposit' : 'session',
-      paid_at: isOnboardingDeposit ? new Date().toISOString() : null,
-      transaction_ref: transactionRef || null,
+      payment_status: paymentStatus,
+      payment_type: paymentType,
+      paid_at: paidAt,
+      transaction_ref: transactionRef || `TRX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
       qris_dynamic_string: paymentMethod === 'qris' ? (qrisDynamicString || null) : null,
     }
 
-    let { data, error } = await supabase
+    // Insert ke payment_deposits
+    let { data: inserted, error: insertError } = await supabase
       .from('payment_deposits')
-      .insert([fullPayload])
+      .insert([payload])
       .select()
 
-    if (error) {
-      // Table may not exist yet; return a graceful response
-      if (error.code === '42P01') {
-        return NextResponse.json(
-          { warning: 'payment_deposits table not yet created. Run migration 009 in Supabase SQL Editor.' },
-          { status: 200 }
-        )
-      }
-
-      // Migration 008/009 not applied: payment_type or qris_dynamic_string column missing.
-      // Retry with a minimal payload omitting those columns so the deposit can still be saved.
-      if (error.code === '42703') {
-        console.warn('payment_deposits schema mismatch', { code: error.code, message: error.message, hint: 'Run migration 009 in Supabase SQL Editor.' })
-        const { payment_type, qris_dynamic_string, ...minimalPayload } = fullPayload
+    if (insertError) {
+      // Coba minimal payload jika kolom belum ada (fallback)
+      if (insertError.code === '42703') {
+        const minimalPayload = {
+          student_id: student.id,
+          amount,
+          payment_method: paymentMethod,
+          payment_status: paymentStatus,
+          paid_at: paidAt,
+          transaction_ref: payload.transaction_ref,
+        }
         const retryResult = await supabase
           .from('payment_deposits')
           .insert([minimalPayload])
           .select()
-
-        if (retryResult.error) {
-          // tutor_id NOT NULL constraint – migration 008/009 must be run
-          if (retryResult.error.code === '23502') {
-            return NextResponse.json(
-              { error: 'Migrasi database diperlukan untuk menyimpan deposit onboarding. Jalankan script migration 009 di Supabase SQL Editor.' },
-              { status: 500 }
-            )
-          }
-          throw retryResult.error
-        }
-
-        return NextResponse.json(retryResult.data?.[0] ?? {}, { status: 201 })
+        if (retryResult.error) throw retryResult.error
+        inserted = retryResult.data
+      } else {
+        throw insertError
       }
+    }
 
-      // Migration 008/009 not applied: tutor_id has a NOT NULL constraint
-      if (error.code === '23502') {
+    // Jika top-up sukses, tambahkan saldo ke wallet
+    if (isTopup && inserted && inserted.length > 0) {
+      // Panggil fungsi add_wallet_balance (pastikan sudah dibuat di Supabase)
+      const { data: walletResult, error: walletError } = await supabase.rpc(
+        'add_wallet_balance',
+        {
+          p_student_id: student.id,
+          p_amount: amount,
+        }
+      )
+
+      if (walletError) {
+        console.error('Gagal menambah saldo wallet:', walletError)
+        // Jika gagal, sebaiknya throw agar transaksi dibatalkan? Atau tetap return sukses tapi warning.
+        // Kita bisa return error agar frontend tahu ada masalah.
         return NextResponse.json(
-          { error: 'Migrasi database diperlukan untuk menyimpan deposit onboarding. Jalankan script migration 009 di Supabase SQL Editor.' },
+          { error: 'Top-up berhasil di catat, namun gagal menambah saldo. Hubungi admin.' },
           { status: 500 }
         )
       }
 
-      throw error
+      // Return data lengkap dengan informasi saldo baru
+      return NextResponse.json({
+        ...inserted[0],
+        newBalance: walletResult,
+      }, { status: 201 })
     }
 
-    return NextResponse.json(data[0], { status: 201 })
+    return NextResponse.json(inserted?.[0] ?? {}, { status: 201 })
   } catch (error) {
     console.error('Error creating payment:', error)
     return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 })
