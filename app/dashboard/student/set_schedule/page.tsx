@@ -152,8 +152,10 @@ function SetScheduleContent() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  // ========== STATE ALOKASI PER MATA PELAJARAN ==========
+  // ========== STATE ALOKASI ==========
   const [allocation, setAllocation] = useState<Record<string, number>>({})
+  // ========== STATE MATA PELAJARAN AKTIF ==========
+  const [activeSubject, setActiveSubject] = useState<string | null>(null)
 
   const allDates = getNext30Days()
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
@@ -193,6 +195,7 @@ function SetScheduleContent() {
   useEffect(() => {
     if (maxSessions === 0 || selectedSubjects.length === 0) {
       setAllocation({})
+      setActiveSubject(null)
       return
     }
 
@@ -224,7 +227,29 @@ function SetScheduleContent() {
       newAlloc[selectedSubjects[1]] = second
     }
     setAllocation(newAlloc)
-  }, [selectedSubjects, maxSessions, step])
+
+    // Set active subject ke yang pertama jika belum ada atau tidak valid
+    if (!activeSubject || !selectedSubjects.includes(activeSubject)) {
+      setActiveSubject(selectedSubjects[0])
+    }
+  }, [selectedSubjects, maxSessions, step, activeSubject])
+
+  // ========== EFFECT UNTUK HAPUS SLOT SAAT MATA PELAJARAN DIHAPUS ==========
+  useEffect(() => {
+    // Hapus semua slot yang menggunakan mata pelajaran yang tidak ada di selectedSubjects
+    const activeSet = new Set(selectedSubjects)
+    const newSchedule = { ...schedule }
+    let changed = false
+    for (const [key, subject] of Object.entries(schedule)) {
+      if (!activeSet.has(subject)) {
+        delete newSchedule[key]
+        changed = true
+      }
+    }
+    if (changed) {
+      setSchedule(newSchedule)
+    }
+  }, [selectedSubjects]) // hanya jalankan saat selectedSubjects berubah
 
   // ========== FUNGSI ADJUST ALOKASI ==========
   const adjustAllocation = (subject: string, delta: number) => {
@@ -316,6 +341,7 @@ function SetScheduleContent() {
     const mirrorDates = sameDayDates.slice(0, slotsPerKlik)
 
     if (current) {
+      // Hapus slot dari semua mirrorDates
       const newSchedule = { ...schedule }
       mirrorDates.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
@@ -323,6 +349,7 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
+      // Cek kuota total
       if (remainingSessions <= 0) {
         alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
         return
@@ -332,6 +359,22 @@ function SetScheduleContent() {
         return
       }
 
+      // Cek activeSubject
+      if (!activeSubject) {
+        alert('Silakan pilih mata pelajaran aktif terlebih dahulu.')
+        return
+      }
+
+      // Cek sisa alokasi activeSubject
+      const used = Object.values(schedule).filter(s => s === activeSubject).length
+      const allocated = allocation[activeSubject] || 0
+      const remaining = allocated - used
+      if (remaining <= 0) {
+        alert(`Sisa alokasi untuk ${activeSubject} sudah habis. Silakan pilih mata pelajaran lain atau tambah alokasi.`)
+        return
+      }
+
+      // Slot yang masih kosong di mirror group
       const availableMirrors = mirrorDates.filter(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
         return !schedule[mirrorKey]
@@ -347,26 +390,11 @@ function SetScheduleContent() {
         return
       }
 
-      let chosen = selectedSubjects[0]
-      let maxRemaining = -1
-      selectedSubjects.forEach(subj => {
-        const used = Object.values(schedule).filter(s => s === subj).length
-        const remaining = (allocation[subj] || 0) - used
-        if (remaining > maxRemaining) {
-          maxRemaining = remaining
-          chosen = subj
-        }
-      })
-
-      if (maxRemaining <= 0) {
-        alert('Tidak ada sisa alokasi untuk mata pelajaran yang dipilih. Sesuaikan alokasi di atas.')
-        return
-      }
-
+      // Isi slot dengan activeSubject
       const newSchedule = { ...schedule }
       availableMirrors.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
-        newSchedule[mirrorKey] = chosen
+        newSchedule[mirrorKey] = activeSubject
       })
       setSchedule(newSchedule)
     }
@@ -620,6 +648,45 @@ function SetScheduleContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF ========== */}
+      {selectedSubjects.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Pilih Mata Pelajaran Aktif</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            {selectedSubjects.map(subj => {
+              const used = Object.values(schedule).filter(s => s === subj).length
+              const allocated = allocation[subj] || 0
+              const remaining = allocated - used
+              const isActive = activeSubject === subj
+              return (
+                <Button
+                  key={subj}
+                  variant={isActive ? 'default' : 'outline'}
+                  onClick={() => {
+                    if (remaining <= 0) {
+                      alert(`Sisa alokasi untuk ${subj} sudah habis. Silakan tambah alokasi atau pilih mata pelajaran lain.`)
+                      return
+                    }
+                    setActiveSubject(subj)
+                  }}
+                  className={`capitalize ${!isActive ? 'hover:bg-gray-100' : ''}`}
+                >
+                  {subj} {allocated}/{maxSessions}
+                  {isActive && ' ✓'}
+                </Button>
+              )
+            })}
+            {activeSubject && (
+              <span className="text-sm text-muted-foreground self-center ml-2">
+                Aktif: {activeSubject}
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
