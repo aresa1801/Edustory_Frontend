@@ -8,11 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// ========== HELPER: Ambil 30 hari ke depan ==========
-const getNext30Days = () => {
+// ========== HELPER: Ambil 37 hari ke depan (30 + 1 minggu) ==========
+const getNext37Days = () => {
   const today = new Date()
   const dates = []
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 37; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() + i)
     dates.push(d)
@@ -33,7 +33,7 @@ const getMonthRangeLabel = (dates: Date[]) => {
   }
 }
 
-// ========== PARSE STUDENT SCHEDULE ==========
+// ========== PARSE STUDENT SCHEDULE (sama) ==========
 function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
     return {
@@ -157,7 +157,8 @@ function SetScheduleContent() {
   // ========== STATE MATA PELAJARAN AKTIF ==========
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
 
-  const allDates = getNext30Days()
+  // 37 hari ke depan (30 + 1 minggu)
+  const allDates = getNext37Days()
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
   const monthName = getMonthRangeLabel(visibleDates.length > 0 ? visibleDates : allDates)
 
@@ -236,7 +237,6 @@ function SetScheduleContent() {
 
   // ========== EFFECT UNTUK HAPUS SLOT SAAT MATA PELAJARAN DIHAPUS ==========
   useEffect(() => {
-    // Hapus semua slot yang menggunakan mata pelajaran yang tidak ada di selectedSubjects
     const activeSet = new Set(selectedSubjects)
     const newSchedule = { ...schedule }
     let changed = false
@@ -249,7 +249,7 @@ function SetScheduleContent() {
     if (changed) {
       setSchedule(newSchedule)
     }
-  }, [selectedSubjects]) // hanya jalankan saat selectedSubjects berubah
+  }, [selectedSubjects])
 
   // ========== FUNGSI ADJUST ALOKASI ==========
   const adjustAllocation = (subject: string, delta: number) => {
@@ -341,7 +341,6 @@ function SetScheduleContent() {
     const mirrorDates = sameDayDates.slice(0, slotsPerKlik)
 
     if (current) {
-      // Hapus slot dari semua mirrorDates
       const newSchedule = { ...schedule }
       mirrorDates.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
@@ -349,7 +348,6 @@ function SetScheduleContent() {
       })
       setSchedule(newSchedule)
     } else {
-      // Cek kuota total
       if (remainingSessions <= 0) {
         alert(`Sesi Anda sudah penuh (maksimal ${maxSessions} sesi).`)
         return
@@ -359,13 +357,11 @@ function SetScheduleContent() {
         return
       }
 
-      // Cek activeSubject
       if (!activeSubject) {
         alert('Silakan pilih mata pelajaran aktif terlebih dahulu.')
         return
       }
 
-      // Cek sisa alokasi activeSubject
       const used = Object.values(schedule).filter(s => s === activeSubject).length
       const allocated = allocation[activeSubject] || 0
       const remaining = allocated - used
@@ -374,7 +370,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Slot yang masih kosong di mirror group
       const availableMirrors = mirrorDates.filter(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
         return !schedule[mirrorKey]
@@ -390,7 +385,6 @@ function SetScheduleContent() {
         return
       }
 
-      // Isi slot dengan activeSubject
       const newSchedule = { ...schedule }
       availableMirrors.forEach(d => {
         const mirrorKey = `${d.toISOString().split('T')[0]}|${timeSlotLabel}`
