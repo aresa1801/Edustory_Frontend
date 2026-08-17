@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// ========== HELPER: Ambil 37 hari ke depan (30 + 1 minggu) ==========
+// ========== HELPER: Ambil 37 hari ke depan ==========
 const getNext37Days = () => {
   const today = new Date()
   const dates = []
@@ -33,7 +33,7 @@ const getMonthRangeLabel = (dates: Date[]) => {
   }
 }
 
-// ========== PARSE STUDENT SCHEDULE (sama) ==========
+// ========== PARSE STUDENT SCHEDULE ==========
 function parseStudentSchedule(scheduleStr: string): { allowedDays: number[], timeSlots: { label: string }[] } {
   if (!scheduleStr) {
     return {
@@ -157,7 +157,6 @@ function SetScheduleContent() {
   // ========== STATE MATA PELAJARAN AKTIF ==========
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
 
-  // 37 hari ke depan (30 + 1 minggu)
   const allDates = getNext37Days()
   const visibleDates = allDates.filter(date => allowedDays.includes(date.getDay()))
   const monthName = getMonthRangeLabel(visibleDates.length > 0 ? visibleDates : allDates)
@@ -229,7 +228,6 @@ function SetScheduleContent() {
     }
     setAllocation(newAlloc)
 
-    // Set active subject ke yang pertama jika belum ada atau tidak valid
     if (!activeSubject || !selectedSubjects.includes(activeSubject)) {
       setActiveSubject(selectedSubjects[0])
     }
@@ -600,7 +598,6 @@ function SetScheduleContent() {
               {selectedSubjects.map(subj => {
                 const used = Object.values(schedule).filter(s => s === subj).length
                 const allocated = allocation[subj] || 0
-                const remaining = allocated - used
                 const otherSubject = selectedSubjects.find(s => s !== subj)!
                 const otherAlloc = allocation[otherSubject] || 0
                 return (
@@ -624,11 +621,6 @@ function SetScheduleContent() {
                       +
                     </Button>
                     <span className="text-sm text-muted-foreground">/{maxSessions}</span>
-                    <span className={`text-xs ml-1 ${
-                      remaining > 0 ? 'text-green-600' : 'text-red-500'
-                    }`}>
-                      tersisa {remaining}
-                    </span>
                   </div>
                 )
               })}
@@ -655,21 +647,31 @@ function SetScheduleContent() {
               const allocated = allocation[subj] || 0
               const remaining = allocated - used
               const isActive = activeSubject === subj
+              const isExhausted = remaining <= 0
+
               return (
                 <Button
                   key={subj}
                   variant={isActive ? 'default' : 'outline'}
                   onClick={() => {
-                    if (remaining <= 0) {
+                    if (isExhausted) {
                       alert(`Sisa alokasi untuk ${subj} sudah habis. Silakan tambah alokasi atau pilih mata pelajaran lain.`)
                       return
                     }
                     setActiveSubject(subj)
                   }}
-                  className={`capitalize ${!isActive ? 'hover:bg-gray-100' : ''}`}
+                  disabled={isExhausted}
+                  className={`capitalize ${
+                    isExhausted
+                      ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-100'
+                      : isActive
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'hover:bg-gray-100'
+                  }`}
                 >
-                  {subj} {allocated}/{maxSessions}
-                  {isActive && ' ✓'}
+                  {subj} {used}/{allocated}
+                  {isActive && !isExhausted && ' ✓'}
+                  {isExhausted && ' ❌'}
                 </Button>
               )
             })}
