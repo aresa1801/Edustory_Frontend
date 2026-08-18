@@ -34,7 +34,6 @@ interface TopUpHistory {
   transaction_ref: string | null
 }
 
-// Payment method groups
 const EMONEY_METHODS = [
   { id: 'gopay', label: 'GoPay', emoji: '💚' },
   { id: 'ovo', label: 'OVO', emoji: '💜' },
@@ -60,7 +59,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
   refunded: { label: 'Dikembalikan', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: RefreshCw },
 }
 
-// Komponen AccountInfo (sama seperti sebelumnya)
 function AccountInfo({ config, method }: { config: PaymentConfig; method: string }) {
   const [copied, setCopied] = useState(false)
   const accountNum = config[`${method}_number`] || config[`${method}_name`] || '-'
@@ -103,7 +101,6 @@ function AccountInfo({ config, method }: { config: PaymentConfig; method: string
   )
 }
 
-// ========== MAIN COMPONENT ==========
 function WalletContent() {
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
@@ -113,7 +110,6 @@ function WalletContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // State untuk top-up
   const [amount, setAmount] = useState<string>('')
   const [selectedMethod, setSelectedMethod] = useState<string>('qris')
   const [qrisString, setQrisString] = useState<string | null>(null)
@@ -121,7 +117,6 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Inisialisasi data
   useEffect(() => {
     let isMounted = true
 
@@ -131,7 +126,6 @@ function WalletContent() {
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!session) {
-          // ⚠️ Penting: set loading false sebelum redirect
           if (isMounted) {
             setLoading(false)
             router.push('/auth/login')
@@ -141,30 +135,33 @@ function WalletContent() {
 
         setToken(session.access_token)
 
-        // 1. Ambil saldo dari API
-        const balanceRes = await fetch('/api/wallet/balance', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        const balanceData = await balanceRes.json()
-        if (balanceRes.ok && isMounted) {
-          setBalance(balanceData.balance ?? 0)
-        } else if (isMounted) {
-          console.error('Gagal ambil saldo:', balanceData.error)
+        // 1. Ambil saldo
+        try {
+          const res = await fetch('/api/wallet/balance', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          const data = await res.json()
+          if (res.ok && isMounted) {
+            setBalance(data.balance ?? 0)
+          } else if (isMounted) {
+            console.warn('Balance API error:', data.error)
+            // tetap pakai balance 0
+          }
+        } catch (err) {
+          console.warn('Balance fetch error:', err)
         }
 
-        // 2. Ambil config pembayaran
+        // 2. Ambil config (pakai Supabase langsung)
         const { data: cfgRows, error: cfgError } = await supabase
           .from('payment_config')
           .select('config_key, config_value')
         if (!cfgError && cfgRows && isMounted) {
           const cfgMap: PaymentConfig = {}
-          for (const row of cfgRows) {
-            cfgMap[row.config_key] = row.config_value
-          }
+          for (const row of cfgRows) cfgMap[row.config_key] = row.config_value
           setConfig(cfgMap)
         }
 
-        // 3. Ambil riwayat top-up (hanya payment_type = 'topup')
+        // 3. Ambil riwayat top-up (pakai Supabase langsung)
         const { data: payRows, error: payError } = await supabase
           .from('payment_deposits')
           .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
@@ -176,9 +173,7 @@ function WalletContent() {
           setHistory(payRows as TopUpHistory[])
         }
 
-        if (isMounted) {
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       } catch (err: any) {
         console.error('Init error:', err)
         if (isMounted) {
@@ -207,16 +202,13 @@ function WalletContent() {
           body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
         })
         const json = await res.json()
-        if (!cancelled && res.ok) {
-          setQrisString(json.dynamicQris)
-        }
+        if (!cancelled && res.ok) setQrisString(json.dynamicQris)
       } catch {}
     }
     const timer = setTimeout(generate, 600)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [selectedMethod, amount, token])
 
-  // Submit top-up
   const handleTopUp = async () => {
     setSubmitError(null)
     setSuccess(false)
@@ -234,16 +226,13 @@ function WalletContent() {
     try {
       const res = await fetch('/api/payments', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           amount: Math.round(parsed),
           paymentMethod: selectedMethod,
           qrisDynamicString: selectedMethod === 'qris' ? qrisString : undefined,
           transactionRef: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-          isTopup: true, // 🔑 ini penting
+          isTopup: true,
         }),
       })
       const json = await res.json()
@@ -256,9 +245,7 @@ function WalletContent() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const balanceData = await balanceRes.json()
-      if (balanceRes.ok) {
-        setBalance(balanceData.balance ?? 0)
-      }
+      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
       // Refresh riwayat
       const supabase = createClient()
@@ -268,11 +255,8 @@ function WalletContent() {
         .eq('payment_type', 'topup')
         .order('created_at', { ascending: false })
         .limit(20)
-      if (newHistory) {
-        setHistory(newHistory as TopUpHistory[])
-      }
+      if (newHistory) setHistory(newHistory as TopUpHistory[])
 
-      // Reset form
       setAmount('')
       setQrisString(null)
     } catch (e: any) {
@@ -282,7 +266,6 @@ function WalletContent() {
     }
   }
 
-  // Render loading
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -294,7 +277,6 @@ function WalletContent() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto p-4">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Wallet className="h-6 w-6" /> Dompet Saya
@@ -310,7 +292,6 @@ function WalletContent() {
         </Alert>
       )}
 
-      {/* Saldo card */}
       <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Saat Ini</CardTitle>
@@ -322,7 +303,6 @@ function WalletContent() {
         </CardContent>
       </Card>
 
-      {/* Form Top-Up */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Isi Saldo</CardTitle>
@@ -341,10 +321,8 @@ function WalletContent() {
             />
           </div>
 
-          {/* Metode Pembayaran */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Metode Pembayaran</label>
-
             <button
               onClick={() => setSelectedMethod('qris')}
               className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
@@ -395,7 +373,6 @@ function WalletContent() {
             </div>
           </div>
 
-          {/* Tampilkan QRIS atau Info Rekening */}
           {parseFloat(amount) > 0 && selectedMethod === 'qris' && qrisString && (
             <div className="border border-border rounded-xl p-4 bg-muted/20">
               <p className="text-sm font-medium mb-3">
@@ -455,7 +432,6 @@ function WalletContent() {
         </CardContent>
       </Card>
 
-      {/* Riwayat Top-Up */}
       {history.length > 0 && (
         <Card>
           <CardHeader>
