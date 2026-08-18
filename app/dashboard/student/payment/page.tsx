@@ -250,16 +250,28 @@ function WalletContent() {
       setSubmitError('Masukkan nominal yang valid (minimal Rp 1.000)')
       return
     }
-    if (!token) {
-      setSubmitError('Sesi tidak valid, silakan login ulang')
+
+    // 🔥 Ambil session SEGAR setiap kali klik
+    const supabase = createClient()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !session) {
+      setSubmitError('Sesi habis, silakan login ulang')
+      router.push('/auth/login')
       return
     }
+
+    const freshToken = session.access_token
+    // Update state token (biar konsisten)
+    setToken(freshToken)
 
     setSubmitting(true)
     try {
       const res = await fetch('/api/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${freshToken}`,
+        },
         body: JSON.stringify({
           amount: Math.round(parsed),
           paymentMethod: selectedMethod,
@@ -275,13 +287,12 @@ function WalletContent() {
 
       // Refresh saldo
       const balanceRes = await fetch('/api/wallet/balance', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${freshToken}` },
       })
       const balanceData = await balanceRes.json()
       if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
       // Refresh riwayat
-      const supabase = createClient()
       const { data: newHistory } = await supabase
         .from('payment_deposits')
         .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
