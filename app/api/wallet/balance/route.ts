@@ -8,20 +8,20 @@ function getSupabase() {
   )
 }
 
-async function getAuthUser(request: NextRequest) {
-  const supabase = getSupabase()
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return null
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  if (error || !user) return null
-  return user
-}
-
 export async function GET(request: NextRequest) {
-  const supabase = getSupabase()
   try {
-    const user = await getAuthUser(request)
-    if (!user) {
+    // Ambil token dari header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const supabase = getSupabase()
+
+    // Verifikasi user
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     if (studentError || !student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Student profile not found' }, { status: 404 })
     }
 
     // Cari wallet
@@ -58,12 +58,12 @@ export async function GET(request: NextRequest) {
       if (insertError) {
         return NextResponse.json({ error: insertError.message }, { status: 500 })
       }
-      return NextResponse.json({ balance: newWallet?.balance ?? 0 })
+      return NextResponse.json({ balance: 0 })
     }
 
     return NextResponse.json({ balance: wallet.balance })
   } catch (err: any) {
-    console.error('Balance API error:', err)
+    console.error('[Balance API] Error:', err)
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }

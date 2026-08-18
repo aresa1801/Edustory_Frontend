@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useRef } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import {
   Wallet,
 } from 'lucide-react'
 
-// Types
+// ========== TYPES ==========
 interface PaymentConfig {
   [key: string]: string
 }
@@ -34,6 +34,7 @@ interface TopUpHistory {
   transaction_ref: string | null
 }
 
+// ========== CONSTANTS ==========
 const EMONEY_METHODS = [
   { id: 'gopay', label: 'GoPay', emoji: '💚' },
   { id: 'ovo', label: 'OVO', emoji: '💜' },
@@ -59,6 +60,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
   refunded: { label: 'Dikembalikan', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: RefreshCw },
 }
 
+// ========== COMPONENT ACCOUNT INFO ==========
 function AccountInfo({ config, method }: { config: PaymentConfig; method: string }) {
   const [copied, setCopied] = useState(false)
   const accountNum = config[`${method}_number`] || config[`${method}_name`] || '-'
@@ -101,6 +103,7 @@ function AccountInfo({ config, method }: { config: PaymentConfig; method: string
   )
 }
 
+// ========== MAIN COMPONENT ==========
 function WalletContent() {
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
@@ -117,33 +120,18 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Ref untuk mencegah multiple fetch
-  const fetched = useRef(false)
-
+  // ===== INISIALISASI (hanya 1 kali) =====
   useEffect(() => {
-    // Cegah multiple fetch
-    if (fetched.current) return
-    fetched.current = true
-
     let isMounted = true
 
     const init = async () => {
       try {
-        console.log('[Wallet] 🔄 Initializing...')
+        console.log('[Wallet] Init started')
         const supabase = createClient()
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-        if (sessionError) {
-          console.error('[Wallet] Session error:', sessionError)
-          if (isMounted) {
-            setError('Gagal mendapatkan session: ' + sessionError.message)
-            setLoading(false)
-          }
-          return
-        }
+        const { data: { session } } = await supabase.auth.getSession()
 
         if (!session) {
-          console.log('[Wallet] No session, redirecting to login')
+          console.log('[Wallet] No session, redirect')
           if (isMounted) {
             setLoading(false)
             router.push('/auth/login')
@@ -151,13 +139,12 @@ function WalletContent() {
           return
         }
 
-        console.log('[Wallet] ✅ Session OK, user:', session.user?.email)
+        console.log('[Wallet] Session OK, user:', session.user.email)
         const accessToken = session.access_token
         setToken(accessToken)
 
-        // --- 1. Ambil saldo ---
+        // 1. Ambil saldo
         try {
-          console.log('[Wallet] Fetching balance...')
           const res = await fetch('/api/wallet/balance', {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
@@ -166,22 +153,19 @@ function WalletContent() {
           if (res.ok && isMounted) {
             setBalance(data.balance ?? 0)
           } else if (isMounted) {
-            // Tampilkan error tapi lanjut dengan balance 0
             setError(`Gagal ambil saldo: ${data.error || 'Unknown error'}`)
           }
         } catch (err) {
           console.error('[Wallet] Balance fetch error:', err)
-          if (isMounted) {
-            setError('Gagal terhubung ke server saldo. Silakan refresh.')
-          }
+          if (isMounted) setError('Gagal terhubung ke server saldo.')
         }
 
-        // --- 2. Ambil config ---
+        // 2. Ambil config
         try {
-          const { data: cfgRows, error: cfgError } = await supabase
+          const { data: cfgRows } = await supabase
             .from('payment_config')
             .select('config_key, config_value')
-          if (!cfgError && cfgRows && isMounted) {
+          if (cfgRows && isMounted) {
             const cfgMap: PaymentConfig = {}
             for (const row of cfgRows) cfgMap[row.config_key] = row.config_value
             setConfig(cfgMap)
@@ -190,15 +174,15 @@ function WalletContent() {
           console.warn('[Wallet] Config fetch error:', err)
         }
 
-        // --- 3. Ambil riwayat top-up ---
+        // 3. Ambil riwayat
         try {
-          const { data: payRows, error: payError } = await supabase
+          const { data: payRows } = await supabase
             .from('payment_deposits')
             .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
             .eq('payment_type', 'topup')
             .order('created_at', { ascending: false })
             .limit(20)
-          if (!payError && payRows && isMounted) {
+          if (payRows && isMounted) {
             setHistory(payRows as TopUpHistory[])
           }
         } catch (err) {
@@ -206,36 +190,36 @@ function WalletContent() {
         }
 
         if (isMounted) {
-          console.log('[Wallet] ✅ Initialization complete')
+          console.log('[Wallet] Init complete')
           setLoading(false)
         }
       } catch (err: any) {
-        console.error('[Wallet] ❌ Init error:', err)
+        console.error('[Wallet] Init error:', err)
         if (isMounted) {
-          setError(`Gagal memuat data dompet: ${err.message || 'Unknown error'}`)
+          setError(err.message || 'Gagal memuat data dompet')
           setLoading(false)
         }
       }
     }
 
-    // Jalankan init, tapi dengan timeout 8 detik untuk force stop loading
-    const timeoutId = setTimeout(() => {
+    init()
+
+    // Fallback: stop loading setelah 5 detik
+    const timer = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[Wallet] ⏱️ Force stop loading after 8 seconds')
-        setError('Waktu muat habis. Silakan refresh halaman.')
+        console.warn('[Wallet] Force stop loading (timeout)')
+        setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
-    }, 8000)
-
-    init()
+    }, 5000)
 
     return () => {
       isMounted = false
-      clearTimeout(timeoutId)
+      clearTimeout(timer)
     }
-  }, [router, loading])
+  }, []) // <- DEPENDENCY KOSONG! HANYA JALAN SEKALI
 
-  // Generate QRIS
+  // ===== GENERATE QRIS =====
   useEffect(() => {
     if (selectedMethod !== 'qris' || !token || !amount || parseFloat(amount) <= 0) {
       setQrisString(null)
@@ -257,6 +241,7 @@ function WalletContent() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [selectedMethod, amount, token])
 
+  // ===== TOP-UP =====
   const handleTopUp = async () => {
     setSubmitError(null)
     setSuccess(false)
@@ -314,7 +299,7 @@ function WalletContent() {
     }
   }
 
-  // Jika loading, tampilkan spinner
+  // ===== RENDER =====
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -339,12 +324,7 @@ function WalletContent() {
         <Alert variant="destructive">
           <AlertDescription>
             <strong>Error:</strong> {error}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="ml-2"
-              onClick={() => window.location.reload()}
-            >
+            <Button variant="outline" size="sm" className="ml-2" onClick={() => window.location.reload()}>
               Refresh
             </Button>
           </AlertDescription>
