@@ -17,7 +17,7 @@ async function getAuthUser(request: NextRequest) {
   return user
 }
 
-// GET semua config
+// ===== GET =====
 export async function GET(request: NextRequest) {
   const supabase = getSupabase()
   try {
@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Cek admin
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    if (!profile || profile.role !== 'admin') {
+    if (profileError || !profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -41,16 +41,19 @@ export async function GET(request: NextRequest) {
       .from('payment_config')
       .select('config_key, config_value')
 
-    if (error) throw error
+    if (error) {
+      console.error('[Payment Config] Query error:', error)
+      return NextResponse.json({ error: 'Database query failed' }, { status: 500 })
+    }
 
     return NextResponse.json(data || [])
   } catch (error) {
-    console.error('[Payment Config] GET error:', error)
-    return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 })
+    console.error('[Payment Config] GET unhandled error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PUT update multiple config
+// ===== PUT =====
 export async function PUT(request: NextRequest) {
   const supabase = getSupabase()
   try {
@@ -60,22 +63,23 @@ export async function PUT(request: NextRequest) {
     }
 
     // Cek admin
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    if (!profile || profile.role !== 'admin') {
+    if (profileError || !profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { updates } = await request.json()
+    const body = await request.json()
+    const { updates } = body
+
     if (!Array.isArray(updates)) {
       return NextResponse.json({ error: 'updates must be an array' }, { status: 400 })
     }
 
-    // Upsert setiap config
     const results = []
     for (const update of updates) {
       const { data, error } = await supabase
@@ -97,7 +101,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, results })
   } catch (error) {
-    console.error('[Payment Config] PUT error:', error)
-    return NextResponse.json({ error: 'Failed to update config' }, { status: 500 })
+    console.error('[Payment Config] PUT unhandled error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

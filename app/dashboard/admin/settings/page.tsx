@@ -159,111 +159,122 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
 
-  // ===== LOAD CONFIG =====
+  // ===== LOAD CONFIG (LANGSUNG DARI SUPABASE) =====
   useEffect(() => {
-  let isMounted = true
+    let isMounted = true
 
-  const init = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+    const init = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
+        if (!session) {
+          if (isMounted) {
+            setError('Silakan login terlebih dahulu')
+            setLoading(false)
+          }
+          return
+        }
+
+        // Cek role admin
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (!profile || profile.role !== 'admin') {
+          if (isMounted) {
+            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+            setLoading(false)
+          }
+          return
+        }
+
+        // Ambil semua config
+        const { data: rows, error: fetchError } = await supabase
+          .from('payment_config')
+          .select('config_key, config_value')
+
+        if (fetchError) throw new Error(fetchError.message)
+
         if (isMounted) {
-          setError('Silakan login terlebih dahulu')
+          const map: ConfigMap = {}
+          for (const row of rows || []) {
+            map[row.config_key] = row.config_value || ''
+          }
+          setConfig(map)
           setLoading(false)
         }
-        return
+      } catch (err: any) {
+        console.error('[Settings] Error:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat konfigurasi')
+          setLoading(false)
+        }
       }
+    }
 
-      // Cek role admin (via API biar sekalian)
-      const res = await fetch('/api/admin/payment-config', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
+    init()
 
-      if (res.status === 401 || res.status === 403) {
-        throw new Error('Akses ditolak. Hanya admin yang dapat mengakses.')
-      }
-
-      if (!res.ok) throw new Error('Gagal mengambil konfigurasi')
-
-      const rows = await res.json()
-      const map: ConfigMap = {}
-      for (const row of rows) {
-        map[row.config_key] = row.config_value || ''
-      }
-      setConfig(map)
-      setLoading(false)
-    } catch (err: any) {
-      console.error('[Settings] Error:', err)
-      if (isMounted) {
-        setError(err.message || 'Gagal memuat konfigurasi')
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[Settings] Force stop loading (timeout)')
+        setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
     }
-  }
-
-  init()
-
-  const timeout = setTimeout(() => {
-    if (isMounted && loading) {
-      console.warn('[Settings] Force stop loading (timeout)')
-      setError('Waktu muat habis. Silakan refresh.')
-      setLoading(false)
-    }
-  }, 5000)
-
-  return () => {
-    isMounted = false
-    clearTimeout(timeout)
-  }
-}, [])
+  }, [])
 
   // ===== HANDLE CHANGE =====
   const handleChange = useCallback((key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  // ===== SAVE GROUP =====
+  // ===== SAVE GROUP (LANGSUNG KE SUPABASE) =====
   const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
-  setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
+    setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
 
-  try {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('Tidak ada session')
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Tidak ada session')
 
-    const updates = fields.map(f => ({
-      config_key: f.key,
-      config_value: (config[f.key] ?? '').trim(),
-    }))
+      // Upsert setiap field
+      for (const field of fields) {
+        const { error } = await supabase
+          .from('payment_config')
+          .upsert({
+            config_key: field.key,
+            config_value: (config[field.key] ?? '').trim(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'config_key' })
 
-    const res = await fetch('/api/admin/payment-config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ updates }),
-    })
+        if (error) throw error
+      }
 
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error || 'Gagal menyimpan')
+      setSaveStates(prev => ({
+        ...prev,
+        [groupId]: { status: 'success', message: 'Tersimpan!' },
+      }))
 
-    setSaveStates(prev => ({
-      ...prev,
-      [groupId]: { status: 'success', message: 'Tersimpan!' },
-    }))
-
-    setTimeout(() => {
-      setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
-    }, 3000)
-  } catch (e: any) {
-    setSaveStates(prev => ({
-      ...prev,
-      [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
-    }))
+      setTimeout(() => {
+        setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
+      }, 3000)
+    } catch (e: any) {
+      setSaveStates(prev => ({
+        ...prev,
+        [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
+      }))
+    }
   }
-}
 
-  // ===== RENDER LOADING =====
+  // ===== RENDER =====
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -273,7 +284,6 @@ export default function AdminSettingsPage() {
     )
   }
 
-  // ===== RENDER ERROR =====
   if (error) {
     return (
       <Alert variant="destructive" className="max-w-3xl mx-auto">
@@ -287,32 +297,15 @@ export default function AdminSettingsPage() {
     )
   }
 
-  // ===== RENDER =====
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground mb-1">Pengaturan Pembayaran</h1>
         <p className="text-muted-foreground text-sm">
           Atur konfigurasi QRIS, E-Money, dan rekening bank yang digunakan siswa untuk membayar.
-          Semua nilai disimpan secara aman di database dan langsung aktif setelah disimpan.
         </p>
       </div>
 
-      {/* How-to notice */}
-      <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800">
-        <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
-          <p className="font-semibold">Cara penggunaan:</p>
-          <ol className="list-decimal list-inside space-y-0.5 text-xs">
-            <li>Isi kolom-kolom di bawah sesuai akun merchant Anda.</li>
-            <li>Klik <strong>Simpan</strong> per bagian. Perubahan langsung aktif.</li>
-            <li>Untuk QRIS: paste string lengkap dari stiker / aplikasi bank (dimulai <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">000201</code>).</li>
-            <li>Kosongkan kolom untuk metode yang tidak digunakan.</li>
-          </ol>
-        </AlertDescription>
-      </Alert>
-
-      {/* Config groups */}
       {CONFIG_GROUPS.map(group => {
         const saveState = saveStates[group.id] || { status: 'idle' }
         const Icon = group.icon
@@ -334,7 +327,6 @@ export default function AdminSettingsPage() {
             </CardHeader>
 
             <CardContent className="space-y-4">
-              {/* Fields grid */}
               <div className={`grid gap-4 ${group.fields.length > 1 && !isMultiline ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                 {group.fields.map(field => (
                   <ConfigField
@@ -350,7 +342,6 @@ export default function AdminSettingsPage() {
                 ))}
               </div>
 
-              {/* Save feedback */}
               {saveState.status === 'success' && (
                 <Alert className="bg-green-50 border-green-200 py-2">
                   <AlertDescription className="text-green-700 text-sm flex items-center gap-1.5">
@@ -366,7 +357,6 @@ export default function AdminSettingsPage() {
                 </Alert>
               )}
 
-              {/* Save button */}
               <div className="flex justify-end">
                 <Button
                   onClick={() => handleSaveGroup(group.id, group.fields)}
