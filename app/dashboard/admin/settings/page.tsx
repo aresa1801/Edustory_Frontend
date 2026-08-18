@@ -161,78 +161,63 @@ export default function AdminSettingsPage() {
 
   // ===== LOAD CONFIG =====
   useEffect(() => {
-    let isMounted = true
+  let isMounted = true
 
-    const init = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
+  const init = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
 
-        if (!session) {
-          if (isMounted) {
-            setError('Silakan login terlebih dahulu')
-            setLoading(false)
-          }
-          return
-        }
-
-        // Cek role admin
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
-
-        if (!profile || profile.role !== 'admin') {
-          if (isMounted) {
-            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
-            setLoading(false)
-          }
-          return
-        }
-
-        // Ambil semua config dari Supabase langsung
-        const { data: rows, error: fetchError } = await supabase
-          .from('payment_config')
-          .select('config_key, config_value')
-
-        if (fetchError) {
-          throw new Error(fetchError.message)
-        }
-
+      if (!session) {
         if (isMounted) {
-          const map: ConfigMap = {}
-          for (const row of rows || []) {
-            map[row.config_key] = row.config_value || ''
-          }
-          setConfig(map)
+          setError('Silakan login terlebih dahulu')
           setLoading(false)
         }
-      } catch (err: any) {
-        console.error('[Settings] Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Gagal memuat konfigurasi')
-          setLoading(false)
-        }
+        return
       }
-    }
 
-    init()
+      // Cek role admin (via API biar sekalian)
+      const res = await fetch('/api/admin/payment-config', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
 
-    // Timeout 5 detik untuk force stop loading
-    const timeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('[Settings] Force stop loading (timeout)')
-        setError('Waktu muat habis. Silakan refresh.')
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Akses ditolak. Hanya admin yang dapat mengakses.')
+      }
+
+      if (!res.ok) throw new Error('Gagal mengambil konfigurasi')
+
+      const rows = await res.json()
+      const map: ConfigMap = {}
+      for (const row of rows) {
+        map[row.config_key] = row.config_value || ''
+      }
+      setConfig(map)
+      setLoading(false)
+    } catch (err: any) {
+      console.error('[Settings] Error:', err)
+      if (isMounted) {
+        setError(err.message || 'Gagal memuat konfigurasi')
         setLoading(false)
       }
-    }, 5000)
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeout)
     }
-  }, [])
+  }
+
+  init()
+
+  const timeout = setTimeout(() => {
+    if (isMounted && loading) {
+      console.warn('[Settings] Force stop loading (timeout)')
+      setError('Waktu muat habis. Silakan refresh.')
+      setLoading(false)
+    }
+  }, 5000)
+
+  return () => {
+    isMounted = false
+    clearTimeout(timeout)
+  }
+}, [])
 
   // ===== HANDLE CHANGE =====
   const handleChange = useCallback((key: string, value: string) => {
@@ -241,43 +226,42 @@ export default function AdminSettingsPage() {
 
   // ===== SAVE GROUP =====
   const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
-    setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
+  setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
 
-    try {
-      const supabase = createClient()
-      const updates = fields.map(f => ({
-        config_key: f.key,
-        config_value: (config[f.key] ?? '').trim(),
-      }))
+  try {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Tidak ada session')
 
-      // Simpan ke Supabase langsung (upsert)
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('payment_config')
-          .upsert({
-            config_key: update.config_key,
-            config_value: update.config_value,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'config_key' })
+    const updates = fields.map(f => ({
+      config_key: f.key,
+      config_value: (config[f.key] ?? '').trim(),
+    }))
 
-        if (error) throw error
-      }
+    const res = await fetch('/api/admin/payment-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ updates }),
+    })
 
-      setSaveStates(prev => ({
-        ...prev,
-        [groupId]: { status: 'success', message: 'Tersimpan!' },
-      }))
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error || 'Gagal menyimpan')
 
-      setTimeout(() => {
-        setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
-      }, 3000)
-    } catch (e: any) {
-      setSaveStates(prev => ({
-        ...prev,
-        [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
-      }))
-    }
+    setSaveStates(prev => ({
+      ...prev,
+      [groupId]: { status: 'success', message: 'Tersimpan!' },
+    }))
+
+    setTimeout(() => {
+      setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
+    }, 3000)
+  } catch (e: any) {
+    setSaveStates(prev => ({
+      ...prev,
+      [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
+    }))
   }
+}
 
   // ===== RENDER LOADING =====
   if (loading) {

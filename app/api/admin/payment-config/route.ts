@@ -17,21 +17,22 @@ async function getAuthUser(request: NextRequest) {
   return user
 }
 
-// GET: ambil semua config
+// GET semua config
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase()
   try {
     const user = await getAuthUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Cek apakah admin
-    const supabase = getSupabase()
+    // Cek admin
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
+
     if (!profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -39,51 +40,64 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('payment_config')
       .select('config_key, config_value')
-      .order('config_key')
 
     if (error) throw error
-    return NextResponse.json(data)
-  } catch (err: any) {
-    console.error('GET payment-config error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+
+    return NextResponse.json(data || [])
+  } catch (error) {
+    console.error('[Payment Config] GET error:', error)
+    return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 })
   }
 }
 
-// PUT: update config (hanya admin)
+// PUT update multiple config
 export async function PUT(request: NextRequest) {
+  const supabase = getSupabase()
   try {
     const user = await getAuthUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = getSupabase()
+    // Cek admin
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single()
+
     if (!profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { updates } = await request.json()
-    if (!updates || !Array.isArray(updates)) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+    if (!Array.isArray(updates)) {
+      return NextResponse.json({ error: 'updates must be an array' }, { status: 400 })
     }
 
-    // Lakukan upsert
-    for (const item of updates) {
-      const { config_key, config_value } = item
-      if (!config_key) continue
-      await supabase
+    // Upsert setiap config
+    const results = []
+    for (const update of updates) {
+      const { data, error } = await supabase
         .from('payment_config')
-        .upsert({ config_key, config_value }, { onConflict: 'config_key' })
+        .upsert({
+          config_key: update.config_key,
+          config_value: update.config_value,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'config_key' })
+        .select()
+        .single()
+
+      if (error) {
+        results.push({ error: error.message })
+      } else {
+        results.push(data)
+      }
     }
 
-    return NextResponse.json({ success: true })
-  } catch (err: any) {
-    console.error('PUT payment-config error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ success: true, results })
+  } catch (error) {
+    console.error('[Payment Config] PUT error:', error)
+    return NextResponse.json({ error: 'Failed to update config' }, { status: 500 })
   }
 }
