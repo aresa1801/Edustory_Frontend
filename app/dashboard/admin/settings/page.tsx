@@ -153,6 +153,16 @@ function ConfigField({
   )
 }
 
+// ===== AMBIL TOKEN DARI COOKIE =====
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() || null
+  }
+  return null
+}
+
 // ===== MAIN SETTINGS PAGE =====
 export default function AdminSettingsPage() {
   const router = useRouter()
@@ -171,42 +181,62 @@ export default function AdminSettingsPage() {
         const supabase = createClient()
         console.log('[Admin Settings] Supabase client created')
 
-        // === AMBIL SESSION DENGAN TIMEOUT 3 DETIK ===
-        console.log('[Admin Settings] Getting session with timeout...')
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
-
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        console.log('[Admin Settings] Session received:', !!session)
-
-        if (!session) {
-          console.log('[Admin Settings] No session, redirect')
-          if (isMounted) {
-            setError('Silakan login terlebih dahulu')
-            setLoading(false)
-            router.push('/auth/login')
+        // === AMBIL TOKEN DARI COOKIE ===
+        const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
+        let token: string | null = null
+        
+        // Coba cari token di cookie
+        for (const name of cookieNames) {
+          const val = getCookie(name)
+          if (val) {
+            try {
+              const parsed = JSON.parse(decodeURIComponent(val))
+              if (parsed?.access_token) {
+                token = parsed.access_token
+                break
+              }
+            } catch {}
           }
-          return
         }
 
-        console.log('[Admin Settings] Session OK, user:', session.user.email)
+        // Jika tidak ketemu, coba di localStorage
+        if (!token) {
+          const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+          if (tokenKey) {
+            const raw = localStorage.getItem(tokenKey)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                token = parsed.access_token
+              }
+            }
+          }
+        }
+
+        if (!token) {
+          throw new Error('Token tidak ditemukan. Silakan login ulang.')
+        }
+
+        console.log('[Admin Settings] Token found, verifying user...')
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+        if (userError || !user) {
+          throw new Error(userError?.message || 'User tidak valid')
+        }
+        console.log('[Admin Settings] User verified:', user.email)
 
         // === CEK ADMIN ===
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .maybeSingle()
 
         if (profileError) {
-          console.error('[Admin Settings] Profile error:', profileError)
           throw new Error('Gagal cek profil: ' + profileError.message)
         }
 
         if (!profile || profile.role !== 'admin') {
-          throw new Error('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+          throw new Error('Akses ditolak. Hanya admin.')
         }
         console.log('[Admin Settings] Is admin')
 
@@ -223,17 +253,13 @@ export default function AdminSettingsPage() {
             map[row.config_key] = row.config_value || ''
           }
           setConfig(map)
-          console.log('[Admin Settings] Config loaded, keys:', Object.keys(map).length)
+          console.log('[Admin Settings] Config loaded')
           setLoading(false)
         }
       } catch (err: any) {
         console.error('[Admin Settings] Error:', err)
         if (isMounted) {
-          if (err.message === 'Session timeout') {
-            setError('Waktu session habis atau koneksi lambat. Silakan refresh atau login ulang.')
-          } else {
-            setError(err.message || 'Gagal memuat konfigurasi')
-          }
+          setError(err.message || 'Gagal memuat konfigurasi')
           setLoading(false)
         }
       }
@@ -241,7 +267,6 @@ export default function AdminSettingsPage() {
 
     init()
 
-    // Timeout 5 detik untuk force stop loading
     timeoutId = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[Admin Settings] FORCE STOP LOADING (timeout)')
@@ -254,7 +279,7 @@ export default function AdminSettingsPage() {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [router])
+  }, [])
 
   const handleChange = (key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }))
@@ -265,13 +290,35 @@ export default function AdminSettingsPage() {
 
     try {
       const supabase = createClient()
-      // Ambil session lagi dengan timeout
-      const sessionPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Session timeout')), 3000)
-      )
-      const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-      if (!session) throw new Error('Tidak ada session')
+      // Ambil token lagi
+      let token: string | null = null
+      const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
+      for (const name of cookieNames) {
+        const val = getCookie(name)
+        if (val) {
+          try {
+            const parsed = JSON.parse(decodeURIComponent(val))
+            if (parsed?.access_token) {
+              token = parsed.access_token
+              break
+            }
+          } catch {}
+        }
+      }
+      if (!token) {
+        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+        if (tokenKey) {
+          const raw = localStorage.getItem(tokenKey)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) token = parsed.access_token
+          }
+        }
+      }
+      if (!token) throw new Error('Token tidak ditemukan')
+
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (!user) throw new Error('User tidak valid')
 
       // Upsert setiap field
       for (const field of fields) {
