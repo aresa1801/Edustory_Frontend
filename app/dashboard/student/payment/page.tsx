@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -117,15 +117,33 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // Ref untuk mencegah multiple fetch
+  const fetched = useRef(false)
+
   useEffect(() => {
+    // Cegah multiple fetch
+    if (fetched.current) return
+    fetched.current = true
+
     let isMounted = true
 
     const init = async () => {
       try {
+        console.log('[Wallet] 🔄 Initializing...')
         const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          console.error('[Wallet] Session error:', sessionError)
+          if (isMounted) {
+            setError('Gagal mendapatkan session: ' + sessionError.message)
+            setLoading(false)
+          }
+          return
+        }
 
         if (!session) {
+          console.log('[Wallet] No session, redirecting to login')
           if (isMounted) {
             setLoading(false)
             router.push('/auth/login')
@@ -133,59 +151,89 @@ function WalletContent() {
           return
         }
 
-        setToken(session.access_token)
+        console.log('[Wallet] ✅ Session OK, user:', session.user?.email)
+        const accessToken = session.access_token
+        setToken(accessToken)
 
-        // 1. Ambil saldo
+        // --- 1. Ambil saldo ---
         try {
+          console.log('[Wallet] Fetching balance...')
           const res = await fetch('/api/wallet/balance', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
+            headers: { Authorization: `Bearer ${accessToken}` },
           })
           const data = await res.json()
+          console.log('[Wallet] Balance response:', res.status, data)
           if (res.ok && isMounted) {
             setBalance(data.balance ?? 0)
           } else if (isMounted) {
-            console.warn('Balance API error:', data.error)
-            // tetap pakai balance 0
+            // Tampilkan error tapi lanjut dengan balance 0
+            setError(`Gagal ambil saldo: ${data.error || 'Unknown error'}`)
           }
         } catch (err) {
-          console.warn('Balance fetch error:', err)
+          console.error('[Wallet] Balance fetch error:', err)
+          if (isMounted) {
+            setError('Gagal terhubung ke server saldo. Silakan refresh.')
+          }
         }
 
-        // 2. Ambil config (pakai Supabase langsung)
-        const { data: cfgRows, error: cfgError } = await supabase
-          .from('payment_config')
-          .select('config_key, config_value')
-        if (!cfgError && cfgRows && isMounted) {
-          const cfgMap: PaymentConfig = {}
-          for (const row of cfgRows) cfgMap[row.config_key] = row.config_value
-          setConfig(cfgMap)
+        // --- 2. Ambil config ---
+        try {
+          const { data: cfgRows, error: cfgError } = await supabase
+            .from('payment_config')
+            .select('config_key, config_value')
+          if (!cfgError && cfgRows && isMounted) {
+            const cfgMap: PaymentConfig = {}
+            for (const row of cfgRows) cfgMap[row.config_key] = row.config_value
+            setConfig(cfgMap)
+          }
+        } catch (err) {
+          console.warn('[Wallet] Config fetch error:', err)
         }
 
-        // 3. Ambil riwayat top-up (pakai Supabase langsung)
-        const { data: payRows, error: payError } = await supabase
-          .from('payment_deposits')
-          .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-          .eq('payment_type', 'topup')
-          .order('created_at', { ascending: false })
-          .limit(20)
-
-        if (!payError && payRows && isMounted) {
-          setHistory(payRows as TopUpHistory[])
+        // --- 3. Ambil riwayat top-up ---
+        try {
+          const { data: payRows, error: payError } = await supabase
+            .from('payment_deposits')
+            .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
+            .eq('payment_type', 'topup')
+            .order('created_at', { ascending: false })
+            .limit(20)
+          if (!payError && payRows && isMounted) {
+            setHistory(payRows as TopUpHistory[])
+          }
+        } catch (err) {
+          console.warn('[Wallet] History fetch error:', err)
         }
 
-        if (isMounted) setLoading(false)
-      } catch (err: any) {
-        console.error('Init error:', err)
         if (isMounted) {
-          setError('Gagal memuat data dompet. Silakan refresh halaman.')
+          console.log('[Wallet] ✅ Initialization complete')
+          setLoading(false)
+        }
+      } catch (err: any) {
+        console.error('[Wallet] ❌ Init error:', err)
+        if (isMounted) {
+          setError(`Gagal memuat data dompet: ${err.message || 'Unknown error'}`)
           setLoading(false)
         }
       }
     }
 
+    // Jalankan init, tapi dengan timeout 8 detik untuk force stop loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[Wallet] ⏱️ Force stop loading after 8 seconds')
+        setError('Waktu muat habis. Silakan refresh halaman.')
+        setLoading(false)
+      }
+    }, 8000)
+
     init()
-    return () => { isMounted = false }
-  }, [router])
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [router, loading])
 
   // Generate QRIS
   useEffect(() => {
@@ -266,6 +314,7 @@ function WalletContent() {
     }
   }
 
+  // Jika loading, tampilkan spinner
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -288,7 +337,17 @@ function WalletContent() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            <strong>Error:</strong> {error}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2"
+              onClick={() => window.location.reload()}
+            >
+              Refresh
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -386,6 +445,7 @@ function WalletContent() {
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
                   alt="QRIS"
                   className="w-52 h-52 rounded-lg border"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                 />
                 <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
               </div>
