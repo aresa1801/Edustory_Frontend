@@ -161,75 +161,79 @@ export default function AdminSettingsPage() {
 
   // ===== LOAD CONFIG (LANGSUNG DARI SUPABASE) =====
   useEffect(() => {
-    let isMounted = true
+  let isMounted = true
 
-    const init = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
+  const init = async () => {
+    console.log('[Admin Settings] Init start')
+    try {
+      const supabase = createClient()
+      console.log('[Admin Settings] Supabase client created')
 
-        if (!session) {
-          if (isMounted) {
-            setError('Silakan login terlebih dahulu')
-            setLoading(false)
-          }
-          return
-        }
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('[Admin Settings] Session:', session?.user?.email, 'Error:', sessionError)
 
-        // Cek role admin
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
-
-        if (!profile || profile.role !== 'admin') {
-          if (isMounted) {
-            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
-            setLoading(false)
-          }
-          return
-        }
-
-        // Ambil semua config
-        const { data: rows, error: fetchError } = await supabase
-          .from('payment_config')
-          .select('config_key, config_value')
-
-        if (fetchError) throw new Error(fetchError.message)
-
-        if (isMounted) {
-          const map: ConfigMap = {}
-          for (const row of rows || []) {
-            map[row.config_key] = row.config_value || ''
-          }
-          setConfig(map)
-          setLoading(false)
-        }
-      } catch (err: any) {
-        console.error('[Settings] Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Gagal memuat konfigurasi')
-          setLoading(false)
-        }
+      if (sessionError) {
+        throw new Error('Session error: ' + sessionError.message)
       }
-    }
 
-    init()
+      if (!session) {
+        setError('Silakan login terlebih dahulu')
+        setLoading(false)
+        return
+      }
 
-    const timeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('[Settings] Force stop loading (timeout)')
-        setError('Waktu muat habis. Silakan refresh.')
+      // Cek role admin
+      console.log('[Admin Settings] Checking admin role...')
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+
+      console.log('[Admin Settings] Profile:', profile, 'Error:', profileError)
+
+      if (profileError) {
+        throw new Error('Gagal mengambil profil: ' + profileError.message)
+      }
+
+      if (!profile || profile.role !== 'admin') {
+        setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+        setLoading(false)
+        return
+      }
+
+      // Ambil semua config
+      console.log('[Admin Settings] Fetching payment_config...')
+      const { data: rows, error: fetchError } = await supabase
+        .from('payment_config')
+        .select('config_key, config_value')
+
+      console.log('[Admin Settings] Rows:', rows?.length, 'Error:', fetchError)
+
+      if (fetchError) {
+        throw new Error('Gagal mengambil konfigurasi: ' + fetchError.message)
+      }
+
+      if (isMounted) {
+        const map: ConfigMap = {}
+        for (const row of rows || []) {
+          map[row.config_key] = row.config_value || ''
+        }
+        setConfig(map)
+        setLoading(false)
+        console.log('[Admin Settings] Done loading')
+      }
+    } catch (err: any) {
+      console.error('[Admin Settings] Error:', err)
+      if (isMounted) {
+        setError(err.message || 'Gagal memuat konfigurasi')
         setLoading(false)
       }
-    }, 5000)
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeout)
     }
-  }, [])
+  }
+
+  init()
+}, []) // <- dependency kosong
 
   // ===== HANDLE CHANGE =====
   const handleChange = useCallback((key: string, value: string) => {
