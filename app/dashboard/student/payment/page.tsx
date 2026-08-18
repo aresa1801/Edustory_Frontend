@@ -8,22 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/auth'
-import {
-  QrCode,
-  Building2,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  Copy,
-  Check,
-  Wallet,
-} from 'lucide-react'
-
-// ========== TYPES ==========
-interface PaymentConfig {
-  [key: string]: string
-}
+import { QrCode, Clock, CheckCircle2, XCircle, RefreshCw, Copy, Check, Wallet } from 'lucide-react'
 
 interface TopUpHistory {
   id: string
@@ -34,24 +19,6 @@ interface TopUpHistory {
   transaction_ref: string | null
 }
 
-// ========== CONSTANTS ==========
-const EMONEY_METHODS = [
-  { id: 'gopay', label: 'GoPay', emoji: '💚' },
-  { id: 'ovo', label: 'OVO', emoji: '💜' },
-  { id: 'dana', label: 'DANA', emoji: '💙' },
-  { id: 'shopeepay', label: 'ShopeePay', emoji: '🧡' },
-  { id: 'linkaja', label: 'LinkAja', emoji: '❤️' },
-]
-
-const BANK_METHODS = [
-  { id: 'bca', label: 'BCA' },
-  { id: 'bni', label: 'BNI' },
-  { id: 'bri', label: 'BRI' },
-  { id: 'mandiri', label: 'Mandiri' },
-  { id: 'permata', label: 'Permata' },
-  { id: 'cimb', label: 'CIMB Niaga' },
-]
-
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   pending: { label: 'Menunggu Konfirmasi', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock },
   paid: { label: 'Berhasil', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle2 },
@@ -60,78 +27,31 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
   refunded: { label: 'Dikembalikan', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: RefreshCw },
 }
 
-// ========== COMPONENT ACCOUNT INFO ==========
-function AccountInfo({ config, method }: { config: PaymentConfig; method: string }) {
-  const [copied, setCopied] = useState(false)
-  const accountNum = config[`${method}_number`] || config[`${method}_name`] || '-'
-  const accountName = config[`${method}_name`] || ''
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(accountNum)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  if (!config[`${method}_number`] && !config[`${method}_name`]) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>Akun {method.toUpperCase()} belum dikonfigurasi oleh admin.</AlertDescription>
-      </Alert>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="p-4 bg-slate-50 rounded-xl space-y-2">
-        <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Nomor Akun / Rekening</p>
-        <div className="flex items-center gap-2">
-          <p className="text-xl font-bold text-slate-800">{accountNum}</p>
-          <Button size="sm" variant="ghost" onClick={handleCopy}>
-            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-slate-400" />}
-          </Button>
-        </div>
-        {accountName && accountNum !== accountName && (
-          <p className="text-sm text-slate-600">a.n. {accountName}</p>
-        )}
-      </div>
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-700 text-sm">
-          💡 Transfer tepat sesuai nominal. Setelah transfer, klik "Top Up Sekarang" untuk mengisi saldo.
-        </AlertDescription>
-      </Alert>
-    </div>
-  )
-}
-
-// ========== MAIN COMPONENT ==========
 function WalletContent() {
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
   const [balance, setBalance] = useState<number>(0)
-  const [config, setConfig] = useState<PaymentConfig>({})
   const [history, setHistory] = useState<TopUpHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [amount, setAmount] = useState<string>('')
-  const [selectedMethod, setSelectedMethod] = useState<string>('linkaja') // default LinkAja
   const [qrisString, setQrisString] = useState<string | null>(null)
+  const [qrisLoading, setQrisLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // ===== INISIALISASI =====
+  // Inisialisasi
   useEffect(() => {
     let isMounted = true
 
     const init = async () => {
       try {
-        console.log('[Wallet] Init started')
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!session) {
-          console.log('[Wallet] No session, redirect')
           if (isMounted) {
             setLoading(false)
             router.push('/auth/login')
@@ -139,42 +59,21 @@ function WalletContent() {
           return
         }
 
-        console.log('[Wallet] Session OK, user:', session.user.email)
         const accessToken = session.access_token
         setToken(accessToken)
 
-        // 1. Ambil saldo
+        // Ambil saldo
         try {
           const res = await fetch('/api/wallet/balance', {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
           const data = await res.json()
-          console.log('[Wallet] Balance response:', res.status, data)
-          if (res.ok && isMounted) {
-            setBalance(data.balance ?? 0)
-          } else if (isMounted) {
-            setError(`Gagal ambil saldo: ${data.error || 'Unknown error'}`)
-          }
+          if (res.ok && isMounted) setBalance(data.balance ?? 0)
         } catch (err) {
-          console.error('[Wallet] Balance fetch error:', err)
-          if (isMounted) setError('Gagal terhubung ke server saldo.')
+          console.error('Balance fetch error:', err)
         }
 
-        // 2. Ambil config
-        try {
-          const { data: cfgRows } = await supabase
-            .from('payment_config')
-            .select('config_key, config_value')
-          if (cfgRows && isMounted) {
-            const cfgMap: PaymentConfig = {}
-            for (const row of cfgRows) cfgMap[row.config_key] = row.config_value
-            setConfig(cfgMap)
-          }
-        } catch (err) {
-          console.warn('[Wallet] Config fetch error:', err)
-        }
-
-        // 3. Ambil riwayat
+        // Ambil riwayat top-up
         try {
           const { data: payRows } = await supabase
             .from('payment_deposits')
@@ -182,21 +81,16 @@ function WalletContent() {
             .eq('payment_type', 'topup')
             .order('created_at', { ascending: false })
             .limit(20)
-          if (payRows && isMounted) {
-            setHistory(payRows as TopUpHistory[])
-          }
+          if (payRows && isMounted) setHistory(payRows as TopUpHistory[])
         } catch (err) {
-          console.warn('[Wallet] History fetch error:', err)
+          console.warn('History fetch error:', err)
         }
 
-        if (isMounted) {
-          console.log('[Wallet] Init complete')
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       } catch (err: any) {
-        console.error('[Wallet] Init error:', err)
+        console.error('Init error:', err)
         if (isMounted) {
-          setError(err.message || 'Gagal memuat data dompet')
+          setError('Gagal memuat data dompet')
           setLoading(false)
         }
       }
@@ -206,7 +100,6 @@ function WalletContent() {
 
     const timer = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[Wallet] Force stop loading (timeout)')
         setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
@@ -216,65 +109,74 @@ function WalletContent() {
       isMounted = false
       clearTimeout(timer)
     }
-  }, [])
+  }, [router])
 
-  // ===== GENERATE QRIS =====
+  // Generate QRIS
   useEffect(() => {
-    // Reset QRIS jika bukan qris
-    if (selectedMethod !== 'qris') {
-      setQrisString(null)
-      return
-    }
-    
     if (!token || !amount || parseFloat(amount) <= 0) {
       setQrisString(null)
+      setQrisLoading(false)
       return
     }
-    
+
     let cancelled = false
+    setQrisLoading(true)
+
     const generate = async () => {
       try {
-        console.log('[Wallet] Generating QRIS for amount:', amount)
         const res = await fetch('/api/payments/qris', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
         })
         const json = await res.json()
-        if (!cancelled && res.ok) {
-          console.log('[Wallet] QRIS generated successfully')
-          setQrisString(json.dynamicQris)
-        } else if (!cancelled) {
-          console.error('[Wallet] QRIS generation failed:', json.error)
-          setQrisString(null)
+        if (!cancelled) {
+          if (res.ok && json.dynamicQris) {
+            setQrisString(json.dynamicQris)
+          } else {
+            console.error('QRIS generation failed:', json.error)
+            setQrisString(null)
+          }
+          setQrisLoading(false)
         }
       } catch (err) {
-        console.error('[Wallet] QRIS generation error:', err)
-        setQrisString(null)
+        console.error('QRIS generation error:', err)
+        if (!cancelled) {
+          setQrisString(null)
+          setQrisLoading(false)
+        }
       }
     }
-    
-    const timer = setTimeout(generate, 600)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [selectedMethod, amount, token])
 
-  // ===== TOP-UP =====
+    const timeoutId = setTimeout(() => {
+      if (!cancelled && qrisLoading) {
+        console.warn('QRIS generation timeout')
+        setQrisString(null)
+        setQrisLoading(false)
+      }
+    }, 5000)
+
+    const timer = setTimeout(generate, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      clearTimeout(timeoutId)
+    }
+  }, [amount, token])
+
+  // Top-up
   const handleTopUp = async () => {
-    console.log('[Wallet] Top-up button clicked')
     setSubmitError(null)
     setSuccess(false)
-    
     const parsed = parseFloat(amount)
     if (!parsed || parsed <= 0) {
       setSubmitError('Masukkan nominal yang valid (minimal Rp 1.000)')
       return
     }
 
-    // Ambil session SEGAR
     const supabase = createClient()
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
-    if (sessionError || !session) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
       setSubmitError('Sesi habis, silakan login ulang')
       router.push('/auth/login')
       return
@@ -285,7 +187,6 @@ function WalletContent() {
 
     setSubmitting(true)
     try {
-      console.log('[Wallet] Sending top-up request...')
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: {
@@ -294,19 +195,14 @@ function WalletContent() {
         },
         body: JSON.stringify({
           amount: Math.round(parsed),
-          paymentMethod: selectedMethod,
-          qrisDynamicString: selectedMethod === 'qris' ? qrisString : undefined,
+          paymentMethod: 'qris',
+          qrisDynamicString: qrisString,
           transactionRef: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
           isTopup: true,
         }),
       })
-      
       const json = await res.json()
-      console.log('[Wallet] Top-up response:', res.status, json)
-      
-      if (!res.ok) {
-        throw new Error(json.error || 'Gagal melakukan top-up')
-      }
+      if (!res.ok) throw new Error(json.error || 'Gagal melakukan top-up')
 
       setSuccess(true)
 
@@ -315,10 +211,7 @@ function WalletContent() {
         headers: { Authorization: `Bearer ${freshToken}` },
       })
       const balanceData = await balanceRes.json()
-      if (balanceRes.ok) {
-        setBalance(balanceData.balance ?? 0)
-        console.log('[Wallet] New balance:', balanceData.balance)
-      }
+      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
       // Refresh riwayat
       const { data: newHistory } = await supabase
@@ -327,23 +220,17 @@ function WalletContent() {
         .eq('payment_type', 'topup')
         .order('created_at', { ascending: false })
         .limit(20)
-      if (newHistory) {
-        setHistory(newHistory as TopUpHistory[])
-      }
+      if (newHistory) setHistory(newHistory as TopUpHistory[])
 
-      // Reset form
       setAmount('')
       setQrisString(null)
-      
     } catch (e: any) {
-      console.error('[Wallet] Top-up error:', e)
       setSubmitError(e.message)
     } finally {
       setSubmitting(false)
     }
   }
 
-  // ===== RENDER =====
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -353,8 +240,6 @@ function WalletContent() {
     )
   }
 
-  const nominal = parseFloat(amount) || 0
-
   return (
     <div className="space-y-6 max-w-2xl mx-auto p-4">
       <div>
@@ -362,7 +247,7 @@ function WalletContent() {
           <Wallet className="h-6 w-6" /> Dompet Saya
         </h1>
         <p className="text-muted-foreground text-sm">
-          Isi saldo untuk memulai sesi belajar. Saldo akan digunakan untuk membayar setiap sesi.
+          Isi saldo dengan QRIS. Saldo akan digunakan untuk membayar setiap sesi belajar.
         </p>
       </div>
 
@@ -390,7 +275,7 @@ function WalletContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Isi Saldo</CardTitle>
+          <CardTitle className="text-base">Isi Saldo dengan QRIS</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -400,93 +285,28 @@ function WalletContent() {
               min={1000}
               step={1000}
               value={amount}
-              onChange={(e) => {
-                const val = e.target.value
-                setAmount(val)
-                // Reset QRIS jika amount berubah
-                if (selectedMethod === 'qris') {
-                  setQrisString(null)
-                }
-              }}
+              onChange={(e) => setAmount(e.target.value)}
               placeholder="Contoh: 100000"
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Metode Pembayaran</label>
-            <button
-              onClick={() => {
-                setSelectedMethod('qris')
-                setQrisString(null)
-              }}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
-                selectedMethod === 'qris'
-                  ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <QrCode className="w-5 h-5 flex-shrink-0" />
-              <div>
-                <p className="font-medium text-sm">QRIS</p>
-                <p className="text-xs text-muted-foreground">GoPay, OVO, DANA, ShopeePay, dll</p>
-              </div>
-            </button>
-
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">E-Money / Dompet Digital</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {EMONEY_METHODS.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setSelectedMethod(m.id)
-                    setQrisString(null)
-                  }}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
-                    selectedMethod === m.id
-                      ? 'border-primary bg-primary/5 text-primary font-medium'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <span>{m.emoji}</span> {m.label}
-                </button>
-              ))}
-            </div>
-
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide pt-1">Transfer Bank</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {BANK_METHODS.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setSelectedMethod(m.id)
-                    setQrisString(null)
-                  }}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
-                    selectedMethod === m.id
-                      ? 'border-primary bg-primary/5 text-primary font-medium'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <Building2 className="w-4 h-4 flex-shrink-0" /> {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* QRIS / Account Info */}
-          {nominal > 0 && (
+          {parseFloat(amount) > 0 && (
             <div className="border border-border rounded-xl p-4 bg-muted/20">
               <p className="text-sm font-medium mb-3">
-                {selectedMethod === 'qris' ? 'Scan QRIS' : 'Transfer ke rekening berikut'} sebesar{' '}
+                Scan QRIS untuk membayar{' '}
                 <span className="text-primary font-bold">
-                  Rp {nominal.toLocaleString('id-ID')}
+                  Rp {Number(parseFloat(amount)).toLocaleString('id-ID')}
                 </span>
               </p>
-              
-              {selectedMethod === 'qris' ? (
-                qrisString ? (
-                  <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center">
+                {qrisLoading ? (
+                  <div className="flex flex-col items-center py-4">
+                    <Spinner className="h-8 w-8" />
+                    <p className="text-xs text-muted-foreground mt-2">Menghasilkan QRIS...</p>
+                  </div>
+                ) : qrisString ? (
+                  <>
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
                       alt="QRIS"
@@ -494,16 +314,13 @@ function WalletContent() {
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                     />
                     <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
-                  </div>
+                  </>
                 ) : (
-                  <div className="flex justify-center py-4">
-                    <Spinner className="h-6 w-6" />
-                    <span className="ml-2 text-sm text-muted-foreground">Menghasilkan QRIS...</span>
-                  </div>
-                )
-              ) : (
-                <AccountInfo config={config} method={selectedMethod} />
-              )}
+                  <Alert variant="destructive" className="w-full">
+                    <AlertDescription>Gagal membuat QRIS. Coba nominal lain atau refresh.</AlertDescription>
+                  </Alert>
+                )}
+              </div>
             </div>
           )}
 
@@ -523,7 +340,7 @@ function WalletContent() {
 
           <Button
             onClick={handleTopUp}
-            disabled={submitting || nominal <= 0}
+            disabled={submitting || !parseFloat(amount) || parseFloat(amount) <= 0}
             className="w-full"
           >
             {submitting ? (
