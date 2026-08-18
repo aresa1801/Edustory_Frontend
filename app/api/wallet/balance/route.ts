@@ -1,11 +1,27 @@
-import { createClient } from '@/lib/auth'
-import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+async function getAuthUser(request: NextRequest) {
+  const supabase = getSupabase()
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) return null
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) return null
+  return user
+}
+
+export async function GET(request: NextRequest) {
+  const supabase = getSupabase()
   try {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const user = await getAuthUser(request)
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -13,7 +29,7 @@ export async function GET() {
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('id')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (studentError || !student) {
@@ -47,6 +63,7 @@ export async function GET() {
 
     return NextResponse.json({ balance: wallet.balance })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('Balance API error:', err)
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }
