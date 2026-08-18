@@ -1,29 +1,14 @@
-'use client'
-
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { createClient } from '@/lib/auth'
-import {
-  QrCode,
-  Smartphone,
-  Building2,
-  Save,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-} from 'lucide-react'
+import { QrCode, Smartphone, Building2, Save, CheckCircle2, AlertCircle } from 'lucide-react'
 
 // ===== TYPES =====
 type ConfigMap = Record<string, string>
-
-interface SaveState {
-  status: 'idle' | 'saving' | 'success' | 'error'
-  message?: string
-}
 
 interface FieldConfig {
   key: string
@@ -106,352 +91,207 @@ const CONFIG_GROUPS: ConfigGroup[] = [
   },
 ]
 
-// ===== FIELD COMPONENT =====
-function ConfigField({
-  fieldKey,
-  label,
-  placeholder,
-  hint,
-  multiline,
-  value,
-  onChange,
-}: {
-  fieldKey: string
-  label: string
-  placeholder: string
-  hint?: string
-  multiline?: boolean
-  value: string
-  onChange: (key: string, val: string) => void
-}) {
-  const baseClass =
-    'w-full border border-border rounded-lg px-3 py-2 text-sm bg-background ' +
-    'focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono'
-
-  return (
-    <div className="space-y-1">
-      <label className="text-sm font-medium text-foreground">{label}</label>
-      {multiline ? (
-        <textarea
-          rows={3}
-          value={value}
-          onChange={e => onChange(fieldKey, e.target.value)}
-          placeholder={placeholder}
-          className={`${baseClass} resize-y`}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={e => onChange(fieldKey, e.target.value)}
-          placeholder={placeholder}
-          className={baseClass}
-        />
-      )}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
+// ===== SERVER ACTION =====
+async function saveConfig(formData: FormData) {
+  'use server'
+  
+  const cookieStore = cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) { return cookieStore.get(name)?.value },
+        set(name, value, options) { cookieStore.set({ name, value, ...options }) },
+        remove(name, options) { cookieStore.set({ name, value: '', ...options }) },
+      },
+    }
   )
+
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Unauthorized')
+  }
+
+  // Cek admin
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single()
+
+  if (!profile || profile.role !== 'admin') {
+    throw new Error('Forbidden')
+  }
+
+  // Kumpulkan semua config dari form
+  const updates: { key: string; value: string }[] = []
+  for (const group of CONFIG_GROUPS) {
+    for (const field of group.fields) {
+      const value = formData.get(field.key) as string || ''
+      updates.push({ key: field.key, value: value.trim() })
+    }
+  }
+
+  // Upsert ke database
+  for (const update of updates) {
+    const { error } = await supabase
+      .from('payment_config')
+      .upsert({
+        config_key: update.key,
+        config_value: update.value,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'config_key' })
+    if (error) throw error
+  }
+
+  revalidatePath('/dashboard/admin/settings')
 }
 
-// ===== AMBIL TOKEN DARI COOKIE =====
-function getCookie(name: string): string | null {
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift() || null
-  }
-  return null
-}
-
-// ===== MAIN SETTINGS PAGE =====
-export default function AdminSettingsPage() {
-  const router = useRouter()
-  const [config, setConfig] = useState<ConfigMap>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
-
-  useEffect(() => {
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
-
-    const init = async () => {
-      console.log('[Admin Settings] Init start')
-      try {
-        const supabase = createClient()
-        console.log('[Admin Settings] Supabase client created')
-
-        // === AMBIL TOKEN DARI COOKIE ===
-        const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
-        let token: string | null = null
-        
-        // Coba cari token di cookie
-        for (const name of cookieNames) {
-          const val = getCookie(name)
-          if (val) {
-            try {
-              const parsed = JSON.parse(decodeURIComponent(val))
-              if (parsed?.access_token) {
-                token = parsed.access_token
-                break
-              }
-            } catch {}
-          }
-        }
-
-        // Jika tidak ketemu, coba di localStorage
-        if (!token) {
-          const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
-          if (tokenKey) {
-            const raw = localStorage.getItem(tokenKey)
-            if (raw) {
-              const parsed = JSON.parse(raw)
-              if (parsed?.access_token) {
-                token = parsed.access_token
-              }
-            }
-          }
-        }
-
-        if (!token) {
-          throw new Error('Token tidak ditemukan. Silakan login ulang.')
-        }
-
-        console.log('[Admin Settings] Token found, verifying user...')
-        const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-        if (userError || !user) {
-          throw new Error(userError?.message || 'User tidak valid')
-        }
-        console.log('[Admin Settings] User verified:', user.email)
-
-        // === CEK ADMIN ===
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (profileError) {
-          throw new Error('Gagal cek profil: ' + profileError.message)
-        }
-
-        if (!profile || profile.role !== 'admin') {
-          throw new Error('Akses ditolak. Hanya admin.')
-        }
-        console.log('[Admin Settings] Is admin')
-
-        // === FETCH CONFIG ===
-        const { data: rows, error: fetchError } = await supabase
-          .from('payment_config')
-          .select('config_key, config_value')
-
-        if (fetchError) throw new Error(fetchError.message)
-
-        if (isMounted) {
-          const map: ConfigMap = {}
-          for (const row of rows || []) {
-            map[row.config_key] = row.config_value || ''
-          }
-          setConfig(map)
-          console.log('[Admin Settings] Config loaded')
-          setLoading(false)
-        }
-      } catch (err: any) {
-        console.error('[Admin Settings] Error:', err)
-        if (isMounted) {
-          setError(err.message || 'Gagal memuat konfigurasi')
-          setLoading(false)
-        }
-      }
+// ===== SERVER COMPONENT =====
+export default async function AdminSettingsPage() {
+  const cookieStore = cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) { return cookieStore.get(name)?.value },
+        set(name, value, options) { cookieStore.set({ name, value, ...options }) },
+        remove(name, options) { cookieStore.set({ name, value: '', ...options }) },
+      },
     }
+  )
 
-    init()
-
-    timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('[Admin Settings] FORCE STOP LOADING (timeout)')
-        setError('Waktu muat habis. Silakan refresh atau cek koneksi database.')
-        setLoading(false)
-      }
-    }, 5000)
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-    }
-  }, [])
-
-  const handleChange = (key: string, value: string) => {
-    setConfig(prev => ({ ...prev, [key]: value }))
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    redirect('/auth/login')
   }
 
-  const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
-    setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
+  // Cek admin
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single()
 
-    try {
-      const supabase = createClient()
-      // Ambil token lagi
-      let token: string | null = null
-      const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
-      for (const name of cookieNames) {
-        const val = getCookie(name)
-        if (val) {
-          try {
-            const parsed = JSON.parse(decodeURIComponent(val))
-            if (parsed?.access_token) {
-              token = parsed.access_token
-              break
-            }
-          } catch {}
-        }
-      }
-      if (!token) {
-        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
-        if (tokenKey) {
-          const raw = localStorage.getItem(tokenKey)
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            if (parsed?.access_token) token = parsed.access_token
-          }
-        }
-      }
-      if (!token) throw new Error('Token tidak ditemukan')
-
-      const { data: { user } } = await supabase.auth.getUser(token)
-      if (!user) throw new Error('User tidak valid')
-
-      // Upsert setiap field
-      for (const field of fields) {
-        const { error } = await supabase
-          .from('payment_config')
-          .upsert({
-            config_key: field.key,
-            config_value: (config[field.key] ?? '').trim(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'config_key' })
-
-        if (error) throw error
-      }
-
-      setSaveStates(prev => ({
-        ...prev,
-        [groupId]: { status: 'success', message: 'Tersimpan!' },
-      }))
-
-      setTimeout(() => {
-        setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
-      }, 3000)
-    } catch (e: any) {
-      setSaveStates(prev => ({
-        ...prev,
-        [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
-      }))
-    }
+  if (!profile || profile.role !== 'admin') {
+    redirect('/dashboard')
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Spinner className="h-10 w-10 text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">Memuat pengaturan pembayaran...</p>
-      </div>
-    )
+  // Ambil config
+  const { data: rows } = await supabase
+    .from('payment_config')
+    .select('config_key, config_value')
+
+  const configMap: ConfigMap = {}
+  for (const row of rows || []) {
+    configMap[row.config_key] = row.config_value || ''
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive" className="max-w-3xl mx-auto">
-        <AlertDescription>
-          <strong>Error:</strong> {error}
-          <Button variant="outline" size="sm" className="ml-2" onClick={() => window.location.reload()}>
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" className="ml-2" onClick={() => router.push('/auth/login')}>
-            Login Ulang
-          </Button>
-        </AlertDescription>
-      </Alert>
-    )
-  }
+  // Cek apakah ada data QRIS yang tersimpan (untuk menampilkan notifikasi)
+  const hasQris = configMap['qris_static_string']?.length > 0
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground mb-1">Pengaturan Pembayaran</h1>
         <p className="text-muted-foreground text-sm">
-          Atur konfigurasi QRIS, E-Money, dan rekening bank.
+          Atur konfigurasi QRIS, E-Money, dan rekening bank yang digunakan siswa untuk membayar.
         </p>
       </div>
 
-      {CONFIG_GROUPS.map(group => {
-        const saveState = saveStates[group.id] || { status: 'idle' }
-        const Icon = group.icon
-        const firstField = group.fields[0]
-        const isMultiline = firstField?.multiline || false
+      {hasQris ? (
+        <Alert className="bg-green-50 border-green-200">
+          <AlertDescription className="text-green-700 text-sm flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> QRIS sudah dikonfigurasi. Siswa dapat melakukan top-up.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertDescription className="text-yellow-700 text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> QRIS belum dikonfigurasi. Siswa belum bisa melakukan top-up.
+          </AlertDescription>
+        </Alert>
+      )}
 
-        return (
-          <Card key={group.id} className="border-slate-200 dark:border-gray-700">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-lg ${group.bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`w-5 h-5 ${group.color}`} />
+      <Alert className="bg-blue-50 border-blue-200">
+        <AlertDescription className="text-blue-700 text-sm space-y-1">
+          <p className="font-semibold">Cara penggunaan:</p>
+          <ol className="list-decimal list-inside space-y-0.5 text-xs">
+            <li>Isi kolom-kolom di bawah sesuai akun merchant Anda.</li>
+            <li>Klik <strong>Simpan</strong> per bagian. Perubahan langsung aktif.</li>
+            <li>Untuk QRIS: paste string lengkap dari stiker / aplikasi bank (dimulai <code className="bg-blue-100 px-1 rounded">000201</code>).</li>
+            <li>Kosongkan kolom untuk metode yang tidak digunakan.</li>
+          </ol>
+        </AlertDescription>
+      </Alert>
+
+      <form action={saveConfig}>
+        {CONFIG_GROUPS.map(group => {
+          const Icon = group.icon
+          const firstField = group.fields[0]
+          const isMultiline = firstField?.multiline || false
+
+          return (
+            <Card key={group.id} className="border-slate-200 dark:border-gray-700 mb-6">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg ${group.bg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-5 h-5 ${group.color}`} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{group.label}</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">{group.description}</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-base">{group.label}</CardTitle>
-                  <CardDescription className="text-xs mt-0.5">{group.description}</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className={`grid gap-4 ${group.fields.length > 1 && !isMultiline ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                  {group.fields.map(field => {
+                    const value = configMap[field.key] || ''
+                    const name = field.key
+                    return (
+                      <div key={field.key} className="space-y-1">
+                        <label htmlFor={name} className="text-sm font-medium text-foreground">
+                          {field.label}
+                        </label>
+                        {field.multiline ? (
+                          <textarea
+                            id={name}
+                            name={name}
+                            rows={3}
+                            defaultValue={value}
+                            placeholder={field.placeholder}
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono resize-y"
+                          />
+                        ) : (
+                          <input
+                            id={name}
+                            name={name}
+                            type="text"
+                            defaultValue={value}
+                            placeholder={field.placeholder}
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                          />
+                        )}
+                        {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
-            </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className={`grid gap-4 ${group.fields.length > 1 && !isMultiline ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                {group.fields.map(field => (
-                  <ConfigField
-                    key={field.key}
-                    fieldKey={field.key}
-                    label={field.label}
-                    placeholder={field.placeholder}
-                    hint={field.hint}
-                    multiline={field.multiline}
-                    value={config[field.key] ?? ''}
-                    onChange={handleChange}
-                  />
-                ))}
-              </div>
-
-              {saveState.status === 'success' && (
-                <Alert className="bg-green-50 border-green-200 py-2">
-                  <AlertDescription className="text-green-700 text-sm flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> {saveState.message}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {saveState.status === 'error' && (
-                <Alert variant="destructive" className="py-2">
-                  <AlertDescription className="flex items-center gap-1.5 text-sm">
-                    <AlertCircle className="w-4 h-4" /> {saveState.message}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => handleSaveGroup(group.id, group.fields)}
-                  disabled={saveState.status === 'saving'}
-                  size="sm"
-                  className="min-w-[110px]"
-                >
-                  {saveState.status === 'saving' ? (
-                    <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Menyimpan...</>
-                  ) : (
-                    <><Save className="w-3.5 h-3.5 mr-1.5" /> Simpan</>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" className="min-w-[110px]">
+                    <Save className="w-3.5 h-3.5 mr-1.5" /> Simpan
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </form>
     </div>
   )
 }
