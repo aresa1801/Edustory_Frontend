@@ -169,57 +169,48 @@ export default function AdminSettingsPage() {
         const supabase = createClient()
         console.log('[Admin Settings] Supabase client created')
 
-        console.log('[Admin Settings] Getting session...')
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[Admin Settings] Session response:', session ? '✅ ada' : '❌ tidak ada', sessionError?.message || '')
-
-        if (!session) {
-          console.log('[Admin Settings] No session, redirect')
-          if (isMounted) {
-            setError('Silakan login terlebih dahulu')
-            setLoading(false)
-          }
-          return
+        // === AMBIL TOKEN DARI LOCALSTORAGE ===
+        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+        console.log('[Admin Settings] Token key found:', !!tokenKey)
+        if (!tokenKey) {
+          throw new Error('Token tidak ditemukan di localStorage. Silakan login ulang.')
         }
 
-        console.log('[Admin Settings] Session OK, user:', session.user.email)
+        const raw = localStorage.getItem(tokenKey)
+        if (!raw) throw new Error('Token kosong')
+        const parsed = JSON.parse(raw)
+        const token = parsed?.access_token
+        if (!token) throw new Error('Access token tidak valid')
 
-        console.log('[Admin Settings] Checking admin role...')
+        console.log('[Admin Settings] Token OK, verifying user...')
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+        if (userError || !user) {
+          throw new Error(userError?.message || 'User tidak valid')
+        }
+        console.log('[Admin Settings] User verified:', user.email)
+
+        // === CEK ADMIN ===
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle() // pake maybeSingle biar gak error kalo gak ada
-        console.log('[Admin Settings] Profile response:', profile, profileError?.message || '')
+          .eq('id', user.id)
+          .maybeSingle()
 
         if (profileError) {
-          console.error('[Admin Settings] Profile error:', profileError)
-          if (isMounted) {
-            setError('Gagal cek profil: ' + profileError.message)
-            setLoading(false)
-          }
-          return
+          throw new Error('Gagal cek profil: ' + profileError.message)
         }
 
         if (!profile || profile.role !== 'admin') {
-          console.log('[Admin Settings] Not admin, profile:', profile)
-          if (isMounted) {
-            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
-            setLoading(false)
-          }
-          return
+          throw new Error('Akses ditolak. Hanya admin.')
         }
+        console.log('[Admin Settings] Is admin')
 
-        console.log('[Admin Settings] Is admin, fetching config...')
+        // === FETCH CONFIG ===
         const { data: rows, error: fetchError } = await supabase
           .from('payment_config')
           .select('config_key, config_value')
-        console.log('[Admin Settings] Config rows:', rows?.length || 0, fetchError?.message || '')
 
-        if (fetchError) {
-          console.error('[Admin Settings] Fetch config error:', fetchError)
-          throw new Error(fetchError.message)
-        }
+        if (fetchError) throw new Error(fetchError.message)
 
         if (isMounted) {
           const map: ConfigMap = {}
@@ -227,11 +218,11 @@ export default function AdminSettingsPage() {
             map[row.config_key] = row.config_value || ''
           }
           setConfig(map)
-          console.log('[Admin Settings] Config loaded, keys:', Object.keys(map).length)
+          console.log('[Admin Settings] Config loaded')
           setLoading(false)
         }
       } catch (err: any) {
-        console.error('[Admin Settings] Unhandled error:', err)
+        console.error('[Admin Settings] Error:', err)
         if (isMounted) {
           setError(err.message || 'Gagal memuat konfigurasi')
           setLoading(false)
@@ -239,10 +230,9 @@ export default function AdminSettingsPage() {
       }
     }
 
-    // Jalankan init
     init()
 
-    // Timeout 8 detik untuk force stop
+    // Timeout 8 detik
     timeoutId = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[Admin Settings] FORCE STOP LOADING (timeout)')
@@ -257,19 +247,26 @@ export default function AdminSettingsPage() {
     }
   }, [])
 
-  // ===== HANDLE CHANGE =====
   const handleChange = (key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }))
   }
 
-  // ===== SAVE GROUP =====
   const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
     setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
 
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Tidak ada session')
+      // Ambil token dari localStorage lagi
+      const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+      if (!tokenKey) throw new Error('Token tidak ditemukan')
+      const raw = localStorage.getItem(tokenKey)
+      if (!raw) throw new Error('Token kosong')
+      const parsed = JSON.parse(raw)
+      const token = parsed?.access_token
+      if (!token) throw new Error('Access token tidak valid')
+
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (!user) throw new Error('User tidak valid')
 
       // Upsert setiap field
       for (const field of fields) {
@@ -300,7 +297,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ===== RENDER LOADING =====
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -310,7 +306,6 @@ export default function AdminSettingsPage() {
     )
   }
 
-  // ===== RENDER ERROR =====
   if (error) {
     return (
       <Alert variant="destructive" className="max-w-3xl mx-auto">
@@ -324,7 +319,6 @@ export default function AdminSettingsPage() {
     )
   }
 
-  // ===== RENDER =====
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
