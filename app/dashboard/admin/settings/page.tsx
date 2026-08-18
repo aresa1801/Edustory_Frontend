@@ -171,28 +171,35 @@ export default function AdminSettingsPage() {
         const supabase = createClient()
         console.log('[Admin Settings] Client created')
 
-        // === STRATEGI 1: Cari token di localStorage ===
+        // === CARI TOKEN DI LOCALSTORAGE (LEBIH FLEKSIBEL) ===
         let token: string | null = null
-        const tokenKey = Object.keys(localStorage).find(k => 
-          k.startsWith('sb-') && k.includes('auth-token')
-        )
-        console.log('[Admin Settings] Token key:', tokenKey || 'tidak ditemukan')
-
-        if (tokenKey) {
-          const raw = localStorage.getItem(tokenKey)
-          if (raw) {
-            try {
-              const parsed = JSON.parse(raw)
-              token = parsed?.access_token || null
-              console.log('[Admin Settings] Token from localStorage:', token ? '✅' : '❌')
-            } catch (e) {}
+        // Cari semua key yang mengandung 'access_token' atau 'sb-'
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw)
+                if (parsed?.access_token) {
+                  token = parsed.access_token
+                  console.log('[Admin Settings] Token found in key:', key)
+                  break
+                }
+                // Mungkin langsung string token
+                if (typeof parsed === 'string' && parsed.length > 50) {
+                  token = parsed
+                  console.log('[Admin Settings] Token found as string in key:', key)
+                  break
+                }
+              } catch (e) {}
+            }
           }
         }
 
-        let session: any = null
         let user: any = null
 
-        // Jika token ditemukan, verifikasi dengan getUser
+        // Jika token ditemukan, verifikasi
         if (token) {
           console.log('[Admin Settings] Verifying token...')
           const { data, error } = await supabase.auth.getUser(token)
@@ -200,22 +207,21 @@ export default function AdminSettingsPage() {
             user = data.user
             console.log('[Admin Settings] User verified:', user.email)
           } else {
-            console.warn('[Admin Settings] Token invalid, fallback to getSession')
+            console.warn('[Admin Settings] Token invalid:', error?.message)
           }
         }
 
-        // Jika token tidak valid atau tidak ada, coba getSession dengan timeout 2 detik
+        // Jika token tidak valid atau tidak ada, coba getSession dengan timeout 3 detik
         if (!user) {
-          console.log('[Admin Settings] Trying getSession with timeout 2s...')
+          console.log('[Admin Settings] Trying getSession with timeout 3s...')
           try {
             const sessionPromise = supabase.auth.getSession()
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Session timeout')), 2000)
+              setTimeout(() => reject(new Error('Session timeout')), 3000)
             )
             const result = await Promise.race([sessionPromise, timeoutPromise]) as any
-            session = result?.data?.session
-            if (session?.user) {
-              user = session.user
+            if (result?.data?.session?.user) {
+              user = result.data.session.user
               console.log('[Admin Settings] Session OK:', user.email)
             }
           } catch (err) {
@@ -225,9 +231,9 @@ export default function AdminSettingsPage() {
 
         // Jika masih tidak ada user, redirect login
         if (!user) {
-          console.log('[Admin Settings] No user, redirect login')
+          console.log('[Admin Settings] No user found, redirect login')
           if (isMounted) {
-            setError('Sesi tidak valid. Silakan login ulang.')
+            setError('Sesi tidak ditemukan. Silakan login ulang.')
             setLoading(false)
             router.push('/auth/login')
           }
@@ -242,11 +248,13 @@ export default function AdminSettingsPage() {
           .maybeSingle()
 
         if (profileError) {
+          console.error('[Admin Settings] Profile error:', profileError)
           throw new Error('Gagal cek profil: ' + profileError.message)
         }
 
         if (!profile || profile.role !== 'admin') {
-          throw new Error('Akses ditolak. Hanya admin.')
+          console.log('[Admin Settings] Not admin, role:', profile?.role)
+          throw new Error('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
         }
         console.log('[Admin Settings] Is admin')
 
@@ -255,7 +263,10 @@ export default function AdminSettingsPage() {
           .from('payment_config')
           .select('config_key, config_value')
 
-        if (fetchError) throw new Error(fetchError.message)
+        if (fetchError) {
+          console.error('[Admin Settings] Fetch config error:', fetchError)
+          throw new Error(fetchError.message)
+        }
 
         if (isMounted) {
           const map: ConfigMap = {}
@@ -263,11 +274,11 @@ export default function AdminSettingsPage() {
             map[row.config_key] = row.config_value || ''
           }
           setConfig(map)
-          console.log('[Admin Settings] Config loaded')
+          console.log('[Admin Settings] Config loaded, keys:', Object.keys(map).length)
           setLoading(false)
         }
       } catch (err: any) {
-        console.error('[Admin Settings] Error:', err)
+        console.error('[Admin Settings] Unhandled error:', err)
         if (isMounted) {
           setError(err.message || 'Gagal memuat konfigurasi')
           setLoading(false)
@@ -301,20 +312,28 @@ export default function AdminSettingsPage() {
 
     try {
       const supabase = createClient()
-      // Coba ambil session atau token lagi
+      
+      // Coba ambil token atau session
+      let user: any = null
       let token: string | null = null
-      const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
-      if (tokenKey) {
-        const raw = localStorage.getItem(tokenKey)
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw)
-            token = parsed?.access_token || null
-          } catch (e) {}
+
+      // Cari token di localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                token = parsed.access_token
+                break
+              }
+            } catch (e) {}
+          }
         }
       }
 
-      let user: any = null
       if (token) {
         const { data } = await supabase.auth.getUser(token)
         if (data?.user) user = data.user
