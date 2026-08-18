@@ -16,10 +16,34 @@ import {
   RefreshCw,
 } from 'lucide-react'
 
-// ---------------------------------------------------------------------------
-// Config key groups
-// ---------------------------------------------------------------------------
-const CONFIG_GROUPS = [
+// ===== TYPES =====
+type ConfigMap = Record<string, string>
+
+interface SaveState {
+  status: 'idle' | 'saving' | 'success' | 'error'
+  message?: string
+}
+
+interface FieldConfig {
+  key: string
+  label: string
+  placeholder: string
+  hint?: string
+  multiline?: boolean
+}
+
+interface ConfigGroup {
+  id: string
+  label: string
+  icon: React.ElementType
+  color: string
+  bg: string
+  description: string
+  fields: FieldConfig[]
+}
+
+// ===== CONFIG GROUPS =====
+const CONFIG_GROUPS: ConfigGroup[] = [
   {
     id: 'qris',
     label: 'QRIS',
@@ -81,19 +105,7 @@ const CONFIG_GROUPS = [
   },
 ]
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type ConfigMap = Record<string, string>
-
-interface SaveState {
-  status: 'idle' | 'saving' | 'success' | 'error'
-  message?: string
-}
-
-// ---------------------------------------------------------------------------
-// Field component
-// ---------------------------------------------------------------------------
+// ===== FIELD COMPONENT =====
 function ConfigField({
   fieldKey,
   label,
@@ -140,86 +152,158 @@ function ConfigField({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main settings page
-// ---------------------------------------------------------------------------
+// ===== MAIN SETTINGS PAGE =====
 export default function AdminSettingsPage() {
   const [config, setConfig] = useState<ConfigMap>({})
   const [loading, setLoading] = useState(true)
-  const [token, setToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
 
-  // Load config on mount
+  // ===== LOAD CONFIG =====
   useEffect(() => {
-    const init = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      setToken(session.access_token)
+    let isMounted = true
 
+    const init = async () => {
       try {
-        const res = await fetch('/api/admin/payment-config', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        if (res.ok) {
-          const rows: { config_key: string; config_value: string }[] = await res.json()
-          const map: ConfigMap = {}
-          for (const row of rows) map[row.config_key] = row.config_value
-          setConfig(map)
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session) {
+          if (isMounted) {
+            setError('Silakan login terlebih dahulu')
+            setLoading(false)
+          }
+          return
         }
-      } catch (e) {
-        console.error('Failed to load config', e)
-      } finally {
-        setLoading(false)
+
+        // Cek role admin
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (!profile || profile.role !== 'admin') {
+          if (isMounted) {
+            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+            setLoading(false)
+          }
+          return
+        }
+
+        // Ambil semua config dari Supabase langsung
+        const { data: rows, error: fetchError } = await supabase
+          .from('payment_config')
+          .select('config_key, config_value')
+
+        if (fetchError) {
+          throw new Error(fetchError.message)
+        }
+
+        if (isMounted) {
+          const map: ConfigMap = {}
+          for (const row of rows || []) {
+            map[row.config_key] = row.config_value || ''
+          }
+          setConfig(map)
+          setLoading(false)
+        }
+      } catch (err: any) {
+        console.error('[Settings] Error:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat konfigurasi')
+          setLoading(false)
+        }
       }
     }
+
     init()
+
+    // Timeout 5 detik untuk force stop loading
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[Settings] Force stop loading (timeout)')
+        setError('Waktu muat habis. Silakan refresh.')
+        setLoading(false)
+      }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
   }, [])
 
+  // ===== HANDLE CHANGE =====
   const handleChange = useCallback((key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  const handleSaveGroup = async (groupId: string, fields: { key: string }[]) => {
-    if (!token) return
+  // ===== SAVE GROUP =====
+  const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
     setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
+
     try {
+      const supabase = createClient()
       const updates = fields.map(f => ({
         config_key: f.key,
         config_value: (config[f.key] ?? '').trim(),
       }))
 
-      const res = await fetch('/api/admin/payment-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ updates }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal menyimpan')
+      // Simpan ke Supabase langsung (upsert)
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('payment_config')
+          .upsert({
+            config_key: update.config_key,
+            config_value: update.config_value,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'config_key' })
+
+        if (error) throw error
+      }
 
       setSaveStates(prev => ({
         ...prev,
         [groupId]: { status: 'success', message: 'Tersimpan!' },
       }))
+
       setTimeout(() => {
         setSaveStates(prev => ({ ...prev, [groupId]: { status: 'idle' } }))
       }, 3000)
     } catch (e: any) {
       setSaveStates(prev => ({
         ...prev,
-        [groupId]: { status: 'error', message: e.message },
+        [groupId]: { status: 'error', message: e.message || 'Gagal menyimpan' },
       }))
     }
   }
 
+  // ===== RENDER LOADING =====
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-8 w-8 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat pengaturan pembayaran...</p>
       </div>
     )
   }
 
+  // ===== RENDER ERROR =====
+  if (error) {
+    return (
+      <Alert variant="destructive" className="max-w-3xl mx-auto">
+        <AlertDescription>
+          <strong>Error:</strong> {error}
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  // ===== RENDER =====
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
@@ -236,10 +320,10 @@ export default function AdminSettingsPage() {
         <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
           <p className="font-semibold">Cara penggunaan:</p>
           <ol className="list-decimal list-inside space-y-0.5 text-xs">
-            <li>Jalankan SQL migration <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">scripts/006_complete_payment_setup.sql</code> di Supabase SQL Editor (hanya sekali).</li>
             <li>Isi kolom-kolom di bawah sesuai akun merchant Anda.</li>
             <li>Klik <strong>Simpan</strong> per bagian. Perubahan langsung aktif.</li>
             <li>Untuk QRIS: paste string lengkap dari stiker / aplikasi bank (dimulai <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">000201</code>).</li>
+            <li>Kosongkan kolom untuk metode yang tidak digunakan.</li>
           </ol>
         </AlertDescription>
       </Alert>
@@ -248,6 +332,9 @@ export default function AdminSettingsPage() {
       {CONFIG_GROUPS.map(group => {
         const saveState = saveStates[group.id] || { status: 'idle' }
         const Icon = group.icon
+        const firstField = group.fields[0]
+        const isMultiline = firstField?.multiline || false
+
         return (
           <Card key={group.id} className="border-slate-200 dark:border-gray-700">
             <CardHeader className="pb-3">
@@ -264,15 +351,15 @@ export default function AdminSettingsPage() {
 
             <CardContent className="space-y-4">
               {/* Fields grid */}
-              <div className={`grid gap-4 ${group.fields.length > 1 && !group.fields[0].multiline ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`grid gap-4 ${group.fields.length > 1 && !isMultiline ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                 {group.fields.map(field => (
                   <ConfigField
                     key={field.key}
                     fieldKey={field.key}
                     label={field.label}
                     placeholder={field.placeholder}
-                    hint={(field as any).hint}
-                    multiline={(field as any).multiline}
+                    hint={field.hint}
+                    multiline={field.multiline}
                     value={config[field.key] ?? ''}
                     onChange={handleChange}
                   />

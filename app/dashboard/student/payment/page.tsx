@@ -164,6 +164,62 @@ function WalletContent() {
     }
   }, [amount, token])
 
+  const handleDummyTopUp = async () => {
+    setSubmitError(null)
+    setSuccess(false)
+    
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setSubmitError('Sesi habis, silakan login ulang')
+      return
+    }
+
+    const freshToken = session.access_token
+    const parsed = parseFloat(amount) || 10000 // default 10k jika kosong
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
+        body: JSON.stringify({
+          amount: Math.round(parsed),
+          paymentMethod: 'dummy',
+          transactionRef: `DUMMY-${Date.now()}`,
+          isTopup: true,
+          isDummy: true,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal top-up dummy')
+
+      setSuccess(true)
+      // Refresh saldo
+      const balanceRes = await fetch('/api/wallet/balance', {
+        headers: { Authorization: `Bearer ${freshToken}` },
+      })
+      const balanceData = await balanceRes.json()
+      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
+
+      // Refresh riwayat
+      const { data: newHistory } = await supabase
+        .from('payment_deposits')
+        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
+        .eq('payment_type', 'topup')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (newHistory) setHistory(newHistory as TopUpHistory[])
+
+      setAmount('')
+      setQrisString(null)
+    } catch (e: any) {
+      setSubmitError(e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   // Top-up
   const handleTopUp = async () => {
     setSubmitError(null)
