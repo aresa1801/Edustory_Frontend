@@ -114,13 +114,13 @@ function WalletContent() {
   const [error, setError] = useState<string | null>(null)
 
   const [amount, setAmount] = useState<string>('')
-  const [selectedMethod, setSelectedMethod] = useState<string>('qris')
+  const [selectedMethod, setSelectedMethod] = useState<string>('linkaja') // default LinkAja
   const [qrisString, setQrisString] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // ===== INISIALISASI (hanya 1 kali) =====
+  // ===== INISIALISASI =====
   useEffect(() => {
     let isMounted = true
 
@@ -204,7 +204,6 @@ function WalletContent() {
 
     init()
 
-    // Fallback: stop loading setelah 5 detik
     const timer = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[Wallet] Force stop loading (timeout)')
@@ -217,43 +216,64 @@ function WalletContent() {
       isMounted = false
       clearTimeout(timer)
     }
-  }, []) // <- DEPENDENCY KOSONG! HANYA JALAN SEKALI
+  }, [])
 
   // ===== GENERATE QRIS =====
   useEffect(() => {
-    if (selectedMethod !== 'qris' || !token || !amount || parseFloat(amount) <= 0) {
+    // Reset QRIS jika bukan qris
+    if (selectedMethod !== 'qris') {
       setQrisString(null)
       return
     }
+    
+    if (!token || !amount || parseFloat(amount) <= 0) {
+      setQrisString(null)
+      return
+    }
+    
     let cancelled = false
     const generate = async () => {
       try {
+        console.log('[Wallet] Generating QRIS for amount:', amount)
         const res = await fetch('/api/payments/qris', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
         })
         const json = await res.json()
-        if (!cancelled && res.ok) setQrisString(json.dynamicQris)
-      } catch {}
+        if (!cancelled && res.ok) {
+          console.log('[Wallet] QRIS generated successfully')
+          setQrisString(json.dynamicQris)
+        } else if (!cancelled) {
+          console.error('[Wallet] QRIS generation failed:', json.error)
+          setQrisString(null)
+        }
+      } catch (err) {
+        console.error('[Wallet] QRIS generation error:', err)
+        setQrisString(null)
+      }
     }
+    
     const timer = setTimeout(generate, 600)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [selectedMethod, amount, token])
 
   // ===== TOP-UP =====
   const handleTopUp = async () => {
+    console.log('[Wallet] Top-up button clicked')
     setSubmitError(null)
     setSuccess(false)
+    
     const parsed = parseFloat(amount)
     if (!parsed || parsed <= 0) {
       setSubmitError('Masukkan nominal yang valid (minimal Rp 1.000)')
       return
     }
 
-    // 🔥 Ambil session SEGAR setiap kali klik
+    // Ambil session SEGAR
     const supabase = createClient()
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
     if (sessionError || !session) {
       setSubmitError('Sesi habis, silakan login ulang')
       router.push('/auth/login')
@@ -261,11 +281,11 @@ function WalletContent() {
     }
 
     const freshToken = session.access_token
-    // Update state token (biar konsisten)
     setToken(freshToken)
 
     setSubmitting(true)
     try {
+      console.log('[Wallet] Sending top-up request...')
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: {
@@ -280,8 +300,13 @@ function WalletContent() {
           isTopup: true,
         }),
       })
+      
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal melakukan top-up')
+      console.log('[Wallet] Top-up response:', res.status, json)
+      
+      if (!res.ok) {
+        throw new Error(json.error || 'Gagal melakukan top-up')
+      }
 
       setSuccess(true)
 
@@ -290,7 +315,10 @@ function WalletContent() {
         headers: { Authorization: `Bearer ${freshToken}` },
       })
       const balanceData = await balanceRes.json()
-      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
+      if (balanceRes.ok) {
+        setBalance(balanceData.balance ?? 0)
+        console.log('[Wallet] New balance:', balanceData.balance)
+      }
 
       // Refresh riwayat
       const { data: newHistory } = await supabase
@@ -299,11 +327,16 @@ function WalletContent() {
         .eq('payment_type', 'topup')
         .order('created_at', { ascending: false })
         .limit(20)
-      if (newHistory) setHistory(newHistory as TopUpHistory[])
+      if (newHistory) {
+        setHistory(newHistory as TopUpHistory[])
+      }
 
+      // Reset form
       setAmount('')
       setQrisString(null)
+      
     } catch (e: any) {
+      console.error('[Wallet] Top-up error:', e)
       setSubmitError(e.message)
     } finally {
       setSubmitting(false)
@@ -319,6 +352,8 @@ function WalletContent() {
       </div>
     )
   }
+
+  const nominal = parseFloat(amount) || 0
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto p-4">
@@ -365,7 +400,14 @@ function WalletContent() {
               min={1000}
               step={1000}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                setAmount(val)
+                // Reset QRIS jika amount berubah
+                if (selectedMethod === 'qris') {
+                  setQrisString(null)
+                }
+              }}
               placeholder="Contoh: 100000"
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
@@ -374,7 +416,10 @@ function WalletContent() {
           <div className="space-y-2">
             <label className="text-sm font-medium">Metode Pembayaran</label>
             <button
-              onClick={() => setSelectedMethod('qris')}
+              onClick={() => {
+                setSelectedMethod('qris')
+                setQrisString(null)
+              }}
               className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
                 selectedMethod === 'qris'
                   ? 'border-primary bg-primary/5 text-primary'
@@ -393,7 +438,10 @@ function WalletContent() {
               {EMONEY_METHODS.map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setSelectedMethod(m.id)}
+                  onClick={() => {
+                    setSelectedMethod(m.id)
+                    setQrisString(null)
+                  }}
                   className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
                     selectedMethod === m.id
                       ? 'border-primary bg-primary/5 text-primary font-medium'
@@ -410,7 +458,10 @@ function WalletContent() {
               {BANK_METHODS.map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setSelectedMethod(m.id)}
+                  onClick={() => {
+                    setSelectedMethod(m.id)
+                    setQrisString(null)
+                  }}
                   className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
                     selectedMethod === m.id
                       ? 'border-primary bg-primary/5 text-primary font-medium'
@@ -423,35 +474,36 @@ function WalletContent() {
             </div>
           </div>
 
-          {parseFloat(amount) > 0 && selectedMethod === 'qris' && qrisString && (
+          {/* QRIS / Account Info */}
+          {nominal > 0 && (
             <div className="border border-border rounded-xl p-4 bg-muted/20">
               <p className="text-sm font-medium mb-3">
-                Scan QRIS untuk membayar{' '}
+                {selectedMethod === 'qris' ? 'Scan QRIS' : 'Transfer ke rekening berikut'} sebesar{' '}
                 <span className="text-primary font-bold">
-                  Rp {Number(parseFloat(amount)).toLocaleString('id-ID')}
+                  Rp {nominal.toLocaleString('id-ID')}
                 </span>
               </p>
-              <div className="flex flex-col items-center">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
-                  alt="QRIS"
-                  className="w-52 h-52 rounded-lg border"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                />
-                <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
-              </div>
-            </div>
-          )}
-
-          {parseFloat(amount) > 0 && selectedMethod !== 'qris' && (
-            <div className="border border-border rounded-xl p-4 bg-muted/20">
-              <p className="text-sm font-medium mb-3">
-                Transfer ke rekening berikut sebesar{' '}
-                <span className="text-primary font-bold">
-                  Rp {Number(parseFloat(amount)).toLocaleString('id-ID')}
-                </span>
-              </p>
-              <AccountInfo config={config} method={selectedMethod} />
+              
+              {selectedMethod === 'qris' ? (
+                qrisString ? (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrisString)}`}
+                      alt="QRIS"
+                      className="w-52 h-52 rounded-lg border"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
+                  </div>
+                ) : (
+                  <div className="flex justify-center py-4">
+                    <Spinner className="h-6 w-6" />
+                    <span className="ml-2 text-sm text-muted-foreground">Menghasilkan QRIS...</span>
+                  </div>
+                )
+              ) : (
+                <AccountInfo config={config} method={selectedMethod} />
+              )}
             </div>
           )}
 
@@ -471,7 +523,7 @@ function WalletContent() {
 
           <Button
             onClick={handleTopUp}
-            disabled={submitting || !parseFloat(amount)}
+            disabled={submitting || nominal <= 0}
             className="w-full"
           >
             {submitting ? (
