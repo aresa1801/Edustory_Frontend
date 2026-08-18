@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -159,88 +159,110 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
 
-  // ===== LOAD CONFIG (LANGSUNG DARI SUPABASE) =====
   useEffect(() => {
-  let isMounted = true
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
 
-  const init = async () => {
-    console.log('[Admin Settings] Init start')
-    try {
-      const supabase = createClient()
-      console.log('[Admin Settings] Supabase client created')
+    const init = async () => {
+      console.log('[Admin Settings] Init start')
+      try {
+        const supabase = createClient()
+        console.log('[Admin Settings] Supabase client created')
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log('[Admin Settings] Session:', session?.user?.email, 'Error:', sessionError)
+        console.log('[Admin Settings] Getting session...')
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        console.log('[Admin Settings] Session response:', session ? '✅ ada' : '❌ tidak ada', sessionError?.message || '')
 
-      if (sessionError) {
-        throw new Error('Session error: ' + sessionError.message)
-      }
-
-      if (!session) {
-        setError('Silakan login terlebih dahulu')
-        setLoading(false)
-        return
-      }
-
-      // Cek role admin
-      console.log('[Admin Settings] Checking admin role...')
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single()
-
-      console.log('[Admin Settings] Profile:', profile, 'Error:', profileError)
-
-      if (profileError) {
-        throw new Error('Gagal mengambil profil: ' + profileError.message)
-      }
-
-      if (!profile || profile.role !== 'admin') {
-        setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
-        setLoading(false)
-        return
-      }
-
-      // Ambil semua config
-      console.log('[Admin Settings] Fetching payment_config...')
-      const { data: rows, error: fetchError } = await supabase
-        .from('payment_config')
-        .select('config_key, config_value')
-
-      console.log('[Admin Settings] Rows:', rows?.length, 'Error:', fetchError)
-
-      if (fetchError) {
-        throw new Error('Gagal mengambil konfigurasi: ' + fetchError.message)
-      }
-
-      if (isMounted) {
-        const map: ConfigMap = {}
-        for (const row of rows || []) {
-          map[row.config_key] = row.config_value || ''
+        if (!session) {
+          console.log('[Admin Settings] No session, redirect')
+          if (isMounted) {
+            setError('Silakan login terlebih dahulu')
+            setLoading(false)
+          }
+          return
         }
-        setConfig(map)
-        setLoading(false)
-        console.log('[Admin Settings] Done loading')
-      }
-    } catch (err: any) {
-      console.error('[Admin Settings] Error:', err)
-      if (isMounted) {
-        setError(err.message || 'Gagal memuat konfigurasi')
-        setLoading(false)
+
+        console.log('[Admin Settings] Session OK, user:', session.user.email)
+
+        console.log('[Admin Settings] Checking admin role...')
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle() // pake maybeSingle biar gak error kalo gak ada
+        console.log('[Admin Settings] Profile response:', profile, profileError?.message || '')
+
+        if (profileError) {
+          console.error('[Admin Settings] Profile error:', profileError)
+          if (isMounted) {
+            setError('Gagal cek profil: ' + profileError.message)
+            setLoading(false)
+          }
+          return
+        }
+
+        if (!profile || profile.role !== 'admin') {
+          console.log('[Admin Settings] Not admin, profile:', profile)
+          if (isMounted) {
+            setError('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+            setLoading(false)
+          }
+          return
+        }
+
+        console.log('[Admin Settings] Is admin, fetching config...')
+        const { data: rows, error: fetchError } = await supabase
+          .from('payment_config')
+          .select('config_key, config_value')
+        console.log('[Admin Settings] Config rows:', rows?.length || 0, fetchError?.message || '')
+
+        if (fetchError) {
+          console.error('[Admin Settings] Fetch config error:', fetchError)
+          throw new Error(fetchError.message)
+        }
+
+        if (isMounted) {
+          const map: ConfigMap = {}
+          for (const row of rows || []) {
+            map[row.config_key] = row.config_value || ''
+          }
+          setConfig(map)
+          console.log('[Admin Settings] Config loaded, keys:', Object.keys(map).length)
+          setLoading(false)
+        }
+      } catch (err: any) {
+        console.error('[Admin Settings] Unhandled error:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal memuat konfigurasi')
+          setLoading(false)
+        }
       }
     }
-  }
 
-  init()
-}, []) // <- dependency kosong
+    // Jalankan init
+    init()
 
-  // ===== HANDLE CHANGE =====
-  const handleChange = useCallback((key: string, value: string) => {
-    setConfig(prev => ({ ...prev, [key]: value }))
+    // Timeout 8 detik untuk force stop
+    timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[Admin Settings] FORCE STOP LOADING (timeout)')
+        setError('Waktu muat habis. Silakan refresh atau cek koneksi database.')
+        setLoading(false)
+      }
+    }, 8000)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [])
 
-  // ===== SAVE GROUP (LANGSUNG KE SUPABASE) =====
+  // ===== HANDLE CHANGE =====
+  const handleChange = (key: string, value: string) => {
+    setConfig(prev => ({ ...prev, [key]: value }))
+  }
+
+  // ===== SAVE GROUP =====
   const handleSaveGroup = async (groupId: string, fields: FieldConfig[]) => {
     setSaveStates(prev => ({ ...prev, [groupId]: { status: 'saving' } }))
 
@@ -278,16 +300,17 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ===== RENDER =====
+  // ===== RENDER LOADING =====
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <Spinner className="h-8 w-8 text-primary" />
+        <Spinner className="h-10 w-10 text-primary" />
         <p className="mt-4 text-sm text-muted-foreground">Memuat pengaturan pembayaran...</p>
       </div>
     )
   }
 
+  // ===== RENDER ERROR =====
   if (error) {
     return (
       <Alert variant="destructive" className="max-w-3xl mx-auto">
@@ -301,12 +324,13 @@ export default function AdminSettingsPage() {
     )
   }
 
+  // ===== RENDER =====
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground mb-1">Pengaturan Pembayaran</h1>
         <p className="text-muted-foreground text-sm">
-          Atur konfigurasi QRIS, E-Money, dan rekening bank yang digunakan siswa untuk membayar.
+          Atur konfigurasi QRIS, E-Money, dan rekening bank.
         </p>
       </div>
 
