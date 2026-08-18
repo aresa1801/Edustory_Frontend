@@ -153,6 +153,16 @@ function ConfigField({
   )
 }
 
+// ===== AMBIL TOKEN DARI COOKIE =====
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() || null
+  }
+  return null
+}
+
 // ===== MAIN SETTINGS PAGE =====
 export default function AdminSettingsPage() {
   const router = useRouter()
@@ -169,76 +179,50 @@ export default function AdminSettingsPage() {
       console.log('[Admin Settings] Init start')
       try {
         const supabase = createClient()
-        console.log('[Admin Settings] Client created')
+        console.log('[Admin Settings] Supabase client created')
 
-        // === CARI TOKEN DI LOCALSTORAGE (LEBIH FLEKSIBEL) ===
+        // === AMBIL TOKEN DARI COOKIE ===
+        const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
         let token: string | null = null
-        // Cari semua key yang mengandung 'access_token' atau 'sb-'
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
-            const raw = localStorage.getItem(key)
+        
+        // Coba cari token di cookie
+        for (const name of cookieNames) {
+          const val = getCookie(name)
+          if (val) {
+            try {
+              const parsed = JSON.parse(decodeURIComponent(val))
+              if (parsed?.access_token) {
+                token = parsed.access_token
+                break
+              }
+            } catch {}
+          }
+        }
+
+        // Jika tidak ketemu, coba di localStorage
+        if (!token) {
+          const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+          if (tokenKey) {
+            const raw = localStorage.getItem(tokenKey)
             if (raw) {
-              try {
-                const parsed = JSON.parse(raw)
-                if (parsed?.access_token) {
-                  token = parsed.access_token
-                  console.log('[Admin Settings] Token found in key:', key)
-                  break
-                }
-                // Mungkin langsung string token
-                if (typeof parsed === 'string' && parsed.length > 50) {
-                  token = parsed
-                  console.log('[Admin Settings] Token found as string in key:', key)
-                  break
-                }
-              } catch (e) {}
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                token = parsed.access_token
+              }
             }
           }
         }
 
-        let user: any = null
-
-        // Jika token ditemukan, verifikasi
-        if (token) {
-          console.log('[Admin Settings] Verifying token...')
-          const { data, error } = await supabase.auth.getUser(token)
-          if (!error && data?.user) {
-            user = data.user
-            console.log('[Admin Settings] User verified:', user.email)
-          } else {
-            console.warn('[Admin Settings] Token invalid:', error?.message)
-          }
+        if (!token) {
+          throw new Error('Token tidak ditemukan. Silakan login ulang.')
         }
 
-        // Jika token tidak valid atau tidak ada, coba getSession dengan timeout 3 detik
-        if (!user) {
-          console.log('[Admin Settings] Trying getSession with timeout 3s...')
-          try {
-            const sessionPromise = supabase.auth.getSession()
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Session timeout')), 3000)
-            )
-            const result = await Promise.race([sessionPromise, timeoutPromise]) as any
-            if (result?.data?.session?.user) {
-              user = result.data.session.user
-              console.log('[Admin Settings] Session OK:', user.email)
-            }
-          } catch (err) {
-            console.warn('[Admin Settings] getSession failed:', err)
-          }
+        console.log('[Admin Settings] Token found, verifying user...')
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+        if (userError || !user) {
+          throw new Error(userError?.message || 'User tidak valid')
         }
-
-        // Jika masih tidak ada user, redirect login
-        if (!user) {
-          console.log('[Admin Settings] No user found, redirect login')
-          if (isMounted) {
-            setError('Sesi tidak ditemukan. Silakan login ulang.')
-            setLoading(false)
-            router.push('/auth/login')
-          }
-          return
-        }
+        console.log('[Admin Settings] User verified:', user.email)
 
         // === CEK ADMIN ===
         const { data: profile, error: profileError } = await supabase
@@ -248,13 +232,11 @@ export default function AdminSettingsPage() {
           .maybeSingle()
 
         if (profileError) {
-          console.error('[Admin Settings] Profile error:', profileError)
           throw new Error('Gagal cek profil: ' + profileError.message)
         }
 
         if (!profile || profile.role !== 'admin') {
-          console.log('[Admin Settings] Not admin, role:', profile?.role)
-          throw new Error('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.')
+          throw new Error('Akses ditolak. Hanya admin.')
         }
         console.log('[Admin Settings] Is admin')
 
@@ -263,10 +245,7 @@ export default function AdminSettingsPage() {
           .from('payment_config')
           .select('config_key, config_value')
 
-        if (fetchError) {
-          console.error('[Admin Settings] Fetch config error:', fetchError)
-          throw new Error(fetchError.message)
-        }
+        if (fetchError) throw new Error(fetchError.message)
 
         if (isMounted) {
           const map: ConfigMap = {}
@@ -274,11 +253,11 @@ export default function AdminSettingsPage() {
             map[row.config_key] = row.config_value || ''
           }
           setConfig(map)
-          console.log('[Admin Settings] Config loaded, keys:', Object.keys(map).length)
+          console.log('[Admin Settings] Config loaded')
           setLoading(false)
         }
       } catch (err: any) {
-        console.error('[Admin Settings] Unhandled error:', err)
+        console.error('[Admin Settings] Error:', err)
         if (isMounted) {
           setError(err.message || 'Gagal memuat konfigurasi')
           setLoading(false)
@@ -288,11 +267,10 @@ export default function AdminSettingsPage() {
 
     init()
 
-    // Timeout 5 detik untuk force stop
     timeoutId = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[Admin Settings] FORCE STOP LOADING')
-        setError('Waktu muat habis. Silakan refresh atau cek koneksi.')
+        console.warn('[Admin Settings] FORCE STOP LOADING (timeout)')
+        setError('Waktu muat habis. Silakan refresh atau cek koneksi database.')
         setLoading(false)
       }
     }, 5000)
@@ -301,7 +279,7 @@ export default function AdminSettingsPage() {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [router])
+  }, [])
 
   const handleChange = (key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }))
@@ -312,38 +290,37 @@ export default function AdminSettingsPage() {
 
     try {
       const supabase = createClient()
-      
-      // Coba ambil token atau session
-      let user: any = null
+      // Ambil token lagi
       let token: string | null = null
-
-      // Cari token di localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
-          const raw = localStorage.getItem(key)
+      const cookieNames = ['sb-access-token', 'sb-refresh-token', 'supabase-auth-token']
+      for (const name of cookieNames) {
+        const val = getCookie(name)
+        if (val) {
+          try {
+            const parsed = JSON.parse(decodeURIComponent(val))
+            if (parsed?.access_token) {
+              token = parsed.access_token
+              break
+            }
+          } catch {}
+        }
+      }
+      if (!token) {
+        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('auth-token'))
+        if (tokenKey) {
+          const raw = localStorage.getItem(tokenKey)
           if (raw) {
-            try {
-              const parsed = JSON.parse(raw)
-              if (parsed?.access_token) {
-                token = parsed.access_token
-                break
-              }
-            } catch (e) {}
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) token = parsed.access_token
           }
         }
       }
+      if (!token) throw new Error('Token tidak ditemukan')
 
-      if (token) {
-        const { data } = await supabase.auth.getUser(token)
-        if (data?.user) user = data.user
-      }
-      if (!user) {
-        const { data } = await supabase.auth.getSession()
-        if (data?.session?.user) user = data.session.user
-      }
-      if (!user) throw new Error('Tidak ada session')
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (!user) throw new Error('User tidak valid')
 
+      // Upsert setiap field
       for (const field of fields) {
         const { error } = await supabase
           .from('payment_config')
@@ -376,7 +353,7 @@ export default function AdminSettingsPage() {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">Memuat pengaturan...</p>
+        <p className="mt-4 text-sm text-muted-foreground">Memuat pengaturan pembayaran...</p>
       </div>
     )
   }
@@ -386,14 +363,12 @@ export default function AdminSettingsPage() {
       <Alert variant="destructive" className="max-w-3xl mx-auto">
         <AlertDescription>
           <strong>Error:</strong> {error}
-          <div className="mt-2 flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push('/auth/login')}>
-              Login Ulang
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => router.push('/auth/login')}>
+            Login Ulang
+          </Button>
         </AlertDescription>
       </Alert>
     )
