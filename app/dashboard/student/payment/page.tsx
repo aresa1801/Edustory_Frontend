@@ -42,7 +42,7 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // ===== INISIALISASI (menggunakan session dari Supabase) =====
+  // ===== INISIALISASI (dengan timeout & fallback localStorage) =====
   useEffect(() => {
     let isMounted = true
 
@@ -52,21 +52,44 @@ function WalletContent() {
         const supabase = createClient()
         console.log('[Wallet] Client created')
 
-        // Ambil session dari Supabase (cookie)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[Wallet] getSession result:', session ? '✅ session ada' : '❌ session null', sessionError?.message || '')
-
-        if (sessionError) {
-          console.error('[Wallet] Session error:', sessionError)
-          if (isMounted) {
-            setError('Gagal mengambil session: ' + sessionError.message)
-            setLoading(false)
-          }
-          return
+        // === Coba getSession dengan timeout 3 detik ===
+        let session = null
+        try {
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('getSession timeout')), 3000)
+          )
+          const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+          session = result?.data?.session || null
+          console.log('[Wallet] getSession result:', session ? '✅ session ada' : '❌ session null')
+        } catch (err) {
+          console.warn('[Wallet] getSession gagal atau timeout:', err)
         }
 
-        if (!session) {
-          console.log('[Wallet] Tidak ada session')
+        // Jika session tidak dapat, coba ambil token dari localStorage
+        let accessToken = session?.access_token || null
+        if (!accessToken) {
+          console.log('[Wallet] Fallback: cari token di localStorage')
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+              const raw = localStorage.getItem(key)
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw)
+                  if (parsed?.access_token) {
+                    accessToken = parsed.access_token
+                    console.log('[Wallet] Token ditemukan di localStorage:', key)
+                    break
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+        }
+
+        if (!accessToken) {
+          console.log('[Wallet] Tidak ada token')
           if (isMounted) {
             setError('Sesi tidak ditemukan. Silakan login ulang.')
             setLoading(false)
@@ -74,18 +97,25 @@ function WalletContent() {
           return
         }
 
-        const accessToken = session.access_token
+        // Verifikasi token (optional, tapi bagus untuk memastikan)
+        try {
+          const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken)
+          if (userError || !user) {
+            console.warn('[Wallet] Token tidak valid:', userError)
+            // Tetap lanjutkan? Biarkan token tetap dipakai, nanti error di API
+          } else {
+            console.log('[Wallet] User verified:', user.email)
+          }
+        } catch (e) {}
+
         setToken(accessToken)
-        console.log('[Wallet] Session OK, user:', session.user.email)
 
         // === Ambil saldo ===
         try {
-          console.log('[Wallet] Fetching balance...')
           const res = await fetch('/api/wallet/balance', {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
           const data = await res.json()
-          console.log('[Wallet] Balance response:', res.status)
           if (res.ok && isMounted) {
             setBalance(data.balance ?? 0)
           } else {
@@ -97,7 +127,6 @@ function WalletContent() {
 
         // === Ambil riwayat top-up ===
         try {
-          console.log('[Wallet] Fetching history...')
           const { data: payRows } = await supabase
             .from('payment_deposits')
             .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
@@ -126,7 +155,6 @@ function WalletContent() {
 
     init()
 
-    // Timeout 8 detik untuk force stop loading
     const timer = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[Wallet] Force stop loading (timeout)')
@@ -208,14 +236,35 @@ function WalletContent() {
       return
     }
 
-    // Ambil session fresh
+    // Ambil token fresh (coba session dulu, fallback localStorage)
+    let freshToken = null
     const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) freshToken = session.access_token
+    } catch (e) {}
+    if (!freshToken) {
+      // cari localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                freshToken = parsed.access_token
+                break
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+    if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
       return
     }
-    const freshToken = session.access_token
 
     setSubmitting(true)
     try {
@@ -268,15 +317,35 @@ function WalletContent() {
     setSubmitError(null)
     setSuccess(false)
 
+    let freshToken = null
     const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) freshToken = session.access_token
+    } catch (e) {}
+    if (!freshToken) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                freshToken = parsed.access_token
+                break
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+    if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
       return
     }
-    const freshToken = session.access_token
-    const parsed = parseFloat(amount) || 10000
 
+    const parsed = parseFloat(amount) || 10000
     setSubmitting(true)
     try {
       const res = await fetch('/api/payments', {
