@@ -42,16 +42,40 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Inisialisasi
+  // Inisialisasi: ambil token dari localStorage langsung
   useEffect(() => {
     let isMounted = true
 
     const init = async () => {
       try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[Wallet] Init start')
+        
+        // === AMBIL TOKEN DARI LOCALSTORAGE ===
+        let tokenFromStorage: string | null = null
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw)
+                if (parsed?.access_token) {
+                  tokenFromStorage = parsed.access_token
+                  console.log('[Wallet] Token found in key:', key)
+                  break
+                }
+                if (typeof parsed === 'string' && parsed.length > 50) {
+                  tokenFromStorage = parsed
+                  console.log('[Wallet] Token found as string in key:', key)
+                  break
+                }
+              } catch (e) {}
+            }
+          }
+        }
 
-        if (!session) {
+        if (!tokenFromStorage) {
+          console.log('[Wallet] No token found, redirect login')
           if (isMounted) {
             setLoading(false)
             router.push('/auth/login')
@@ -59,21 +83,37 @@ function WalletContent() {
           return
         }
 
-        const accessToken = session.access_token
-        setToken(accessToken)
+        setToken(tokenFromStorage)
+        console.log('[Wallet] Token set successfully')
 
-        // Ambil saldo
+        // === VERIFIKASI TOKEN ===
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser(tokenFromStorage)
+        if (userError || !user) {
+          console.error('[Wallet] Token invalid:', userError)
+          if (isMounted) {
+            setError('Sesi tidak valid. Silakan login ulang.')
+            setLoading(false)
+            router.push('/auth/login')
+          }
+          return
+        }
+        console.log('[Wallet] User verified:', user.email)
+
+        // === AMBIL SALDO ===
         try {
           const res = await fetch('/api/wallet/balance', {
-            headers: { Authorization: `Bearer ${accessToken}` },
+            headers: { Authorization: `Bearer ${tokenFromStorage}` },
           })
           const data = await res.json()
-          if (res.ok && isMounted) setBalance(data.balance ?? 0)
+          if (res.ok && isMounted) {
+            setBalance(data.balance ?? 0)
+          }
         } catch (err) {
           console.error('Balance fetch error:', err)
         }
 
-        // Ambil riwayat top-up
+        // === AMBIL RIWAYAT TOP-UP ===
         try {
           const { data: payRows } = await supabase
             .from('payment_deposits')
@@ -81,14 +121,16 @@ function WalletContent() {
             .eq('payment_type', 'topup')
             .order('created_at', { ascending: false })
             .limit(20)
-          if (payRows && isMounted) setHistory(payRows as TopUpHistory[])
+          if (payRows && isMounted) {
+            setHistory(payRows as TopUpHistory[])
+          }
         } catch (err) {
           console.warn('History fetch error:', err)
         }
 
         if (isMounted) setLoading(false)
       } catch (err: any) {
-        console.error('Init error:', err)
+        console.error('[Wallet] Init error:', err)
         if (isMounted) {
           setError('Gagal memuat data dompet')
           setLoading(false)
@@ -100,6 +142,7 @@ function WalletContent() {
 
     const timer = setTimeout(() => {
       if (isMounted && loading) {
+        console.warn('[Wallet] Force stop loading')
         setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
@@ -111,8 +154,10 @@ function WalletContent() {
     }
   }, [router])
 
-  // Generate QRIS
+  // Generate QRIS - berjalan ketika token dan amount berubah
   useEffect(() => {
+    console.log('[QRIS Effect] token:', token ? '✅ ada' : '❌ null', 'amount:', amount)
+    
     if (!token || !amount || parseFloat(amount) <= 0) {
       setQrisString(null)
       setQrisLoading(false)
@@ -124,12 +169,14 @@ function WalletContent() {
 
     const generate = async () => {
       try {
+        console.log('[QRIS] Generating for amount:', amount)
         const res = await fetch('/api/payments/qris', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
         })
         const json = await res.json()
+        console.log('[QRIS] Response:', res.status, json)
         if (!cancelled) {
           if (res.ok && json.dynamicQris) {
             setQrisString(json.dynamicQris)
@@ -154,7 +201,7 @@ function WalletContent() {
         setQrisString(null)
         setQrisLoading(false)
       }
-    }, 5000)
+    }, 8000)
 
     const timer = setTimeout(generate, 300)
     return () => {
@@ -164,63 +211,7 @@ function WalletContent() {
     }
   }, [amount, token])
 
-  const handleDummyTopUp = async () => {
-    setSubmitError(null)
-    setSuccess(false)
-    
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      setSubmitError('Sesi habis, silakan login ulang')
-      return
-    }
-
-    const freshToken = session.access_token
-    const parsed = parseFloat(amount) || 10000 // default 10k jika kosong
-
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
-        body: JSON.stringify({
-          amount: Math.round(parsed),
-          paymentMethod: 'dummy',
-          transactionRef: `DUMMY-${Date.now()}`,
-          isTopup: true,
-          isDummy: true,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal top-up dummy')
-
-      setSuccess(true)
-      // Refresh saldo
-      const balanceRes = await fetch('/api/wallet/balance', {
-        headers: { Authorization: `Bearer ${freshToken}` },
-      })
-      const balanceData = await balanceRes.json()
-      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
-
-      // Refresh riwayat
-      const { data: newHistory } = await supabase
-        .from('payment_deposits')
-        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-        .eq('payment_type', 'topup')
-        .order('created_at', { ascending: false })
-        .limit(20)
-      if (newHistory) setHistory(newHistory as TopUpHistory[])
-
-      setAmount('')
-      setQrisString(null)
-    } catch (e: any) {
-      setSubmitError(e.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  // Top-up
+  // Handle Top-Up (QRIS)
   const handleTopUp = async () => {
     setSubmitError(null)
     setSuccess(false)
@@ -230,16 +221,29 @@ function WalletContent() {
       return
     }
 
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      setSubmitError('Sesi habis, silakan login ulang')
+    // Ambil token fresh dari localStorage
+    let freshToken: string | null = null
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              freshToken = parsed.access_token
+              break
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (!freshToken) {
+      setSubmitError('Sesi tidak valid, silakan login ulang')
       router.push('/auth/login')
       return
     }
-
-    const freshToken = session.access_token
-    setToken(freshToken)
 
     setSubmitting(true)
     try {
@@ -270,6 +274,78 @@ function WalletContent() {
       if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
       // Refresh riwayat
+      const supabase = createClient()
+      const { data: newHistory } = await supabase
+        .from('payment_deposits')
+        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
+        .eq('payment_type', 'topup')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (newHistory) setHistory(newHistory as TopUpHistory[])
+
+      setAmount('')
+      setQrisString(null)
+    } catch (e: any) {
+      setSubmitError(e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle Dummy Top-Up (testing tanpa QRIS)
+  const handleDummyTopUp = async () => {
+    setSubmitError(null)
+    setSuccess(false)
+    
+    let freshToken: string | null = null
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              freshToken = parsed.access_token
+              break
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (!freshToken) {
+      setSubmitError('Sesi tidak valid, silakan login ulang')
+      router.push('/auth/login')
+      return
+    }
+
+    const parsed = parseFloat(amount) || 10000
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
+        body: JSON.stringify({
+          amount: Math.round(parsed),
+          paymentMethod: 'dummy',
+          transactionRef: `DUMMY-${Date.now()}`,
+          isTopup: true,
+          isDummy: true,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal top-up dummy')
+
+      setSuccess(true)
+
+      const balanceRes = await fetch('/api/wallet/balance', {
+        headers: { Authorization: `Bearer ${freshToken}` },
+      })
+      const balanceData = await balanceRes.json()
+      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
+
+      const supabase = createClient()
       const { data: newHistory } = await supabase
         .from('payment_deposits')
         .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
@@ -404,6 +480,17 @@ function WalletContent() {
             ) : (
               'Top Up Sekarang'
             )}
+          </Button>
+
+          {/* Tombol Dummy untuk testing */}
+          <Button
+            onClick={handleDummyTopUp}
+            variant="outline"
+            className="w-full mt-2 border-dashed border-green-500 text-green-600"
+            disabled={submitting}
+          >
+            {submitting ? <Spinner className="w-4 h-4 mr-2" /> : '🧪 '}
+            Top Up Dummy (Testing)
           </Button>
         </CardContent>
       </Card>
