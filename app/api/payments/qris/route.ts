@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { convertToDynamic, validateQris } from '@/lib/qris'
+import { convertToDynamic } from '@/lib/qris'
 
 function getSupabase() {
   return createClient(
@@ -31,9 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 })
     }
 
-    console.log('[QRIS] Amount:', amount)
-
-    // Fetch the static QRIS from config
+    // Ambil QRIS statis dari database
     const { data: config, error: configError } = await supabase
       .from('payment_config')
       .select('config_value')
@@ -50,43 +48,18 @@ export async function POST(request: NextRequest) {
 
     const staticQris = config?.config_value?.trim()
     if (!staticQris) {
-      console.error('[QRIS] Static QRIS is empty')
       return NextResponse.json(
         { error: 'QRIS belum dikonfigurasi oleh admin. Hubungi administrator.' },
         { status: 503 }
       )
     }
 
-    console.log('[QRIS] Static QRIS length:', staticQris.length)
-
-    // Validasi QRIS
-    const isValid = validateQris(staticQris)
-    console.log('[QRIS] Is valid:', isValid)
-
-    if (!isValid) {
-      console.error('[QRIS] Invalid QRIS format')
-      return NextResponse.json(
-        { error: 'String QRIS statis tidak valid. Hubungi administrator.' },
-        { status: 503 }
-      )
-    }
-
-    // Konversi ke dinamis
-    let dynamicQris: string
-    try {
-      dynamicQris = convertToDynamic(staticQris, Math.round(amount))
-      console.log('[QRIS] Dynamic QRIS generated, length:', dynamicQris.length)
-    } catch (conversionError) {
-      console.error('[QRIS] Conversion error:', conversionError)
-      return NextResponse.json(
-        { error: 'Gagal mengkonversi QRIS: ' + (conversionError as Error).message },
-        { status: 500 }
-      )
-    }
+    // Generate QRIS dinamis langsung (tanpa validasi CRC)
+    const dynamicQris = convertToDynamic(staticQris, Math.round(amount))
 
     return NextResponse.json({ dynamicQris })
   } catch (error) {
-    console.error('[QRIS] Unhandled error:', error)
+    console.error('[QRIS] Error:', error)
     return NextResponse.json({ error: 'Gagal membuat QRIS dinamis' }, { status: 500 })
   }
 }
