@@ -42,42 +42,62 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // ===== INISIALISASI (ambil session dari Supabase) =====
+  // ===== INISIALISASI (ambil token dari localStorage) =====
   useEffect(() => {
     let isMounted = true
 
     const init = async () => {
       try {
         console.log('[Wallet] Init start')
+
+        // === CARI TOKEN DI LOCALSTORAGE ===
+        let tokenFromStorage: string | null = null
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw)
+                if (parsed?.access_token) {
+                  tokenFromStorage = parsed.access_token
+                  console.log('[Wallet] Token found in key:', key)
+                  break
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        if (!tokenFromStorage) {
+          console.log('[Wallet] No token found')
+          if (isMounted) {
+            setError('Token tidak ditemukan. Silakan login ulang.')
+            setLoading(false)
+          }
+          return
+        }
+
+        setToken(tokenFromStorage)
+        console.log('[Wallet] Token set')
+
+        // === VERIFIKASI TOKEN ===
         const supabase = createClient()
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-        if (sessionError) {
-          console.error('[Wallet] Session error:', sessionError)
+        const { data: { user }, error: userError } = await supabase.auth.getUser(tokenFromStorage)
+        if (userError || !user) {
+          console.error('[Wallet] Token invalid:', userError)
           if (isMounted) {
-            setError('Gagal mengambil session: ' + sessionError.message)
+            setError('Sesi tidak valid. Silakan login ulang.')
             setLoading(false)
           }
           return
         }
+        console.log('[Wallet] User verified:', user.email)
 
-        if (!session) {
-          console.log('[Wallet] No session')
-          if (isMounted) {
-            setError('Sesi tidak ditemukan. Silakan login ulang.')
-            setLoading(false)
-          }
-          return
-        }
-
-        const accessToken = session.access_token
-        setToken(accessToken)
-        console.log('[Wallet] Session OK, user:', session.user.email)
-
-        // === Ambil saldo ===
+        // === AMBIL SALDO ===
         try {
           const res = await fetch('/api/wallet/balance', {
-            headers: { Authorization: `Bearer ${accessToken}` },
+            headers: { Authorization: `Bearer ${tokenFromStorage}` },
           })
           const data = await res.json()
           if (res.ok && isMounted) {
@@ -89,7 +109,7 @@ function WalletContent() {
           console.error('[Wallet] Balance fetch error:', err)
         }
 
-        // === Ambil riwayat top-up ===
+        // === AMBIL RIWAYAT TOP-UP ===
         try {
           const { data: payRows } = await supabase
             .from('payment_deposits')
@@ -116,13 +136,14 @@ function WalletContent() {
 
     init()
 
+    // Timeout 5 detik
     const timer = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('[Wallet] Force stop loading')
         setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
-    }, 8000)
+    }, 5000)
 
     return () => {
       isMounted = false
@@ -197,14 +218,28 @@ function WalletContent() {
       return
     }
 
-    // Ambil session fresh
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    // Ambil token fresh dari localStorage
+    let freshToken: string | null = null
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              freshToken = parsed.access_token
+              break
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
       return
     }
-    const freshToken = session.access_token
 
     setSubmitting(true)
     try {
@@ -235,6 +270,7 @@ function WalletContent() {
       if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
       // Refresh riwayat
+      const supabase = createClient()
       const { data: newHistory } = await supabase
         .from('payment_deposits')
         .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
@@ -257,15 +293,29 @@ function WalletContent() {
     setSubmitError(null)
     setSuccess(false)
 
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    let freshToken: string | null = null
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.includes('access_token') || key.startsWith('sb-'))) {
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              freshToken = parsed.access_token
+              break
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
       return
     }
-    const freshToken = session.access_token
-    const parsed = parseFloat(amount) || 10000
 
+    const parsed = parseFloat(amount) || 10000
     setSubmitting(true)
     try {
       const res = await fetch('/api/payments', {
@@ -290,6 +340,7 @@ function WalletContent() {
       const balanceData = await balanceRes.json()
       if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
+      const supabase = createClient()
       const { data: newHistory } = await supabase
         .from('payment_deposits')
         .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
