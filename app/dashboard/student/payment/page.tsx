@@ -42,7 +42,7 @@ function WalletContent() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Inisialisasi: ambil token dari localStorage langsung
+  // Inisialisasi: ambil token dari localStorage, tapi jangan redirect otomatis
   useEffect(() => {
     let isMounted = true
 
@@ -75,10 +75,10 @@ function WalletContent() {
         }
 
         if (!tokenFromStorage) {
-          console.log('[Wallet] No token found, redirect login')
+          console.log('[Wallet] No token found')
           if (isMounted) {
+            setError('Token tidak ditemukan. Silakan login ulang.')
             setLoading(false)
-            router.push('/auth/login')
           }
           return
         }
@@ -94,7 +94,6 @@ function WalletContent() {
           if (isMounted) {
             setError('Sesi tidak valid. Silakan login ulang.')
             setLoading(false)
-            router.push('/auth/login')
           }
           return
         }
@@ -108,6 +107,8 @@ function WalletContent() {
           const data = await res.json()
           if (res.ok && isMounted) {
             setBalance(data.balance ?? 0)
+          } else {
+            console.warn('[Wallet] Balance API error:', data)
           }
         } catch (err) {
           console.error('Balance fetch error:', err)
@@ -132,7 +133,7 @@ function WalletContent() {
       } catch (err: any) {
         console.error('[Wallet] Init error:', err)
         if (isMounted) {
-          setError('Gagal memuat data dompet')
+          setError('Gagal memuat data dompet: ' + (err.message || 'Unknown error'))
           setLoading(false)
         }
       }
@@ -146,15 +147,15 @@ function WalletContent() {
         setError('Waktu muat habis. Silakan refresh.')
         setLoading(false)
       }
-    }, 5000)
+    }, 8000)
 
     return () => {
       isMounted = false
       clearTimeout(timer)
     }
-  }, [router])
+  }, []) // Hapus dependency router agar tidak berubah-ubah
 
-  // Generate QRIS - berjalan ketika token dan amount berubah
+  // Generate QRIS
   useEffect(() => {
     console.log('[QRIS Effect] token:', token ? '✅ ada' : '❌ null', 'amount:', amount)
     
@@ -241,7 +242,6 @@ function WalletContent() {
 
     if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
-      router.push('/auth/login')
       return
     }
 
@@ -316,7 +316,6 @@ function WalletContent() {
 
     if (!freshToken) {
       setSubmitError('Sesi tidak valid, silakan login ulang')
-      router.push('/auth/login')
       return
     }
 
@@ -372,6 +371,25 @@ function WalletContent() {
     )
   }
 
+  // Jika ada error, tampilkan dengan tombol manual
+  if (error) {
+    return (
+      <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
+        <AlertDescription>
+          <strong>Error:</strong> {error}
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/auth/login')}>
+              Login Ulang
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto p-4">
       <div>
@@ -382,17 +400,6 @@ function WalletContent() {
           Isi saldo dengan QRIS. Saldo akan digunakan untuk membayar setiap sesi belajar.
         </p>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <strong>Error:</strong> {error}
-            <Button variant="outline" size="sm" className="ml-2" onClick={() => window.location.reload()}>
-              Refresh
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
 
       <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
         <CardHeader>
