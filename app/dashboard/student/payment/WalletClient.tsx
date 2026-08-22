@@ -35,6 +35,7 @@ export default function WalletClient({
   initialBalance: number
   hasQrisConfig: boolean
 }) {
+  // ===== STATE (semua di atas) =====
   const [token] = useState(initialToken)
   const [balance, setBalance] = useState(initialBalance)
   const [history, setHistory] = useState<TopUpHistory[]>([])
@@ -48,91 +49,40 @@ export default function WalletClient({
   const [pollingStatus, setPollingStatus] = useState<'idle' | 'pending' | 'success' | 'timeout'>('idle')
   const [pollingMessage, setPollingMessage] = useState('')
 
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const pollCount = useRef(0)
-  const MAX_POLL = 30 // 30 * 3 detik = 90 detik (1.5 menit)
+  const MAX_POLL = 30
 
-  // ===== AMBIL RIWAYAT =====
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const supabase = createClient()
-        const { data } = await supabase
-          .from('payment_deposits')
-          .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-          .eq('payment_type', 'topup')
-          .order('created_at', { ascending: false })
-          .limit(20)
-        if (data) setHistory(data as TopUpHistory[])
-      } catch (err) {
-        console.warn('History fetch error:', err)
-      }
+  // ===== FUNGSI-FUNGSI (dideklarasikan sebelum useEffect) =====
+
+  const stopPolling = () => {
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current)
+      pollingInterval.current = null
     }
-    fetchHistory()
-  }, [])
+  }
 
-  // ===== GENERATE QRIS + POLLING =====
-  useEffect(() => {
-    // Reset state ketika amount berubah
-    if (!token || !amount || parseFloat(amount) <= 0 || !hasQrisConfig) {
-      setQrisString(null)
-      setQrisLoading(false)
-      setTransactionId(null)
-      setPollingStatus('idle')
-      setPollingMessage('')
-      stopPolling()
-      return
+  const refreshHistory = async () => {
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('payment_deposits')
+        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
+        .eq('payment_type', 'topup')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (data) setHistory(data as TopUpHistory[])
+    } catch (err) {
+      console.warn('History refresh error:', err)
     }
+  }
 
-    let cancelled = false
-    setQrisLoading(true)
-    setPollingStatus('pending')
-    setPollingMessage('Menghasilkan QRIS...')
-
-    const generate = async () => {
-      try {
-        const res = await fetch('/api/payments/qris', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
-        })
-        const json = await res.json()
-        if (!cancelled) {
-          if (res.ok && json.dynamicQris) {
-            setQrisString(json.dynamicQris)
-            setTransactionId(json.transactionId)
-            setPollingMessage('QRIS siap. Scan dan bayar menggunakan aplikasi e-wallet.')
-            // Mulai polling
-            startPolling(json.transactionId)
-          } else {
-            console.error('QRIS failed:', json.error)
-            setQrisString(null)
-            setPollingStatus('idle')
-            setPollingMessage('Gagal membuat QRIS: ' + (json.error || 'Unknown error'))
-          }
-          setQrisLoading(false)
-        }
-      } catch (err) {
-        console.error('QRIS error:', err)
-        if (!cancelled) {
-          setQrisString(null)
-          setQrisLoading(false)
-          setPollingStatus('idle')
-          setPollingMessage('Gagal membuat QRIS. Coba lagi.')
-        }
-      }
-    }
-
-    const timer = setTimeout(generate, 400)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      stopPolling()
-    }
-  }, [amount, token, hasQrisConfig])
-
-  // ===== FUNGSI POLLING =====
   const startPolling = (txId: string) => {
+    if (!txId) return
     stopPolling()
     pollCount.current = 0
     setPollingStatus('pending')
@@ -149,58 +99,33 @@ export default function WalletClient({
         const data = await res.json()
 
         if (data?.payment_status === 'paid') {
-          // SUCCESS!
           stopPolling()
           setPollingStatus('success')
           setPollingMessage('✅ Pembayaran berhasil! Saldo telah ditambahkan.')
           setBalance(data.walletBalance ?? balance + parseFloat(amount))
           setQrisString(null)
           setTransactionId(null)
-
-          // Refresh history
           refreshHistory()
           setAmount('')
           return
         }
 
-        // Timeout
         if (pollCount.current >= MAX_POLL) {
           stopPolling()
           setPollingStatus('timeout')
-          setPollingMessage('⏰ Waktu tunggu habis. Jika sudah bayar, klik tombol konfirmasi manual di bawah.')
+          setPollingMessage('⏰ Waktu tunggu habis. Jika sudah bayar, klik konfirmasi manual.')
         }
       } catch (err) {
         console.error('[Polling] Error:', err)
       }
-    }, 3000) // setiap 3 detik
+    }, 3000)
   }
 
-  const stopPolling = () => {
-    if (pollingInterval.current) {
-      clearInterval(pollingInterval.current)
-      pollingInterval.current = null
-    }
-  }
-
-  // ===== REFRESH HISTORY =====
-  const refreshHistory = async () => {
-    try {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('payment_deposits')
-        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-        .eq('payment_type', 'topup')
-        .order('created_at', { ascending: false })
-        .limit(20)
-      if (data) setHistory(data as TopUpHistory[])
-    } catch (err) {
-      console.warn('History refresh error:', err)
-    }
-  }
-
-  // ===== KONFIRMASI MANUAL (FALLBACK) =====
   const handleManualConfirm = async () => {
-    if (!transactionId) return
+    if (!transactionId) {
+      setSubmitError('Tidak ada transaksi yang sedang berlangsung.')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -212,32 +137,25 @@ export default function WalletClient({
           paymentMethod: 'qris',
           transactionRef: `MANUAL-${Date.now()}`,
           isTopup: true,
-          transactionId: transactionId, // Kirim ID pending
+          transactionId: transactionId,
         }),
       })
       const json = await res.json()
-      if (res.ok && json.newBalance !== undefined) {
-        setBalance(json.newBalance)
-        setPollingStatus('success')
-        setPollingMessage('✅ Konfirmasi manual berhasil! Saldo telah ditambahkan.')
-        setQrisString(null)
-        setTransactionId(null)
-        refreshHistory()
-        setAmount('')
-      } else {
-        throw new Error(json.error || 'Gagal konfirmasi manual')
-      }
+      if (!res.ok) throw new Error(json.error || 'Gagal konfirmasi manual')
+
+      setBalance(json.newBalance)
+      setPollingStatus('success')
+      setPollingMessage('✅ Konfirmasi manual berhasil! Saldo telah ditambahkan.')
+      setQrisString(null)
+      setTransactionId(null)
+      refreshHistory()
+      setAmount('')
     } catch (err: any) {
       setSubmitError(err.message)
     } finally {
       setSubmitting(false)
     }
   }
-
-  // ===== TOP-UP DUMMY =====
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const handleDummyTopUp = async () => {
     setSubmitError(null)
@@ -262,7 +180,6 @@ export default function WalletClient({
 
       setSuccess(true)
 
-      // Refresh balance
       const balanceRes = await fetch('/api/wallet/balance', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -278,6 +195,77 @@ export default function WalletClient({
       setSubmitting(false)
     }
   }
+
+  // ===== AMBIL RIWAYAT (pertama kali) =====
+  useEffect(() => {
+    refreshHistory()
+  }, [])
+
+  // ===== GENERATE QRIS =====
+  useEffect(() => {
+    if (!token || !amount || parseFloat(amount) <= 0 || !hasQrisConfig) {
+      setQrisString(null)
+      setQrisLoading(false)
+      setTransactionId(null)
+      setPollingStatus('idle')
+      setPollingMessage('')
+      stopPolling()
+      return
+    }
+
+    let cancelled = false
+    setQrisLoading(true)
+    setPollingStatus('pending')
+    setPollingMessage('Menghasilkan QRIS...')
+
+    const generate = async () => {
+      try {
+        console.log('[Wallet] Generating QRIS for amount:', amount)
+        const res = await fetch('/api/payments/qris', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ amount: Math.round(parseFloat(amount)) }),
+        })
+        const json = await res.json()
+        console.log('[Wallet] QRIS response:', res.status)
+
+        if (!cancelled) {
+          if (res.ok && json.dynamicQris) {
+            setQrisString(json.dynamicQris)
+            if (json.transactionId) {
+              setTransactionId(json.transactionId)
+              setPollingMessage('QRIS siap. Scan dan bayar.')
+              startPolling(json.transactionId)
+            } else {
+              setPollingStatus('idle')
+              setPollingMessage('QRIS siap (tanpa polling otomatis).')
+            }
+          } else {
+            console.error('[Wallet] QRIS failed:', json.error)
+            setQrisString(null)
+            setPollingStatus('idle')
+            setPollingMessage('Gagal membuat QRIS: ' + (json.error || 'Unknown error'))
+          }
+          setQrisLoading(false)
+        }
+      } catch (err) {
+        console.error('[Wallet] QRIS error:', err)
+        if (!cancelled) {
+          setQrisString(null)
+          setQrisLoading(false)
+          setPollingStatus('idle')
+          setPollingMessage('Gagal membuat QRIS. Coba lagi.')
+        }
+      }
+    }
+
+    const timer = setTimeout(generate, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      stopPolling()
+    }
+  }, [amount, token, hasQrisConfig])
 
   // ===== RENDER =====
   if (!hasQrisConfig) {
@@ -376,7 +364,6 @@ export default function WalletClient({
                     />
                     <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
 
-                    {/* Status Polling */}
                     {pollingStatus === 'pending' && (
                       <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                         <Spinner className="h-4 w-4" />
@@ -385,9 +372,7 @@ export default function WalletClient({
                     )}
                     {pollingStatus === 'success' && (
                       <Alert className="bg-green-50 border-green-200 mt-4 w-full">
-                        <AlertDescription className="text-green-700">
-                          {pollingMessage}
-                        </AlertDescription>
+                        <AlertDescription className="text-green-700">{pollingMessage}</AlertDescription>
                       </Alert>
                     )}
                     {pollingStatus === 'timeout' && (

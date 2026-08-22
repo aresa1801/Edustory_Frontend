@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 })
     }
 
-    // Ambil QRIS statis
+    // 1. Ambil QRIS statis
     const { data: config, error: configError } = await supabase
       .from('payment_config')
       .select('config_value')
@@ -39,23 +39,37 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (configError || !config?.config_value) {
+      console.error('[QRIS] Config error:', configError)
       return NextResponse.json({ error: 'QRIS belum dikonfigurasi' }, { status: 503 })
     }
 
     const staticQris = config.config_value.trim()
-    const dynamicQris = convertToDynamic(staticQris, Math.round(amount))
+    console.log('[QRIS] Static QRIS length:', staticQris.length)
 
-    // === BUAT PENDING TRANSACTION ===
-    const { data: student } = await supabase
+    // 2. Generate dinamis
+    let dynamicQris: string
+    try {
+      dynamicQris = convertToDynamic(staticQris, Math.round(amount))
+      console.log('[QRIS] Dynamic generated, length:', dynamicQris.length)
+    } catch (conversionError) {
+      console.error('[QRIS] Conversion error:', conversionError)
+      return NextResponse.json({ error: 'Gagal mengkonversi QRIS' }, { status: 500 })
+    }
+
+    // 3. Ambil student_id
+    const { data: student, error: studentError } = await supabase
       .from('students')
       .select('id')
       .eq('user_id', user.id)
       .single()
 
-    if (!student) {
+    if (studentError || !student) {
+      console.error('[QRIS] Student not found:', studentError)
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
+    // 4. Simpan pending transaction (opsional, untuk polling)
+    const transactionRef = `QRIS-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const { data: inserted, error: insertError } = await supabase
       .from('payment_deposits')
       .insert({
@@ -64,7 +78,7 @@ export async function POST(request: NextRequest) {
         payment_method: 'qris',
         payment_status: 'pending',
         payment_type: 'topup',
-        transaction_ref: `QRIS-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        transaction_ref: transactionRef,
         qris_dynamic_string: dynamicQris,
       })
       .select('id')
@@ -72,15 +86,22 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('[QRIS] Insert pending error:', insertError)
-      return NextResponse.json({ error: 'Gagal membuat transaksi' }, { status: 500 })
+      // Jika gagal insert, tetap return QRIS tanpa transactionId (polling tidak jalan)
+      return NextResponse.json({
+        dynamicQris,
+        transactionId: null,
+        warning: 'Transaksi pending gagal disimpan, tapi QRIS tetap valid.',
+      })
     }
+
+    console.log('[QRIS] Pending transaction created:', inserted.id)
 
     return NextResponse.json({
       dynamicQris,
       transactionId: inserted.id,
     })
   } catch (error) {
-    console.error('[QRIS] Error:', error)
-    return NextResponse.json({ error: 'Gagal membuat QRIS dinamis' }, { status: 500 })
+    console.error('[QRIS] Unhandled error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
