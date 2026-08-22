@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,11 +44,15 @@ export default function WalletClient({
   const [amount, setAmount] = useState('')
   const [qrisString, setQrisString] = useState<string | null>(null)
   const [qrisLoading, setQrisLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [transactionId, setTransactionId] = useState<string | null>(null)
+  const [pollingStatus, setPollingStatus] = useState<'idle' | 'pending' | 'success' | 'timeout'>('idle')
+  const [pollingMessage, setPollingMessage] = useState('')
 
-  // Ambil riwayat top-up
+  const pollingInterval = useRef<NodeJS.Timeout | null>(null)
+  const pollCount = useRef(0)
+  const MAX_POLL = 30 // 30 * 3 detik = 90 detik (1.5 menit)
+
+  // ===== AMBIL RIWAYAT =====
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -67,16 +71,23 @@ export default function WalletClient({
     fetchHistory()
   }, [])
 
-  // Generate QRIS
+  // ===== GENERATE QRIS + POLLING =====
   useEffect(() => {
+    // Reset state ketika amount berubah
     if (!token || !amount || parseFloat(amount) <= 0 || !hasQrisConfig) {
       setQrisString(null)
       setQrisLoading(false)
+      setTransactionId(null)
+      setPollingStatus('idle')
+      setPollingMessage('')
+      stopPolling()
       return
     }
 
     let cancelled = false
     setQrisLoading(true)
+    setPollingStatus('pending')
+    setPollingMessage('Menghasilkan QRIS...')
 
     const generate = async () => {
       try {
@@ -89,9 +100,15 @@ export default function WalletClient({
         if (!cancelled) {
           if (res.ok && json.dynamicQris) {
             setQrisString(json.dynamicQris)
+            setTransactionId(json.transactionId)
+            setPollingMessage('QRIS siap. Scan dan bayar menggunakan aplikasi e-wallet.')
+            // Mulai polling
+            startPolling(json.transactionId)
           } else {
             console.error('QRIS failed:', json.error)
             setQrisString(null)
+            setPollingStatus('idle')
+            setPollingMessage('Gagal membuat QRIS: ' + (json.error || 'Unknown error'))
           }
           setQrisLoading(false)
         }
@@ -100,6 +117,8 @@ export default function WalletClient({
         if (!cancelled) {
           setQrisString(null)
           setQrisLoading(false)
+          setPollingStatus('idle')
+          setPollingMessage('Gagal membuat QRIS. Coba lagi.')
         }
       }
     }
@@ -108,18 +127,80 @@ export default function WalletClient({
     return () => {
       cancelled = true
       clearTimeout(timer)
+      stopPolling()
     }
   }, [amount, token, hasQrisConfig])
 
-  // Top-Up QRIS
-  const handleTopUp = async () => {
-    setSubmitError(null)
-    setSuccess(false)
-    const parsed = parseFloat(amount)
-    if (!parsed || parsed <= 0) {
-      setSubmitError('Masukkan nominal yang valid')
-      return
+  // ===== FUNGSI POLLING =====
+  const startPolling = (txId: string) => {
+    stopPolling()
+    pollCount.current = 0
+    setPollingStatus('pending')
+    setPollingMessage('Menunggu konfirmasi pembayaran...')
+
+    pollingInterval.current = setInterval(async () => {
+      pollCount.current++
+      console.log(`[Polling] Check #${pollCount.current} for tx ${txId}`)
+
+      try {
+        const res = await fetch(`/api/payments/status/${txId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json()
+
+        if (data?.payment_status === 'paid') {
+          // SUCCESS!
+          stopPolling()
+          setPollingStatus('success')
+          setPollingMessage('✅ Pembayaran berhasil! Saldo telah ditambahkan.')
+          setBalance(data.walletBalance ?? balance + parseFloat(amount))
+          setQrisString(null)
+          setTransactionId(null)
+
+          // Refresh history
+          refreshHistory()
+          setAmount('')
+          return
+        }
+
+        // Timeout
+        if (pollCount.current >= MAX_POLL) {
+          stopPolling()
+          setPollingStatus('timeout')
+          setPollingMessage('⏰ Waktu tunggu habis. Jika sudah bayar, klik tombol konfirmasi manual di bawah.')
+        }
+      } catch (err) {
+        console.error('[Polling] Error:', err)
+      }
+    }, 3000) // setiap 3 detik
+  }
+
+  const stopPolling = () => {
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current)
+      pollingInterval.current = null
     }
+  }
+
+  // ===== REFRESH HISTORY =====
+  const refreshHistory = async () => {
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('payment_deposits')
+        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
+        .eq('payment_type', 'topup')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (data) setHistory(data as TopUpHistory[])
+    } catch (err) {
+      console.warn('History refresh error:', err)
+    }
+  }
+
+  // ===== KONFIRMASI MANUAL (FALLBACK) =====
+  const handleManualConfirm = async () => {
+    if (!transactionId) return
 
     setSubmitting(true)
     try {
@@ -127,45 +208,37 @@ export default function WalletClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          amount: Math.round(parsed),
+          amount: Math.round(parseFloat(amount)),
           paymentMethod: 'qris',
-          qrisDynamicString: qrisString,
-          transactionRef: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          transactionRef: `MANUAL-${Date.now()}`,
           isTopup: true,
+          transactionId: transactionId, // Kirim ID pending
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal top-up')
-
-      setSuccess(true)
-
-      // Refresh balance
-      const balanceRes = await fetch('/api/wallet/balance', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const balanceData = await balanceRes.json()
-      if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
-
-      // Refresh history
-      const supabase = createClient()
-      const { data: newHistory } = await supabase
-        .from('payment_deposits')
-        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-        .eq('payment_type', 'topup')
-        .order('created_at', { ascending: false })
-        .limit(20)
-      if (newHistory) setHistory(newHistory as TopUpHistory[])
-
-      setAmount('')
-      setQrisString(null)
-    } catch (e: any) {
-      setSubmitError(e.message)
+      if (res.ok && json.newBalance !== undefined) {
+        setBalance(json.newBalance)
+        setPollingStatus('success')
+        setPollingMessage('✅ Konfirmasi manual berhasil! Saldo telah ditambahkan.')
+        setQrisString(null)
+        setTransactionId(null)
+        refreshHistory()
+        setAmount('')
+      } else {
+        throw new Error(json.error || 'Gagal konfirmasi manual')
+      }
+    } catch (err: any) {
+      setSubmitError(err.message)
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Dummy Top-Up
+  // ===== TOP-UP DUMMY =====
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
   const handleDummyTopUp = async () => {
     setSubmitError(null)
     setSuccess(false)
@@ -189,21 +262,14 @@ export default function WalletClient({
 
       setSuccess(true)
 
+      // Refresh balance
       const balanceRes = await fetch('/api/wallet/balance', {
         headers: { Authorization: `Bearer ${token}` },
       })
       const balanceData = await balanceRes.json()
       if (balanceRes.ok) setBalance(balanceData.balance ?? 0)
 
-      const supabase = createClient()
-      const { data: newHistory } = await supabase
-        .from('payment_deposits')
-        .select('id, amount, payment_method, payment_status, created_at, transaction_ref')
-        .eq('payment_type', 'topup')
-        .order('created_at', { ascending: false })
-        .limit(20)
-      if (newHistory) setHistory(newHistory as TopUpHistory[])
-
+      refreshHistory()
       setAmount('')
       setQrisString(null)
     } catch (e: any) {
@@ -213,6 +279,7 @@ export default function WalletClient({
     }
   }
 
+  // ===== RENDER =====
   if (!hasQrisConfig) {
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
@@ -297,7 +364,7 @@ export default function WalletClient({
                 {qrisLoading ? (
                   <div className="flex flex-col items-center py-4">
                     <Spinner className="h-8 w-8" />
-                    <p className="text-xs text-muted-foreground mt-2">Menghasilkan QRIS...</p>
+                    <p className="text-xs text-muted-foreground mt-2">{pollingMessage || 'Menghasilkan QRIS...'}</p>
                   </div>
                 ) : qrisString ? (
                   <>
@@ -308,10 +375,42 @@ export default function WalletClient({
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                     />
                     <p className="text-xs text-muted-foreground mt-2">Scan dengan aplikasi e-wallet / m-banking</p>
+
+                    {/* Status Polling */}
+                    {pollingStatus === 'pending' && (
+                      <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                        <Spinner className="h-4 w-4" />
+                        <span>{pollingMessage}</span>
+                      </div>
+                    )}
+                    {pollingStatus === 'success' && (
+                      <Alert className="bg-green-50 border-green-200 mt-4 w-full">
+                        <AlertDescription className="text-green-700">
+                          {pollingMessage}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {pollingStatus === 'timeout' && (
+                      <Alert variant="destructive" className="mt-4 w-full">
+                        <AlertDescription>
+                          <p>{pollingMessage}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={handleManualConfirm}
+                            disabled={submitting}
+                          >
+                            {submitting ? <Spinner className="h-4 w-4 mr-2" /> : null}
+                            Konfirmasi Manual
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </>
                 ) : (
                   <Alert variant="destructive" className="w-full">
-                    <AlertDescription>Gagal membuat QRIS. Coba nominal lain atau refresh.</AlertDescription>
+                    <AlertDescription>{pollingMessage || 'Gagal membuat QRIS. Coba nominal lain atau refresh.'}</AlertDescription>
                   </Alert>
                 )}
               </div>
@@ -331,14 +430,7 @@ export default function WalletClient({
             </Alert>
           )}
 
-          <Button
-            onClick={handleTopUp}
-            disabled={submitting || !parseFloat(amount) || parseFloat(amount) <= 0}
-            className="w-full"
-          >
-            {submitting ? <Spinner className="w-4 h-4 mr-2" /> : null}
-            {submitting ? 'Memproses...' : 'Top Up Sekarang'}
-          </Button>
+          {/* TOMBOL TOP UP SEKARANG DIHAPUS */}
 
           <Button
             onClick={handleDummyTopUp}

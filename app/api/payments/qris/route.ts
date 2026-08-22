@@ -31,33 +31,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 })
     }
 
-    // Ambil QRIS statis dari database
+    // Ambil QRIS statis
     const { data: config, error: configError } = await supabase
       .from('payment_config')
       .select('config_value')
       .eq('config_key', 'qris_static_string')
       .single()
 
-    if (configError) {
-      console.error('[QRIS] Config fetch error:', configError)
-      return NextResponse.json(
-        { error: 'Gagal mengambil konfigurasi QRIS. Periksa database.' },
-        { status: 500 }
-      )
+    if (configError || !config?.config_value) {
+      return NextResponse.json({ error: 'QRIS belum dikonfigurasi' }, { status: 503 })
     }
 
-    const staticQris = config?.config_value?.trim()
-    if (!staticQris) {
-      return NextResponse.json(
-        { error: 'QRIS belum dikonfigurasi oleh admin. Hubungi administrator.' },
-        { status: 503 }
-      )
-    }
-
-    // Generate QRIS dinamis langsung (tanpa validasi CRC)
+    const staticQris = config.config_value.trim()
     const dynamicQris = convertToDynamic(staticQris, Math.round(amount))
 
-    return NextResponse.json({ dynamicQris })
+    // === BUAT PENDING TRANSACTION ===
+    const { data: student } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!student) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('payment_deposits')
+      .insert({
+        student_id: student.id,
+        amount: Math.round(amount),
+        payment_method: 'qris',
+        payment_status: 'pending',
+        payment_type: 'topup',
+        transaction_ref: `QRIS-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        qris_dynamic_string: dynamicQris,
+      })
+      .select('id')
+      .single()
+
+    if (insertError) {
+      console.error('[QRIS] Insert pending error:', insertError)
+      return NextResponse.json({ error: 'Gagal membuat transaksi' }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      dynamicQris,
+      transactionId: inserted.id,
+    })
   } catch (error) {
     console.error('[QRIS] Error:', error)
     return NextResponse.json({ error: 'Gagal membuat QRIS dinamis' }, { status: 500 })
