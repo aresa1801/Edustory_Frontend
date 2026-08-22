@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Ambil student_id
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('id')
@@ -43,7 +42,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // Ambil riwayat top-up (hanya payment_type = 'topup')
     const { data, error } = await supabase
       .from('payment_deposits')
       .select(`
@@ -86,7 +84,8 @@ export async function POST(request: NextRequest) {
       transactionRef, 
       qrisDynamicString, 
       isTopup,
-      isDummy 
+      isDummy,
+      transactionId // 👈 TERIMA transactionId
     } = await request.json()
 
     // === 2. Validasi ===
@@ -122,7 +121,140 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // === 4. Insert ke payment_deposits ===
+    // ============================================================
+    // 4. Jika ada transactionId → UPDATE status pending → paid
+    // ============================================================
+    if (transactionId) {
+      // 4a. Cek apakah transaksi ada dan statusnya pending
+      const { data: existing, error: checkError } = await supabase
+        .from('payment_deposits')
+        .select('id, payment_status, amount, student_id')
+        .eq('id', transactionId)
+        .eq('student_id', student.id)
+        .single()
+
+      if (checkError || !existing) {
+        console.error('[Payments POST] Transaksi tidak ditemukan:', checkError)
+        return NextResponse.json(
+          { error: 'Transaksi tidak ditemukan' },
+          { status: 404 }
+        )
+      }
+
+      if (existing.payment_status === 'paid') {
+        // Sudah lunas, return saldo terbaru
+        const { data: wallet } = await supabase
+          .from('wallets')
+          .select('balance')
+          .eq('student_id', student.id)
+          .single()
+        return NextResponse.json({
+          message: 'Transaksi sudah lunas',
+          newBalance: wallet?.balance || 0,
+        }, { status: 200 })
+      }
+
+      // 4b. Update status menjadi paid
+      const { error: updateError } = await supabase
+        .from('payment_deposits')
+        .update({
+          payment_status: 'paid',
+          paid_at: new Date().toISOString(),
+        })
+        .eq('id', transactionId)
+
+      if (updateError) {
+        console.error('[Payments POST] Update status error:', updateError)
+        return NextResponse.json(
+          { error: 'Gagal update status transaksi' },
+          { status: 500 }
+        )
+      }
+
+      // 4c. Gunakan amount dari existing (atau dari request)
+      const finalAmount = existing.amount || amount
+
+      // === TAMBAH SALDO WALLET ===
+      // 5a. Pastikan wallet ada (buat jika belum)
+      const { data: existingWallet, error: walletCheckError } = await supabase
+        .from('wallets')
+        .select('id, balance')
+        .eq('student_id', student.id)
+        .maybeSingle()
+
+      if (walletCheckError) {
+        console.error('[Payments POST] Wallet check error:', walletCheckError)
+        return NextResponse.json(
+          { error: 'Failed to check wallet: ' + walletCheckError.message },
+          { status: 500 }
+        )
+      }
+
+      let walletId = existingWallet?.id
+      let oldBalance = existingWallet?.balance || 0
+      const newBalance = oldBalance + finalAmount
+
+      if (!existingWallet) {
+        const { data: newWallet, error: createError } = await supabase
+          .from('wallets')
+          .insert({
+            student_id: student.id,
+            balance: finalAmount,
+          })
+          .select('id, balance')
+          .single()
+
+        if (createError) {
+          console.error('[Payments POST] Create wallet error:', createError)
+          return NextResponse.json(
+            { error: 'Failed to create wallet: ' + createError.message },
+            { status: 500 }
+          )
+        }
+        walletId = newWallet.id
+      } else {
+        const { error: updateError } = await supabase
+          .from('wallets')
+          .update({ balance: newBalance })
+          .eq('id', walletId)
+
+        if (updateError) {
+          console.error('[Payments POST] Update wallet error:', updateError)
+          return NextResponse.json(
+            { error: 'Failed to update wallet: ' + updateError.message },
+            { status: 500 }
+          )
+        }
+      }
+
+      // 5b. Catat ke wallet_transactions
+      const { error: txError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          student_id: student.id,
+          amount: finalAmount,
+          type: 'topup',
+          status: 'completed',
+          reference: transactionId,
+          description: `Top-up via ${paymentMethod} (manual confirm) - ${transactionRef || ''}`,
+          balance_after: newBalance,
+        })
+
+      if (txError) {
+        console.error('[Payments POST] Transaction log error:', txError)
+      }
+
+      return NextResponse.json({
+        newBalance,
+        walletId,
+        transactionId,
+        message: 'Top-up berhasil! Saldo telah ditambahkan.',
+      }, { status: 201 })
+    }
+
+    // ============================================================
+    // 5. Jika TIDAK ada transactionId → INSERT baru (seperti biasa)
+    // ============================================================
     const paymentStatus = isTopup ? 'paid' : 'pending'
     const paymentType = isTopup ? 'topup' : 'session'
     const paidAt = isTopup ? new Date().toISOString() : null
@@ -152,9 +284,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // === 5. Jika top-up / dummy, tambah saldo wallet ===
+    // === 6. Jika top-up / dummy, tambah saldo wallet ===
     if (isTopup && inserted) {
-      // 5a. Pastikan wallet ada (buat jika belum)
       const { data: existingWallet, error: walletCheckError } = await supabase
         .from('wallets')
         .select('id, balance')
@@ -174,7 +305,6 @@ export async function POST(request: NextRequest) {
       const newBalance = oldBalance + amount
 
       if (!existingWallet) {
-        // Buat wallet baru
         const { data: newWallet, error: createError } = await supabase
           .from('wallets')
           .insert({
@@ -192,10 +322,7 @@ export async function POST(request: NextRequest) {
           )
         }
         walletId = newWallet.id
-        oldBalance = 0
-        // Update newBalance
       } else {
-        // Update balance wallet
         const { error: updateError } = await supabase
           .from('wallets')
           .update({ balance: newBalance })
@@ -210,7 +337,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 5b. Catat ke wallet_transactions
       const { error: txError } = await supabase
         .from('wallet_transactions')
         .insert({
@@ -225,10 +351,8 @@ export async function POST(request: NextRequest) {
 
       if (txError) {
         console.error('[Payments POST] Transaction log error:', txError)
-        // Tidak fatal, lanjutkan
       }
 
-      // === 6. Return sukses dengan data lengkap ===
       return NextResponse.json({
         ...inserted,
         newBalance,
@@ -237,7 +361,6 @@ export async function POST(request: NextRequest) {
       }, { status: 201 })
     }
 
-    // Jika bukan top-up (misal session payment), return biasa
     return NextResponse.json(inserted, { status: 201 })
   } catch (error) {
     console.error('[Payments POST] Unhandled error:', error)
