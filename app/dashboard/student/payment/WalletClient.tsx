@@ -81,45 +81,44 @@ export default function WalletClient({
     }
   }
 
-  const startPolling = (txId: string) => {
-    if (!txId) return
-    stopPolling()
-    pollCount.current = 0
-    setPollingStatus('pending')
-    setPollingMessage('Menunggu konfirmasi pembayaran...')
+  // ===== START POLLING (SIMPEL) =====
+const startPolling = (txId: string) => {
+  if (!txId) return
+  stopPolling()
+  setPollingStatus('pending')
+  setPollingMessage('Menunggu konfirmasi pembayaran...')
+  let count = 0
 
-    pollingInterval.current = setInterval(async () => {
-      pollCount.current++
-      console.log(`[Polling] Check #${pollCount.current} for tx ${txId}`)
+  pollingInterval.current = setInterval(async () => {
+    count++
+    try {
+      const res = await fetch(`/api/payments/status/${txId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
 
-      try {
-        const res = await fetch(`/api/payments/status/${txId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await res.json()
-
-        if (data?.payment_status === 'paid') {
-          stopPolling()
-          setPollingStatus('success')
-          setPollingMessage('✅ Pembayaran berhasil! Saldo telah ditambahkan.')
-          setBalance(data.walletBalance ?? balance + parseFloat(amount))
-          setQrisString(null)
-          setTransactionId(null)
-          refreshHistory()
-          setAmount('')
-          return
-        }
-
-        if (pollCount.current >= MAX_POLL) {
-          stopPolling()
-          setPollingStatus('timeout')
-          setPollingMessage('⏰ Waktu tunggu habis. Jika sudah bayar, klik konfirmasi manual.')
-        }
-      } catch (err) {
-        console.error('[Polling] Error:', err)
+      if (data?.payment_status === 'paid') {
+        stopPolling()
+        setPollingStatus('success')
+        setPollingMessage('✅ Pembayaran berhasil! Saldo telah ditambahkan.')
+        setBalance(data.walletBalance ?? balance + parseFloat(amount))
+        setQrisString(null)
+        setTransactionId(null)
+        refreshHistory()
+        setAmount('')
+        return
       }
-    }, 3000)
-  }
+
+      if (count > 30) { // 30 * 3 detik = 90 detik
+        stopPolling()
+        setPollingStatus('timeout')
+        setPollingMessage('⏰ Waktu tunggu habis. Refresh halaman untuk cek status.')
+      }
+    } catch (err) {
+      console.error('[Polling] Error:', err)
+    }
+  }, 3000)
+}
 
   const handleManualConfirm = async () => {
     if (!transactionId) {
