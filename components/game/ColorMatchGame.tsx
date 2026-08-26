@@ -52,7 +52,7 @@ const ColorMatchGame = () => {
     return 5;
   };
 
-  // RESET: hanya reset skor, combo, level. HIGH SCORE TETAP!
+  // RESET TOTAL (dipanggil saat tombol reset atau timer habis)
   const resetGame = useCallback(() => {
     clearTimer();
     setGame((prev) => ({
@@ -64,13 +64,11 @@ const ColorMatchGame = () => {
       message: "Mulai dari awal!",
       timeLeft: 10,
     }));
-    generateGrid(1);
+    generateGrid(1, true); // reset timer
   }, []);
 
   const startTimer = useCallback(() => {
     clearTimer();
-
-    setGame((prev) => ({ ...prev, timeLeft: 10 }));
 
     timerRef.current = setInterval(() => {
       setGame((prev) => {
@@ -86,7 +84,6 @@ const ColorMatchGame = () => {
             message: "⏰ Waktu habis! Mulai ulang...",
           }));
 
-          // Setelah jeda, panggil resetGame
           setTimeout(() => {
             resetGame();
           }, 1000);
@@ -99,8 +96,9 @@ const ColorMatchGame = () => {
     }, 1000);
   }, [resetGame]);
 
+  // generateGrid dengan parameter resetTimer (default true)
   const generateGrid = useCallback(
-    (level: number) => {
+    (level: number, resetTimer: boolean = true) => {
       const size = getGridSizeFromLevel(level);
       const total = size * size;
 
@@ -138,17 +136,23 @@ const ColorMatchGame = () => {
         }
       }
 
-      setGame((prev) => ({
-        ...prev,
-        gridSize: size,
-        tiles,
-        targetIndex: targetIdx,
-        isPlaying: true,
-        message: `Level ${level} — Temukan yang berbeda!`,
-        timeLeft: 10,
-      }));
+      setGame((prev) => {
+        const newTimeLeft = resetTimer ? 10 : prev.timeLeft;
+        return {
+          ...prev,
+          gridSize: size,
+          tiles,
+          targetIndex: targetIdx,
+          isPlaying: true,
+          message: `Level ${level} — Temukan yang berbeda!`,
+          timeLeft: newTimeLeft,
+        };
+      });
 
-      startTimer();
+      // Jika resetTimer true, mulai timer baru; jika false, timer sudah berjalan, kita tidak perlu start ulang
+      if (resetTimer) {
+        startTimer();
+      }
     },
     [startTimer]
   );
@@ -157,7 +161,8 @@ const ColorMatchGame = () => {
     if (!game.isPlaying) return;
 
     if (index === game.targetIndex) {
-      clearTimer();
+      // ---------- BENAR ----------
+      clearTimer(); // hentikan timer sementara
 
       const newCombo = game.combo + 1;
       const bonus = Math.floor(newCombo / 5) + 1;
@@ -173,14 +178,17 @@ const ColorMatchGame = () => {
         level: newLevel,
         isPlaying: true,
         message: `✨ Level Up! +${10 * bonus} poin`,
-        timeLeft: 10,
+        timeLeft: 10, // reset timer untuk level baru
       }));
 
+      // Generate grid baru dengan resetTimer = true (timer direset ke 10)
       setTimeout(() => {
-        generateGrid(newLevel);
+        generateGrid(newLevel, true);
       }, 400);
     } else {
-      clearTimer();
+      // ---------- SALAH ----------
+      // Timer TETAP BERJALAN, tidak di-clear, tidak di-reset!
+      // Hanya reset combo, tampilkan pesan, dan setelah jeda generate grid ulang dengan timer yang sama
 
       setGame((prev) => ({
         ...prev,
@@ -194,9 +202,9 @@ const ColorMatchGame = () => {
           ...prev,
           isPlaying: true,
           message: `Level ${prev.level} — Temukan yang berbeda!`,
-          timeLeft: 10,
         }));
-        generateGrid(game.level);
+        // Generate grid ulang dengan resetTimer = false (timer tetap berlanjut)
+        generateGrid(game.level, false);
       }, 900);
     }
   };
@@ -208,7 +216,7 @@ const ColorMatchGame = () => {
 
   // Inisialisasi pertama
   useEffect(() => {
-    generateGrid(1);
+    generateGrid(1, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
