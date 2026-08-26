@@ -10,7 +10,6 @@ interface GameState {
   highScore: number;
   combo: number;
   level: number;
-  correctCount: number; // <-- TAMBAHAN: hitung jawaban benar di level ini
   isPlaying: boolean;
   message: string;
 }
@@ -24,7 +23,6 @@ const ColorMatchGame = () => {
     highScore: 0,
     combo: 0,
     level: 1,
-    correctCount: 0, // inisialisasi
     isPlaying: true,
     message: "Temukan yang berbeda!",
   });
@@ -95,53 +93,30 @@ const ColorMatchGame = () => {
     if (!game.isPlaying) return;
 
     if (index === game.targetIndex) {
-      // ---------- BENAR ----------
+      // ---------- BENAR: LANGSUNG NAIK LEVEL ----------
       const newCombo = game.combo + 1;
       const bonus = Math.floor(newCombo / 5) + 1;
       const newScore = game.score + 10 * bonus;
       const newHighScore = Math.max(game.highScore, newScore);
+      const newLevel = game.level + 1;
 
-      // Tambah counter jawaban benar di level ini
-      const newCorrectCount = game.correctCount + 1;
+      setGame((prev) => ({
+        ...prev,
+        score: newScore,
+        highScore: newHighScore,
+        combo: newCombo,
+        level: newLevel,
+        isPlaying: true,
+        message: `✨ Level Up! +${10 * bonus} poin`,
+      }));
 
-      // Cek apakah sudah 3 jawaban benar berturut-turut di level ini
-      if (newCorrectCount >= 3) {
-        // Naik level!
-        const newLevel = game.level + 1;
-
-        setGame((prev) => ({
-          ...prev,
-          score: newScore,
-          highScore: newHighScore,
-          combo: newCombo,
-          correctCount: 0, // reset counter untuk level baru
-          level: newLevel,
-          isPlaying: true,
-          message: `✨ Level Up! +${10 * bonus} poin`,
-        }));
-
-        // Generate grid untuk level baru
-        setTimeout(() => generateGrid(newLevel), 400);
-      } else {
-        // Tetap di level yang sama
-        setGame((prev) => ({
-          ...prev,
-          score: newScore,
-          highScore: newHighScore,
-          combo: newCombo,
-          correctCount: newCorrectCount,
-          message: `Keren! +${10 * bonus} poin ✨`,
-        }));
-
-        // Regenerate grid dengan level yang sama
-        setTimeout(() => generateGrid(game.level), 350);
-      }
+      // Generate grid untuk level baru
+      setTimeout(() => generateGrid(newLevel), 400);
     } else {
       // ---------- SALAH ----------
       setGame((prev) => ({
         ...prev,
         combo: 0,
-        correctCount: 0, // reset counter karena salah
         isPlaying: false,
         message: "Yah, kurang tepat 😅",
       }));
@@ -157,14 +132,13 @@ const ColorMatchGame = () => {
     }
   };
 
-  // RESET: hanya reset skor, combo, level, correctCount. HIGH SCORE TETAP!
+  // RESET: hanya reset skor, combo, level. HIGH SCORE TETAP!
   const resetGame = () => {
     setGame((prev) => ({
       ...prev,
       score: 0,
       combo: 0,
       level: 1,
-      correctCount: 0,
       isPlaying: true,
       message: "Mulai dari awal!",
     }));
@@ -217,7 +191,7 @@ const ColorMatchGame = () => {
       {/* Pesan status */}
       <div className="w-full max-w-md text-center min-h-[2.2rem] mt-3 flex items-center justify-center">
         <p className={`text-sm font-medium transition-all duration-200 ${
-          game.message.includes("Keren") || game.message.includes("Level Up")
+          game.message.includes("Level Up")
             ? "text-emerald-600 dark:text-emerald-400"
             : game.message.includes("kurang")
             ? "text-rose-500 dark:text-rose-400"
