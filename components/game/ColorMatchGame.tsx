@@ -25,7 +25,7 @@ const ColorMatchGame = () => {
     combo: 0,
     level: 1,
     isPlaying: true,
-    message: "Temukan yang berbeda!",
+    message: "Level 1 — Free Mode! Cari yang berbeda",
     timeLeft: 10,
   });
 
@@ -52,7 +52,7 @@ const ColorMatchGame = () => {
     return 5;
   };
 
-  // RESET TOTAL (dipanggil saat tombol reset atau timer habis)
+  // RESET TOTAL
   const resetGame = useCallback(() => {
     clearTimer();
     setGame((prev) => ({
@@ -61,14 +61,17 @@ const ColorMatchGame = () => {
       combo: 0,
       level: 1,
       isPlaying: true,
-      message: "Mulai dari awal!",
+      message: "Level 1 — Free Mode! Cari yang berbeda",
       timeLeft: 10,
     }));
-    generateGrid(1, true); // reset timer
+    generateGrid(1, true);
   }, []);
 
   const startTimer = useCallback(() => {
     clearTimer();
+
+    // Timer hanya berjalan jika level > 1
+    if (game.level <= 1) return;
 
     timerRef.current = setInterval(() => {
       setGame((prev) => {
@@ -76,7 +79,6 @@ const ColorMatchGame = () => {
 
         const newTime = prev.timeLeft - 1;
         if (newTime <= 0) {
-          // Timer habis → reset total!
           clearTimer();
           setGame((innerPrev) => ({
             ...innerPrev,
@@ -94,9 +96,8 @@ const ColorMatchGame = () => {
         return { ...prev, timeLeft: newTime };
       });
     }, 1000);
-  }, [resetGame]);
+  }, [game.level, resetGame]);
 
-  // generateGrid dengan parameter resetTimer (default true)
   const generateGrid = useCallback(
     (level: number, resetTimer: boolean = true) => {
       const size = getGridSizeFromLevel(level);
@@ -136,6 +137,11 @@ const ColorMatchGame = () => {
         }
       }
 
+      // Tentukan pesan berdasarkan level
+      const messageText = level === 1 
+        ? "Level 1 — Free Mode! Cari yang berbeda" 
+        : `Level ${level} — Temukan yang berbeda!`;
+
       setGame((prev) => {
         const newTimeLeft = resetTimer ? 10 : prev.timeLeft;
         return {
@@ -144,13 +150,13 @@ const ColorMatchGame = () => {
           tiles,
           targetIndex: targetIdx,
           isPlaying: true,
-          message: `Level ${level} — Temukan yang berbeda!`,
+          message: messageText,
           timeLeft: newTimeLeft,
         };
       });
 
-      // Jika resetTimer true, mulai timer baru; jika false, timer sudah berjalan, kita tidak perlu start ulang
-      if (resetTimer) {
+      // Mulai timer hanya jika level > 1 dan resetTimer true
+      if (resetTimer && level > 1) {
         startTimer();
       }
     },
@@ -162,13 +168,19 @@ const ColorMatchGame = () => {
 
     if (index === game.targetIndex) {
       // ---------- BENAR ----------
-      clearTimer(); // hentikan timer sementara
+      clearTimer();
 
       const newCombo = game.combo + 1;
       const bonus = Math.floor(newCombo / 5) + 1;
       const newScore = game.score + 10 * bonus;
       const newHighScore = Math.max(game.highScore, newScore);
       const newLevel = game.level + 1;
+
+      // Jika level baru > 1, timer akan aktif
+      const isNextLevelFree = newLevel === 1; // tidak mungkin karena selalu naik, tapi aman
+      const nextMessage = newLevel === 1 
+        ? "Level 1 — Free Mode! Cari yang berbeda" 
+        : `Level ${newLevel} — Temukan yang berbeda!`;
 
       setGame((prev) => ({
         ...prev,
@@ -178,18 +190,16 @@ const ColorMatchGame = () => {
         level: newLevel,
         isPlaying: true,
         message: `✨ Level Up! +${10 * bonus} poin`,
-        timeLeft: 10, // reset timer untuk level baru
+        timeLeft: newLevel === 1 ? 10 : 10, // selalu reset ke 10
       }));
 
-      // Generate grid baru dengan resetTimer = true (timer direset ke 10)
       setTimeout(() => {
+        // Timer direset, tetapi jika level baru = 1, timer tidak akan berjalan
         generateGrid(newLevel, true);
       }, 400);
     } else {
       // ---------- SALAH ----------
-      // Timer TETAP BERJALAN, tidak di-clear, tidak di-reset!
-      // Hanya reset combo, tampilkan pesan, dan setelah jeda generate grid ulang dengan timer yang sama
-
+      // Timer tidak direset, tetap berjalan (tapi di level 1 timer tidak berjalan anyway)
       setGame((prev) => ({
         ...prev,
         combo: 0,
@@ -201,9 +211,11 @@ const ColorMatchGame = () => {
         setGame((prev) => ({
           ...prev,
           isPlaying: true,
-          message: `Level ${prev.level} — Temukan yang berbeda!`,
+          message: prev.level === 1 
+            ? "Level 1 — Free Mode! Cari yang berbeda" 
+            : `Level ${prev.level} — Temukan yang berbeda!`,
         }));
-        // Generate grid ulang dengan resetTimer = false (timer tetap berlanjut)
+        // resetTimer = false agar timer tetap lanjut (tapi di level 1 tidak jalan)
         generateGrid(game.level, false);
       }, 900);
     }
@@ -228,6 +240,8 @@ const ColorMatchGame = () => {
     return Math.max(minSize, Math.min(maxSize, size));
   };
 
+  // Timer hanya aktif jika level > 1
+  const isTimerActive = game.level > 1;
   const timerPercentage = (game.timeLeft / 10) * 100;
   const timerColor =
     timerPercentage > 60
@@ -268,13 +282,17 @@ const ColorMatchGame = () => {
       {/* Timer Progress Bar */}
       <div className="w-full max-w-md mt-3">
         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-          <span className="font-medium">⏱️ Waktu</span>
-          <span className="font-mono font-bold">{game.timeLeft}s</span>
+          <span className="font-medium">
+            {isTimerActive ? "⏱️ Waktu" : "⏱️ Free Mode"}
+          </span>
+          <span className="font-mono font-bold">
+            {isTimerActive ? `${game.timeLeft}s` : "∞"}
+          </span>
         </div>
         <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
           <div
-            className={`h-full ${timerColor} transition-all duration-1000 ease-linear rounded-full`}
-            style={{ width: `${timerPercentage}%` }}
+            className={`h-full ${isTimerActive ? timerColor : "bg-slate-400 dark:bg-slate-500"} transition-all duration-1000 ease-linear rounded-full`}
+            style={{ width: isTimerActive ? `${timerPercentage}%` : "100%" }}
           />
         </div>
       </div>
