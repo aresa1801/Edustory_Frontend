@@ -67,11 +67,12 @@ const ColorMatchGame = () => {
     generateGrid(1, true);
   }, []);
 
-  const startTimer = useCallback(() => {
+  // Start timer dengan parameter level (tidak bergantung pada state)
+  const startTimer = useCallback((level: number) => {
     clearTimer();
 
     // Timer hanya berjalan jika level > 1
-    if (game.level <= 1) return;
+    if (level <= 1) return;
 
     timerRef.current = setInterval(() => {
       setGame((prev) => {
@@ -96,7 +97,7 @@ const ColorMatchGame = () => {
         return { ...prev, timeLeft: newTime };
       });
     }, 1000);
-  }, [game.level, resetGame]);
+  }, [resetGame]);
 
   const generateGrid = useCallback(
     (level: number, resetTimer: boolean = true) => {
@@ -137,7 +138,6 @@ const ColorMatchGame = () => {
         }
       }
 
-      // Tentukan pesan berdasarkan level
       const messageText = level === 1 
         ? "Level 1 — Free Mode! Cari yang berbeda" 
         : `Level ${level} — Temukan yang berbeda!`;
@@ -155,9 +155,9 @@ const ColorMatchGame = () => {
         };
       });
 
-      // Mulai timer hanya jika level > 1 dan resetTimer true
-      if (resetTimer && level > 1) {
-        startTimer();
+      // Jika resetTimer true, mulai timer dengan level yang diberikan
+      if (resetTimer) {
+        startTimer(level);
       }
     },
     [startTimer]
@@ -176,12 +176,6 @@ const ColorMatchGame = () => {
       const newHighScore = Math.max(game.highScore, newScore);
       const newLevel = game.level + 1;
 
-      // Jika level baru > 1, timer akan aktif
-      const isNextLevelFree = newLevel === 1; // tidak mungkin karena selalu naik, tapi aman
-      const nextMessage = newLevel === 1 
-        ? "Level 1 — Free Mode! Cari yang berbeda" 
-        : `Level ${newLevel} — Temukan yang berbeda!`;
-
       setGame((prev) => ({
         ...prev,
         score: newScore,
@@ -190,16 +184,14 @@ const ColorMatchGame = () => {
         level: newLevel,
         isPlaying: true,
         message: `✨ Level Up! +${10 * bonus} poin`,
-        timeLeft: newLevel === 1 ? 10 : 10, // selalu reset ke 10
+        timeLeft: 10,
       }));
 
       setTimeout(() => {
-        // Timer direset, tetapi jika level baru = 1, timer tidak akan berjalan
         generateGrid(newLevel, true);
       }, 400);
     } else {
       // ---------- SALAH ----------
-      // Timer tidak direset, tetap berjalan (tapi di level 1 timer tidak berjalan anyway)
       setGame((prev) => ({
         ...prev,
         combo: 0,
@@ -215,7 +207,7 @@ const ColorMatchGame = () => {
             ? "Level 1 — Free Mode! Cari yang berbeda" 
             : `Level ${prev.level} — Temukan yang berbeda!`,
         }));
-        // resetTimer = false agar timer tetap lanjut (tapi di level 1 tidak jalan)
+        // resetTimer = false agar timer tetap lanjut (tidak direset)
         generateGrid(game.level, false);
       }, 900);
     }
@@ -240,7 +232,6 @@ const ColorMatchGame = () => {
     return Math.max(minSize, Math.min(maxSize, size));
   };
 
-  // Timer hanya aktif jika level > 1
   const isTimerActive = game.level > 1;
   const timerPercentage = (game.timeLeft / 10) * 100;
   const timerColor =
