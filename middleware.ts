@@ -3,6 +3,22 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // ============================================================
+  // 🚧 CEK MAINTENANCE MODE (DI PALING AWAL, SEBELUM APAPUN)
+  // ============================================================
+  const isMaintenance = process.env.MAINTENANCE_MODE === 'true'
+  const { pathname } = request.nextUrl
+
+  // Kalau maintenance aktif dan user belum di halaman maintenance,
+  // langsung redirect ke /maintenance (tanpa auth, tanpa apapun)
+  if (isMaintenance && !pathname.startsWith('/maintenance')) {
+    return NextResponse.redirect(new URL('/maintenance', request.url))
+  }
+
+  // ============================================================
+  // LANJUTKAN LOGIKA AUTH YANG SUDAH ADA (TIDAK BERUBAH)
+  // ============================================================
+
   // Buat response awal untuk menampung cookie jika diperlukan
   let response = NextResponse.next({
     request: {
@@ -20,11 +36,9 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          // Set cookie ke request (untuk digunakan di server)
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set({ name, value, ...options })
           })
-          // Set cookie ke response (untuk dikirim ke browser)
           response = NextResponse.next({
             request: {
               headers: request.headers,
@@ -40,7 +54,6 @@ export async function middleware(request: NextRequest) {
 
   // Ambil user dari session
   const { data: { user }, error } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
 
   // ============================================================
   // 1. PROTEKSI ROUTE DASHBOARD
@@ -80,9 +93,6 @@ export async function middleware(request: NextRequest) {
   // ============================================================
   // 2. ROUTE LAINNYA (termasuk /auth/select-role) DIBIARKAN BEBAS
   // ============================================================
-  // Tidak ada pengecekan profile atau penghapusan session
-  // Ini memastikan user baru bisa mengakses halaman select-role tanpa gangguan
-
   return response
 }
 
