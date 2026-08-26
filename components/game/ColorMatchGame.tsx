@@ -24,10 +24,9 @@ const ColorMatchGame = () => {
     combo: 0,
     level: 1,
     isPlaying: true,
-    message: "Cari warna yang berbeda",
+    message: "Temukan yang berbeda!",
   });
 
-  // Generate warna acak dalam format HSL
   const generateRandomColor = () => {
     const h = Math.floor(Math.random() * 360);
     const s = 50 + Math.floor(Math.random() * 30);
@@ -35,7 +34,6 @@ const ColorMatchGame = () => {
     return { h, s, l };
   };
 
-  // Generate grid baru
   const generateGrid = useCallback((level: number) => {
     const size = Math.min(2 + Math.floor((level - 1) / 3), 5);
     const total = size * size;
@@ -80,11 +78,10 @@ const ColorMatchGame = () => {
       tiles,
       targetIndex: targetIdx,
       isPlaying: true,
-      message: `Level ${level} — Cari yang berbeda`,
+      message: "Temukan yang berbeda!",
     }));
   }, []);
 
-  // Handle klik tile
   const handleTileClick = (index: number) => {
     if (!game.isPlaying) return;
 
@@ -99,7 +96,7 @@ const ColorMatchGame = () => {
         score: newScore,
         highScore: newHighScore,
         combo: newCombo,
-        message: `Benar! Kombinasi x${newCombo}`,
+        message: `Keren! +${10 * bonus} poin ✨`,
       }));
 
       if (game.level % 3 === 0) {
@@ -107,26 +104,26 @@ const ColorMatchGame = () => {
           ...prev,
           level: prev.level + 1,
         }));
-        setTimeout(() => generateGrid(game.level + 1), 300);
+        setTimeout(() => generateGrid(game.level + 1), 350);
       } else {
-        setTimeout(() => generateGrid(game.level), 300);
+        setTimeout(() => generateGrid(game.level), 350);
       }
     } else {
       setGame((prev) => ({
         ...prev,
         combo: 0,
         isPlaying: false,
-        message: "Salah, coba lagi",
+        message: "Yah, kurang tepat 😅",
       }));
 
       setTimeout(() => {
         setGame((prev) => ({
           ...prev,
           isPlaying: true,
-          message: `Level ${prev.level} — Cari yang berbeda`,
+          message: `Level ${prev.level} — Temukan yang berbeda!`,
         }));
         generateGrid(game.level);
-      }, 1000);
+      }, 900);
     }
   };
 
@@ -140,7 +137,7 @@ const ColorMatchGame = () => {
       combo: 0,
       level: 1,
       isPlaying: true,
-      message: "Game direset",
+      message: "Mulai dari awal!",
     });
     generateGrid(1);
   };
@@ -150,65 +147,68 @@ const ColorMatchGame = () => {
   }, [generateGrid]);
 
   const getTileSize = () => {
-    const baseSize = 80;
-    const maxSize = 120;
-    const minSize = 50;
-    const size = baseSize - (game.gridSize - 2) * 8;
+    const baseSize = 76;
+    const maxSize = 110;
+    const minSize = 48;
+    const size = baseSize - (game.gridSize - 2) * 7;
     return Math.max(minSize, Math.min(maxSize, size));
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[500px] p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
-      {/* Header */}
-      <div className="w-full max-w-md text-center mb-5">
-        <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100 tracking-tight">
+    <div className="flex flex-col items-center justify-center min-h-[520px] p-6 bg-gradient-to-br from-slate-50 to-slate-100/70 dark:from-slate-900 dark:to-slate-800/80 rounded-3xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm max-w-lg mx-auto w-full transition-all">
+      
+      {/* Header dengan aksen garis */}
+      <div className="w-full text-center mb-3">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           Cari Warna Beda
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <div className="w-16 h-1 bg-gradient-to-r from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-500 mx-auto mt-1.5 rounded-full" />
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2.5 font-light">
           Sembari menunggu maintenance selesai
         </p>
       </div>
 
-      {/* Scoreboard - minimalis tanpa warna mencolok */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 w-full max-w-md text-sm text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
-        <div className="flex justify-between md:justify-start md:gap-2">
-          <span className="font-medium">Skor</span>
-          <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{game.score}</span>
+      {/* Scoreboard - seperti kartu statistik */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full max-w-md mt-2">
+        <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Skor</p>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{game.score}</p>
         </div>
-        <div className="flex justify-between md:justify-start md:gap-2">
-          <span className="font-medium">Tertinggi</span>
-          <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{game.highScore}</span>
+        <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Tertinggi</p>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{game.highScore}</p>
         </div>
-        <div className="flex justify-between md:justify-start md:gap-2">
-          <span className="font-medium">Kombinasi</span>
-          <span className="font-mono font-bold text-slate-800 dark:text-slate-100">x{game.combo}</span>
+        <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Kombinasi</p>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-100">×{game.combo}</p>
         </div>
-        <div className="flex justify-between md:justify-start md:gap-2">
-          <span className="font-medium">Level</span>
-          <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{game.level}</span>
-        </div>
-        <div className="col-span-2 md:col-span-4 flex justify-between md:justify-start md:gap-2 text-slate-500 dark:text-slate-400 text-xs">
-          <span>Grid</span>
-          <span className="font-mono">{game.gridSize}×{game.gridSize}</span>
+        <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Level</p>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{game.level}</p>
         </div>
       </div>
 
-      {/* Pesan status */}
-      <div className="w-full max-w-md text-center min-h-[2rem] mb-3">
-        <p className={`text-sm font-medium ${
-          game.message.includes("Benar")
+      {/* Grid size tag */}
+      <div className="mt-2 text-xs text-slate-400 dark:text-slate-500 font-mono tracking-wide">
+        {game.gridSize} × {game.gridSize}
+      </div>
+
+      {/* Pesan status dengan animasi halus */}
+      <div className="w-full max-w-md text-center min-h-[2.2rem] mt-3 flex items-center justify-center">
+        <p className={`text-sm font-medium transition-all duration-200 ${
+          game.message.includes("Keren")
             ? "text-emerald-600 dark:text-emerald-400"
-            : game.message.includes("Salah")
-            ? "text-red-500 dark:text-red-400"
-            : "text-slate-600 dark:text-slate-300"
+            : game.message.includes("kurang")
+            ? "text-rose-500 dark:text-rose-400"
+            : "text-slate-500 dark:text-slate-400"
         }`}>
           {game.message}
         </p>
       </div>
 
-      {/* Grid warna */}
+      {/* Grid warna dengan efek glassmorphism */}
       <div
-        className="grid gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl"
+        className="grid gap-2.5 p-4 bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-inner backdrop-blur-sm border border-white/20 dark:border-slate-700/30 mt-1"
         style={{
           gridTemplateColumns: `repeat(${game.gridSize}, 1fr)`,
           width: "fit-content",
@@ -217,13 +217,14 @@ const ColorMatchGame = () => {
         {game.tiles.map((color, index) => (
           <button
             key={index}
-            className="rounded-lg transition-all duration-150 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:focus:ring-slate-500"
+            className="rounded-xl transition-all duration-150 hover:scale-105 hover:shadow-md active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400/60 focus:ring-offset-2 dark:focus:ring-slate-500/60"
             style={{
               backgroundColor: color,
               width: getTileSize(),
               height: getTileSize(),
               cursor: game.isPlaying ? "pointer" : "default",
-              opacity: game.isPlaying ? 1 : 0.6,
+              opacity: game.isPlaying ? 1 : 0.5,
+              boxShadow: game.isPlaying ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
             }}
             onClick={() => handleTileClick(index)}
             disabled={!game.isPlaying}
@@ -232,16 +233,16 @@ const ColorMatchGame = () => {
         ))}
       </div>
 
-      {/* Tombol reset - plain */}
+      {/* Tombol dengan efek hover smooth */}
       <button
         onClick={resetGame}
-        className="mt-6 px-5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-full transition-colors shadow-sm"
+        className="mt-6 px-8 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300/80 dark:hover:bg-slate-600/80 rounded-full transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 border border-slate-300/40 dark:border-slate-600/40"
       >
         Mulai Ulang
       </button>
 
-      {/* Footer hint - tanpa emoji */}
-      <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
+      {/* Footer hint */}
+      <p className="mt-4 text-[11px] text-slate-400 dark:text-slate-500 font-light tracking-wide">
         Tertinggi hanya bertahan selama halaman ini terbuka
       </p>
     </div>
