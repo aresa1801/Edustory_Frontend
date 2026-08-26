@@ -10,6 +10,7 @@ interface GameState {
   highScore: number;
   combo: number;
   level: number;
+  correctCount: number; // <-- TAMBAHAN: hitung jawaban benar di level ini
   isPlaying: boolean;
   message: string;
 }
@@ -23,6 +24,7 @@ const ColorMatchGame = () => {
     highScore: 0,
     combo: 0,
     level: 1,
+    correctCount: 0, // inisialisasi
     isPlaying: true,
     message: "Temukan yang berbeda!",
   });
@@ -34,12 +36,11 @@ const ColorMatchGame = () => {
     return { h, s, l };
   };
 
-  // Fungsi untuk menentukan ukuran grid berdasarkan level
   const getGridSizeFromLevel = (level: number) => {
     if (level <= 10) return 2;
     if (level <= 25) return 3;
     if (level <= 40) return 4;
-    return 5; // level 41 ke atas
+    return 5;
   };
 
   const generateGrid = useCallback((level: number) => {
@@ -86,7 +87,7 @@ const ColorMatchGame = () => {
       tiles,
       targetIndex: targetIdx,
       isPlaying: true,
-      message: "Temukan yang berbeda!",
+      message: `Level ${level} — Temukan yang berbeda!`,
     }));
   }, []);
 
@@ -94,33 +95,53 @@ const ColorMatchGame = () => {
     if (!game.isPlaying) return;
 
     if (index === game.targetIndex) {
+      // ---------- BENAR ----------
       const newCombo = game.combo + 1;
       const bonus = Math.floor(newCombo / 5) + 1;
       const newScore = game.score + 10 * bonus;
       const newHighScore = Math.max(game.highScore, newScore);
 
-      setGame((prev) => ({
-        ...prev,
-        score: newScore,
-        highScore: newHighScore,
-        combo: newCombo,
-        message: `Keren! +${10 * bonus} poin ✨`,
-      }));
+      // Tambah counter jawaban benar di level ini
+      const newCorrectCount = game.correctCount + 1;
 
-      // Naik level setiap 3 jawaban benar
-      if (game.level % 3 === 0) {
+      // Cek apakah sudah 3 jawaban benar berturut-turut di level ini
+      if (newCorrectCount >= 3) {
+        // Naik level!
+        const newLevel = game.level + 1;
+
         setGame((prev) => ({
           ...prev,
-          level: prev.level + 1,
+          score: newScore,
+          highScore: newHighScore,
+          combo: newCombo,
+          correctCount: 0, // reset counter untuk level baru
+          level: newLevel,
+          isPlaying: true,
+          message: `✨ Level Up! +${10 * bonus} poin`,
         }));
-        setTimeout(() => generateGrid(game.level + 1), 350);
+
+        // Generate grid untuk level baru
+        setTimeout(() => generateGrid(newLevel), 400);
       } else {
+        // Tetap di level yang sama
+        setGame((prev) => ({
+          ...prev,
+          score: newScore,
+          highScore: newHighScore,
+          combo: newCombo,
+          correctCount: newCorrectCount,
+          message: `Keren! +${10 * bonus} poin ✨`,
+        }));
+
+        // Regenerate grid dengan level yang sama
         setTimeout(() => generateGrid(game.level), 350);
       }
     } else {
+      // ---------- SALAH ----------
       setGame((prev) => ({
         ...prev,
         combo: 0,
+        correctCount: 0, // reset counter karena salah
         isPlaying: false,
         message: "Yah, kurang tepat 😅",
       }));
@@ -136,13 +157,14 @@ const ColorMatchGame = () => {
     }
   };
 
-  // RESET: hanya reset skor, combo, dan level ke awal. HIGH SCORE TETAP!
+  // RESET: hanya reset skor, combo, level, correctCount. HIGH SCORE TETAP!
   const resetGame = () => {
     setGame((prev) => ({
       ...prev,
       score: 0,
       combo: 0,
       level: 1,
+      correctCount: 0,
       isPlaying: true,
       message: "Mulai dari awal!",
     }));
@@ -164,7 +186,7 @@ const ColorMatchGame = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[520px] p-6 bg-gradient-to-br from-slate-50 to-slate-100/70 dark:from-slate-900 dark:to-slate-800/80 rounded-3xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm max-w-lg mx-auto w-full transition-all">
       
-      {/* Header - tanpa subtitle "Sembari menunggu..." */}
+      {/* Header */}
       <div className="w-full text-center mb-3">
         <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           Cari Warna Beda
@@ -192,12 +214,10 @@ const ColorMatchGame = () => {
         </div>
       </div>
 
-      {/* Grid size tag - DIHAPUS (tidak ditampilkan) */}
-
       {/* Pesan status */}
       <div className="w-full max-w-md text-center min-h-[2.2rem] mt-3 flex items-center justify-center">
         <p className={`text-sm font-medium transition-all duration-200 ${
-          game.message.includes("Keren")
+          game.message.includes("Keren") || game.message.includes("Level Up")
             ? "text-emerald-600 dark:text-emerald-400"
             : game.message.includes("kurang")
             ? "text-rose-500 dark:text-rose-400"
@@ -234,7 +254,7 @@ const ColorMatchGame = () => {
         ))}
       </div>
 
-      {/* Tombol Reset - hanya reset skor, combo, level, tapi HIGH SCORE tetap */}
+      {/* Tombol Reset */}
       <button
         onClick={resetGame}
         className="mt-6 px-8 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300/80 dark:hover:bg-slate-600/80 rounded-full transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 border border-slate-300/40 dark:border-slate-600/40"
@@ -242,7 +262,6 @@ const ColorMatchGame = () => {
         Mulai Ulang
       </button>
 
-      {/* Footer hint */}
       <p className="mt-4 text-[11px] text-slate-400 dark:text-slate-500 font-light tracking-wide">
         Tertinggi hanya bertahan selama halaman ini terbuka
       </p>
