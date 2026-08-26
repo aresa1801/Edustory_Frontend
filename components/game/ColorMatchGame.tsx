@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface GameState {
   gridSize: number;
@@ -12,6 +12,7 @@ interface GameState {
   level: number;
   isPlaying: boolean;
   message: string;
+  timeLeft: number;
 }
 
 const ColorMatchGame = () => {
@@ -25,7 +26,17 @@ const ColorMatchGame = () => {
     level: 1,
     isPlaying: true,
     message: "Temukan yang berbeda!",
+    timeLeft: 10,
   });
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   const generateRandomColor = () => {
     const h = Math.floor(Math.random() * 360);
@@ -41,59 +52,113 @@ const ColorMatchGame = () => {
     return 5;
   };
 
-  const generateGrid = useCallback((level: number) => {
-    const size = getGridSizeFromLevel(level);
-    const total = size * size;
-
-    const base = generateRandomColor();
-    const diff = Math.max(18 - level * 0.5, 5);
-    const offset = Math.floor(Math.random() * 2) === 0 ? diff : -diff;
-
-    let targetH = base.h + offset;
-    if (targetH < 0) targetH += 360;
-    if (targetH >= 360) targetH -= 360;
-
-    const targetColor = {
-      h: targetH,
-      s: base.s + (Math.random() > 0.5 ? 5 : -5),
-      l: base.l + (Math.random() > 0.5 ? 5 : -5),
-    };
-
-    const clamp = (v: number, min: number, max: number) =>
-      Math.max(min, Math.min(max, v));
-    targetColor.s = clamp(targetColor.s, 30, 85);
-    targetColor.l = clamp(targetColor.l, 30, 80);
-
-    const tiles: string[] = [];
-    const targetIdx = Math.floor(Math.random() * total);
-
-    for (let i = 0; i < total; i++) {
-      if (i === targetIdx) {
-        tiles.push(
-          `hsl(${Math.round(targetColor.h)}, ${Math.round(targetColor.s)}%, ${Math.round(targetColor.l)}%)`
-        );
-      } else {
-        tiles.push(
-          `hsl(${Math.round(base.h)}, ${Math.round(base.s)}%, ${Math.round(base.l)}%)`
-        );
-      }
-    }
-
+  // RESET: hanya reset skor, combo, level. HIGH SCORE TETAP!
+  const resetGame = useCallback(() => {
+    clearTimer();
     setGame((prev) => ({
       ...prev,
-      gridSize: size,
-      tiles,
-      targetIndex: targetIdx,
+      score: 0,
+      combo: 0,
+      level: 1,
       isPlaying: true,
-      message: `Level ${level} — Temukan yang berbeda!`,
+      message: "Mulai dari awal!",
+      timeLeft: 10,
     }));
+    generateGrid(1);
   }, []);
+
+  const startTimer = useCallback(() => {
+    clearTimer();
+
+    setGame((prev) => ({ ...prev, timeLeft: 10 }));
+
+    timerRef.current = setInterval(() => {
+      setGame((prev) => {
+        if (!prev.isPlaying) return prev;
+
+        const newTime = prev.timeLeft - 1;
+        if (newTime <= 0) {
+          // Timer habis → reset total!
+          clearTimer();
+          setGame((innerPrev) => ({
+            ...innerPrev,
+            isPlaying: false,
+            message: "⏰ Waktu habis! Mulai ulang...",
+          }));
+
+          // Setelah jeda, panggil resetGame
+          setTimeout(() => {
+            resetGame();
+          }, 1000);
+
+          return { ...prev, timeLeft: 0 };
+        }
+
+        return { ...prev, timeLeft: newTime };
+      });
+    }, 1000);
+  }, [resetGame]);
+
+  const generateGrid = useCallback(
+    (level: number) => {
+      const size = getGridSizeFromLevel(level);
+      const total = size * size;
+
+      const base = generateRandomColor();
+      const diff = Math.max(18 - level * 0.5, 5);
+      const offset = Math.floor(Math.random() * 2) === 0 ? diff : -diff;
+
+      let targetH = base.h + offset;
+      if (targetH < 0) targetH += 360;
+      if (targetH >= 360) targetH -= 360;
+
+      const targetColor = {
+        h: targetH,
+        s: base.s + (Math.random() > 0.5 ? 5 : -5),
+        l: base.l + (Math.random() > 0.5 ? 5 : -5),
+      };
+
+      const clamp = (v: number, min: number, max: number) =>
+        Math.max(min, Math.min(max, v));
+      targetColor.s = clamp(targetColor.s, 30, 85);
+      targetColor.l = clamp(targetColor.l, 30, 80);
+
+      const tiles: string[] = [];
+      const targetIdx = Math.floor(Math.random() * total);
+
+      for (let i = 0; i < total; i++) {
+        if (i === targetIdx) {
+          tiles.push(
+            `hsl(${Math.round(targetColor.h)}, ${Math.round(targetColor.s)}%, ${Math.round(targetColor.l)}%)`
+          );
+        } else {
+          tiles.push(
+            `hsl(${Math.round(base.h)}, ${Math.round(base.s)}%, ${Math.round(base.l)}%)`
+          );
+        }
+      }
+
+      setGame((prev) => ({
+        ...prev,
+        gridSize: size,
+        tiles,
+        targetIndex: targetIdx,
+        isPlaying: true,
+        message: `Level ${level} — Temukan yang berbeda!`,
+        timeLeft: 10,
+      }));
+
+      startTimer();
+    },
+    [startTimer]
+  );
 
   const handleTileClick = (index: number) => {
     if (!game.isPlaying) return;
 
     if (index === game.targetIndex) {
-      // ---------- BENAR: LANGSUNG NAIK LEVEL ----------
+      clearTimer();
+
       const newCombo = game.combo + 1;
       const bonus = Math.floor(newCombo / 5) + 1;
       const newScore = game.score + 10 * bonus;
@@ -108,12 +173,15 @@ const ColorMatchGame = () => {
         level: newLevel,
         isPlaying: true,
         message: `✨ Level Up! +${10 * bonus} poin`,
+        timeLeft: 10,
       }));
 
-      // Generate grid untuk level baru
-      setTimeout(() => generateGrid(newLevel), 400);
+      setTimeout(() => {
+        generateGrid(newLevel);
+      }, 400);
     } else {
-      // ---------- SALAH ----------
+      clearTimer();
+
       setGame((prev) => ({
         ...prev,
         combo: 0,
@@ -126,28 +194,23 @@ const ColorMatchGame = () => {
           ...prev,
           isPlaying: true,
           message: `Level ${prev.level} — Temukan yang berbeda!`,
+          timeLeft: 10,
         }));
         generateGrid(game.level);
       }, 900);
     }
   };
 
-  // RESET: hanya reset skor, combo, level. HIGH SCORE TETAP!
-  const resetGame = () => {
-    setGame((prev) => ({
-      ...prev,
-      score: 0,
-      combo: 0,
-      level: 1,
-      isPlaying: true,
-      message: "Mulai dari awal!",
-    }));
-    generateGrid(1);
-  };
+  // Cleanup timer
+  useEffect(() => {
+    return () => clearTimer();
+  }, []);
 
+  // Inisialisasi pertama
   useEffect(() => {
     generateGrid(1);
-  }, [generateGrid]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getTileSize = () => {
     const baseSize = 76;
@@ -157,10 +220,17 @@ const ColorMatchGame = () => {
     return Math.max(minSize, Math.min(maxSize, size));
   };
 
+  const timerPercentage = (game.timeLeft / 10) * 100;
+  const timerColor =
+    timerPercentage > 60
+      ? "bg-emerald-500"
+      : timerPercentage > 30
+      ? "bg-amber-500"
+      : "bg-red-500";
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[520px] p-6 bg-gradient-to-br from-slate-50 to-slate-100/70 dark:from-slate-900 dark:to-slate-800/80 rounded-3xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm max-w-lg mx-auto w-full transition-all">
       
-      {/* Header */}
       <div className="w-full text-center mb-3">
         <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           Cari Warna Beda
@@ -168,7 +238,6 @@ const ColorMatchGame = () => {
         <div className="w-16 h-1 bg-gradient-to-r from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-500 mx-auto mt-1.5 rounded-full" />
       </div>
 
-      {/* Scoreboard */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full max-w-md mt-2">
         <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
           <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Skor</p>
@@ -188,12 +257,25 @@ const ColorMatchGame = () => {
         </div>
       </div>
 
-      {/* Pesan status */}
+      {/* Timer Progress Bar */}
+      <div className="w-full max-w-md mt-3">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <span className="font-medium">⏱️ Waktu</span>
+          <span className="font-mono font-bold">{game.timeLeft}s</span>
+        </div>
+        <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+          <div
+            className={`h-full ${timerColor} transition-all duration-1000 ease-linear rounded-full`}
+            style={{ width: `${timerPercentage}%` }}
+          />
+        </div>
+      </div>
+
       <div className="w-full max-w-md text-center min-h-[2.2rem] mt-3 flex items-center justify-center">
         <p className={`text-sm font-medium transition-all duration-200 ${
           game.message.includes("Level Up")
             ? "text-emerald-600 dark:text-emerald-400"
-            : game.message.includes("kurang")
+            : game.message.includes("kurang") || game.message.includes("Waktu")
             ? "text-rose-500 dark:text-rose-400"
             : "text-slate-500 dark:text-slate-400"
         }`}>
@@ -201,7 +283,6 @@ const ColorMatchGame = () => {
         </p>
       </div>
 
-      {/* Grid warna */}
       <div
         className="grid gap-2.5 p-4 bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-inner backdrop-blur-sm border border-white/20 dark:border-slate-700/30 mt-1"
         style={{
@@ -228,7 +309,6 @@ const ColorMatchGame = () => {
         ))}
       </div>
 
-      {/* Tombol Reset */}
       <button
         onClick={resetGame}
         className="mt-6 px-8 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300/80 dark:hover:bg-slate-600/80 rounded-full transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 border border-slate-300/40 dark:border-slate-600/40"
