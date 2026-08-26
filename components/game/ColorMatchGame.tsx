@@ -34,8 +34,16 @@ const ColorMatchGame = () => {
     return { h, s, l };
   };
 
+  // Fungsi untuk menentukan ukuran grid berdasarkan level
+  const getGridSizeFromLevel = (level: number) => {
+    if (level <= 10) return 2;
+    if (level <= 25) return 3;
+    if (level <= 40) return 4;
+    return 5; // level 41 ke atas
+  };
+
   const generateGrid = useCallback((level: number) => {
-    const size = Math.min(2 + Math.floor((level - 1) / 3), 5);
+    const size = getGridSizeFromLevel(level);
     const total = size * size;
 
     const base = generateRandomColor();
@@ -99,6 +107,7 @@ const ColorMatchGame = () => {
         message: `Keren! +${10 * bonus} poin ✨`,
       }));
 
+      // Naik level setiap 3 jawaban benar
       if (game.level % 3 === 0) {
         setGame((prev) => ({
           ...prev,
@@ -127,18 +136,16 @@ const ColorMatchGame = () => {
     }
   };
 
+  // RESET: hanya reset skor, combo, dan level ke awal. HIGH SCORE TETAP!
   const resetGame = () => {
-    setGame({
-      gridSize: 2,
-      tiles: [],
-      targetIndex: -1,
+    setGame((prev) => ({
+      ...prev,
       score: 0,
-      highScore: 0,
       combo: 0,
       level: 1,
       isPlaying: true,
       message: "Mulai dari awal!",
-    });
+    }));
     generateGrid(1);
   };
 
@@ -157,18 +164,15 @@ const ColorMatchGame = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[520px] p-6 bg-gradient-to-br from-slate-50 to-slate-100/70 dark:from-slate-900 dark:to-slate-800/80 rounded-3xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm max-w-lg mx-auto w-full transition-all">
       
-      {/* Header dengan aksen garis */}
+      {/* Header - tanpa subtitle "Sembari menunggu..." */}
       <div className="w-full text-center mb-3">
         <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           Cari Warna Beda
         </h2>
         <div className="w-16 h-1 bg-gradient-to-r from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-500 mx-auto mt-1.5 rounded-full" />
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2.5 font-light">
-          Sembari menunggu maintenance selesai
-        </p>
       </div>
 
-      {/* Scoreboard - seperti kartu statistik */}
+      {/* Scoreboard */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full max-w-md mt-2">
         <div className="bg-white/70 dark:bg-slate-800/70 rounded-xl px-3 py-2 text-center shadow-sm border border-slate-200/50 dark:border-slate-700/50">
           <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-medium">Skor</p>
@@ -188,12 +192,9 @@ const ColorMatchGame = () => {
         </div>
       </div>
 
-      {/* Grid size tag */}
-      <div className="mt-2 text-xs text-slate-400 dark:text-slate-500 font-mono tracking-wide">
-        {game.gridSize} × {game.gridSize}
-      </div>
+      {/* Grid size tag - DIHAPUS (tidak ditampilkan) */}
 
-      {/* Pesan status dengan animasi halus */}
+      {/* Pesan status */}
       <div className="w-full max-w-md text-center min-h-[2.2rem] mt-3 flex items-center justify-center">
         <p className={`text-sm font-medium transition-all duration-200 ${
           game.message.includes("Keren")
@@ -206,7 +207,7 @@ const ColorMatchGame = () => {
         </p>
       </div>
 
-      {/* Grid warna dengan efek glassmorphism */}
+      {/* Grid warna */}
       <div
         className="grid gap-2.5 p-4 bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-inner backdrop-blur-sm border border-white/20 dark:border-slate-700/30 mt-1"
         style={{
@@ -233,7 +234,7 @@ const ColorMatchGame = () => {
         ))}
       </div>
 
-      {/* Tombol dengan efek hover smooth */}
+      {/* Tombol Reset - hanya reset skor, combo, level, tapi HIGH SCORE tetap */}
       <button
         onClick={resetGame}
         className="mt-6 px-8 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300/80 dark:hover:bg-slate-600/80 rounded-full transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 border border-slate-300/40 dark:border-slate-600/40"
