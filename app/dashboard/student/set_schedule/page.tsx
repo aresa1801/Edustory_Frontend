@@ -506,9 +506,9 @@ function SetScheduleContent() {
         throw new Error(result.error || 'Gagal menyimpan jadwal')
       }
 
-      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan!' })
+      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' })
       setTimeout(() => {
-        router.push('/dashboard/student')
+        router.push('/dashboard/student/tutor-offers') // ← PERUBAHAN: redirect ke tutor-offers
       }, 1500)
     } catch (err: any) {
       setSaveMessage({ type: 'error', text: err.message })
@@ -659,7 +659,7 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF (perbaikan warna) ========== */}
+      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF ========== */}
       {selectedSubjects.length >= 2 && (
         <Card>
           <CardHeader>
@@ -673,7 +673,6 @@ function SetScheduleContent() {
               const isActive = activeSubject === subj
               const isExhausted = remaining <= 0
 
-              // Jika exhausted, tombol abu-abu netral, tidak bisa diklik
               if (isExhausted) {
                 return (
                   <Button
@@ -687,7 +686,6 @@ function SetScheduleContent() {
                 )
               }
 
-              // Jika tidak exhausted
               return (
                 <Button
                   key={subj}

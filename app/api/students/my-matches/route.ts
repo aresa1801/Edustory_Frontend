@@ -27,12 +27,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // 2. Ambil semua matches (dengan kolom statis) dan filter initiated_by = 'tutor'
+    // 2. Ambil semua matches (tanpa filter initiated_by)
     const { data: matches, error: matchError } = await supabase
       .from('matches')
       .select('*')
       .eq('student_id', student.id)
-      .eq('initiated_by', 'tutor')
       .order('created_at', { ascending: false })
 
     if (matchError) {

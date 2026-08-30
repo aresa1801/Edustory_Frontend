@@ -81,15 +81,55 @@ export async function POST(
       );
     }
 
-    // 6. Update status match menjadi 'matched'
-    await supabase
-      .from('matches')
-      .update({ status: 'matched' })
-      .eq('id', match.id);
+    // ===== TAMBAHAN: BUAT SCHEDULES_SUMMARY DAN UPDATE MATCH =====
+    let schedulesSummary = '';
+
+    // 6. Generate ringkasan jadwal dari sessions yang baru diinsert
+    if (data && data.length > 0) {
+      const summaryGroups: Record<string, { subject: string, day: string, time: string, count: number }> = {};
+
+      for (const session of data) {
+        const scheduledAt = new Date(session.scheduled_at);
+        const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
+        const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(scheduledAt.getTime() + (session.duration_minutes || 60) * 60000);
+        const endTimeStr = endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const timeSlot = `${timeStr} - ${endTimeStr}`;
+        const subject = session.notes || 'Tanpa Mapel';
+
+        const key = `${subject}-${dayName}-${timeSlot}`;
+        if (!summaryGroups[key]) {
+          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        }
+        summaryGroups[key].count += 1;
+      }
+
+      const summaryLines = Object.values(summaryGroups).map(
+        item => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
+      );
+      schedulesSummary = summaryLines.join('; ');
+
+      // 7. Update match: status, initiated_by, schedules_summary
+      await supabase
+        .from('matches')
+        .update({
+          status: 'matched',
+          initiated_by: 'student',
+          schedules_summary: schedulesSummary
+        })
+        .eq('id', match.id);
+    } else {
+      // Jika tidak ada sesi (seharusnya tidak terjadi), update status dan initiated_by saja
+      await supabase
+        .from('matches')
+        .update({ status: 'matched', initiated_by: 'student' })
+        .eq('id', match.id);
+    }
 
     return NextResponse.json({
       message: 'Schedules saved successfully',
       data,
+      schedules_summary: schedulesSummary,
     });
   } catch (error) {
     console.error('Unexpected error:', error);

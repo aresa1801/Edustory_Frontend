@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/supabase/client'
 import {
   DollarSign,
   Star,
@@ -17,6 +16,7 @@ import {
   User,
   Calendar,
   XCircle,
+  Clock,
 } from 'lucide-react'
 import {
   Dialog,
@@ -46,6 +46,7 @@ interface Match {
   tutor_total_reviews: number
   tutor_verified_grade_levels: string[]
   tutor_avatar_url?: string | null
+  schedules_summary?: string | null
 }
 
 export default function TutorOffersPage() {
@@ -112,48 +113,12 @@ export default function TutorOffersPage() {
     fetchData()
   }
 
-  // ============ PALING SEDERHANA, LANGSUNG REDIRECT ============
   const handleSchedule = (offer: Match) => {
-  console.log('>>> handleSchedule, offer.id =', offer.id)
-
-  // 1. Simpan data match ke sessionStorage (PASTI)
-  sessionStorage.setItem('scheduleData', JSON.stringify(offer))
-
-  // 2. Ambil token dari localStorage (tanpa Supabase client!)
-  let token: string | null = null
-  try {
-    const keys = Object.keys(localStorage)
-    for (const key of keys) {
-      if (key.includes('sb-') && key.includes('auth-token')) {
-        const raw = localStorage.getItem(key)
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (parsed?.access_token) {
-            token = parsed.access_token
-            console.log('✅ Token ditemukan di localStorage')
-            break
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ Gagal baca localStorage:', e)
+    console.log('>>> handleSchedule, offer.id =', offer.id)
+    const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
+    console.log('>>> redirecting to:', url)
+    window.location.href = url
   }
-
-  // 3. Simpan token ke sessionStorage (jika ada)
-  if (token) {
-    sessionStorage.setItem('sb-access-token', token)
-    console.log('✅ Token saved to sessionStorage')
-  } else {
-    console.warn('⚠️ Token tidak ditemukan di localStorage')
-  }
-
-  // 4. Redirect (PASTI)
-  const url = `/dashboard/student/set_schedule?matchId=${offer.id}`
-  console.log('>>> redirecting to:', url)
-  window.location.href = url
-}
-  // =============================================================
 
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
@@ -212,7 +177,9 @@ export default function TutorOffersPage() {
     )
   }
 
-  const pendingOffers = offers.filter(o => o.status === 'pending')
+  // Kelompokkan berdasarkan status dan initiated_by
+  const pendingTutorOffers = offers.filter(o => o.status === 'pending' && o.initiated_by === 'tutor')
+  const pendingStudentRequests = offers.filter(o => o.status === 'pending' && o.initiated_by === 'student')
   const decidedOffers = offers.filter(o => ['matched', 'active', 'completed', 'cancelled'].includes(o.status))
 
   return (
@@ -231,7 +198,7 @@ export default function TutorOffersPage() {
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Menunggu Keputusan</p>
-          <p className="text-2xl font-bold text-yellow-600">{pendingOffers.length}</p>
+          <p className="text-2xl font-bold text-yellow-600">{pendingTutorOffers.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Sudah Diputuskan</p>
@@ -248,11 +215,12 @@ export default function TutorOffersPage() {
         </Card>
       ) : (
         <>
-          {pendingOffers.length > 0 && (
+          {/* Penawaran dari tutor yang masih pending (student harus memutuskan) */}
+          {pendingTutorOffers.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {pendingOffers.map(offer => (
+                {pendingTutorOffers.map(offer => (
                   <OfferCard
                     key={offer.id}
                     offer={offer}
@@ -265,6 +233,25 @@ export default function TutorOffersPage() {
             </div>
           )}
 
+          {/* Permintaan student yang sedang menunggu konfirmasi tutor */}
+          {pendingStudentRequests.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Menunggu Konfirmasi Tutor</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {pendingStudentRequests.map(offer => (
+                  <OfferCard
+                    key={offer.id}
+                    offer={offer}
+                    processing={false}
+                    readonly
+                    showWaitingMessage
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Riwayat */}
           {decidedOffers.length > 0 && (
             <div className="mt-8">
               <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
@@ -276,7 +263,7 @@ export default function TutorOffersPage() {
                     processing={false}
                     readonly
                     onSchedule={
-                      offer.status === 'matched' || offer.status === 'active'
+                      (offer.status === 'matched' || offer.status === 'active')
                         ? () => handleSchedule(offer)
                         : undefined
                     }
@@ -328,12 +315,14 @@ function OfferCard({
   onSchedule,
   onReject,
   readonly = false,
+  showWaitingMessage = false,
 }: {
   offer: Match
   processing: boolean
   onSchedule?: () => void
   onReject?: () => void
   readonly?: boolean
+  showWaitingMessage?: boolean
 }) {
   const statusMap: Record<string, { label: string; color: string }> = {
     pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' },
@@ -395,9 +384,18 @@ function OfferCard({
               <span className="font-medium">Mapel:</span> {offer.matched_subjects?.join(', ') || offer.subject}
             </span>
           </div>
+          {/* Tampilkan schedules_summary jika ada */}
+          {offer.schedules_summary && (
+            <div className="flex items-start gap-2">
+              <Clock className="w-4 h-4 text-orange-500 mt-0.5" />
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium">Jadwal:</span> {offer.schedules_summary}
+              </span>
+            </div>
+          )}
         </div>
 
-        {!readonly && offer.status === 'pending' && (
+        {!readonly && offer.status === 'pending' && offer.initiated_by === 'tutor' && (
           <div className="mt-4 flex gap-2">
             <Button
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
@@ -421,6 +419,13 @@ function OfferCard({
               <XCircle className="w-4 h-4" />
               Tolak
             </Button>
+          </div>
+        )}
+
+        {showWaitingMessage && offer.status === 'pending' && offer.initiated_by === 'student' && (
+          <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
+            <p className="text-sm font-medium text-gray-600">⏳ Menunggu Konfirmasi Tutor</p>
+            <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, tunggu tanggapan tutor.</p>
           </div>
         )}
 
