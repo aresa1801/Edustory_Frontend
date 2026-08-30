@@ -456,6 +456,7 @@ function SetScheduleContent() {
 
   const handleSave = async () => {
   console.log('🚀 handleSave START');
+
   const entries = Object.entries(schedule);
   if (entries.length === 0) {
     alert('Pilih minimal satu slot jadwal!');
@@ -468,13 +469,48 @@ function SetScheduleContent() {
   }
 
   let token: string | null = null;
-  // ... (ambil token seperti sebelumnya)
 
+  // 1. Ambil token dari localStorage (cari semua key yang mungkin)
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.includes('sb-') && key.includes('auth-token')) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.access_token) {
+            token = parsed.access_token;
+            console.log('✅ Token dari localStorage');
+            break;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal baca localStorage:', e);
+  }
+
+  // 2. Jika tidak ada, ambil dari Supabase client (fallback)
+  if (!token) {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        token = session.access_token;
+        console.log('✅ Token dari Supabase client');
+      }
+    } catch (e) {
+      console.warn('Gagal ambil session:', e);
+    }
+  }
+
+  // 3. Jika masih tidak ada, tampilkan error
   if (!token) {
     alert('Token tidak ditemukan. Silakan login ulang.');
     return;
   }
 
+  // 4. Siapkan data sessions
   const sessions = entries.map(([key, subject]) => {
     const [dateStr, timeSlot] = key.split('|');
     return { date: dateStr, timeSlot, subject };
@@ -501,16 +537,20 @@ function SetScheduleContent() {
     console.log('📥 Response body:', result);
 
     if (!res.ok) {
-      throw new Error(result.error || 'Gagal menyimpan jadwal');
+      // Tampilkan error detail dari server
+      const errorMsg = result.error || result.message || `HTTP ${res.status}`;
+      throw new Error(errorMsg);
     }
 
+    // Sukses
     setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
     setTimeout(() => {
       router.push('/dashboard/student/tutor-offers');
     }, 1500);
   } catch (err: any) {
     console.error('❌ Fetch error:', err);
-    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan' });
+    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
+    alert('Error: ' + err.message); // Biar langsung keliatan
   } finally {
     setIsSaving(false);
   }

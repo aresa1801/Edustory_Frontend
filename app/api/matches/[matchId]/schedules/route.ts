@@ -47,7 +47,20 @@ export async function POST(
 
     // Insert sessions
     const insertData = sessions.map((s: any) => {
-      // ... (sama seperti sebelumnya)
+      const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
+      const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
+      const scheduledAt = new Date(
+        `${s.date}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00+07:00`
+      );
+      return {
+        tutor_id: match.tutor_id,
+        student_id: match.student_id,
+        match_id: match.id,
+        scheduled_at: scheduledAt.toISOString(),
+        duration_minutes: 60,
+        status: 'scheduled',
+        notes: s.subject || null,
+      };
     });
 
     const { data, error: insertError } = await supabase
@@ -62,21 +75,54 @@ export async function POST(
 
     // Generate summary
     let schedulesSummary = '';
-    // ... (sama seperti sebelumnya)
+    if (data && data.length > 0) {
+      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+      for (const session of data) {
+        const scheduledAt = new Date(session.scheduled_at);
+        const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
+        const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(scheduledAt.getTime() + (session.duration_minutes || 60) * 60000);
+        const endTimeStr = endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const timeSlot = `${timeStr} - ${endTimeStr}`;
+        const subject = session.notes || 'Tanpa Mapel';
+        const key = `${subject}-${dayName}-${timeSlot}`;
+        if (!summaryGroups[key]) {
+          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        }
+        summaryGroups[key].count += 1;
+      }
+      const summaryLines = Object.values(summaryGroups).map(
+        (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
+      );
+      schedulesSummary = summaryLines.join('; ');
+    }
+
+    console.log('📝 schedulesSummary:', schedulesSummary);
 
     // Update match
+    const updatePayload: any = {
+      status: 'matched',
+      initiated_by: 'student',
+    };
+    if (schedulesSummary) {
+      updatePayload.schedules_summary = schedulesSummary;
+    }
+
     const { error: updateError } = await supabase
       .from('matches')
-      .update({
-        status: 'matched',
-        initiated_by: 'student',
-        schedules_summary: schedulesSummary
-      })
+      .update(updatePayload)
       .eq('id', match.id);
 
     if (updateError) {
       console.error('Update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      // Kembalikan error detail ke frontend
+      return NextResponse.json(
+        { 
+          error: 'Update match failed: ' + updateError.message,
+          details: updateError
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
