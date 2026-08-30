@@ -29,13 +29,13 @@ export async function POST(
     }
 
     // 2. Validasi student
-    const { data: student } = await supabase
+    const { data: student, error: studentError } = await supabase
       .from('students')
       .select('user_id')
       .eq('id', match.student_id)
       .single();
 
-    if (!student || student.user_id !== user.id) {
+    if (studentError || !student || student.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -43,7 +43,7 @@ export async function POST(
     const body = await req.json();
     const { sessions } = body;
 
-    if (!sessions || sessions.length === 0) {
+    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
       return NextResponse.json(
         { error: 'At least one session is required' },
         { status: 400 }
@@ -83,8 +83,8 @@ export async function POST(
 
     console.log('✅ Sessions inserted:', data);
 
-    // ===== GENERATE SCHEDULES_SUMMARY (JSONB FORMAT) =====
-    let schedulesSummary = null;
+    // ===== GENERATE SCHEDULES_SUMMARY (STRING FORMAT) =====
+    let schedulesSummary = '';
 
     if (data && data.length > 0) {
       const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
@@ -105,13 +105,17 @@ export async function POST(
         summaryMap[key].count += 1;
       }
 
-      // ✅ Convert ke array of objects (cocok untuk jsonb)
-      schedulesSummary = Object.values(summaryMap);
+      // ✅ Buat string dengan format yang diinginkan (seperti di gambar)
+      const summaryLines = Object.values(summaryMap).map(
+        (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
+      );
+      schedulesSummary = summaryLines.join('; ');
     }
 
-    console.log('📝 schedulesSummary (JSONB):', JSON.stringify(schedulesSummary, null, 2));
+    console.log('📝 schedulesSummary (string):', schedulesSummary);
 
-    // ===== UPDATE MATCH DENGAN JSONB =====
+    // ===== UPDATE MATCH =====
+    // Gunakan admin client untuk bypass RLS
     const adminSupabase = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -122,8 +126,8 @@ export async function POST(
       initiated_by: 'student',
     };
 
-    // ✅ Kirim sebagai JSON array, bukan string
-    if (schedulesSummary && Array.isArray(schedulesSummary) && schedulesSummary.length > 0) {
+    // ✅ Kirim sebagai string (bisa untuk TEXT atau JSONB)
+    if (schedulesSummary && schedulesSummary.length > 0) {
       updatePayload.schedules_summary = schedulesSummary;
     }
 
@@ -136,6 +140,7 @@ export async function POST(
 
     if (updateError) {
       console.error('❌ Update match error:', updateError);
+      // Tetap return sukses untuk sessions, tapi dengan warning
       return NextResponse.json(
         {
           message: 'Schedules saved but match update failed',
