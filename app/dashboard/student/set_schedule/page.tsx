@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { createClient } from '@/lib/supabase/client'
 
 // ========== HELPER ==========
 const getNext37Days = () => {
@@ -454,83 +455,91 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
-  const entries = Object.entries(schedule)
+  const entries = Object.entries(schedule);
   if (entries.length === 0) {
-    alert('Pilih minimal satu slot jadwal!')
-    return
+    alert('Pilih minimal satu slot jadwal!');
+    return;
   }
 
-  // === AMBIL TOKEN DARI SUPABASE CLIENT (LEBIH AMAN) ===
-  let token: string | null = null
+  if (!matchData?.id) {
+    alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
+    return;
+  }
+
+  let token: string | null = null;
+
+  // 1. Coba dari localStorage
   try {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    token = session?.access_token || null
-  } catch (e) {
-    console.warn('[handleSave] Gagal ambil session dari Supabase client:', e)
-  }
-
-  // === FALLBACK: coba dari localStorage ===
-  if (!token) {
-    try {
-      const keys = Object.keys(localStorage)
-      for (const key of keys) {
-        if (key.includes('sb-') && key.includes('auth-token')) {
-          const raw = localStorage.getItem(key)
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            if (parsed?.access_token) {
-              token = parsed.access_token
-              break
-            }
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.includes('sb-') && key.includes('auth-token')) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.access_token) {
+            token = parsed.access_token;
+            break;
           }
         }
       }
+    }
+  } catch (e) {
+    console.warn('Gagal baca localStorage:', e);
+  }
+
+  // 2. Jika tidak ada, coba dari Supabase client (fallback)
+  if (!token) {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        token = session.access_token;
+        console.log('✅ Token dari Supabase client');
+      }
     } catch (e) {
-      console.warn('[handleSave] Gagal baca localStorage:', e)
+      console.warn('Gagal ambil session:', e);
     }
   }
 
   if (!token) {
-    alert('Token tidak ditemukan. Silakan login ulang.')
-    return
+    alert('Token tidak ditemukan. Silakan login ulang.');
+    return;
   }
 
   const sessions = entries.map(([key, subject]) => {
-    const [dateStr, timeSlot] = key.split('|')
-    return { date: dateStr, timeSlot, subject }
-  })
+    const [dateStr, timeSlot] = key.split('|');
+    return { date: dateStr, timeSlot, subject };
+  });
 
-  setIsSaving(true)
-  setSaveMessage(null)
+  setIsSaving(true);
+  setSaveMessage(null);
 
   try {
-    const res = await fetch(`/api/matches/${matchData?.id}/schedules`, {
+    const res = await fetch(`/api/matches/${matchData.id}/schedules`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ sessions }),
-    })
+    });
 
-    const result = await res.json()
+    const result = await res.json();
 
     if (!res.ok) {
-      throw new Error(result.error || 'Gagal menyimpan jadwal')
+      throw new Error(result.error || 'Gagal menyimpan jadwal');
     }
 
-    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' })
+    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
     setTimeout(() => {
-      router.push('/dashboard/student/tutor-offers')
-    }, 1500)
+      router.push('/dashboard/student/tutor-offers');
+    }, 1500);
   } catch (err: any) {
-    setSaveMessage({ type: 'error', text: err.message })
+    setSaveMessage({ type: 'error', text: err.message });
   } finally {
-    setIsSaving(false)
+    setIsSaving(false);
   }
-}
+};
 
   // ========== RENDER ==========
   if (loading) {
