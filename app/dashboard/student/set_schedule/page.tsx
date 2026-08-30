@@ -454,13 +454,25 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
-    const entries = Object.entries(schedule)
-    if (entries.length === 0) {
-      alert('Pilih minimal satu slot jadwal!')
-      return
-    }
+  const entries = Object.entries(schedule)
+  if (entries.length === 0) {
+    alert('Pilih minimal satu slot jadwal!')
+    return
+  }
 
-    let token: string | null = null
+  // === AMBIL TOKEN DARI SUPABASE CLIENT (LEBIH AMAN) ===
+  let token: string | null = null
+  try {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    token = session?.access_token || null
+  } catch (e) {
+    console.warn('[handleSave] Gagal ambil session dari Supabase client:', e)
+  }
+
+  // === FALLBACK: coba dari localStorage ===
+  if (!token) {
     try {
       const keys = Object.keys(localStorage)
       for (const key of keys) {
@@ -475,47 +487,50 @@ function SetScheduleContent() {
           }
         }
       }
-    } catch (e) {}
-
-    if (!token) {
-      alert('Token tidak ditemukan. Silakan login ulang.')
-      return
-    }
-
-    const sessions = entries.map(([key, subject]) => {
-      const [dateStr, timeSlot] = key.split('|')
-      return { date: dateStr, timeSlot, subject }
-    })
-
-    setIsSaving(true)
-    setSaveMessage(null)
-
-    try {
-      const res = await fetch(`/api/matches/${matchData?.id}/schedules`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ sessions }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menyimpan jadwal')
-      }
-
-      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' })
-      setTimeout(() => {
-        router.push('/dashboard/student/tutor-offers') // ← PERUBAHAN: redirect ke tutor-offers
-      }, 1500)
-    } catch (err: any) {
-      setSaveMessage({ type: 'error', text: err.message })
-    } finally {
-      setIsSaving(false)
+    } catch (e) {
+      console.warn('[handleSave] Gagal baca localStorage:', e)
     }
   }
+
+  if (!token) {
+    alert('Token tidak ditemukan. Silakan login ulang.')
+    return
+  }
+
+  const sessions = entries.map(([key, subject]) => {
+    const [dateStr, timeSlot] = key.split('|')
+    return { date: dateStr, timeSlot, subject }
+  })
+
+  setIsSaving(true)
+  setSaveMessage(null)
+
+  try {
+    const res = await fetch(`/api/matches/${matchData?.id}/schedules`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ sessions }),
+    })
+
+    const result = await res.json()
+
+    if (!res.ok) {
+      throw new Error(result.error || 'Gagal menyimpan jadwal')
+    }
+
+    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' })
+    setTimeout(() => {
+      router.push('/dashboard/student/tutor-offers')
+    }, 1500)
+  } catch (err: any) {
+    setSaveMessage({ type: 'error', text: err.message })
+  } finally {
+    setIsSaving(false)
+  }
+}
 
   // ========== RENDER ==========
   if (loading) {
