@@ -25,17 +25,19 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
+      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
     // 2. Validasi student
-    const { data: student, error: studentError } = await supabase
+    const { data: student } = await supabase
       .from('students')
       .select('user_id')
       .eq('id', match.student_id)
       .single();
 
-    if (studentError || !student || student.user_id !== user.id) {
+    if (!student || student.user_id !== user.id) {
+      console.warn('⚠️ Forbidden - not student owner');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -43,7 +45,7 @@ export async function POST(
     const body = await req.json();
     const { sessions } = body;
 
-    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    if (!sessions || sessions.length === 0) {
       return NextResponse.json(
         { error: 'At least one session is required' },
         { status: 400 }
@@ -83,11 +85,11 @@ export async function POST(
 
     console.log('✅ Sessions inserted:', data);
 
-    // ===== GENERATE SCHEDULES_SUMMARY (STRING FORMAT) =====
+    // ===== GENERATE SCHEDULES_SUMMARY (TEXT FORMAT) =====
     let schedulesSummary = '';
 
     if (data && data.length > 0) {
-      const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
 
       for (const session of data) {
         const scheduledAt = new Date(session.scheduled_at);
@@ -99,23 +101,22 @@ export async function POST(
         const subject = session.notes || 'Tanpa Mapel';
 
         const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryMap[key]) {
-          summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        if (!summaryGroups[key]) {
+          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
         }
-        summaryMap[key].count += 1;
+        summaryGroups[key].count += 1;
       }
 
-      // ✅ Buat string dengan format yang diinginkan (seperti di gambar)
-      const summaryLines = Object.values(summaryMap).map(
+      // ✅ Format teks (seperti di gambar)
+      const summaryLines = Object.values(summaryGroups).map(
         (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
       );
       schedulesSummary = summaryLines.join('; ');
     }
 
-    console.log('📝 schedulesSummary (string):', schedulesSummary);
+    console.log('📝 schedulesSummary (TEXT):', schedulesSummary);
 
-    // ===== UPDATE MATCH =====
-    // Gunakan admin client untuk bypass RLS
+    // ===== UPDATE MATCH DENGAN TEKS =====
     const adminSupabase = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -126,8 +127,7 @@ export async function POST(
       initiated_by: 'student',
     };
 
-    // ✅ Kirim sebagai string (bisa untuk TEXT atau JSONB)
-    if (schedulesSummary && schedulesSummary.length > 0) {
+    if (schedulesSummary) {
       updatePayload.schedules_summary = schedulesSummary;
     }
 
@@ -140,7 +140,6 @@ export async function POST(
 
     if (updateError) {
       console.error('❌ Update match error:', updateError);
-      // Tetap return sukses untuk sessions, tapi dengan warning
       return NextResponse.json(
         {
           message: 'Schedules saved but match update failed',
