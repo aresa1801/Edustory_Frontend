@@ -454,107 +454,106 @@ function SetScheduleContent() {
     )
   }
 
+  // ========== HANDLE SAVE ==========
   const handleSave = async () => {
-  console.log('🚀 handleSave START');
+    console.log('🚀 handleSave START');
 
-  const entries = Object.entries(schedule);
-  if (entries.length === 0) {
-    alert('Pilih minimal satu slot jadwal!');
-    return;
-  }
+    const entries = Object.entries(schedule);
+    if (entries.length === 0) {
+      alert('Pilih minimal satu slot jadwal!');
+      return;
+    }
 
-  if (!matchData?.id) {
-    alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
-    return;
-  }
+    if (!matchData?.id) {
+      alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
+      return;
+    }
 
-  let token: string | null = null;
+    let token: string | null = null;
 
-  // 1. Ambil token dari localStorage (cari semua key yang mungkin)
-  try {
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key.includes('sb-') && key.includes('auth-token')) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.access_token) {
-            token = parsed.access_token;
-            console.log('✅ Token dari localStorage');
-            break;
+    // 1. Ambil token dari localStorage
+    try {
+      const keys = Object.keys(localStorage);
+      for (const key of keys) {
+        if (key.includes('sb-') && key.includes('auth-token')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.access_token) {
+              token = parsed.access_token;
+              console.log('✅ Token dari localStorage');
+              break;
+            }
           }
         }
       }
-    }
-  } catch (e) {
-    console.warn('Gagal baca localStorage:', e);
-  }
-
-  // 2. Jika tidak ada, ambil dari Supabase client (fallback)
-  if (!token) {
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        token = session.access_token;
-        console.log('✅ Token dari Supabase client');
-      }
     } catch (e) {
-      console.warn('Gagal ambil session:', e);
+      console.warn('Gagal baca localStorage:', e);
     }
-  }
 
-  // 3. Jika masih tidak ada, tampilkan error
-  if (!token) {
-    alert('Token tidak ditemukan. Silakan login ulang.');
-    return;
-  }
+    // 2. Fallback ke Supabase client
+    if (!token) {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          console.log('✅ Token dari Supabase client');
+        }
+      } catch (e) {
+        console.warn('Gagal ambil session:', e);
+      }
+    }
 
-  // 4. Siapkan data sessions
-  const sessions = entries.map(([key, subject]) => {
-    const [dateStr, timeSlot] = key.split('|');
-    return { date: dateStr, timeSlot, subject };
-  });
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.');
+      return;
+    }
 
-  console.log('📤 Sending sessions:', sessions);
-  console.log('🔗 URL:', `/api/matches/${matchData.id}/schedules`);
-
-  setIsSaving(true);
-  setSaveMessage(null);
-
-  try {
-    const res = await fetch(`/api/matches/${matchData.id}/schedules`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ sessions }),
+    // 3. Siapkan data sessions
+    const sessions = entries.map(([key, subject]) => {
+      const [dateStr, timeSlot] = key.split('|');
+      return { date: dateStr, timeSlot, subject };
     });
 
-    console.log('📥 Response status:', res.status);
-    const result = await res.json();
-    console.log('📥 Response body:', result);
+    console.log('📤 Sending sessions:', sessions);
 
-    if (!res.ok) {
-      // Tampilkan error detail dari server
-      const errorMsg = result.error || result.message || `HTTP ${res.status}`;
-      throw new Error(errorMsg);
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      // === PERUBAHAN: PAKAI ENDPOINT BARU ===
+      const res = await fetch('/api/save-schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ matchId: matchData.id, sessions }),
+      });
+
+      console.log('📥 Response status:', res.status);
+      const result = await res.json();
+      console.log('📥 Response body:', result);
+
+      if (!res.ok) {
+        const errorMsg = result.error || result.message || `HTTP ${res.status}`;
+        throw new Error(errorMsg);
+      }
+
+      // Sukses
+      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
+      setTimeout(() => {
+        router.push('/dashboard/student/tutor-offers');
+      }, 1500);
+    } catch (err: any) {
+      console.error('❌ Fetch error:', err);
+      setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
-
-    // Sukses
-    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
-    setTimeout(() => {
-      router.push('/dashboard/student/tutor-offers');
-    }, 1500);
-  } catch (err: any) {
-    console.error('❌ Fetch error:', err);
-    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
-    alert('Error: ' + err.message); // Biar langsung keliatan
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   // ========== RENDER ==========
   if (loading) {
