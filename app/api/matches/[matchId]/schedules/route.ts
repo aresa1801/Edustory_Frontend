@@ -24,6 +24,7 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
+      console.error('Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
@@ -35,6 +36,7 @@ export async function POST(
       .single();
 
     if (!student || student.user_id !== user.id) {
+      console.warn('Forbidden - not student owner');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
