@@ -455,6 +455,11 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
+  console.log('🚀 handleSave dipanggil!');
+  console.log('📋 schedule:', schedule);
+  console.log('📊 totalSelected:', totalSelected);
+  console.log('🆔 matchData?.id:', matchData?.id);
+
   const entries = Object.entries(schedule);
   if (entries.length === 0) {
     alert('Pilih minimal satu slot jadwal!');
@@ -487,7 +492,7 @@ function SetScheduleContent() {
     console.warn('Gagal baca localStorage:', e);
   }
 
-  // 2. Jika tidak ada, coba dari Supabase client (fallback)
+  // 2. Fallback ke Supabase client
   if (!token) {
     try {
       const supabase = createClient();
@@ -811,7 +816,12 @@ function SetScheduleContent() {
       <div className="flex justify-end">
         <Button
           className="bg-green-600 hover:bg-green-700 text-white"
-          onClick={handleSave}
+          onClick={() => {
+            console.log('>>> Tombol Simpan diklik!');
+            console.log('📊 totalSelected:', totalSelected);
+            console.log('📋 schedule:', schedule);
+            handleSave();
+          }}
           disabled={isSaving || totalSelected === 0}
         >
           {isSaving && <Spinner className="h-4 w-4 mr-2" />}
