@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(
   req: NextRequest,
@@ -11,13 +12,12 @@ export async function POST(
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.warn('⚠️ [API] Unauthorized');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { matchId } = params;
 
-    // 1. Ambil match untuk validasi
+    // 1. Validasi match
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('id, student_id, tutor_id, status')
@@ -25,35 +25,32 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
-      console.error('❌ [API] Match not found', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // 2. Pastikan user adalah student pemilik match
-    const { data: student, error: studentError } = await supabase
+    // 2. Validasi student
+    const { data: student } = await supabase
       .from('students')
       .select('user_id')
       .eq('id', match.student_id)
       .single();
 
-    if (studentError || !student || student.user_id !== user.id) {
-      console.warn('⚠️ [API] Forbidden - not student owner');
+    if (!student || student.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 3. Ambil body: { sessions: [{ date, timeSlot, subject }] }
+    // 3. Ambil body
     const body = await req.json();
     const { sessions } = body;
 
-    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
-      console.warn('⚠️ [API] No sessions provided');
+    if (!sessions || sessions.length === 0) {
       return NextResponse.json(
         { error: 'At least one session is required' },
         { status: 400 }
       );
     }
 
-    // 4. Transformasi ke format insert
+    // 4. Insert sessions
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
@@ -71,29 +68,26 @@ export async function POST(
       };
     });
 
-    console.log('📝 [API] Insert data:', insertData);
-
-    // 5. Insert ke sessions
     const { data, error: insertError } = await supabase
       .from('sessions')
       .insert(insertData)
       .select();
 
     if (insertError) {
-      console.error('❌ [API] Insert sessions error:', insertError);
+      console.error('❌ Insert sessions error:', insertError);
       return NextResponse.json(
         { error: 'Failed to save schedules: ' + insertError.message },
         { status: 500 }
       );
     }
 
-    console.log('✅ [API] Sessions inserted:', data);
+    console.log('✅ Sessions inserted:', data);
 
-    // ===== GENERATE SCHEDULES_SUMMARY =====
-    let schedulesSummary = '';
+    // ===== GENERATE SCHEDULES_SUMMARY (JSONB FORMAT) =====
+    let schedulesSummary = null;
 
     if (data && data.length > 0) {
-      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+      const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
 
       for (const session of data) {
         const scheduledAt = new Date(session.scheduled_at);
@@ -105,74 +99,63 @@ export async function POST(
         const subject = session.notes || 'Tanpa Mapel';
 
         const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryGroups[key]) {
-          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        if (!summaryMap[key]) {
+          summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
         }
-        summaryGroups[key].count += 1;
+        summaryMap[key].count += 1;
       }
 
-      const summaryLines = Object.values(summaryGroups).map(
-        (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
-      );
-      schedulesSummary = summaryLines.join('; ');
-
-      console.log('📝 [API] schedulesSummary:', schedulesSummary);
+      // ✅ Convert ke array of objects (cocok untuk jsonb)
+      schedulesSummary = Object.values(summaryMap);
     }
 
-    // ===== UPDATE MATCH =====
-    try {
-      const updatePayload: any = {
-        status: 'matched',
-        initiated_by: 'student',
-      };
-      if (schedulesSummary) {
-        updatePayload.schedules_summary = schedulesSummary;
-      }
+    console.log('📝 schedulesSummary (JSONB):', JSON.stringify(schedulesSummary, null, 2));
 
-      console.log('🔄 [API] Updating match with:', updatePayload);
+    // ===== UPDATE MATCH DENGAN JSONB =====
+    const adminSupabase = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-      const { error: updateError } = await supabase
-        .from('matches')
-        .update(updatePayload)
-        .eq('id', match.id);
+    const updatePayload: any = {
+      status: 'matched',
+      initiated_by: 'student',
+    };
 
-      if (updateError) {
-        console.error('❌ [API] Update match error:', updateError);
-        // Kita tetap return success untuk sessions, tapi dengan warning
-        return NextResponse.json(
-          {
-            message: 'Schedules saved but match update failed',
-            data,
-            schedules_summary: schedulesSummary,
-            warning: 'Match update error: ' + updateError.message,
-          },
-          { status: 207 } // Multi-Status
-        );
-      }
+    // ✅ Kirim sebagai JSON array, bukan string
+    if (schedulesSummary && Array.isArray(schedulesSummary) && schedulesSummary.length > 0) {
+      updatePayload.schedules_summary = schedulesSummary;
+    }
 
-      console.log('✅ [API] Match updated successfully');
-    } catch (updateErr) {
-      console.error('❌ [API] Update match exception:', updateErr);
-      // Tetap return success untuk sessions
+    console.log('🔄 Updating match with payload:', updatePayload);
+
+    const { error: updateError } = await adminSupabase
+      .from('matches')
+      .update(updatePayload)
+      .eq('id', match.id);
+
+    if (updateError) {
+      console.error('❌ Update match error:', updateError);
       return NextResponse.json(
         {
           message: 'Schedules saved but match update failed',
           data,
           schedules_summary: schedulesSummary,
-          warning: updateErr instanceof Error ? updateErr.message : 'Unknown error',
+          warning: updateError.message,
         },
         { status: 207 }
       );
     }
 
-    // ===== SUCCESS =====
+    console.log('✅ Match updated successfully');
+
     return NextResponse.json({
       message: 'Schedules saved successfully',
       data,
       schedules_summary: schedulesSummary,
     });
   } catch (error) {
-    console.error('❌ [API] Unexpected error:', error);
+    console.error('❌ Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
