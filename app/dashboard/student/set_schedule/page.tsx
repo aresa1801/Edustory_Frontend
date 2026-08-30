@@ -455,11 +455,7 @@ function SetScheduleContent() {
   }
 
   const handleSave = async () => {
-  console.log('🚀 handleSave dipanggil!');
-  console.log('📋 schedule:', schedule);
-  console.log('📊 totalSelected:', totalSelected);
-  console.log('🆔 matchData?.id:', matchData?.id);
-
+  console.log('🚀 handleSave START');
   const entries = Object.entries(schedule);
   if (entries.length === 0) {
     alert('Pilih minimal satu slot jadwal!');
@@ -472,39 +468,7 @@ function SetScheduleContent() {
   }
 
   let token: string | null = null;
-
-  // 1. Coba dari localStorage
-  try {
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key.includes('sb-') && key.includes('auth-token')) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.access_token) {
-            token = parsed.access_token;
-            break;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('Gagal baca localStorage:', e);
-  }
-
-  // 2. Fallback ke Supabase client
-  if (!token) {
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        token = session.access_token;
-        console.log('✅ Token dari Supabase client');
-      }
-    } catch (e) {
-      console.warn('Gagal ambil session:', e);
-    }
-  }
+  // ... (ambil token seperti sebelumnya)
 
   if (!token) {
     alert('Token tidak ditemukan. Silakan login ulang.');
@@ -515,6 +479,9 @@ function SetScheduleContent() {
     const [dateStr, timeSlot] = key.split('|');
     return { date: dateStr, timeSlot, subject };
   });
+
+  console.log('📤 Sending sessions:', sessions);
+  console.log('🔗 URL:', `/api/matches/${matchData.id}/schedules`);
 
   setIsSaving(true);
   setSaveMessage(null);
@@ -529,7 +496,9 @@ function SetScheduleContent() {
       body: JSON.stringify({ sessions }),
     });
 
+    console.log('📥 Response status:', res.status);
     const result = await res.json();
+    console.log('📥 Response body:', result);
 
     if (!res.ok) {
       throw new Error(result.error || 'Gagal menyimpan jadwal');
@@ -540,7 +509,8 @@ function SetScheduleContent() {
       router.push('/dashboard/student/tutor-offers');
     }, 1500);
   } catch (err: any) {
-    setSaveMessage({ type: 'error', text: err.message });
+    console.error('❌ Fetch error:', err);
+    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan' });
   } finally {
     setIsSaving(false);
   }

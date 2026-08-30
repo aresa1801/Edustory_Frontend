@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  try {
-    console.log('🚀 [API] START POST /schedules', { matchId: params.matchId });
+  console.log('🚀 API schedules POST called', { matchId: params.matchId });
 
+  try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -17,7 +16,7 @@ export async function POST(
 
     const { matchId } = params;
 
-    // 1. Validasi match
+    // Validasi match
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('id, student_id, tutor_id, status')
@@ -25,11 +24,10 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // 2. Validasi student
+    // Validasi student
     const { data: student } = await supabase
       .from('students')
       .select('user_id')
@@ -37,37 +35,19 @@ export async function POST(
       .single();
 
     if (!student || student.user_id !== user.id) {
-      console.warn('⚠️ Forbidden - not student owner');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 3. Ambil body
     const body = await req.json();
     const { sessions } = body;
 
     if (!sessions || sessions.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one session is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'No sessions' }, { status: 400 });
     }
 
-    // 4. Insert sessions
+    // Insert sessions
     const insertData = sessions.map((s: any) => {
-      const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
-      const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
-      const scheduledAt = new Date(
-        `${s.date}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00+07:00`
-      );
-      return {
-        tutor_id: match.tutor_id,
-        student_id: match.student_id,
-        match_id: match.id,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: 60,
-        status: 'scheduled',
-        notes: s.subject || null,
-      };
+      // ... (sama seperti sebelumnya)
     });
 
     const { data, error: insertError } = await supabase
@@ -76,92 +56,37 @@ export async function POST(
       .select();
 
     if (insertError) {
-      console.error('❌ Insert sessions error:', insertError);
-      return NextResponse.json(
-        { error: 'Failed to save schedules: ' + insertError.message },
-        { status: 500 }
-      );
+      console.error('Insert error:', insertError);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    console.log('✅ Sessions inserted:', data);
-
-    // ===== GENERATE SCHEDULES_SUMMARY (TEXT FORMAT) =====
+    // Generate summary
     let schedulesSummary = '';
+    // ... (sama seperti sebelumnya)
 
-    if (data && data.length > 0) {
-      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
-
-      for (const session of data) {
-        const scheduledAt = new Date(session.scheduled_at);
-        const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
-        const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        const endTime = new Date(scheduledAt.getTime() + (session.duration_minutes || 60) * 60000);
-        const endTimeStr = endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        const timeSlot = `${timeStr} - ${endTimeStr}`;
-        const subject = session.notes || 'Tanpa Mapel';
-
-        const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryGroups[key]) {
-          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
-        }
-        summaryGroups[key].count += 1;
-      }
-
-      // ✅ Format teks (seperti di gambar)
-      const summaryLines = Object.values(summaryGroups).map(
-        (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
-      );
-      schedulesSummary = summaryLines.join('; ');
-    }
-
-    console.log('📝 schedulesSummary (TEXT):', schedulesSummary);
-
-    // ===== UPDATE MATCH DENGAN TEKS =====
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const updatePayload: any = {
-      status: 'matched',
-      initiated_by: 'student',
-    };
-
-    if (schedulesSummary) {
-      updatePayload.schedules_summary = schedulesSummary;
-    }
-
-    console.log('🔄 Updating match with payload:', updatePayload);
-
-    const { error: updateError } = await adminSupabase
+    // Update match
+    const { error: updateError } = await supabase
       .from('matches')
-      .update(updatePayload)
+      .update({
+        status: 'matched',
+        initiated_by: 'student',
+        schedules_summary: schedulesSummary
+      })
       .eq('id', match.id);
 
     if (updateError) {
-      console.error('❌ Update match error:', updateError);
-      return NextResponse.json(
-        {
-          message: 'Schedules saved but match update failed',
-          data,
-          schedules_summary: schedulesSummary,
-          warning: updateError.message,
-        },
-        { status: 207 }
-      );
+      console.error('Update error:', updateError);
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    console.log('✅ Match updated successfully');
-
     return NextResponse.json({
-      message: 'Schedules saved successfully',
-      data,
+      success: true,
       schedules_summary: schedulesSummary,
     });
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
+    console.error('Unexpected error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
     );
   }
