@@ -6,9 +6,12 @@ export async function POST(
   { params }: { params: { matchId: string } }
 ) {
   try {
+    console.log('🚀 [API] START POST /schedules', { matchId: params.matchId });
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      console.warn('⚠️ [API] Unauthorized');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,17 +25,19 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
+      console.error('❌ [API] Match not found', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
     // 2. Pastikan user adalah student pemilik match
-    const { data: student } = await supabase
+    const { data: student, error: studentError } = await supabase
       .from('students')
       .select('user_id')
       .eq('id', match.student_id)
       .single();
 
-    if (!student || student.user_id !== user.id) {
+    if (studentError || !student || student.user_id !== user.id) {
+      console.warn('⚠️ [API] Forbidden - not student owner');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -41,6 +46,7 @@ export async function POST(
     const { sessions } = body;
 
     if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+      console.warn('⚠️ [API] No sessions provided');
       return NextResponse.json(
         { error: 'At least one session is required' },
         { status: 400 }
@@ -51,11 +57,9 @@ export async function POST(
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
-      // Asumsikan WIB (UTC+7)
       const scheduledAt = new Date(
         `${s.date}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00+07:00`
       );
-
       return {
         tutor_id: match.tutor_id,
         student_id: match.student_id,
@@ -67,6 +71,8 @@ export async function POST(
       };
     });
 
+    console.log('📝 [API] Insert data:', insertData);
+
     // 5. Insert ke sessions
     const { data, error: insertError } = await supabase
       .from('sessions')
@@ -74,19 +80,20 @@ export async function POST(
       .select();
 
     if (insertError) {
-      console.error('Insert sessions error:', insertError);
+      console.error('❌ [API] Insert sessions error:', insertError);
       return NextResponse.json(
-        { error: 'Failed to save schedules' },
+        { error: 'Failed to save schedules: ' + insertError.message },
         { status: 500 }
       );
     }
 
-    // ===== TAMBAHAN: BUAT SCHEDULES_SUMMARY DAN UPDATE MATCH =====
+    console.log('✅ [API] Sessions inserted:', data);
+
+    // ===== GENERATE SCHEDULES_SUMMARY =====
     let schedulesSummary = '';
 
-    // 6. Generate ringkasan jadwal dari sessions yang baru diinsert
     if (data && data.length > 0) {
-      const summaryGroups: Record<string, { subject: string, day: string, time: string, count: number }> = {};
+      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
 
       for (const session of data) {
         const scheduledAt = new Date(session.scheduled_at);
@@ -105,36 +112,69 @@ export async function POST(
       }
 
       const summaryLines = Object.values(summaryGroups).map(
-        item => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
+        (item) => `${item.subject}: ${item.day}, ${item.time} (${item.count} sesi)`
       );
       schedulesSummary = summaryLines.join('; ');
 
-      // 7. Update match: status, initiated_by, schedules_summary
-      await supabase
-        .from('matches')
-        .update({
-          status: 'matched',
-          initiated_by: 'student',
-          schedules_summary: schedulesSummary
-        })
-        .eq('id', match.id);
-    } else {
-      // Jika tidak ada sesi (seharusnya tidak terjadi), update status dan initiated_by saja
-      await supabase
-        .from('matches')
-        .update({ status: 'matched', initiated_by: 'student' })
-        .eq('id', match.id);
+      console.log('📝 [API] schedulesSummary:', schedulesSummary);
     }
 
+    // ===== UPDATE MATCH =====
+    try {
+      const updatePayload: any = {
+        status: 'matched',
+        initiated_by: 'student',
+      };
+      if (schedulesSummary) {
+        updatePayload.schedules_summary = schedulesSummary;
+      }
+
+      console.log('🔄 [API] Updating match with:', updatePayload);
+
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update(updatePayload)
+        .eq('id', match.id);
+
+      if (updateError) {
+        console.error('❌ [API] Update match error:', updateError);
+        // Kita tetap return success untuk sessions, tapi dengan warning
+        return NextResponse.json(
+          {
+            message: 'Schedules saved but match update failed',
+            data,
+            schedules_summary: schedulesSummary,
+            warning: 'Match update error: ' + updateError.message,
+          },
+          { status: 207 } // Multi-Status
+        );
+      }
+
+      console.log('✅ [API] Match updated successfully');
+    } catch (updateErr) {
+      console.error('❌ [API] Update match exception:', updateErr);
+      // Tetap return success untuk sessions
+      return NextResponse.json(
+        {
+          message: 'Schedules saved but match update failed',
+          data,
+          schedules_summary: schedulesSummary,
+          warning: updateErr instanceof Error ? updateErr.message : 'Unknown error',
+        },
+        { status: 207 }
+      );
+    }
+
+    // ===== SUCCESS =====
     return NextResponse.json({
       message: 'Schedules saved successfully',
       data,
       schedules_summary: schedulesSummary,
     });
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('❌ [API] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }
