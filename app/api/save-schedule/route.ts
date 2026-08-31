@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   console.log('🚀 API save-schedule called');
 
   try {
+    // 1. Ambil user
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // 2. Parse body
     const body = await req.json();
     const { matchId, sessions } = body;
+    console.log('📥 Received:', { matchId, sessionsCount: sessions?.length });
 
-    if (!matchId || !sessions || sessions.length === 0) {
-      return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
+    if (!matchId) {
+      return NextResponse.json({ error: 'matchId required' }, { status: 400 });
+    }
+    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+      return NextResponse.json({ error: 'sessions array required' }, { status: 400 });
     }
 
-    // 1. Validasi match & student
+    // 3. Validasi match & student
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('id, student_id, tutor_id')
@@ -26,6 +33,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (matchError || !match) {
+      console.error('❌ Match error:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 2. Insert sessions
+    // 4. Insert sessions
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
@@ -57,21 +65,28 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const { data, error: insertError } = await supabase
+    console.log('📝 Inserting sessions:', insertData.length);
+
+    const { data: insertedSessions, error: insertError } = await supabase
       .from('sessions')
       .insert(insertData)
       .select();
 
     if (insertError) {
-      console.error('Insert sessions error:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      console.error('❌ Insert sessions error:', insertError);
+      return NextResponse.json(
+        { error: 'Insert sessions failed: ' + insertError.message },
+        { status: 500 }
+      );
     }
 
-    // 3. Generate schedules_summary (JSON array)
+    console.log('✅ Sessions inserted:', insertedSessions.length);
+
+    // 5. Generate schedules_summary
     const summaryArray: any[] = [];
-    if (data && data.length > 0) {
+    if (insertedSessions && insertedSessions.length > 0) {
       const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
-      for (const session of data) {
+      for (const session of insertedSessions) {
         const scheduledAt = new Date(session.scheduled_at);
         const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
         const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -85,16 +100,14 @@ export async function POST(req: NextRequest) {
         }
         summaryMap[key].count += 1;
       }
-      // Convert ke array of objects
+      // Convert to array
       Object.values(summaryMap).forEach(item => summaryArray.push(item));
     }
 
     console.log('📝 Summary JSON:', JSON.stringify(summaryArray, null, 2));
 
-    // 4. Update match (langsung pakai supabase biasa, tapi dengan RLS bypass via service role)
-    // Kita gunakan admin client untuk bypass RLS
-    const { createClient: createAdmin } = await import('@supabase/supabase-js');
-    const adminSupabase = createAdmin(
+    // 6. Update match dengan admin client (bypass RLS)
+    const adminSupabase = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
@@ -102,10 +115,10 @@ export async function POST(req: NextRequest) {
     const updatePayload = {
       status: 'matched',
       initiated_by: 'student',
-      schedules_summary: summaryArray, // array of objects → otomatis jadi JSONB
+      schedules_summary: summaryArray,
     };
 
-    console.log('🔄 Updating match with payload:', updatePayload);
+    console.log('🔄 Updating match:', matchId, 'with payload:', updatePayload);
 
     const { error: updateError } = await adminSupabase
       .from('matches')
@@ -113,7 +126,7 @@ export async function POST(req: NextRequest) {
       .eq('id', match.id);
 
     if (updateError) {
-      console.error('❌ Update error:', updateError);
+      console.error('❌ Update match error:', updateError);
       return NextResponse.json(
         { error: 'Update match failed: ' + updateError.message },
         { status: 500 }
@@ -127,11 +140,10 @@ export async function POST(req: NextRequest) {
       schedules_summary: summaryArray,
     });
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
     );
   }
-
 }
