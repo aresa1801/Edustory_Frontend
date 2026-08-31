@@ -456,22 +456,26 @@ function SetScheduleContent() {
 
   // ========== HANDLE SAVE ==========
   const handleSave = async () => {
-    console.log('🚀 handleSave START');
+  console.log('🚀 handleSave START');
 
+  try {
+    console.log('📋 Step 1: Cek entries');
     const entries = Object.entries(schedule);
     if (entries.length === 0) {
       alert('Pilih minimal satu slot jadwal!');
       return;
     }
+    console.log('✅ entries:', entries);
 
+    console.log('📋 Step 2: Cek matchData.id');
     if (!matchData?.id) {
       alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
       return;
     }
+    console.log('✅ matchData.id:', matchData.id);
 
+    console.log('📋 Step 3: Ambil token');
     let token: string | null = null;
-
-    // 1. Ambil token dari localStorage
     try {
       const keys = Object.keys(localStorage);
       for (const key of keys) {
@@ -491,7 +495,6 @@ function SetScheduleContent() {
       console.warn('Gagal baca localStorage:', e);
     }
 
-    // 2. Fallback ke Supabase client
     if (!token) {
       try {
         const supabase = createClient();
@@ -509,49 +512,55 @@ function SetScheduleContent() {
       alert('Token tidak ditemukan. Silakan login ulang.');
       return;
     }
+    console.log('✅ Token final:', token ? 'ADA' : 'TIDAK ADA');
 
-    // 3. Siapkan data sessions (array of objects, format JSON)
+    console.log('📋 Step 4: Buat sessions array');
     const sessions = entries.map(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|');
+      console.log('   -> map item:', { dateStr, timeSlot, subject });
       return { date: dateStr, timeSlot, subject };
     });
+    console.log('✅ sessions:', sessions);
 
-    console.log('📤 Sending sessions:', sessions);
+    console.log('📋 Step 5: Siapkan body JSON');
+    const body = JSON.stringify({ matchId: matchData.id, sessions });
+    console.log('✅ body (length):', body.length);
+    console.log('📦 body sample:', body.substring(0, 200));
 
+    console.log('📋 Step 6: Kirim fetch ke /api/save-schedule');
     setIsSaving(true);
     setSaveMessage(null);
 
-    try {
-      const res = await fetch('/api/save-schedule', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ matchId: matchData.id, sessions }),
-      });
+    const res = await fetch('/api/save-schedule', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body,
+    });
 
-      console.log('📥 Response status:', res.status);
-      const result = await res.json();
-      console.log('📥 Response body:', result);
+    console.log('📥 Response status:', res.status);
+    const result = await res.json();
+    console.log('📥 Response body:', result);
 
-      if (!res.ok) {
-        const errorMsg = result.error || result.message || `HTTP ${res.status}`;
-        throw new Error(errorMsg);
-      }
-
-      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
-      setTimeout(() => {
-        router.push('/dashboard/student/tutor-offers');
-      }, 1500);
-    } catch (err: any) {
-      console.error('❌ Fetch error:', err);
-      setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
-      alert('Error: ' + err.message);
-    } finally {
-      setIsSaving(false);
+    if (!res.ok) {
+      const errorMsg = result.error || result.message || `HTTP ${res.status}`;
+      throw new Error(errorMsg);
     }
-  };
+
+    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
+    setTimeout(() => {
+      router.push('/dashboard/student/tutor-offers');
+    }, 1500);
+  } catch (err: any) {
+    console.error('❌ Error di handleSave:', err);
+    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
+    alert('Error: ' + err.message);
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   // ========== RENDER ==========
   if (loading) {
