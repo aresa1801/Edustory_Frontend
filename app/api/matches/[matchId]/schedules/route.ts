@@ -5,12 +5,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  console.log('🚀 [FINAL] API schedules POST called', { matchId: params.matchId });
+  console.log('🚀 [FIXED] API schedules POST called', { matchId: params.matchId });
 
   try {
     const { matchId } = params;
-
-    // 1. Ambil body
     const body = await req.json();
     const { sessions } = body;
 
@@ -18,13 +16,29 @@ export async function POST(
       return NextResponse.json({ error: 'sessions array required' }, { status: 400 });
     }
 
-    // 2. Gunakan admin client (service role) untuk bypass RLS
+    // === 1. Generate schedules_summary LANGSUNG dari data frontend ===
+    const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+    for (const s of sessions) {
+      const dateObj = new Date(s.date);
+      const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+      // Gunakan timeSlot dari frontend (sudah benar format "12.00 - 13.00")
+      const timeSlot = s.timeSlot;
+      const subject = s.subject || 'Tanpa Mapel';
+      const key = `${subject}-${dayName}-${timeSlot}`;
+      if (!summaryMap[key]) {
+        summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+      }
+      summaryMap[key].count += 1;
+    }
+    const summaryArray = Object.values(summaryMap);
+    console.log('📝 schedules_summary (from frontend):', JSON.stringify(summaryArray, null, 2));
+
+    // === 2. Insert sessions (tetap dilakukan) ===
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 3. Validasi match (pastikan matchId valid)
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select('id, student_id, tutor_id')
@@ -36,7 +50,6 @@ export async function POST(
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // 4. Insert sessions
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
@@ -54,47 +67,17 @@ export async function POST(
       };
     });
 
-    console.log('📝 Inserting sessions:', insertData.length);
-
-    const { data: insertedSessions, error: insertError } = await supabaseAdmin
+    const { error: insertError } = await supabaseAdmin
       .from('sessions')
       .insert(insertData)
       .select();
 
     if (insertError) {
       console.error('❌ Insert sessions error:', insertError);
-      return NextResponse.json(
-        { error: 'Insert sessions failed: ' + insertError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    console.log('✅ Sessions inserted:', insertedSessions.length);
-
-    // 5. Generate schedules_summary (JSON array)
-    const summaryArray: any[] = [];
-    if (insertedSessions && insertedSessions.length > 0) {
-      const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
-      for (const session of insertedSessions) {
-        const scheduledAt = new Date(session.scheduled_at);
-        const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
-        const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        const endTime = new Date(scheduledAt.getTime() + (session.duration_minutes || 60) * 60000);
-        const endTimeStr = endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        const timeSlot = `${timeStr} - ${endTimeStr}`;
-        const subject = session.notes || 'Tanpa Mapel';
-        const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryMap[key]) {
-          summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
-        }
-        summaryMap[key].count += 1;
-      }
-      Object.values(summaryMap).forEach(item => summaryArray.push(item));
-    }
-
-    console.log('📝 schedules_summary:', JSON.stringify(summaryArray, null, 2));
-
-    // 6. Update match dengan schedules_summary
+    // === 3. Update match dengan summaryArray (dari frontend) ===
     const { error: updateError } = await supabaseAdmin
       .from('matches')
       .update({
@@ -106,20 +89,13 @@ export async function POST(
 
     if (updateError) {
       console.error('❌ Update match error:', updateError);
-      return NextResponse.json(
-        { error: 'Update match failed: ' + updateError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
     console.log('✅ Match updated successfully');
-
-    return NextResponse.json({
-      success: true,
-      schedules_summary: summaryArray,
-    });
+    return NextResponse.json({ success: true, schedules_summary: summaryArray });
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
+    console.error('❌ Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
