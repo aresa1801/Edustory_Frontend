@@ -282,7 +282,7 @@ export default function TutorOffersPage() {
                     processing={false}
                     readonly
                     onSchedule={
-                      (offer.status === 'matched' || offer.status === 'active')
+                      (offer.status === 'active')
                         ? () => handleSchedule(offer)
                         : undefined
                     }
@@ -454,27 +454,15 @@ function OfferCard({
           </div>
         )}
 
-        {/* Kondisi: sudah disetujui (matched) */}
+        {/* Kondisi: sudah disetujui (matched) - tanpa tombol Atur Jadwal */}
         {offer.status === 'matched' && (
-          <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 space-y-2">
-            <p className="text-xs font-medium text-green-700">✓ Penawaran telah disetujui</p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-              onClick={() => {
-                if (onSchedule) onSchedule()
-              }}
-              disabled={!onSchedule || processing}
-            >
-              <Calendar className="w-3.5 h-3.5 mr-1" />
-              Atur Jadwal
-            </Button>
+          <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-center">
+            <p className="text-xs font-medium text-green-700">✓ Penawaran disetujui. Menunggu konfirmasi tutor.</p>
           </div>
         )}
 
         {offer.status === 'cancelled' && (
-          <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
+          <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
             ✗ Penawaran ditolak.
           </div>
         )}
