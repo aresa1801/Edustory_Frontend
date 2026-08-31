@@ -46,7 +46,7 @@ interface Match {
   tutor_total_reviews: number
   tutor_verified_grade_levels: string[]
   tutor_avatar_url?: string | null
-  schedules_summary?: string | null
+  schedules_summary?: any // bisa string atau array, kita handle di render
 }
 
 export default function TutorOffersPage() {
@@ -157,6 +157,30 @@ export default function TutorOffersPage() {
     setShowConfirmDialog(true)
   }
 
+  // Helper untuk render schedules_summary dengan aman
+  const renderScheduleSummary = (summary: any) => {
+    if (!summary) return null
+    // Jika string, tampilkan sebagai teks biasa
+    if (typeof summary === 'string') {
+      return <span className="text-xs text-muted-foreground">{summary}</span>
+    }
+    // Jika array, tampilkan sebagai list
+    if (Array.isArray(summary)) {
+      return (
+        <div className="text-xs text-muted-foreground">
+          {summary.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-1">
+              <span className="font-medium">{item.subject}:</span>
+              <span>{item.day}, {item.time} ({item.count} sesi)</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    // Fallback: JSON.stringify
+    return <span className="text-xs text-muted-foreground">{JSON.stringify(summary)}</span>
+  }
+
   if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -227,6 +251,7 @@ export default function TutorOffersPage() {
                     processing={processingId === offer.id}
                     onSchedule={() => handleSchedule(offer)}
                     onReject={() => openConfirmDialog(offer, 'reject')}
+                    renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
               </div>
@@ -245,6 +270,7 @@ export default function TutorOffersPage() {
                     processing={false}
                     readonly
                     showWaitingMessage
+                    renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
               </div>
@@ -267,6 +293,7 @@ export default function TutorOffersPage() {
                         ? () => handleSchedule(offer)
                         : undefined
                     }
+                    renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
               </div>
@@ -316,6 +343,7 @@ function OfferCard({
   onReject,
   readonly = false,
   showWaitingMessage = false,
+  renderScheduleSummary,
 }: {
   offer: Match
   processing: boolean
@@ -323,6 +351,7 @@ function OfferCard({
   onReject?: () => void
   readonly?: boolean
   showWaitingMessage?: boolean
+  renderScheduleSummary?: (summary: any) => React.ReactNode
 }) {
   const statusMap: Record<string, { label: string; color: string }> = {
     pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' },
@@ -385,12 +414,13 @@ function OfferCard({
             </span>
           </div>
           {/* Tampilkan schedules_summary jika ada */}
-          {offer.schedules_summary && (
+          {offer.schedules_summary && renderScheduleSummary && (
             <div className="flex items-start gap-2">
               <Clock className="w-4 h-4 text-orange-500 mt-0.5" />
-              <span className="text-xs text-muted-foreground">
-                <span className="font-medium">Jadwal:</span> {offer.schedules_summary}
-              </span>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Jadwal:</span>
+                {renderScheduleSummary(offer.schedules_summary)}
+              </div>
             </div>
           )}
         </div>
