@@ -1,52 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  console.log('🚀 API schedules POST called', { matchId: params.matchId });
+  console.log('🚀 [FINAL] API schedules POST called', { matchId: params.matchId });
 
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { matchId } = params;
 
-    // Validasi match
-    const { data: match, error: matchError } = await supabase
+    // 1. Ambil body
+    const body = await req.json();
+    const { sessions } = body;
+
+    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+      return NextResponse.json({ error: 'sessions array required' }, { status: 400 });
+    }
+
+    // 2. Gunakan admin client (service role) untuk bypass RLS
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // 3. Validasi match (pastikan matchId valid)
+    const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
-      .select('id, student_id, tutor_id, status')
+      .select('id, student_id, tutor_id')
       .eq('id', matchId)
       .single();
 
     if (matchError || !match) {
+      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // Validasi student
-    const { data: student } = await supabase
-      .from('students')
-      .select('user_id')
-      .eq('id', match.student_id)
-      .single();
-
-    if (!student || student.user_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const { sessions } = body;
-
-    if (!sessions || sessions.length === 0) {
-      return NextResponse.json({ error: 'No sessions' }, { status: 400 });
-    }
-
-    // Insert sessions
+    // 4. Insert sessions
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
@@ -64,23 +54,28 @@ export async function POST(
       };
     });
 
-    const { data, error: insertError } = await supabase
+    console.log('📝 Inserting sessions:', insertData.length);
+
+    const { data: insertedSessions, error: insertError } = await supabaseAdmin
       .from('sessions')
       .insert(insertData)
       .select();
 
     if (insertError) {
-      console.error('Insert error:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      console.error('❌ Insert sessions error:', insertError);
+      return NextResponse.json(
+        { error: 'Insert sessions failed: ' + insertError.message },
+        { status: 500 }
+      );
     }
 
-    console.log('✅ Sessions inserted:', data);
+    console.log('✅ Sessions inserted:', insertedSessions.length);
 
-    // Generate summary (ARRAY of objects)
-    let summaryArray: any[] = [];
-    if (data && data.length > 0) {
-      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
-      for (const session of data) {
+    // 5. Generate schedules_summary (JSON array)
+    const summaryArray: any[] = [];
+    if (insertedSessions && insertedSessions.length > 0) {
+      const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+      for (const session of insertedSessions) {
         const scheduledAt = new Date(session.scheduled_at);
         const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
         const timeStr = scheduledAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -89,44 +84,30 @@ export async function POST(
         const timeSlot = `${timeStr} - ${endTimeStr}`;
         const subject = session.notes || 'Tanpa Mapel';
         const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryGroups[key]) {
-          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        if (!summaryMap[key]) {
+          summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
         }
-        summaryGroups[key].count += 1;
+        summaryMap[key].count += 1;
       }
-      summaryArray = Object.values(summaryGroups);
+      Object.values(summaryMap).forEach(item => summaryArray.push(item));
     }
 
-    console.log('📝 summaryArray:', JSON.stringify(summaryArray, null, 2));
+    console.log('📝 schedules_summary:', JSON.stringify(summaryArray, null, 2));
 
-    // Update match dengan admin client
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const updatePayload: any = {
-      status: 'matched',
-      initiated_by: 'student',
-    };
-    if (summaryArray.length > 0) {
-      updatePayload.schedules_summary = summaryArray;
-    }
-
-    console.log('🔄 Updating match with payload:', updatePayload);
-
-    const { error: updateError } = await adminSupabase
+    // 6. Update match dengan schedules_summary
+    const { error: updateError } = await supabaseAdmin
       .from('matches')
-      .update(updatePayload)
-      .eq('id', match.id);
+      .update({
+        status: 'matched',
+        initiated_by: 'student',
+        schedules_summary: summaryArray,
+      })
+      .eq('id', matchId);
 
     if (updateError) {
-      console.error('❌ Update error:', updateError);
+      console.error('❌ Update match error:', updateError);
       return NextResponse.json(
-        { 
-          error: 'Update match failed: ' + updateError.message,
-          details: updateError
-        },
+        { error: 'Update match failed: ' + updateError.message },
         { status: 500 }
       );
     }
