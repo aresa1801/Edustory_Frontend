@@ -46,7 +46,7 @@ interface Match {
   tutor_total_reviews: number
   tutor_verified_grade_levels: string[]
   tutor_avatar_url?: string | null
-  schedules_summary?: any // bisa string atau array, kita handle di render
+  schedules_summary?: any
 }
 
 export default function TutorOffersPage() {
@@ -57,7 +57,6 @@ export default function TutorOffersPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedOffer, setSelectedOffer] = useState<Match | null>(null)
-  const [actionType, setActionType] = useState<'accept' | 'reject' | null>(null)
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
@@ -147,24 +146,20 @@ export default function TutorOffersPage() {
       setProcessingId(null)
       setShowConfirmDialog(false)
       setSelectedOffer(null)
-      setActionType(null)
     }
   }
 
-  const openConfirmDialog = (offer: Match, action: 'accept' | 'reject') => {
+  const openConfirmDialog = (offer: Match) => {
     setSelectedOffer(offer)
-    setActionType(action)
     setShowConfirmDialog(true)
   }
 
   // Helper untuk render schedules_summary dengan aman
   const renderScheduleSummary = (summary: any) => {
     if (!summary) return null
-    // Jika string, tampilkan sebagai teks biasa
     if (typeof summary === 'string') {
       return <span className="text-xs text-muted-foreground">{summary}</span>
     }
-    // Jika array, tampilkan sebagai list
     if (Array.isArray(summary)) {
       return (
         <div className="text-xs text-muted-foreground">
@@ -177,7 +172,6 @@ export default function TutorOffersPage() {
         </div>
       )
     }
-    // Fallback: JSON.stringify
     return <span className="text-xs text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
@@ -250,7 +244,7 @@ export default function TutorOffersPage() {
                     offer={offer}
                     processing={processingId === offer.id}
                     onSchedule={() => handleSchedule(offer)}
-                    onReject={() => openConfirmDialog(offer, 'reject')}
+                    onReject={() => openConfirmDialog(offer)}
                     renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
@@ -268,8 +262,7 @@ export default function TutorOffersPage() {
                     key={offer.id}
                     offer={offer}
                     processing={false}
-                    readonly
-                    showWaitingMessage
+                    isStudentRequest
                     renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
@@ -342,7 +335,7 @@ function OfferCard({
   onSchedule,
   onReject,
   readonly = false,
-  showWaitingMessage = false,
+  isStudentRequest = false,
   renderScheduleSummary,
 }: {
   offer: Match
@@ -350,7 +343,7 @@ function OfferCard({
   onSchedule?: () => void
   onReject?: () => void
   readonly?: boolean
-  showWaitingMessage?: boolean
+  isStudentRequest?: boolean
   renderScheduleSummary?: (summary: any) => React.ReactNode
 }) {
   const statusMap: Record<string, { label: string; color: string }> = {
@@ -425,6 +418,7 @@ function OfferCard({
           )}
         </div>
 
+        {/* Kondisi: penawaran dari tutor (student harus memutuskan) */}
         {!readonly && offer.status === 'pending' && offer.initiated_by === 'tutor' && (
           <div className="mt-4 flex gap-2">
             <Button
@@ -452,16 +446,18 @@ function OfferCard({
           </div>
         )}
 
-        {showWaitingMessage && offer.status === 'pending' && offer.initiated_by === 'student' && (
+        {/* Kondisi: permintaan student menunggu konfirmasi tutor */}
+        {isStudentRequest && offer.status === 'pending' && offer.initiated_by === 'student' && (
           <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
-            <p className="text-sm font-medium text-gray-600">⏳ Menunggu Konfirmasi Tutor</p>
-            <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, tunggu tanggapan tutor.</p>
+            <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi dari guru</p>
+            <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, silakan tunggu tanggapan guru.</p>
           </div>
         )}
 
+        {/* Kondisi: sudah disetujui (matched) */}
         {offer.status === 'matched' && (
           <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 space-y-2">
-            <p className="text-xs font-medium text-green-700">✓ Penawaran telah disetujui. Atur jadwal belajar sekarang.</p>
+            <p className="text-xs font-medium text-green-700">✓ Penawaran telah disetujui</p>
             <Button
               size="sm"
               variant="outline"
