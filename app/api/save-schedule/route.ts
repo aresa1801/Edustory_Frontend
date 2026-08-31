@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   console.log('🚀 API save-schedule called');
@@ -15,13 +14,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { matchId, sessions } = body;
 
-    console.log('📥 Received:', { matchId, sessionsCount: sessions?.length });
-
     if (!matchId || !sessions || sessions.length === 0) {
       return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
     }
 
-    // Validasi match & student
+    // 1. Validasi match & student
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('id, student_id, tutor_id')
@@ -29,7 +26,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
@@ -40,11 +36,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!student || student.user_id !== user.id) {
-      console.error('❌ Forbidden - student mismatch');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Insert sessions
+    // 2. Insert sessions
     const insertData = sessions.map((s: any) => {
       const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
       const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
@@ -62,24 +57,20 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    console.log('📝 Inserting sessions:', insertData.length);
-
     const { data, error: insertError } = await supabase
       .from('sessions')
       .insert(insertData)
       .select();
 
     if (insertError) {
-      console.error('❌ Insert error:', insertError);
+      console.error('Insert sessions error:', insertError);
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    console.log('✅ Sessions inserted:', data.length);
-
-    // Generate summary (ARRAY of objects - JSONB format)
-    let summaryArray: any[] = [];
+    // 3. Generate schedules_summary (JSON array)
+    const summaryArray: any[] = [];
     if (data && data.length > 0) {
-      const summaryGroups: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+      const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
       for (const session of data) {
         const scheduledAt = new Date(session.scheduled_at);
         const dayName = scheduledAt.toLocaleDateString('id-ID', { weekday: 'long' });
@@ -89,36 +80,42 @@ export async function POST(req: NextRequest) {
         const timeSlot = `${timeStr} - ${endTimeStr}`;
         const subject = session.notes || 'Tanpa Mapel';
         const key = `${subject}-${dayName}-${timeSlot}`;
-        if (!summaryGroups[key]) {
-          summaryGroups[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        if (!summaryMap[key]) {
+          summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
         }
-        summaryGroups[key].count += 1;
+        summaryMap[key].count += 1;
       }
-      summaryArray = Object.values(summaryGroups);
-      console.log('📝 Summary array:', JSON.stringify(summaryArray, null, 2));
+      // Convert ke array of objects
+      Object.values(summaryMap).forEach(item => summaryArray.push(item));
     }
 
-    // Update match dengan admin client (bypass RLS)
-    const adminSupabase = createAdminClient(
+    console.log('📝 Summary JSON:', JSON.stringify(summaryArray, null, 2));
+
+    // 4. Update match (langsung pakai supabase biasa, tapi dengan RLS bypass via service role)
+    // Kita gunakan admin client untuk bypass RLS
+    const { createClient: createAdmin } = await import('@supabase/supabase-js');
+    const adminSupabase = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    console.log('🔄 Updating match with summary:', summaryArray);
+    const updatePayload = {
+      status: 'matched',
+      initiated_by: 'student',
+      schedules_summary: summaryArray, // array of objects → otomatis jadi JSONB
+    };
+
+    console.log('🔄 Updating match with payload:', updatePayload);
 
     const { error: updateError } = await adminSupabase
       .from('matches')
-      .update({
-        status: 'matched',
-        initiated_by: 'student',
-        schedules_summary: summaryArray, // ✅ array of objects, cocok untuk jsonb
-      })
+      .update(updatePayload)
       .eq('id', match.id);
 
     if (updateError) {
       console.error('❌ Update error:', updateError);
       return NextResponse.json(
-        { error: 'Update failed: ' + updateError.message },
+        { error: 'Update match failed: ' + updateError.message },
         { status: 500 }
       );
     }
@@ -130,7 +127,7 @@ export async function POST(req: NextRequest) {
       schedules_summary: summaryArray,
     });
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
+    console.error('❌ Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
