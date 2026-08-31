@@ -510,7 +510,7 @@ function SetScheduleContent() {
       return;
     }
 
-    // 3. Siapkan data sessions
+    // 3. Siapkan data sessions (array of objects, format JSON)
     const sessions = entries.map(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|');
       return { date: dateStr, timeSlot, subject };
@@ -522,12 +522,11 @@ function SetScheduleContent() {
     setSaveMessage(null);
 
     try {
-      // === PERUBAHAN: PAKAI ENDPOINT BARU ===
       const res = await fetch('/api/save-schedule', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ matchId: matchData.id, sessions }),
       });
@@ -541,7 +540,6 @@ function SetScheduleContent() {
         throw new Error(errorMsg);
       }
 
-      // Sukses
       setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
       setTimeout(() => {
         router.push('/dashboard/student/tutor-offers');
