@@ -171,19 +171,11 @@ export default function MyStudentsPage() {
   console.log('🚀 handleAccept called for matchId:', matchId);
   setProcessingAction(true);
 
-  const token = await getToken();
-  if (!token) {
-    alert('Token tidak ditemukan. Silakan login ulang.');
-    setProcessingAction(false);
-    return;
-  }
-
   try {
     const res = await fetch(`/api/matches/${matchId}/confirm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ action: 'accept' }),
     });
@@ -213,20 +205,11 @@ export default function MyStudentsPage() {
 
   setProcessingAction(true);
 
-  const token = await getToken();
-  if (!token) {
-    alert('Token tidak ditemukan. Silakan login ulang.');
-    setProcessingAction(false);
-    setShowRejectDialog(false);
-    return;
-  }
-
   try {
     const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ action: 'reject' }),
     });
