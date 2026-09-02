@@ -154,65 +154,51 @@ export default function MyStudentsPage() {
   }
 
   // ========== Fungsi Ambil Token dari localStorage ==========
-  const getToken = () => {
-    try {
-      const keys = Object.keys(localStorage)
-      for (const key of keys) {
-        if (key.includes('sb-') && key.includes('auth-token')) {
-          const raw = localStorage.getItem(key)
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            if (parsed?.access_token) {
-              return parsed.access_token
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Gagal baca token dari localStorage:', e)
-    }
-    return null
+  const getToken = async () => {
+  try {
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (e) {
+    console.warn('Gagal ambil token dari Supabase client:', e);
+    return null;
   }
+};
 
   // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
-    console.log('🚀 handleAccept called for matchId:', matchId)
-    setProcessingAction(true)
+  console.log('🚀 handleAccept called for matchId:', matchId);
+  setProcessingAction(true);
 
-    const token = getToken()
-    if (!token) {
-      alert('Token tidak ditemukan. Silakan login ulang.')
-      setProcessingAction(false)
-      return
-    }
-
-    try {
-      const res = await fetch(`/api/matches/${matchId}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'accept' }),
-      })
-
-      console.log('📥 Response status:', res.status)
-      const result = await res.json()
-      console.log('📥 Response body:', result)
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menerima permintaan')
-      }
-
-      await fetchData()
-      alert('✅ Permintaan berhasil diterima!')
-    } catch (err: any) {
-      console.error('❌ Error:', err)
-      alert('❌ ' + err.message)
-    } finally {
-      setProcessingAction(false)
-    }
+  const token = await getToken();
+  if (!token) {
+    alert('Token tidak ditemukan. Silakan login ulang.');
+    setProcessingAction(false);
+    return;
   }
+
+  try {
+    const res = await fetch(`/api/matches/${matchId}/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action: 'accept' }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Gagal menerima permintaan');
+
+    await fetchData();
+    alert('✅ Permintaan berhasil diterima!');
+  } catch (err: any) {
+    alert('❌ ' + err.message);
+  } finally {
+    setProcessingAction(false);
+  }
+};
 
   // ========== FUNGSI TOLAK (melalui dialog) ==========
   const openRejectDialog = (matchId: string) => {
@@ -222,52 +208,42 @@ export default function MyStudentsPage() {
   }
 
   const handleReject = async () => {
-    console.log('🚨 handleReject called, selectedMatchId:', selectedMatchId)
-    if (!selectedMatchId) {
-      console.warn('⚠️ selectedMatchId is null, aborting')
-      return
-    }
+  console.log('🚨 handleReject called, selectedMatchId:', selectedMatchId);
+  if (!selectedMatchId) return;
 
-    setProcessingAction(true)
+  setProcessingAction(true);
 
-    const token = getToken()
-    if (!token) {
-      alert('Token tidak ditemukan. Silakan login ulang.')
-      setProcessingAction(false)
-      setShowRejectDialog(false)
-      return
-    }
-
-    try {
-      console.log('📤 Sending reject request for matchId:', selectedMatchId)
-      const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'reject' }),
-      })
-
-      console.log('📥 Response status:', res.status)
-      const result = await res.json()
-      console.log('📥 Response body:', result)
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menolak permintaan')
-      }
-
-      await fetchData()
-      alert('✅ Permintaan berhasil ditolak.')
-    } catch (err: any) {
-      console.error('❌ Error:', err)
-      alert('❌ ' + err.message)
-    } finally {
-      setProcessingAction(false)
-      setShowRejectDialog(false)
-      setSelectedMatchId(null)
-    }
+  const token = await getToken();
+  if (!token) {
+    alert('Token tidak ditemukan. Silakan login ulang.');
+    setProcessingAction(false);
+    setShowRejectDialog(false);
+    return;
   }
+
+  try {
+    const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action: 'reject' }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Gagal menolak permintaan');
+
+    await fetchData();
+    alert('✅ Permintaan berhasil ditolak.');
+  } catch (err: any) {
+    alert('❌ ' + err.message);
+  } finally {
+    setProcessingAction(false);
+    setShowRejectDialog(false);
+    setSelectedMatchId(null);
+  }
+};
 
   // ========== FUNGSI TOLAK LANGSUNG (fallback) ==========
   const handleRejectDirect = async (matchId: string) => {
