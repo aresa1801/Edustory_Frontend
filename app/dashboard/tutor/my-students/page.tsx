@@ -644,7 +644,7 @@ export default function MyStudentsPage() {
               disabled={processingAction}
             >
               {processingAction ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
-            </Button>
+            </Button>a
           </DialogFooter>
         </DialogContent>
       </Dialog>
