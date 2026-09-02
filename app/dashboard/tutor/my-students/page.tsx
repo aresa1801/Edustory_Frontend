@@ -77,7 +77,7 @@ export default function MyStudentsPage() {
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
         const active = allMatches.filter(
-          (m: any) => ['matched', 'active'].includes(m.status)
+          (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
         )
         setPendingCount(pending.length)
         setTotalStudents(active.length)
@@ -154,7 +154,9 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
+  // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
+    console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
     try {
       const { createClient } = await import('@/lib/auth')
@@ -171,31 +173,88 @@ export default function MyStudentsPage() {
         body: JSON.stringify({ action: 'accept' }),
       })
 
+      console.log('📥 Response status:', res.status)
+      const result = await res.json()
+      console.log('📥 Response body:', result)
+
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Gagal menerima permintaan')
+        throw new Error(result.error || 'Gagal menerima permintaan')
       }
 
       await fetchData()
       alert('✅ Permintaan berhasil diterima!')
     } catch (err: any) {
+      console.error('❌ Error:', err)
       alert('❌ ' + err.message)
     } finally {
       setProcessingAction(false)
     }
   }
 
-  const handleReject = async () => {
-    if (!selectedMatchId) return
-    setProcessingAction(true)
+  // ========== FUNGSI TOLAK (melalui dialog) ==========
+  const openRejectDialog = (matchId: string) => {
+    console.log('📌 openRejectDialog called with matchId:', matchId)
+    setSelectedMatchId(matchId)
+    setShowRejectDialog(true)
+  }
 
+  const handleReject = async () => {
+    console.log('🚨 handleReject called, selectedMatchId:', selectedMatchId)
+    if (!selectedMatchId) {
+      console.warn('⚠️ selectedMatchId is null, aborting')
+      return
+    }
+
+    setProcessingAction(true)
     try {
       const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || ''
 
+      console.log('📤 Sending reject request for matchId:', selectedMatchId)
       const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'reject' }),
+      })
+
+      console.log('📥 Response status:', res.status)
+      const result = await res.json()
+      console.log('📥 Response body:', result)
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Gagal menolak permintaan')
+      }
+
+      await fetchData()
+      alert('✅ Permintaan berhasil ditolak.')
+    } catch (err: any) {
+      console.error('❌ Error:', err)
+      alert('❌ ' + err.message)
+    } finally {
+      setProcessingAction(false)
+      setShowRejectDialog(false)
+      setSelectedMatchId(null)
+    }
+  }
+
+  // ========== FUNGSI TOLAK LANGSUNG (alternatif tanpa dialog) ==========
+  const handleRejectDirect = async (matchId: string) => {
+    console.log('🚨 handleRejectDirect called for matchId:', matchId)
+    if (!confirm('Yakin menolak permintaan ini?')) return
+
+    setProcessingAction(true)
+    try {
+      const { createClient } = await import('@/lib/auth')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+
+      const res = await fetch(`/api/matches/${matchId}/confirm`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -215,14 +274,7 @@ export default function MyStudentsPage() {
       alert('❌ ' + err.message)
     } finally {
       setProcessingAction(false)
-      setShowRejectDialog(false)
-      setSelectedMatchId(null)
     }
-  }
-
-  const openRejectDialog = (matchId: string) => {
-    setSelectedMatchId(matchId)
-    setShowRejectDialog(true)
   }
 
   if (authLoading || loading) {
@@ -245,15 +297,15 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter: pending = penawaran dari tutor, active = sudah dikonfirmasi student/tutor
+  // Filter: pending = penawaran dari tutor, active = sudah dikonfirmasi/ditolak
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
   const activeMatches = matches.filter(
-    (m: any) => ['matched', 'active', 'completed', 'cancelled'].includes(m.status)
+    (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
   )
 
-  // ========== RENDER PENDING (Penawaran dari tutor) – TIDAK DIUBAH ==========
+  // ========== RENDER PENDING ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -380,7 +432,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (Pencocokan Aktif) – DIUBAH ==========
+  // ========== RENDER ACTIVE ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -396,6 +448,7 @@ export default function MyStudentsPage() {
       active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
       completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
       cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
+      declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
     }
 
     return (
@@ -411,7 +464,6 @@ export default function MyStudentsPage() {
           const status = match.status
           const avatar = match.student_avatar
 
-          // Gunakan schedules_summary jika ada, fallback ke student_schedule
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
             : match.student_schedule || 'Belum ditentukan'
@@ -428,12 +480,11 @@ export default function MyStudentsPage() {
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
 
-          const isCancelled = status === 'cancelled'
+          const isRejected = status === 'cancelled' || status === 'declined'
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
-                {/* Header dengan badge dan ikon tempat sampah jika ditolak */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -454,14 +505,13 @@ export default function MyStudentsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
-                    {isCancelled && (
+                    {isRejected && (
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-gray-400 hover:text-red-500"
                         onClick={() => {
                           if (confirm('Hapus data ini dari tampilan?')) {
-                            // Untuk sementara, refresh data agar card hilang (karena filter status)
                             handleRefresh()
                           }
                         }}
@@ -530,8 +580,8 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol aksi (hanya jika status bukan cancelled) */}
-                {!isCancelled && (
+                {/* Tombol aksi (hanya jika status bukan rejected) */}
+                {!isRejected && (
                   <div className="mt-4 flex gap-2">
                     <Button
                       size="sm"
@@ -555,8 +605,8 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* Pesan khusus untuk status cancelled */}
-                {isCancelled && (
+                {/* Pesan khusus untuk status rejected */}
+                {isRejected && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran jadwal oleh student ditolak</p>
                   </div>
@@ -624,6 +674,7 @@ export default function MyStudentsPage() {
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
 
+      {/* Dialog Konfirmasi Tolak */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
@@ -640,11 +691,14 @@ export default function MyStudentsPage() {
             </Button>
             <Button
               variant="destructive"
-              onClick={handleReject}
+              onClick={() => {
+                console.log('🔄 Tombol Ya, Tolak diklik')
+                handleReject()
+              }}
               disabled={processingAction}
             >
               {processingAction ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
-            </Button>a
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
