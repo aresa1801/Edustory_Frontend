@@ -20,6 +20,7 @@ import {
   Map,
   CheckCircle,
   XCircle,
+  Trash2,
 } from 'lucide-react'
 import {
   Dialog,
@@ -252,7 +253,7 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed', 'cancelled'].includes(m.status)
   )
 
-  // ========== RENDER PENDING (Penawaran dari tutor) ==========
+  // ========== RENDER PENDING (Penawaran dari tutor) – TIDAK DIUBAH ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -379,7 +380,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (Sudah dikonfirmasi) ==========
+  // ========== RENDER ACTIVE (Pencocokan Aktif) – DIUBAH ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -408,10 +409,9 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const status = match.status
-          const phone = match.student_phone || ''
           const avatar = match.student_avatar
 
-          // 🔥 PERUBAHAN: Gunakan schedules_summary jika ada (student sudah atur jadwal)
+          // Gunakan schedules_summary jika ada, fallback ke student_schedule
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
             : match.student_schedule || 'Belum ditentukan'
@@ -428,9 +428,12 @@ export default function MyStudentsPage() {
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
 
+          const isCancelled = status === 'cancelled'
+
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
+                {/* Header dengan badge dan ikon tempat sampah jika ditolak */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -449,7 +452,24 @@ export default function MyStudentsPage() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                    {isCancelled && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-gray-400 hover:text-red-500"
+                        onClick={() => {
+                          if (confirm('Hapus data ini dari tampilan?')) {
+                            // Untuk sementara, refresh data agar card hilang (karena filter status)
+                            handleRefresh()
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -510,27 +530,35 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {status === 'cancelled' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Permintaan jadwal siswa ditolak!</p>
+                {/* Tombol aksi (hanya jika status bukan cancelled) */}
+                {!isCancelled && (
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                      onClick={() => handleAccept(match.id)}
+                      disabled={processingAction}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Terima
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="flex-1 gap-1.5"
+                      onClick={() => openRejectDialog(match.id)}
+                      disabled={processingAction}
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Tolak
+                    </Button>
                   </div>
                 )}
 
-                {status === 'matched' && phone && (
-                  <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
-                    <p className="text-xs font-medium text-green-700">
-                      ✓ Pencocokan dikonfirmasi! Hubungi siswa.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 border-green-300 text-green-700 hover:bg-green-100 text-xs h-8"
-                      onClick={() =>
-                        window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank')
-                      }
-                    >
-                      💬 WhatsApp
-                    </Button>
+                {/* Pesan khusus untuk status cancelled */}
+                {isCancelled && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-xs font-medium text-red-700">✗ Penawaran jadwal oleh student ditolak</p>
                   </div>
                 )}
               </CardContent>
