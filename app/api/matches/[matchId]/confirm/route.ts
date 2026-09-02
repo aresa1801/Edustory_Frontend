@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  console.log('🚀 [CONFIRM] API dipanggil', { matchId: params.matchId });
+  console.log('🚀 [CONFIRM] API called', { matchId: params.matchId });
 
   try {
     const { matchId } = params;
@@ -16,59 +17,88 @@ export async function POST(
 
     if (!action || !['accept', 'reject'].includes(action)) {
       return NextResponse.json(
-        { error: 'Action harus "accept" atau "reject"' },
+        { error: 'Invalid action. Use "accept" or "reject".' },
         { status: 400 }
       );
     }
 
-    // Pakai admin client langsung (bypass RLS, tanpa perlu auth)
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Ambil user dari Supabase (untuk validasi)
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('❌ Auth error:', userError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.log('✅ User authenticated:', user.id);
 
-    // Validasi match ada
-    const { data: match, error: matchError } = await adminSupabase
+    // Cek match
+    const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('id, status, initiated_by')
+      .select('id, tutor_id, student_id, status, initiated_by')
       .eq('id', matchId)
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match tidak ditemukan:', matchError);
-      return NextResponse.json({ error: 'Match tidak ditemukan' }, { status: 404 });
+      console.error('❌ Match error:', matchError);
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
+    console.log('✅ Match found:', match);
 
-    console.log('📋 Match ditemukan:', match);
+    // Validasi apakah user adalah tutor yang terkait
+    const { data: tutor, error: tutorError } = await supabase
+      .from('tutors')
+      .select('user_id')
+      .eq('id', match.tutor_id)
+      .single();
 
-    // Siapkan payload update
+    if (tutorError || !tutor) {
+      console.error('❌ Tutor error:', tutorError);
+      return NextResponse.json({ error: 'Tutor not found' }, { status: 404 });
+    }
+    if (tutor.user_id !== user.id) {
+      console.warn('⚠️ User is not the tutor for this match');
+      return NextResponse.json(
+        { error: 'Forbidden – only the tutor can confirm this match.' },
+        { status: 403 }
+      );
+    }
+    console.log('✅ User is the tutor');
+
+    // Gunakan admin client untuk update (bypass RLS)
+    const adminSupabase = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     let updatePayload: any = {};
     if (action === 'accept') {
       updatePayload = { status: 'matched' };
     } else if (action === 'reject') {
-      updatePayload = { status: 'declined', initiated_by: 'tutor' };
+      updatePayload = {
+        status: 'declined',
+        initiated_by: 'tutor',
+      };
     }
 
-    console.log('🔄 Update payload:', updatePayload);
+    console.log('🔄 Updating match with payload:', updatePayload);
 
-    // Update match
     const { error: updateError } = await adminSupabase
       .from('matches')
       .update(updatePayload)
       .eq('id', matchId);
 
     if (updateError) {
-      console.error('❌ Error update:', updateError);
+      console.error('❌ Update error:', updateError);
       return NextResponse.json(
-        { error: 'Gagal update match: ' + updateError.message },
+        { error: 'Failed to update match: ' + updateError.message },
         { status: 500 }
       );
     }
 
-    console.log('✅ Match berhasil diupdate');
+    console.log('✅ Match updated successfully');
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('❌ Error unexpected:', error);
+    console.error('❌ Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
