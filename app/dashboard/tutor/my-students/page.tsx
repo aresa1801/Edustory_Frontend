@@ -18,17 +18,7 @@ import {
   RefreshCw,
   CalendarDays,
   Map,
-  XCircle,
-  CheckCircle,
 } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
 export default function MyStudentsPage() {
   const { user: authUser, loading: authLoading } = useAuth()
@@ -37,10 +27,6 @@ export default function MyStudentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [totalStudents, setTotalStudents] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
-
-  const [showRejectDialog, setShowRejectDialog] = useState(false)
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
-  const [processingReject, setProcessingReject] = useState(false)
 
   const isMounted = useRef(true)
 
@@ -72,7 +58,7 @@ export default function MyStudentsPage() {
       if (isMounted.current) {
         setMatches(allMatches)
         const pending = allMatches.filter(
-          (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+          (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
         const active = allMatches.filter(
           (m: any) => ['matched', 'active'].includes(m.status)
@@ -132,69 +118,6 @@ export default function MyStudentsPage() {
     return 0
   }
 
-  // ========== Fungsi Penolakan ==========
-  const handleReject = async () => {
-    if (!selectedMatchId) return
-    setProcessingReject(true)
-
-    try {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
-
-      const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'reject' }),
-      })
-
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Gagal menolak permintaan')
-      }
-
-      // Refresh data setelah reject
-      await fetchData()
-      alert('✅ Permintaan berhasil ditolak.')
-    } catch (err: any) {
-      alert('❌ ' + err.message)
-    } finally {
-      setProcessingReject(false)
-      setShowRejectDialog(false)
-      setSelectedMatchId(null)
-    }
-  }
-
-  const openRejectDialog = (matchId: string) => {
-    setSelectedMatchId(matchId)
-    setShowRejectDialog(true)
-  }
-
-  // ========== Helper Render Schedules Summary ==========
-  const renderScheduleSummary = (summary: any) => {
-    if (!summary) return null
-    if (typeof summary === 'string') {
-      return <span className="text-muted-foreground">{summary}</span>
-    }
-    if (Array.isArray(summary)) {
-      return (
-        <div className="text-muted-foreground">
-          {summary.map((item, idx) => (
-            <div key={idx} className="flex items-start gap-1">
-              <span className="font-medium">{item.subject}:</span>
-              <span>{item.day}, {item.time} ({item.count} sesi)</span>
-            </div>
-          ))}
-        </div>
-      )
-    }
-    return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
-  }
-
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -215,15 +138,14 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter ulang: pending dari student (initiated_by === 'student')
   const pendingMatches = matches.filter(
-    (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+    (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
   const activeMatches = matches.filter(
     (m: any) => ['matched', 'active', 'completed'].includes(m.status)
   )
 
-  // ========== RENDER PENDING ==========
+  // === RENDER PENDING ===
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -247,11 +169,7 @@ export default function MyStudentsPage() {
           const startDate = match.start_date
           const avatar = match.student_avatar
 
-          // Gunakan schedules_summary jika ada, fallback ke student_schedule
-          const scheduleDisplay = match.schedules_summary
-            ? renderScheduleSummary(match.schedules_summary)
-            : schedule
-
+          // ✅ Hanya gunakan matched_subjects, tanpa fallback ke subject
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay = matchedSubjects.length > 0
             ? matchedSubjects.join(', ')
@@ -282,7 +200,7 @@ export default function MyStudentsPage() {
                     )}
                   </div>
                   <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Menunggu
+                    Pending
                   </Badge>
                 </div>
 
@@ -320,13 +238,9 @@ export default function MyStudentsPage() {
                     )}
                   </div>
 
-                  {/* Tampilkan jadwal (schedules_summary atau student_schedule) */}
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <div className="text-muted-foreground">
-                      <span className="font-medium">Jadwal:</span>{' '}
-                      {scheduleDisplay || 'Belum ditentukan'}
-                    </div>
+                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                   </div>
 
                   <div className="flex items-start">
@@ -346,24 +260,9 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol Aksi: Terima & Tolak */}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                    disabled
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Terima
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="flex-1 gap-1.5"
-                    onClick={() => openRejectDialog(match.id)}
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Tolak
+                <div className="mt-4">
+                  <Button size="sm" variant="outline" className="w-full" disabled>
+                    Menunggu konfirmasi siswa
                   </Button>
                 </div>
               </CardContent>
@@ -374,7 +273,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE ==========
+  // === RENDER ACTIVE ===
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -389,7 +288,6 @@ export default function MyStudentsPage() {
       matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
       active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
       completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
-      cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
     }
 
     return (
@@ -407,11 +305,7 @@ export default function MyStudentsPage() {
           const phone = match.student_phone || ''
           const avatar = match.student_avatar
 
-          // Gunakan schedules_summary jika ada, fallback ke student_schedule
-          const scheduleDisplay = match.schedules_summary
-            ? renderScheduleSummary(match.schedules_summary)
-            : schedule
-
+          // ✅ Hanya gunakan matched_subjects, tanpa fallback ke subject
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay = matchedSubjects.length > 0
             ? matchedSubjects.join(', ')
@@ -484,10 +378,7 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <div className="text-muted-foreground">
-                      <span className="font-medium">Jadwal:</span>{' '}
-                      {scheduleDisplay || 'Belum ditentukan'}
-                    </div>
+                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                   </div>
 
                   <div className="flex items-start">
@@ -506,13 +397,6 @@ export default function MyStudentsPage() {
                     </div>
                   )}
                 </div>
-
-                {/* Jika status cancelled, tampilkan pesan ditolak */}
-                {status === 'cancelled' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Permintaan jadwal siswa ditolak!</p>
-                  </div>
-                )}
 
                 {status === 'matched' && phone && (
                   <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
@@ -593,32 +477,6 @@ export default function MyStudentsPage() {
         <TabsContent value="requests">{renderPendingCards()}</TabsContent>
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
-
-      {/* Dialog Konfirmasi Tolak */}
-      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tolak Permintaan</DialogTitle>
-            <DialogDescription>
-              Anda akan menolak permintaan jadwal dari siswa ini.
-              <br /><br />
-              Apakah Anda yakin?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={processingReject}
-            >
-              {processingReject ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
