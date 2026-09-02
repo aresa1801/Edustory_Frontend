@@ -76,7 +76,7 @@ export default function MyStudentsPage() {
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
         const active = allMatches.filter(
-          (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
+          (m: any) => ['matched', 'active', 'completed', 'declined'].includes(m.status)
         )
         setPendingCount(pending.length)
         setTotalStudents(active.length)
@@ -433,7 +433,6 @@ export default function MyStudentsPage() {
       matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
       active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
       completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
-      cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
       declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
     }
 
@@ -466,7 +465,7 @@ export default function MyStudentsPage() {
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
 
-          const isRejected = status === 'cancelled' || status === 'declined'
+          const isRejected = status === 'declined' || status === 'declined'
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">

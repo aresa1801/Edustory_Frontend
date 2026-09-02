@@ -21,13 +21,11 @@ export async function POST(
       );
     }
 
-    // Gunakan admin client (bypass RLS)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Cek match
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select('id, tutor_id, student_id, status, initiated_by')
@@ -41,13 +39,12 @@ export async function POST(
 
     console.log('✅ Match found:', match);
 
-    // Update match
     let updatePayload: any = {};
     if (action === 'accept') {
       updatePayload = { status: 'matched' };
     } else if (action === 'reject') {
       updatePayload = {
-        status: 'declined',
+        status: 'declined',   // ← HARUS 'cancelled', bukan 'declined'
         initiated_by: 'tutor',
       };
     }
@@ -62,7 +59,7 @@ export async function POST(
     if (updateError) {
       console.error('❌ Update error:', updateError);
       return NextResponse.json(
-        { error: 'Failed to update match: ' + updateError.message },
+        { error: 'Update failed: ' + updateError.message },
         { status: 500 }
       );
     }
@@ -70,11 +67,10 @@ export async function POST(
     console.log('✅ Match updated successfully');
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
+    console.error('❌ Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
     );
   }
-  
 }
