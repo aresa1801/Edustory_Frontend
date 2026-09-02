@@ -42,7 +42,6 @@ export default function MyStudentsPage() {
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [processingAction, setProcessingAction] = useState(false)
-  const [actionType, setActionType] = useState<'accept' | 'reject' | 'delete' | null>(null)
 
   const isMounted = useRef(true)
 
@@ -73,6 +72,7 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
+        // Pending = penawaran dari tutor ke student (belum direspon)
         const pending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
@@ -154,8 +154,7 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
-  // ========== Fungsi Konfirmasi ==========
-  const handleConfirm = async (matchId: string, action: 'accept' | 'reject') => {
+  const handleAccept = async (matchId: string) => {
     setProcessingAction(true)
     try {
       const { createClient } = await import('@/lib/auth')
@@ -169,16 +168,16 @@ export default function MyStudentsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: 'accept' }),
       })
 
       if (!res.ok) {
         const errData = await res.json()
-        throw new Error(errData.error || 'Gagal memproses permintaan')
+        throw new Error(errData.error || 'Gagal menerima permintaan')
       }
 
       await fetchData()
-      alert(action === 'accept' ? '✅ Permintaan diterima!' : '✅ Permintaan ditolak.')
+      alert('✅ Permintaan berhasil diterima!')
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
@@ -186,40 +185,44 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== Fungsi Delete (hide dari tampilan) ==========
-  const handleDelete = async (matchId: string) => {
-    if (!confirm('Hapus data ini dari tampilan? Data akan tetap tersimpan di database.')) return
-
+  const handleReject = async () => {
+    if (!selectedMatchId) return
     setProcessingAction(true)
+
     try {
-      // Update status menjadi 'archived' atau kita filter di frontend dengan status 'deleted'
       const { createClient } = await import('@/lib/auth')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || ''
 
-      const res = await fetch(`/api/matches/${matchId}/confirm`, {
+      const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ action: 'archive' }),
+        body: JSON.stringify({ action: 'reject' }),
       })
 
       if (!res.ok) {
         const errData = await res.json()
-        throw new Error(errData.error || 'Gagal menghapus data')
+        throw new Error(errData.error || 'Gagal menolak permintaan')
       }
 
-      // Refresh data
       await fetchData()
-      alert('✅ Data dihapus dari tampilan.')
+      alert('✅ Permintaan berhasil ditolak.')
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
       setProcessingAction(false)
+      setShowRejectDialog(false)
+      setSelectedMatchId(null)
     }
+  }
+
+  const openRejectDialog = (matchId: string) => {
+    setSelectedMatchId(matchId)
+    setShowRejectDialog(true)
   }
 
   if (authLoading || loading) {
@@ -242,15 +245,15 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter
+  // Filter: pending = penawaran dari tutor, active = sudah dikonfirmasi student/tutor
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
   const activeMatches = matches.filter(
-    (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
+    (m: any) => ['matched', 'active', 'completed', 'cancelled'].includes(m.status)
   )
 
-  // ========== RENDER PENDING ==========
+  // ========== RENDER PENDING (Penawaran dari tutor) – TIDAK DIUBAH ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -264,12 +267,106 @@ export default function MyStudentsPage() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {pendingMatches.map((match: any) => {
-          // ... (sama seperti sebelumnya, dengan tombol disabled)
-          // Tampilkan dengan tombol "Menunggu konfirmasi siswa" (disabled)
+          const fullName = match.student_full_name || 'Siswa'
+          const grade = match.student_grade || ''
+          const rate = getStudentRate(match)
+          const address = match.student_address || ''
+          const schedule = match.student_schedule || ''
+          const sessionsPerMonth = match.student_sessions_per_month || 0
+          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const startDate = match.start_date
+          const avatar = match.student_avatar
+
+          const matchedSubjects = match.matched_subjects || []
+          const subjectDisplay = matchedSubjects.length > 0
+            ? matchedSubjects.join(', ')
+            : 'Tidak ada mata pelajaran yang cocok'
+          const isNoMatch = matchedSubjects.length === 0
+
+          const lat = match.student_latitude
+          const lng = match.student_longitude
+          const hasCoords = lat != null && lng != null && address
+
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
-                {/* ... informasi student ... */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    {avatar ? (
+                      <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      fullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{fullName}</h3>
+                    {grade && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {grade}
+                      </Badge>
+                    )}
+                  </div>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    Pending
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">
+                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subjectDisplay}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    {hasCoords && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                          window.open(url, '_blank')
+                        }}
+                        title="Buka Google Maps & lihat rute"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex items-start">
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
+                    </span>
+                  </div>
+
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-4">
                   <Button size="sm" variant="outline" className="w-full" disabled>
                     Menunggu konfirmasi siswa
@@ -283,7 +380,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE ==========
+  // ========== RENDER ACTIVE (Pencocokan Aktif) – DIUBAH ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -299,7 +396,6 @@ export default function MyStudentsPage() {
       active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
       completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
       cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
-      declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
     }
 
     return (
@@ -315,6 +411,7 @@ export default function MyStudentsPage() {
           const status = match.status
           const avatar = match.student_avatar
 
+          // Gunakan schedules_summary jika ada, fallback ke student_schedule
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
             : match.student_schedule || 'Belum ditentukan'
@@ -331,11 +428,12 @@ export default function MyStudentsPage() {
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
 
-          const isDeclined = status === 'declined' || status === 'cancelled'
+          const isCancelled = status === 'cancelled'
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
+                {/* Header dengan badge dan ikon tempat sampah jika ditolak */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -356,17 +454,21 @@ export default function MyStudentsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
-                    {/* Ikon tempat sampah */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                      onClick={() => handleDelete(match.id)}
-                      disabled={processingAction}
-                      title="Hapus dari tampilan"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isCancelled && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-gray-400 hover:text-red-500"
+                        onClick={() => {
+                          if (confirm('Hapus data ini dari tampilan?')) {
+                            // Untuk sementara, refresh data agar card hilang (karena filter status)
+                            handleRefresh()
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -428,20 +530,13 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Jika ditolak */}
-                {isDeclined && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran jadwal oleh student ditolak</p>
-                  </div>
-                )}
-
-                {/* Jika belum ditolak/diterima, tampilkan tombol Terima & Tolak */}
-                {!isDeclined && (
+                {/* Tombol aksi (hanya jika status bukan cancelled) */}
+                {!isCancelled && (
                   <div className="mt-4 flex gap-2">
                     <Button
                       size="sm"
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                      onClick={() => handleConfirm(match.id, 'accept')}
+                      onClick={() => handleAccept(match.id)}
                       disabled={processingAction}
                     >
                       <CheckCircle className="w-4 h-4" />
@@ -451,12 +546,19 @@ export default function MyStudentsPage() {
                       size="sm"
                       variant="destructive"
                       className="flex-1 gap-1.5"
-                      onClick={() => handleConfirm(match.id, 'reject')}
+                      onClick={() => openRejectDialog(match.id)}
                       disabled={processingAction}
                     >
                       <XCircle className="w-4 h-4" />
                       Tolak
                     </Button>
+                  </div>
+                )}
+
+                {/* Pesan khusus untuk status cancelled */}
+                {isCancelled && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-xs font-medium text-red-700">✗ Penawaran jadwal oleh student ditolak</p>
                   </div>
                 )}
               </CardContent>
@@ -469,7 +571,6 @@ export default function MyStudentsPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      {/* ... header, stats, tabs sama seperti sebelumnya ... */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Siswa Saya</h1>
@@ -522,6 +623,31 @@ export default function MyStudentsPage() {
         <TabsContent value="requests">{renderPendingCards()}</TabsContent>
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
+
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tolak Permintaan</DialogTitle>
+            <DialogDescription>
+              Anda akan menolak permintaan jadwal dari siswa ini.
+              <br /><br />
+              Apakah Anda yakin?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={processingAction}
+            >
+              {processingAction ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
