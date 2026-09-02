@@ -153,9 +153,8 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
-  // ========== Fungsi Ambil Token (Robust) ==========
-  const getToken = async () => {
-    // 1. Coba dari localStorage
+  // ========== Fungsi Ambil Token dari localStorage ==========
+  const getToken = () => {
     try {
       const keys = Object.keys(localStorage)
       for (const key of keys) {
@@ -172,19 +171,6 @@ export default function MyStudentsPage() {
     } catch (e) {
       console.warn('Gagal baca token dari localStorage:', e)
     }
-
-    // 2. Fallback: ambil dari Supabase client
-    try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) {
-        return session.access_token
-      }
-    } catch (e) {
-      console.warn('Gagal ambil session dari Supabase:', e)
-    }
-
     return null
   }
 
@@ -193,7 +179,7 @@ export default function MyStudentsPage() {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
 
-    const token = await getToken()
+    const token = getToken()
     if (!token) {
       alert('Token tidak ditemukan. Silakan login ulang.')
       setProcessingAction(false)
@@ -228,7 +214,7 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TOLAK ==========
+  // ========== FUNGSI TOLAK (melalui dialog) ==========
   const openRejectDialog = (matchId: string) => {
     console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
@@ -244,7 +230,7 @@ export default function MyStudentsPage() {
 
     setProcessingAction(true)
 
-    const token = await getToken()
+    const token = getToken()
     if (!token) {
       alert('Token tidak ditemukan. Silakan login ulang.')
       setProcessingAction(false)
@@ -283,6 +269,42 @@ export default function MyStudentsPage() {
     }
   }
 
+  // ========== FUNGSI TOLAK LANGSUNG (fallback) ==========
+  const handleRejectDirect = async (matchId: string) => {
+    if (!confirm('Yakin menolak permintaan ini?')) return
+
+    setProcessingAction(true)
+    const token = getToken()
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.')
+      setProcessingAction(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/matches/${matchId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'reject' }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Gagal menolak permintaan')
+      }
+
+      await fetchData()
+      alert('✅ Permintaan berhasil ditolak.')
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setProcessingAction(false)
+    }
+  }
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -310,7 +332,7 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
   )
 
-  // ========== RENDER PENDING ==========
+  // ========== RENDER PENDING (tidak diubah) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -324,11 +346,106 @@ export default function MyStudentsPage() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {pendingMatches.map((match: any) => {
-          // ... (sama seperti sebelumnya)
+          const fullName = match.student_full_name || 'Siswa'
+          const grade = match.student_grade || ''
+          const rate = getStudentRate(match)
+          const address = match.student_address || ''
+          const schedule = match.student_schedule || ''
+          const sessionsPerMonth = match.student_sessions_per_month || 0
+          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const startDate = match.start_date
+          const avatar = match.student_avatar
+
+          const matchedSubjects = match.matched_subjects || []
+          const subjectDisplay = matchedSubjects.length > 0
+            ? matchedSubjects.join(', ')
+            : 'Tidak ada mata pelajaran yang cocok'
+          const isNoMatch = matchedSubjects.length === 0
+
+          const lat = match.student_latitude
+          const lng = match.student_longitude
+          const hasCoords = lat != null && lng != null && address
+
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
-                {/* ... (sama seperti sebelumnya) */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    {avatar ? (
+                      <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      fullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{fullName}</h3>
+                    {grade && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {grade}
+                      </Badge>
+                    )}
+                  </div>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    Pending
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">
+                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subjectDisplay}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    {hasCoords && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                          window.open(url, '_blank')
+                        }}
+                        title="Buka Google Maps & lihat rute"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex items-start">
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
+                    </span>
+                  </div>
+
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-4">
                   <Button size="sm" variant="outline" className="w-full" disabled>
                     Menunggu konfirmasi siswa
