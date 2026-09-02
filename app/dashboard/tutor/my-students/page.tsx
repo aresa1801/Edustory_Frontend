@@ -72,7 +72,6 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Pending = penawaran dari tutor ke student (belum direspon)
         const pending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
@@ -154,16 +153,40 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
+  // ========== Fungsi Ambil Token dari localStorage ==========
+  const getToken = () => {
+    try {
+      const keys = Object.keys(localStorage)
+      for (const key of keys) {
+        if (key.includes('sb-') && key.includes('auth-token')) {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed?.access_token) {
+              return parsed.access_token
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal baca token dari localStorage:', e)
+    }
+    return null
+  }
+
   // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
-    try {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
 
+    const token = getToken()
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.')
+      setProcessingAction(false)
+      return
+    }
+
+    try {
       const res = await fetch(`/api/matches/${matchId}/confirm`, {
         method: 'POST',
         headers: {
@@ -206,12 +229,16 @@ export default function MyStudentsPage() {
     }
 
     setProcessingAction(true)
-    try {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
 
+    const token = getToken()
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.')
+      setProcessingAction(false)
+      setShowRejectDialog(false)
+      return
+    }
+
+    try {
       console.log('📤 Sending reject request for matchId:', selectedMatchId)
       const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
         method: 'POST',
@@ -242,18 +269,19 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TOLAK LANGSUNG (alternatif tanpa dialog) ==========
+  // ========== FUNGSI TOLAK LANGSUNG (fallback) ==========
   const handleRejectDirect = async (matchId: string) => {
-    console.log('🚨 handleRejectDirect called for matchId:', matchId)
     if (!confirm('Yakin menolak permintaan ini?')) return
 
     setProcessingAction(true)
-    try {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
+    const token = getToken()
+    if (!token) {
+      alert('Token tidak ditemukan. Silakan login ulang.')
+      setProcessingAction(false)
+      return
+    }
 
+    try {
       const res = await fetch(`/api/matches/${matchId}/confirm`, {
         method: 'POST',
         headers: {
@@ -297,7 +325,6 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter: pending = penawaran dari tutor, active = sudah dikonfirmasi/ditolak
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
@@ -305,7 +332,7 @@ export default function MyStudentsPage() {
     (m: any) => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(m.status)
   )
 
-  // ========== RENDER PENDING ==========
+  // ========== RENDER PENDING (tidak diubah) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -580,7 +607,6 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol aksi (hanya jika status bukan rejected) */}
                 {!isRejected && (
                   <div className="mt-4 flex gap-2">
                     <Button
@@ -605,7 +631,6 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* Pesan khusus untuk status rejected */}
                 {isRejected && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran jadwal oleh student ditolak</p>
@@ -674,7 +699,6 @@ export default function MyStudentsPage() {
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
 
-      {/* Dialog Konfirmasi Tolak */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(
   req: NextRequest,
@@ -22,54 +21,27 @@ export async function POST(
       );
     }
 
-    // Ambil user dari Supabase (untuk validasi)
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('❌ Auth error:', userError);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    console.log('✅ User authenticated:', user.id);
+    // Gunakan admin client (bypass RLS)
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Cek match
-    const { data: match, error: matchError } = await supabase
+    const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select('id, tutor_id, student_id, status, initiated_by')
       .eq('id', matchId)
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match error:', matchError);
+      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
+
     console.log('✅ Match found:', match);
 
-    // Validasi apakah user adalah tutor yang terkait
-    const { data: tutor, error: tutorError } = await supabase
-      .from('tutors')
-      .select('user_id')
-      .eq('id', match.tutor_id)
-      .single();
-
-    if (tutorError || !tutor) {
-      console.error('❌ Tutor error:', tutorError);
-      return NextResponse.json({ error: 'Tutor not found' }, { status: 404 });
-    }
-    if (tutor.user_id !== user.id) {
-      console.warn('⚠️ User is not the tutor for this match');
-      return NextResponse.json(
-        { error: 'Forbidden – only the tutor can confirm this match.' },
-        { status: 403 }
-      );
-    }
-    console.log('✅ User is the tutor');
-
-    // Gunakan admin client untuk update (bypass RLS)
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
+    // Update match
     let updatePayload: any = {};
     if (action === 'accept') {
       updatePayload = { status: 'matched' };
@@ -82,7 +54,7 @@ export async function POST(
 
     console.log('🔄 Updating match with payload:', updatePayload);
 
-    const { error: updateError } = await adminSupabase
+    const { error: updateError } = await supabaseAdmin
       .from('matches')
       .update(updatePayload)
       .eq('id', matchId);
