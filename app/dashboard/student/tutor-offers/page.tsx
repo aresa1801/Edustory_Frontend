@@ -58,8 +58,6 @@ export default function TutorOffersPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedOffer, setSelectedOffer] = useState<Match | null>(null)
-
-  // State untuk menyembunyikan card yang sudah dihapus (hanya di frontend)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
 
   const isMounted = useRef(true)
@@ -158,14 +156,12 @@ export default function TutorOffersPage() {
     setShowConfirmDialog(true)
   }
 
-  // Fungsi untuk menyembunyikan card dari tampilan (tidak menghapus dari database)
   const handleHide = (id: string) => {
     if (confirm('Sembunyikan data ini dari tampilan?')) {
       setHiddenIds(prev => new Set(prev).add(id))
     }
   }
 
-  // Helper untuk render schedules_summary dengan aman
   const renderScheduleSummary = (summary: any) => {
     if (!summary) return null
     if (typeof summary === 'string') {
@@ -206,7 +202,6 @@ export default function TutorOffersPage() {
     )
   }
 
-  // Kelompokkan berdasarkan status dan initiated_by, serta filter hiddenIds
   const visibleOffers = offers.filter(o => !hiddenIds.has(o.id))
   const pendingTutorOffers = visibleOffers.filter(o => o.status === 'pending' && o.initiated_by === 'tutor')
   const pendingStudentRequests = visibleOffers.filter(o => o.status === 'pending' && o.initiated_by === 'student')
@@ -245,7 +240,6 @@ export default function TutorOffersPage() {
         </Card>
       ) : (
         <>
-          {/* Penawaran dari tutor yang masih pending (student harus memutuskan) */}
           {pendingTutorOffers.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold mb-4">Menunggu Keputusan Anda</h2>
@@ -265,7 +259,6 @@ export default function TutorOffersPage() {
             </div>
           )}
 
-          {/* Permintaan student yang sedang menunggu konfirmasi tutor */}
           {pendingStudentRequests.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold mb-4">Menunggu Konfirmasi Tutor</h2>
@@ -283,7 +276,6 @@ export default function TutorOffersPage() {
             </div>
           )}
 
-          {/* Riwayat */}
           {decidedOffers.length > 0 && (
             <div className="mt-8">
               <h2 className="text-lg font-semibold mb-4">Riwayat</h2>
@@ -371,14 +363,11 @@ function OfferCard({
     declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
   }
   const status = statusMap[offer.status] || { label: offer.status, color: 'bg-gray-200' }
-
-  // Tentukan apakah statusnya ditolak (cancelled atau declined)
   const isRejected = offer.status === 'cancelled' || offer.status === 'declined'
 
   return (
     <Card className="border shadow-sm hover:shadow-md transition-shadow relative">
       <CardContent className="p-5">
-        {/* Header dengan badge dan tombol hapus jika ditolak */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3 flex-1">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
@@ -400,9 +389,7 @@ function OfferCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={`${status.color} text-xs border`}>
-              {status.label}
-            </Badge>
+            <Badge className={`${status.color} text-xs border`}>{status.label}</Badge>
             {isRejected && onHide && (
               <Button
                 variant="ghost"
@@ -442,7 +429,6 @@ function OfferCard({
               <span className="font-medium">Mapel:</span> {offer.matched_subjects?.join(', ') || offer.subject}
             </span>
           </div>
-          {/* Tampilkan schedules_summary jika ada */}
           {offer.schedules_summary && renderScheduleSummary && (
             <div className="flex items-start gap-2">
               <Clock className="w-4 h-4 text-orange-500 mt-0.5" />
@@ -454,7 +440,6 @@ function OfferCard({
           )}
         </div>
 
-        {/* Kondisi: penawaran dari tutor (student harus memutuskan) */}
         {!readonly && offer.status === 'pending' && offer.initiated_by === 'tutor' && (
           <div className="mt-4 flex gap-2">
             <Button
@@ -482,7 +467,6 @@ function OfferCard({
           </div>
         )}
 
-        {/* Kondisi: permintaan student menunggu konfirmasi tutor */}
         {isStudentRequest && offer.status === 'pending' && offer.initiated_by === 'student' && (
           <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
             <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi dari guru</p>
@@ -490,7 +474,6 @@ function OfferCard({
           </div>
         )}
 
-        {/* Kondisi: sudah disetujui (matched) - tanpa tombol Atur Jadwal */}
         {offer.status === 'matched' && (
           <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-center">
             <p className="text-xs font-medium text-green-700">✓ Penawaran disetujui. Menunggu konfirmasi tutor.</p>
