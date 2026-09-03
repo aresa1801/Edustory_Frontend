@@ -72,13 +72,11 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // PENDING = PERMINTAAN DARI STUDENT (initiated_by === 'student')
+        // ===== PENDING: HANYA YANG DARI STUDENT (initiated_by === 'student') =====
         const pending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'student'
         )
-        const active = allMatches.filter(
-          (m: any) => m.status !== 'pending'
-        )
+        const active = allMatches.filter((m: any) => m.status !== 'pending')
         setPendingCount(pending.length)
         setTotalStudents(active.length)
         setError(null)
@@ -238,13 +236,13 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== FILTER: PENDING = STATUS PENDING + INITIATED_BY STUDENT ==========
+  // ===== PENDING: TETAP initiated_by === 'student' (TIDAK DIUBAH) =====
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'student'
   )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (TIDAK DIUBAH) ==========
+  // ===== RENDER PENDING: TIDAK DIUBAH SAMA SEKALI =====
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -363,7 +361,7 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* TOMBOL TERIMA & TOLAK */}
+                {/* TOMBOL AKSI (Terima & Tolak) */}
                 <div className="mt-4 flex gap-2">
                   <Button
                     size="sm"
@@ -393,7 +391,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (HANYA BAGIAN INI YANG DIUBAH) ==========
+  // ===== RENDER ACTIVE: HANYA DI TAMBAH PESAN REJECT (TIDAK MENGUBAH LAINNYA) =====
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -567,7 +565,7 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN ===== */}
+                {/* ===== PESAN PENOLAKAN (HANYA BAGIAN INI YANG DITAMBAH) ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
