@@ -121,7 +121,7 @@ export default function TutorOffersPage() {
     window.location.href = url
   }
 
-  // ===== PERBAIKAN: HAPUS TOKEN, PAKAI ADMIN CLIENT DI SERVER =====
+  // ===== TANPA TOKEN, PAKAI ADMIN CLIENT DI SERVER =====
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
     try {
@@ -478,9 +478,22 @@ function OfferCard({
           </div>
         )}
 
-        {(offer.status === 'cancelled' || offer.status === 'declined') && (
+        {/* ===== PERUBAHAN: PESAN PENOLAKAN YANG LEBIH SPESIFIK ===== */}
+        {offer.status === 'declined' && offer.initiated_by === 'tutor' && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
-            ✗ Penawaran ditolak.
+            ✗ Penawaran ditolak oleh Anda
+          </div>
+        )}
+
+        {offer.status === 'declined' && offer.initiated_by === 'student' && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
+            ✗ Penawaran ditolak oleh tutor
+          </div>
+        )}
+
+        {offer.status === 'cancelled' && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
+            ✗ Penawaran dibatalkan
           </div>
         )}
 
