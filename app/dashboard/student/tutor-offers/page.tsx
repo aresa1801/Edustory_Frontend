@@ -33,7 +33,7 @@ interface Match {
   student_id: string
   subject: string
   matched_subjects: string[]
-  status: 'pending' | 'matched' | 'active' | 'completed' | 'cancelled'
+  status: 'pending' | 'matched' | 'active' | 'completed' | 'cancelled' | 'declined'
   initiated_by: 'student' | 'tutor'
   lesson_frequency: string
   start_date: string
@@ -198,7 +198,7 @@ export default function TutorOffersPage() {
   // Kelompokkan berdasarkan status dan initiated_by
   const pendingTutorOffers = offers.filter(o => o.status === 'pending' && o.initiated_by === 'tutor')
   const pendingStudentRequests = offers.filter(o => o.status === 'pending' && o.initiated_by === 'student')
-  const decidedOffers = offers.filter(o => ['matched', 'active', 'completed', 'cancelled'].includes(o.status))
+  const decidedOffers = offers.filter(o => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(o.status))
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -352,6 +352,7 @@ function OfferCard({
     active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
     completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
     cancelled: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
+    declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
   }
   const status = statusMap[offer.status] || { label: offer.status, color: 'bg-gray-200' }
 
@@ -461,7 +462,7 @@ function OfferCard({
           </div>
         )}
 
-        {offer.status === 'cancelled' && (
+        {(offer.status === 'cancelled' || offer.status === 'declined') && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
             ✗ Penawaran ditolak.
           </div>
