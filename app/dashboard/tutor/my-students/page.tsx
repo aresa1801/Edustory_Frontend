@@ -72,9 +72,13 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Pending = SEMUA match dengan status pending (baik dari tutor maupun student)
-        const pending = allMatches.filter((m: any) => m.status === 'pending')
-        const active = allMatches.filter((m: any) => m.status !== 'pending')
+        // PENDING = TUTOR YANG MENGAJUKAN PENAWARAN (belum direspon student)
+        const pending = allMatches.filter(
+          (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+        )
+        const active = allMatches.filter(
+          (m: any) => m.status !== 'pending'
+        )
         setPendingCount(pending.length)
         setTotalStudents(active.length)
         setError(null)
@@ -150,7 +154,6 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
-  // ========== Fungsi Ambil Token ==========
   const getToken = async () => {
     try {
       const { createClient } = await import('@/lib/supabase/client')
@@ -163,7 +166,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
@@ -185,7 +187,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TOLAK ==========
   const openRejectDialog = (matchId: string) => {
     console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
@@ -237,12 +238,13 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ===== FILTER YANG BENAR =====
-  // Pending: semua status pending (tidak peduli siapa initiated_by)
-  const pendingMatches = matches.filter((m: any) => m.status === 'pending')
+  // ========== FILTER: PENDING = STATUS PENDING + INITIATED_BY TUTOR ==========
+  const pendingMatches = matches.filter(
+    (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+  )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (TIDAK DIUBAH DARI VERSI TERAKHIR YANG BERHASIL) ==========
+  // ========== RENDER PENDING (TIDAK DIUBAH) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -264,14 +266,6 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
-          const initiatedBy = match.initiated_by
-
-          // Tampilkan badge berbeda untuk penawaran tutor vs permintaan student
-          const isTutorOffer = initiatedBy === 'tutor'
-          const badgeLabel = isTutorOffer ? 'Penawaran Tutor' : 'Menunggu'
-          const badgeColor = isTutorOffer
-            ? 'bg-blue-500/20 text-blue-700 border-blue-500/30'
-            : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30'
 
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
@@ -306,7 +300,9 @@ export default function MyStudentsPage() {
                       </Badge>
                     )}
                   </div>
-                  <Badge className={`ml-auto ${badgeColor} text-xs`}>{badgeLabel}</Badge>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    Pending
+                  </Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -367,36 +363,28 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol aksi: Tampilkan hanya untuk penawaran dari tutor */}
-                {isTutorOffer ? (
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                      onClick={() => handleAccept(match.id)}
-                      disabled={processingAction}
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Terima
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="flex-1 gap-1.5"
-                      onClick={() => openRejectDialog(match.id)}
-                      disabled={processingAction}
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Tolak
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <Button size="sm" variant="outline" className="w-full" disabled>
-                      Menunggu konfirmasi siswa
-                    </Button>
-                  </div>
-                )}
+                {/* TOMBOL TERIMA & TOLAK (tidak diubah) */}
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                    onClick={() => handleAccept(match.id)}
+                    disabled={processingAction}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Terima
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="flex-1 gap-1.5"
+                    onClick={() => openRejectDialog(match.id)}
+                    disabled={processingAction}
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Tolak
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )
@@ -405,7 +393,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (HANYA BAGIAN INI YANG DITAMBAH PESAN REJECT) ==========
+  // ========== RENDER ACTIVE (HANYA BAGIAN INI YANG DIUBAH) ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -578,7 +566,7 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN (DI SISI TUTOR) ===== */}
+                {/* ===== PESAN PENOLAKAN YANG SPESIFIK (DI SISI TUTOR) ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
