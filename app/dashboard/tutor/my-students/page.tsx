@@ -72,11 +72,13 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Pending = permintaan dari student yang menunggu konfirmasi tutor
+        // PENDING = PERMINTAAN DARI STUDENT (initiated_by === 'student')
         const pending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'student'
         )
-        const active = allMatches.filter((m: any) => m.status !== 'pending')
+        const active = allMatches.filter(
+          (m: any) => m.status !== 'pending'
+        )
         setPendingCount(pending.length)
         setTotalStudents(active.length)
         setError(null)
@@ -236,13 +238,13 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter: pending = permintaan dari student (initiated_by === 'student')
+  // ========== FILTER: PENDING = STATUS PENDING + INITIATED_BY STUDENT ==========
   const pendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'student'
   )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (Permintaan student, dengan tombol aksi) ==========
+  // ========== RENDER PENDING (TIDAK DIUBAH) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -361,7 +363,7 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol Aksi: Terima & Tolak */}
+                {/* TOMBOL TERIMA & TOLAK */}
                 <div className="mt-4 flex gap-2">
                   <Button
                     size="sm"
@@ -391,7 +393,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE ==========
+  // ========== RENDER ACTIVE (HANYA BAGIAN INI YANG DIUBAH) ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -540,6 +542,7 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
+                {/* TOMBOL AKSI UNTUK ACTIVE (KECUALI REJECTED) */}
                 {!isRejected && (
                   <div className="mt-4 flex gap-2">
                     <Button
@@ -564,7 +567,7 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN YANG SPESIFIK ===== */}
+                {/* ===== PESAN PENOLAKAN ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
