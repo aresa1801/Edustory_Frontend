@@ -72,9 +72,9 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Pending = permintaan dari student yang menunggu konfirmasi tutor
+        // Pending = SEMUA match dengan status pending (baik dari tutor maupun student)
         const pending = allMatches.filter(
-          (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+          (m: any) => m.status === 'pending'
         )
         const active = allMatches.filter(
           (m: any) => m.status !== 'pending'
@@ -154,7 +154,6 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
-  // ========== Fungsi Ambil Token dari localStorage ==========
   const getToken = async () => {
     try {
       const { createClient } = await import('@/lib/supabase/client')
@@ -167,7 +166,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
@@ -175,15 +173,11 @@ export default function MyStudentsPage() {
     try {
       const res = await fetch(`/api/matches/${matchId}/confirm`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'accept' }),
       })
-
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menerima permintaan')
-
       await fetchData()
       alert('✅ Permintaan berhasil diterima!')
     } catch (err: any) {
@@ -193,7 +187,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TOLAK (melalui dialog) ==========
   const openRejectDialog = (matchId: string) => {
     console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
@@ -209,15 +202,11 @@ export default function MyStudentsPage() {
     try {
       const res = await fetch(`/api/matches/${selectedMatchId}/confirm`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reject' }),
       })
-
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menolak permintaan')
-
       await fetchData()
       alert('✅ Permintaan berhasil ditolak.')
     } catch (err: any) {
@@ -249,15 +238,15 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter: pending = permintaan student, active = sisanya
+  // Filter: pending = semua status pending, active = sisanya
   const pendingMatches = matches.filter(
-    (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+    (m: any) => m.status === 'pending'
   )
   const activeMatches = matches.filter(
     (m: any) => m.status !== 'pending'
   )
 
-  // ========== RENDER PENDING (Permintaan student yang menunggu konfirmasi) ==========
+  // ========== RENDER PENDING (SEMUA pending) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -279,8 +268,8 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
+          const initiatedBy = match.initiated_by
 
-          // Gunakan schedules_summary jika ada, fallback ke student_schedule
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
             : match.student_schedule || 'Belum ditentukan'
@@ -294,6 +283,10 @@ export default function MyStudentsPage() {
           const lat = match.student_latitude
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
+
+          // Tampilkan label berbeda untuk penawaran tutor vs permintaan student
+          const isTutorOffer = initiatedBy === 'tutor'
+          const statusLabel = isTutorOffer ? 'Penawaran Tutor' : 'Menunggu'
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
@@ -314,8 +307,8 @@ export default function MyStudentsPage() {
                       </Badge>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Menunggu
+                  <Badge className={`ml-auto ${isTutorOffer ? 'bg-blue-500/20 text-blue-700 border-blue-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30'} text-xs`}>
+                    {statusLabel}
                   </Badge>
                 </div>
 
@@ -377,7 +370,7 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol Aksi: Terima & Tolak */}
+                {/* Tombol aksi: Terima dan Tolak untuk semua pending */}
                 <div className="mt-4 flex gap-2">
                   <Button
                     size="sm"
@@ -407,7 +400,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (Sudah diputuskan) ==========
+  // ========== RENDER ACTIVE ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -580,7 +573,6 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN YANG SPESIFIK (DI SISI TUTOR) ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
