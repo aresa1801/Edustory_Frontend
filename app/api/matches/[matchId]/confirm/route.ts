@@ -44,8 +44,8 @@ export async function POST(
       updatePayload = { status: 'matched' };
     } else if (action === 'reject') {
       updatePayload = {
-        status: 'declined',   // ← HARUS 'cancelled', bukan 'declined'
-        initiated_by: 'tutor',
+        status: 'declined',
+        // JANGAN ubah initiated_by, biarkan sesuai asalnya
       };
     }
 
