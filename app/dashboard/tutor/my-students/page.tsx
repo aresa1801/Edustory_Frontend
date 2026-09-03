@@ -72,8 +72,10 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Pending = SEMUA match dengan status pending (tanpa filter initiated_by)
-        const pending = allMatches.filter((m: any) => m.status === 'pending')
+        // Pending = permintaan dari student yang menunggu konfirmasi tutor
+        const pending = allMatches.filter(
+          (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+        )
         const active = allMatches.filter((m: any) => m.status !== 'pending')
         setPendingCount(pending.length)
         setTotalStudents(active.length)
@@ -150,7 +152,6 @@ export default function MyStudentsPage() {
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
   }
 
-  // ========== Fungsi Ambil Token ==========
   const getToken = async () => {
     try {
       const { createClient } = await import('@/lib/supabase/client')
@@ -163,7 +164,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TERIMA ==========
   const handleAccept = async (matchId: string) => {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
@@ -185,7 +185,6 @@ export default function MyStudentsPage() {
     }
   }
 
-  // ========== FUNGSI TOLAK ==========
   const openRejectDialog = (matchId: string) => {
     console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
@@ -237,11 +236,13 @@ export default function MyStudentsPage() {
     )
   }
 
-  // Filter: pending = semua status pending, active = sisanya
-  const pendingMatches = matches.filter((m: any) => m.status === 'pending')
+  // Filter: pending = permintaan dari student (initiated_by === 'student')
+  const pendingMatches = matches.filter(
+    (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+  )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (SEMUA pending, dengan tombol aksi) ==========
+  // ========== RENDER PENDING (Permintaan student, dengan tombol aksi) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -263,7 +264,6 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
-          const initiatedBy = match.initiated_by
 
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
@@ -278,12 +278,6 @@ export default function MyStudentsPage() {
           const lat = match.student_latitude
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
-
-          const isTutorOffer = initiatedBy === 'tutor'
-          const statusLabel = isTutorOffer ? 'Penawaran Tutor' : 'Menunggu'
-          const badgeColor = isTutorOffer
-            ? 'bg-blue-500/20 text-blue-700 border-blue-500/30'
-            : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30'
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
@@ -304,7 +298,9 @@ export default function MyStudentsPage() {
                       </Badge>
                     )}
                   </div>
-                  <Badge className={`ml-auto ${badgeColor} text-xs`}>{statusLabel}</Badge>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    Menunggu
+                  </Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -439,6 +435,7 @@ export default function MyStudentsPage() {
           const isNoMatch = matchedSubjects.length === 0
 
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+
           const lat = match.student_latitude
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
@@ -567,7 +564,7 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN YANG SPESIFIK (DI SISI TUTOR) ===== */}
+                {/* ===== PESAN PENOLAKAN YANG SPESIFIK ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
