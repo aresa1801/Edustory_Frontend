@@ -244,7 +244,7 @@ export default function MyStudentsPage() {
   )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (TIDAK DIUBAH) ==========
+  // ========== RENDER PENDING (TIDAK DIUBAH - copy dari versi berhasil) ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -262,14 +262,11 @@ export default function MyStudentsPage() {
           const grade = match.student_grade || ''
           const rate = getStudentRate(match)
           const address = match.student_address || ''
+          const schedule = match.student_schedule || ''
           const sessionsPerMonth = match.student_sessions_per_month || 0
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
-
-          const scheduleDisplay = match.schedules_summary
-            ? renderScheduleSummary(match.schedules_summary)
-            : match.student_schedule || 'Belum ditentukan'
 
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay = matchedSubjects.length > 0
@@ -341,9 +338,7 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <div className="text-muted-foreground">
-                      <span className="font-medium">Jadwal:</span> {scheduleDisplay}
-                    </div>
+                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
                   </div>
 
                   <div className="flex items-start">
@@ -363,26 +358,9 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* TOMBOL TERIMA & TOLAK (tidak diubah) */}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                    onClick={() => handleAccept(match.id)}
-                    disabled={processingAction}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Terima
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="flex-1 gap-1.5"
-                    onClick={() => openRejectDialog(match.id)}
-                    disabled={processingAction}
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Tolak
+                <div className="mt-4">
+                  <Button size="sm" variant="outline" className="w-full" disabled>
+                    Menunggu konfirmasi siswa
                   </Button>
                 </div>
               </CardContent>
