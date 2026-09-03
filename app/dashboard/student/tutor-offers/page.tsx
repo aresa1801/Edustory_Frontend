@@ -17,6 +17,7 @@ import {
   Calendar,
   XCircle,
   Clock,
+  Trash2,
 } from 'lucide-react'
 import {
   Dialog,
@@ -57,6 +58,9 @@ export default function TutorOffersPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedOffer, setSelectedOffer] = useState<Match | null>(null)
+
+  // State untuk menyembunyikan card yang sudah dihapus (hanya di frontend)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
@@ -154,6 +158,13 @@ export default function TutorOffersPage() {
     setShowConfirmDialog(true)
   }
 
+  // Fungsi untuk menyembunyikan card dari tampilan (tidak menghapus dari database)
+  const handleHide = (id: string) => {
+    if (confirm('Sembunyikan data ini dari tampilan?')) {
+      setHiddenIds(prev => new Set(prev).add(id))
+    }
+  }
+
   // Helper untuk render schedules_summary dengan aman
   const renderScheduleSummary = (summary: any) => {
     if (!summary) return null
@@ -195,10 +206,11 @@ export default function TutorOffersPage() {
     )
   }
 
-  // Kelompokkan berdasarkan status dan initiated_by
-  const pendingTutorOffers = offers.filter(o => o.status === 'pending' && o.initiated_by === 'tutor')
-  const pendingStudentRequests = offers.filter(o => o.status === 'pending' && o.initiated_by === 'student')
-  const decidedOffers = offers.filter(o => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(o.status))
+  // Kelompokkan berdasarkan status dan initiated_by, serta filter hiddenIds
+  const visibleOffers = offers.filter(o => !hiddenIds.has(o.id))
+  const pendingTutorOffers = visibleOffers.filter(o => o.status === 'pending' && o.initiated_by === 'tutor')
+  const pendingStudentRequests = visibleOffers.filter(o => o.status === 'pending' && o.initiated_by === 'student')
+  const decidedOffers = visibleOffers.filter(o => ['matched', 'active', 'completed', 'cancelled', 'declined'].includes(o.status))
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -224,7 +236,7 @@ export default function TutorOffersPage() {
         </Card>
       </div>
 
-      {offers.length === 0 ? (
+      {visibleOffers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <User className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -245,6 +257,7 @@ export default function TutorOffersPage() {
                     processing={processingId === offer.id}
                     onSchedule={() => handleSchedule(offer)}
                     onReject={() => openConfirmDialog(offer)}
+                    onHide={() => handleHide(offer.id)}
                     renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
@@ -286,6 +299,7 @@ export default function TutorOffersPage() {
                         ? () => handleSchedule(offer)
                         : undefined
                     }
+                    onHide={() => handleHide(offer.id)}
                     renderScheduleSummary={renderScheduleSummary}
                   />
                 ))}
@@ -336,6 +350,7 @@ function OfferCard({
   onReject,
   readonly = false,
   isStudentRequest = false,
+  onHide,
   renderScheduleSummary,
 }: {
   offer: Match
@@ -344,6 +359,7 @@ function OfferCard({
   onReject?: () => void
   readonly?: boolean
   isStudentRequest?: boolean
+  onHide?: () => void
   renderScheduleSummary?: (summary: any) => React.ReactNode
 }) {
   const statusMap: Record<string, { label: string; color: string }> = {
@@ -356,30 +372,49 @@ function OfferCard({
   }
   const status = statusMap[offer.status] || { label: offer.status, color: 'bg-gray-200' }
 
+  // Tentukan apakah statusnya ditolak (cancelled atau declined)
+  const isRejected = offer.status === 'cancelled' || offer.status === 'declined'
+
   return (
     <Card className="border shadow-sm hover:shadow-md transition-shadow relative">
       <CardContent className="p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
-            {offer.tutor_avatar_url ? (
-              <img src={offer.tutor_avatar_url} alt={offer.tutor_full_name} className="w-full h-full object-cover" />
-            ) : (
-              offer.tutor_full_name?.charAt(0).toUpperCase() || '?'
-            )}
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold">{offer.tutor_full_name || 'Tutor'}</h3>
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {offer.tutor_verified_grade_levels?.map((grade, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                  {grade}
-                </Badge>
-              ))}
+        {/* Header dengan badge dan tombol hapus jika ditolak */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+              {offer.tutor_avatar_url ? (
+                <img src={offer.tutor_avatar_url} alt={offer.tutor_full_name} className="w-full h-full object-cover" />
+              ) : (
+                offer.tutor_full_name?.charAt(0).toUpperCase() || '?'
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold">{offer.tutor_full_name || 'Tutor'}</h3>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {offer.tutor_verified_grade_levels?.map((grade, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                    {grade}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </div>
-          <Badge className={`${status.color} text-xs border`}>
-            {status.label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className={`${status.color} text-xs border`}>
+              {status.label}
+            </Badge>
+            {isRejected && onHide && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-gray-400 hover:text-red-500"
+                onClick={onHide}
+                title="Sembunyikan dari tampilan"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2 text-sm">
