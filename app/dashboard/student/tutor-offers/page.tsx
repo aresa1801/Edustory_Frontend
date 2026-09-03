@@ -121,23 +121,21 @@ export default function TutorOffersPage() {
     window.location.href = url
   }
 
+  // ===== PERBAIKAN: HAPUS TOKEN, PAKAI ADMIN CLIENT DI SERVER =====
   const handleReject = async (offerId: string) => {
     setProcessingId(offerId)
     try {
-      const { createClient } = await import('@/lib/auth')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token || ''
-
       const res = await fetch(`/api/matches/${offerId}/confirm`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ action: 'reject' }),
       })
-      if (!res.ok) throw new Error('Gagal menolak penawaran')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Gagal menolak penawaran')
+      }
 
       fetchDone.current = false
       await fetchData()
