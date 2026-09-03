@@ -161,29 +161,88 @@ function SetScheduleContent() {
   const slotsPerKlik = getSlotsPerKlik(maxSessions)
   const step = getAllocationStep(maxSessions)
 
-  // ========== EFFECT INIT ==========
+  // ========== EFFECT INIT (DIPERBAIKI) ==========
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('scheduleData')
-      if (stored) {
-        const data = JSON.parse(stored)
-        console.log('[set_schedule] ✅ Data dari sessionStorage:', data)
-        setMatchData(data)
-        const subjects = data.matched_subjects?.slice(0, 2) || []
-        setSelectedSubjects(subjects)
-        const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
-        setAllowedDays(days)
-        setTimeSlots(slots)
-        setLoading(false)
-      } else {
-        setError('Data jadwal tidak ditemukan. Silakan kembali ke halaman penawaran.')
-        setLoading(false)
+    let isMounted = true
+
+    const loadData = async () => {
+      try {
+        // Ambil matchId dari URL
+        const params = new URLSearchParams(window.location.search)
+        const matchIdFromUrl = params.get('matchId')
+
+        console.log('[set_schedule] 📍 matchId dari URL:', matchIdFromUrl)
+
+        if (!matchIdFromUrl) {
+          setError('Tidak ada ID match di URL.')
+          setLoading(false)
+          return
+        }
+
+        // Cek sessionStorage
+        const stored = sessionStorage.getItem('scheduleData')
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            // Jika matchId di sessionStorage SAMA dengan matchId di URL, pakai data tersebut
+            if (data.id === matchIdFromUrl) {
+              console.log('[set_schedule] ✅ Data dari sessionStorage (cocok)')
+              if (isMounted) {
+                setMatchData(data)
+                const subjects = data.matched_subjects?.slice(0, 2) || []
+                setSelectedSubjects(subjects)
+                const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
+                setAllowedDays(days)
+                setTimeSlots(slots)
+                setLoading(false)
+              }
+              return
+            } else {
+              // Jika matchId BERBEDA, hapus sessionStorage
+              console.warn('[set_schedule] ⚠️ matchId berbeda, hapus sessionStorage')
+              sessionStorage.removeItem('scheduleData')
+            }
+          } catch (e) {
+            console.warn('[set_schedule] ⚠️ Gagal parse sessionStorage, hapus')
+            sessionStorage.removeItem('scheduleData')
+          }
+        }
+
+        // Jika tidak ada sessionStorage atau matchId berbeda, fetch dari API
+        console.log('[set_schedule] 🔄 Fetch dari API untuk matchId:', matchIdFromUrl)
+        
+        const res = await fetch(`/api/matches/${matchIdFromUrl}`)
+        if (!res.ok) {
+          throw new Error(`Gagal fetch match (${res.status})`)
+        }
+        const data = await res.json()
+        console.log('[set_schedule] ✅ Data dari API:', data)
+
+        if (isMounted) {
+          setMatchData(data)
+          const subjects = data.matched_subjects?.slice(0, 2) || []
+          setSelectedSubjects(subjects)
+          const { allowedDays: days, timeSlots: slots } = parseStudentSchedule(data.student_schedule || '')
+          setAllowedDays(days)
+          setTimeSlots(slots)
+          setError(null)
+          setLoading(false)
+        }
+      } catch (err: any) {
+        console.error('[set_schedule] ❌ Error:', err)
+        if (isMounted) {
+          setError(err.message || 'Gagal mengambil data jadwal')
+          setLoading(false)
+        }
       }
-    } catch (e) {
-      setError('Data jadwal tidak valid. Silakan kembali ke halaman penawaran.')
-      setLoading(false)
     }
-  }, [])
+
+    loadData()
+
+    return () => {
+      isMounted = false
+    }
+  }, []) // Kosong, hanya dijalankan sekali saat mount
 
   // ========== EFFECT ALOKASI ==========
   useEffect(() => {
@@ -453,76 +512,59 @@ function SetScheduleContent() {
     )
   }
 
-  // ========== HANDLE SAVE (DIPERBAIKI) ==========
+  // ========== HANDLE SAVE ==========
   const handleSave = async () => {
-  console.log('🚀 handleSave START');
+    console.log('🚀 handleSave START');
 
-  const entries = Object.entries(schedule);
-  if (entries.length === 0) {
-    alert('Pilih minimal satu slot jadwal!');
-    return;
-  }
-
-  if (!matchData?.id) {
-    alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
-    return;
-  }
-
-  // Buat summary JSON dari schedule (ini yang akan dikirim)
-  const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
-  for (const [key, subject] of entries) {
-    const [dateStr, timeSlot] = key.split('|');
-    const date = new Date(dateStr);
-    const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' });
-    const keyGroup = `${subject}-${dayName}-${timeSlot}`;
-    if (!summaryMap[keyGroup]) {
-      summaryMap[keyGroup] = { subject, day: dayName, time: timeSlot, count: 0 };
+    const entries = Object.entries(schedule);
+    if (entries.length === 0) {
+      alert('Pilih minimal satu slot jadwal!');
+      return;
     }
-    summaryMap[keyGroup].count += 1;
-  }
-  const schedulesSummary = Object.values(summaryMap);
-  console.log('📝 schedulesSummary:', schedulesSummary);
 
-  // Kirim data ke API (tanpa token, karena server pakai service role)
-  setIsSaving(true);
-  setSaveMessage(null);
+    if (!matchData?.id) {
+      alert('Data match tidak valid. Silakan kembali ke halaman penawaran.');
+      return;
+    }
 
-  try {
-    // Kirim sessions (data mentah) ke API, biar API yang generate summary
     const sessions = entries.map(([key, subject]) => {
       const [dateStr, timeSlot] = key.split('|');
       return { date: dateStr, timeSlot, subject };
     });
 
-    const res = await fetch(`/api/matches/${matchData.id}/schedules`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ sessions }),
-    });
+    setIsSaving(true);
+    setSaveMessage(null);
 
-    console.log('📥 Response status:', res.status);
-    const result = await res.json();
-    console.log('📥 Response body:', result);
+    try {
+      const res = await fetch(`/api/matches/${matchData.id}/schedules`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessions }),
+      });
 
-    if (!res.ok) {
-      const errorMsg = result.error || result.message || `HTTP ${res.status}`;
-      throw new Error(errorMsg);
+      console.log('📥 Response status:', res.status);
+      const result = await res.json();
+      console.log('📥 Response body:', result);
+
+      if (!res.ok) {
+        const errorMsg = result.error || result.message || `HTTP ${res.status}`;
+        throw new Error(errorMsg);
+      }
+
+      setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
+      setTimeout(() => {
+        router.push('/dashboard/student/tutor-offers');
+      }, 1500);
+    } catch (err: any) {
+      console.error('❌ Fetch error:', err);
+      setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
-
-    setSaveMessage({ type: 'success', text: 'Jadwal berhasil disimpan! Menunggu konfirmasi tutor.' });
-    setTimeout(() => {
-      router.push('/dashboard/student/tutor-offers');
-    }, 1500);
-  } catch (err: any) {
-    console.error('❌ Fetch error:', err);
-    setSaveMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat menyimpan' });
-    alert('Error: ' + err.message);
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   // ========== RENDER ==========
   if (loading) {
@@ -666,7 +708,6 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      {/* ========== TOMBOL PILIHAN MATA PELAJARAN AKTIF ========== */}
       {selectedSubjects.length >= 2 && (
         <Card>
           <CardHeader>
