@@ -39,8 +39,8 @@ export default function MyStudentsPage() {
 
   // Statistik
   const [totalStudents, setTotalStudents] = useState(0)
-  const [tutorPendingCount, setTutorPendingCount] = useState(0) // Permintaan Diajukan (dari tutor)
-  const [studentPendingCount, setStudentPendingCount] = useState(0) // Permintaan Student
+  const [tutorPendingCount, setTutorPendingCount] = useState(0)
+  const [studentPendingCount, setStudentPendingCount] = useState(0)
   const [rejectedCount, setRejectedCount] = useState(0)
 
   const [showRejectDialog, setShowRejectDialog] = useState(false)
@@ -81,7 +81,7 @@ export default function MyStudentsPage() {
       if (isMounted.current) {
         setMatches(allMatches)
 
-        // PERMINTAAN DIAJUKAN: tutor mengirim penawaran (belum direspon student)
+        // PERMINTAAN DIAJUKAN: tutor kirim penawaran (belum direspon student)
         const tutorPending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
@@ -131,7 +131,7 @@ export default function MyStudentsPage() {
         setLoading(false)
         setError('Waktu muat habis, silakan refresh halaman')
       }
-    }, 10000)
+    }, 15000)
 
     return () => {
       isMounted.current = false
@@ -266,19 +266,15 @@ export default function MyStudentsPage() {
   }
 
   // ========== FILTER ==========
-  // 1. Permintaan Diajukan (dari tutor, belum direspon student)
   const tutorPendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
-  // 2. Permintaan Student (student sudah atur jadwal, menunggu konfirmasi tutor)
   const studentPendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'student'
   )
-  // 3. Pencocokan Aktif (sudah dikonfirmasi)
   const activeMatches = matches.filter(
     (m: any) => m.status === 'matched' || m.status === 'active'
   )
-  // 4. Penolakan
   const rejectedMatches = matches.filter(
     (m: any) => m.status === 'declined' || m.status === 'cancelled'
   )
