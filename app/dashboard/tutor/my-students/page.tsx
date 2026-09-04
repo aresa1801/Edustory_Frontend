@@ -81,19 +81,15 @@ export default function MyStudentsPage() {
       if (isMounted.current) {
         setMatches(allMatches)
 
-        // PERMINTAAN DIAJUKAN: tutor kirim penawaran (belum direspon student)
         const tutorPending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
-        // PERMINTAAN STUDENT: student sudah atur jadwal (menunggu konfirmasi tutor)
         const studentPending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'student'
         )
-        // AKTIF: sudah dikonfirmasi
         const active = allMatches.filter(
           (m: any) => m.status === 'matched' || m.status === 'active'
         )
-        // DITOLAK
         const rejected = allMatches.filter(
           (m: any) => m.status === 'declined' || m.status === 'cancelled'
         )
@@ -125,17 +121,8 @@ export default function MyStudentsPage() {
     }
     fetchData()
 
-    const timeout = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('⚠️ MyStudents timeout, force setLoading(false)')
-        setLoading(false)
-        setError('Waktu muat habis, silakan refresh halaman')
-      }
-    }, 15000)
-
     return () => {
       isMounted.current = false
-      clearTimeout(timeout)
     }
   }, [authUser?.id, authLoading])
 
@@ -555,7 +542,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER: Pencocokan Aktif ==========
+  // ========== RENDER: Pencocokan Aktif (tanpa tombol aksi) ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -862,7 +849,6 @@ export default function MyStudentsPage() {
         </Button>
       </div>
 
-      {/* ===== 4 STATISTIK CARD ===== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3">
@@ -913,7 +899,6 @@ export default function MyStudentsPage() {
         </Card>
       </div>
 
-      {/* ===== TAB ===== */}
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="active">
@@ -956,7 +941,6 @@ export default function MyStudentsPage() {
         <TabsContent value="rejected">{renderRejectedCards()}</TabsContent>
       </Tabs>
 
-      {/* ===== DIALOG KONFIRMASI TOLAK ===== */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
@@ -985,7 +969,6 @@ export default function MyStudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== DIALOG PESAN ===== */}
       <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
         <DialogContent>
           <DialogHeader>
