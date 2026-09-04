@@ -36,9 +36,11 @@ export default function MyStudentsPage() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Statistik
   const [totalStudents, setTotalStudents] = useState(0)
-  const [pendingCount, setPendingCount] = useState(0)
-  const [pendingStudentRequests, setPendingStudentRequests] = useState(0)
+  const [tutorPendingCount, setTutorPendingCount] = useState(0) // Permintaan Diajukan (dari tutor)
+  const [studentPendingCount, setStudentPendingCount] = useState(0) // Permintaan Student
   const [rejectedCount, setRejectedCount] = useState(0)
 
   const [showRejectDialog, setShowRejectDialog] = useState(false)
@@ -78,23 +80,28 @@ export default function MyStudentsPage() {
 
       if (isMounted.current) {
         setMatches(allMatches)
-        // Hitung statistik
+
+        // PERMINTAAN DIAJUKAN: tutor mengirim penawaran (belum direspon student)
         const tutorPending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
         )
+        // PERMINTAAN STUDENT: student sudah atur jadwal (menunggu konfirmasi tutor)
         const studentPending = allMatches.filter(
           (m: any) => m.status === 'pending' && m.initiated_by === 'student'
         )
+        // AKTIF: sudah dikonfirmasi
+        const active = allMatches.filter(
+          (m: any) => m.status === 'matched' || m.status === 'active'
+        )
+        // DITOLAK
         const rejected = allMatches.filter(
           (m: any) => m.status === 'declined' || m.status === 'cancelled'
         )
-        const active = allMatches.filter(
-          (m: any) => ['matched', 'active', 'completed'].includes(m.status)
-        )
-        setPendingCount(tutorPending.length)
-        setPendingStudentRequests(studentPending.length)
-        setRejectedCount(rejected.length)
+
+        setTutorPendingCount(tutorPending.length)
+        setStudentPendingCount(studentPending.length)
         setTotalStudents(active.length)
+        setRejectedCount(rejected.length)
         setError(null)
       }
     } catch (err: any) {
@@ -259,26 +266,30 @@ export default function MyStudentsPage() {
   }
 
   // ========== FILTER ==========
+  // 1. Permintaan Diajukan (dari tutor, belum direspon student)
   const tutorPendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
+  // 2. Permintaan Student (student sudah atur jadwal, menunggu konfirmasi tutor)
   const studentPendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'student'
   )
+  // 3. Pencocokan Aktif (sudah dikonfirmasi)
   const activeMatches = matches.filter(
-    (m: any) => ['matched', 'active', 'completed'].includes(m.status)
+    (m: any) => m.status === 'matched' || m.status === 'active'
   )
+  // 4. Penolakan
   const rejectedMatches = matches.filter(
     (m: any) => m.status === 'declined' || m.status === 'cancelled'
   )
 
-  // ========== RENDER PENDING TUTOR (KIRI ATAS) ==========
+  // ========== RENDER: Permintaan Diajukan (dari tutor) ==========
   const renderTutorPendingCards = () => {
     if (tutorPendingMatches.length === 0) {
       return (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan dari siswa.
+            Belum ada permintaan diajukan.
           </CardContent>
         </Card>
       )
@@ -326,7 +337,7 @@ export default function MyStudentsPage() {
                     )}
                   </div>
                   <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Pending
+                    Menunggu
                   </Badge>
                 </div>
 
@@ -399,13 +410,13 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER PENDING STUDENT ==========
+  // ========== RENDER: Permintaan Student (dengan tombol Terima/Tolak) ==========
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan jadwal dari siswa.
+            Belum ada permintaan dari siswa.
           </CardContent>
         </Card>
       )
@@ -421,7 +432,6 @@ export default function MyStudentsPage() {
           const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
-          const initiatedBy = match.initiated_by
 
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
@@ -456,7 +466,7 @@ export default function MyStudentsPage() {
                       </Badge>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-blue-500/20 text-blue-700 border-blue-500/30 text-xs">
+                  <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
                     Menunggu
                   </Badge>
                 </div>
@@ -519,7 +529,7 @@ export default function MyStudentsPage() {
                   )}
                 </div>
 
-                {/* Tombol Aksi untuk student pending */}
+                {/* ===== TOMBOL TERIMA & TOLAK ===== */}
                 <div className="mt-4 flex gap-2">
                   <Button
                     size="sm"
@@ -549,7 +559,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE ==========
+  // ========== RENDER: Pencocokan Aktif ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -563,7 +573,6 @@ export default function MyStudentsPage() {
     const statusMap: Record<string, { label: string; color: string }> = {
       matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
       active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
-      completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
     }
 
     return (
@@ -684,7 +693,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER REJECTED ==========
+  // ========== RENDER: Penolakan ==========
   const renderRejectedCards = () => {
     if (rejectedMatches.length === 0) {
       return (
@@ -877,8 +886,8 @@ export default function MyStudentsPage() {
               <MessageCircle className="w-5 h-5 text-indigo-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Permintaan Diajukan</p>
-              <p className="text-2xl font-bold">{pendingStudentRequests}</p>
+              <p className="text-sm text-muted-foreground">Permintaan Student</p>
+              <p className="text-2xl font-bold">{studentPendingCount}</p>
             </div>
           </div>
         </Card>
@@ -889,8 +898,8 @@ export default function MyStudentsPage() {
               <Clock className="w-5 h-5 text-yellow-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Permintaan Baru</p>
-              <p className="text-2xl font-bold">{pendingCount}</p>
+              <p className="text-sm text-muted-foreground">Permintaan Diajukan</p>
+              <p className="text-2xl font-bold">{tutorPendingCount}</p>
             </div>
           </div>
         </Card>
@@ -920,18 +929,18 @@ export default function MyStudentsPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="student-pending">
-            Permintaan Diajukan
-            {pendingStudentRequests > 0 && (
+            Permintaan Student
+            {studentPendingCount > 0 && (
               <span className="ml-2 bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {pendingStudentRequests}
+                {studentPendingCount}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="tutor-pending">
-            Permintaan Baru
-            {pendingCount > 0 && (
+            Permintaan Diajukan
+            {tutorPendingCount > 0 && (
               <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {pendingCount}
+                {tutorPendingCount}
               </span>
             )}
           </TabsTrigger>
