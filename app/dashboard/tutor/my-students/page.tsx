@@ -570,149 +570,165 @@ export default function MyStudentsPage() {
 
   // ===== RENDER: Pencocokan Aktif =====
   const renderActiveCards = () => {
-  if (activeMatches.length === 0) {
+    if (activeMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada pencocokan yang dikonfirmasi.
+          </CardContent>
+        </Card>
+      )
+    }
+    const statusMap: Record<string, { label: string; color: string }> = {
+      matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+    }
+
     return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          Belum ada pencocokan yang dikonfirmasi.
-        </CardContent>
-      </Card>
-    )
-  }
-  const statusMap: Record<string, { label: string; color: string }> = {
-    matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-    active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
-  }
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {activeMatches.map((match: any) => {
+          const fullName = match.student_full_name || 'Siswa'
+          const grade = match.student_grade || ''
+          const rate = getStudentRate(match)
+          const address = match.student_address || ''
+          const sessionsPerMonth = match.student_sessions_per_month || 0
+          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const status = match.status
+          const avatar = match.student_avatar
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      {activeMatches.map((match: any) => {
-        const fullName = match.student_full_name || 'Siswa'
-        const grade = match.student_grade || ''
-        const rate = getStudentRate(match)
-        const address = match.student_address || ''
-        const sessionsPerMonth = match.student_sessions_per_month || 0
-        const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
-        const startDate = match.start_date
-        const status = match.status
-        const avatar = match.student_avatar
+          const scheduleDisplay = match.schedules_summary
+            ? renderScheduleSummary(match.schedules_summary)
+            : match.student_schedule || 'Belum ditentukan'
 
-        const scheduleDisplay = match.schedules_summary
-          ? renderScheduleSummary(match.schedules_summary)
-          : match.student_schedule || 'Belum ditentukan'
+          const matchedSubjects = match.matched_subjects || []
+          const subjectDisplay = matchedSubjects.length > 0
+            ? matchedSubjects.join(', ')
+            : 'Tidak ada mata pelajaran yang cocok'
+          const isNoMatch = matchedSubjects.length === 0
 
-        const matchedSubjects = match.matched_subjects || []
-        const subjectDisplay = matchedSubjects.length > 0
-          ? matchedSubjects.join(', ')
-          : 'Tidak ada mata pelajaran yang cocok'
-        const isNoMatch = matchedSubjects.length === 0
+          const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
 
-        const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+          const lat = match.student_latitude
+          const lng = match.student_longitude
+          const hasCoords = lat != null && lng != null && address
 
-        const lat = match.student_latitude
-        const lng = match.student_longitude
-        const hasCoords = lat != null && lng != null && address
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                      {avatar ? (
+                        <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        fullName.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{fullName}</h3>
+                      {grade && (
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                          {grade}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                </div>
 
-        return (
-          <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {avatar ? (
-                      <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      fullName.charAt(0).toUpperCase()
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">
+                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                      {subjectDisplay}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start">
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    {hasCoords && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                          window.open(url, '_blank')
+                        }}
+                        title="Buka Google Maps & lihat rute"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                      </Button>
                     )}
                   </div>
-                  <div>
-                    <h3 className="font-semibold">{fullName}</h3>
-                    {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                        {grade}
-                      </Badge>
-                    )}
+
+                  <div className="flex items-start">
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <div className="text-muted-foreground">
+                      <span className="font-medium">Jadwal:</span> {scheduleDisplay}
+                    </div>
                   </div>
-                </div>
-                <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
-              </div>
 
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center">
-                  <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                  <span className="text-muted-foreground">
-                    {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
-                  </span>
-                </div>
+                  <div className="flex items-start">
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
+                    </span>
+                  </div>
 
-                <div className="flex items-start">
-                  <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                  <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
-                    {subjectDisplay}
-                  </span>
-                </div>
-
-                <div className="flex items-start">
-                  <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                  <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
-                  {hasCoords && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
-                      onClick={() => {
-                        const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
-                        window.open(url, '_blank')
-                      }}
-                      title="Buka Google Maps & lihat rute"
-                    >
-                      <Map className="h-3.5 w-3.5" />
-                    </Button>
+                  {/* ===== INFORMASI KONTRAK (khusus Pencocokan Aktif) ===== */}
+                  {match.accepted_at && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
+                      </span>
+                    </div>
+                  )}
+                  {match.contract_end_date && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
+                        {(() => {
+                          const daysLeft = Math.ceil((new Date(match.contract_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          return daysLeft >= 0 ? (
+                            <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                          ) : (
+                            <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
+                          );
+                        })()}
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                <div className="flex items-start">
-                  <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                  <div className="text-muted-foreground">
-                    <span className="font-medium">Jadwal:</span> {scheduleDisplay}
-                  </div>
+                {/* ===== TOMBOL TAMBAHAN ===== */}
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" disabled>
+                    <Calendar className="w-4 h-4 mr-1.5" />
+                    Lihat Jadwal
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 text-red-500 border-red-200 hover:bg-red-50" disabled>
+                    <XCircle className="w-4 h-4 mr-1.5" />
+                    Hentikan Kontrak
+                  </Button>
                 </div>
-
-                <div className="flex items-start">
-                  <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                  <span className="text-muted-foreground">
-                    <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
-                  </span>
-                </div>
-
-                {startDate && (
-                  <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Mulai:</span> {formatDate(startDate)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* ===== TOMBOL TAMBAHAN ===== */}
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" disabled>
-                  <Calendar className="w-4 h-4 mr-1.5" />
-                  Lihat Jadwal
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 text-red-500 border-red-200 hover:bg-red-50" disabled>
-                  <XCircle className="w-4 h-4 mr-1.5" />
-                  Hentikan Kontrak
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
-    </div>
-  )
-}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    )
+  }
 
   // ===== RENDER: Penolakan =====
   const renderRejectedCards = () => {
