@@ -39,15 +39,25 @@ export async function POST(
 
     console.log('✅ Match found:', match);
 
+    // ===== INI YANG DIUBAH =====
     let updatePayload: any = {};
     if (action === 'accept') {
-      updatePayload = { status: 'matched' };
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() + 75);
+
+      updatePayload = {
+        status: 'matched',
+        accepted_at: now.toISOString(),
+        contract_end_date: endDate.toISOString(),
+      };
+      console.log(`📅 Kontrak dimulai: ${now.toISOString()}, berakhir: ${endDate.toISOString()}`);
     } else if (action === 'reject') {
       updatePayload = {
         status: 'declined',
-        // JANGAN ubah initiated_by, biarkan sesuai asalnya
       };
     }
+    // ===== END =====
 
     console.log('🔄 Updating match with payload:', updatePayload);
 

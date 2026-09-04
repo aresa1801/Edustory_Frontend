@@ -378,6 +378,32 @@ export default function MyStudentsPage() {
                       </span>
                     </div>
                   )}
+
+                  {/* ===== INFORMASI KONTRAK ===== */}
+                  {match.accepted_at && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
+                      </span>
+                    </div>
+                  )}
+                  {match.contract_end_date && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
+                        {(() => {
+                          const daysLeft = Math.ceil((new Date(match.contract_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          return daysLeft >= 0 ? (
+                            <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                          ) : (
+                            <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
+                          );
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4">
