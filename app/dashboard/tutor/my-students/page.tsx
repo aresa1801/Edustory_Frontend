@@ -43,6 +43,11 @@ export default function MyStudentsPage() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [processingAction, setProcessingAction] = useState(false)
 
+  // ===== STATE UNTUK MESSAGE DIALOG =====
+  const [showMessageDialog, setShowMessageDialog] = useState(false)
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success')
+  const [messageText, setMessageText] = useState('')
+
   const isMounted = useRef(true)
 
   const fetchData = async () => {
@@ -166,6 +171,14 @@ export default function MyStudentsPage() {
     }
   }
 
+  // ===== FUNGSI SHOW MESSAGE =====
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessageType(type)
+    setMessageText(text)
+    setShowMessageDialog(true)
+  }
+
+  // ===== FUNGSI TERIMA =====
   const handleAccept = async (matchId: string) => {
     console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
@@ -179,14 +192,15 @@ export default function MyStudentsPage() {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menerima permintaan')
       await fetchData()
-      alert('✅ Permintaan berhasil diterima!')
+      showMessage('success', '✅ Permintaan berhasil diterima!')
     } catch (err: any) {
-      alert('❌ ' + err.message)
+      showMessage('error', '❌ ' + err.message)
     } finally {
       setProcessingAction(false)
     }
   }
 
+  // ===== FUNGSI TOLAK =====
   const openRejectDialog = (matchId: string) => {
     console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
@@ -208,9 +222,9 @@ export default function MyStudentsPage() {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menolak permintaan')
       await fetchData()
-      alert('✅ Permintaan berhasil ditolak.')
+      showMessage('success', '✅ Permintaan berhasil ditolak.')
     } catch (err: any) {
-      alert('❌ ' + err.message)
+      showMessage('error', '❌ ' + err.message)
     } finally {
       setProcessingAction(false)
       setShowRejectDialog(false)
@@ -244,7 +258,7 @@ export default function MyStudentsPage() {
   )
   const activeMatches = matches.filter((m: any) => m.status !== 'pending')
 
-  // ========== RENDER PENDING (TIDAK DIUBAH - copy dari versi berhasil) ==========
+  // ========== RENDER PENDING ==========
   const renderPendingCards = () => {
     if (pendingMatches.length === 0) {
       return (
@@ -371,7 +385,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ========== RENDER ACTIVE (HANYA BAGIAN INI YANG DIUBAH) ==========
+  // ========== RENDER ACTIVE ==========
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
@@ -544,7 +558,6 @@ export default function MyStudentsPage() {
                   </div>
                 )}
 
-                {/* ===== PESAN PENOLAKAN YANG SPESIFIK (DI SISI TUTOR) ===== */}
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
@@ -625,6 +638,7 @@ export default function MyStudentsPage() {
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
       </Tabs>
 
+      {/* ===== DIALOG KONFIRMASI TOLAK ===== */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
@@ -649,6 +663,19 @@ export default function MyStudentsPage() {
             >
               {processingAction ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== DIALOG PESAN (SUKSES / ERROR) ===== */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{messageType === 'success' ? '✅ Sukses' : '❌ Error'}</DialogTitle>
+            <DialogDescription>{messageText}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowMessageDialog(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
