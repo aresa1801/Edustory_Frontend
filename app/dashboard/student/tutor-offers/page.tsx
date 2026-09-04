@@ -1,27 +1,30 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   DollarSign,
+  MapPin,
+  BookMarked,
+  Clock,
+  Users,
+  MessageCircle,
+  RefreshCw,
+  CalendarDays,
+  Map,
+  CheckCircle,
+  XCircle,
+  Trash2,
+  Calendar,
   Star,
   Award,
   BookOpen,
-  RefreshCw,
-  User,
-  Calendar,
-  XCircle,
-  Clock,
-  Trash2,
-  Users,
-  MessageCircle,
-  CheckCircle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -52,9 +55,8 @@ interface Match {
   tutor_verified_grade_levels: string[]
   tutor_avatar_url?: string | null
   schedules_summary?: any
-  student_full_name?: string
-  student_grade?: string
-  student_avatar?: string
+  accepted_at?: string
+  contract_end_date?: string
 }
 
 export default function TutorOffersPage() {
@@ -165,6 +167,11 @@ export default function TutorOffersPage() {
     }
   }
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString('id-ID')
+  }
+
   const renderScheduleSummary = (summary: any) => {
     if (!summary) return null
     if (typeof summary === 'string') {
@@ -212,218 +219,497 @@ export default function TutorOffersPage() {
     )
   }
 
-  // ===== RENDER KARTU =====
-  const renderMatchCard = (match: Match, type: 'active' | 'tutorPending' | 'studentPending' | 'rejected') => {
-    const isTutorPending = type === 'tutorPending'
-    const isStudentPending = type === 'studentPending'
-    const isRejected = type === 'rejected'
-    const isActive = type === 'active'
+  // ===== RENDER KARTU UNTUK SETIAP TAB =====
 
-    const fullName = match.tutor_full_name || 'Tutor'
-    const grade = match.tutor_verified_grade_levels?.join(', ') || ''
-    const rate = match.tutor_hourly_rate || 0
-    const address = '' // tidak ada alamat tutor di match, opsional
-    const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
-    const startDate = match.start_date
-    const avatar = match.tutor_avatar_url
-    const status = match.status
-    const initiatedBy = match.initiated_by
-
-    const statusMap: Record<string, { label: string; color: string }> = {
-      pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' },
-      matched: { label: 'Disetujui', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
-      completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-700 border-slate-500/30' },
-      declined: { label: 'Ditolak', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
-      cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-700 border-red-500/30' },
+  // 1. Pencocokan Aktif
+  const renderActiveCards = () => {
+    if (activeMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada pencocokan yang dikonfirmasi.
+          </CardContent>
+        </Card>
+      )
     }
-    const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+    const statusMap: Record<string, { label: string; color: string }> = {
+      matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
+      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+    }
 
     return (
-      <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
-                {avatar ? (
-                  <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
-                ) : (
-                  fullName.charAt(0).toUpperCase()
-                )}
-              </div>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                {grade && (
-                  <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                    {grade}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge className={`${statusConfig.color} text-xs border`}>{statusConfig.label}</Badge>
-              {isRejected && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-gray-400 hover:text-red-500"
-                  onClick={() => handleHide(match.id)}
-                  title="Sembunyikan"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {activeMatches.map((match) => {
+          const fullName = match.tutor_full_name || 'Tutor'
+          const grade = match.tutor_verified_grade_levels?.join(', ') || ''
+          const rate = match.tutor_hourly_rate || 0
+          const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
+          const startDate = match.start_date
+          const status = match.status
+          const avatar = match.tutor_avatar_url
+          const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
 
-          <div className="space-y-1.5 text-sm">
-            <div className="flex items-center">
-              <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-              <span className="text-muted-foreground">
-                Rp {rate.toLocaleString('id-ID')}/jam
-              </span>
-            </div>
-            <div className="flex items-center">
-              <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
-              <span className="text-muted-foreground">
-                {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
-              </span>
-            </div>
-            <div className="flex items-center">
-              <Award className="w-4 h-4 mr-1.5 text-blue-500" />
-              <span className="text-muted-foreground">
-                {match.tutor_experience_years || 0} tahun pengalaman
-              </span>
-            </div>
-            {match.tutor_bio && (
-              <div className="flex items-start">
-                <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
-                <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
-              </div>
-            )}
-            <div className="flex items-start">
-              <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
-              <span className="text-muted-foreground">
-                <span className="font-medium">Mapel:</span> {subjects}
-              </span>
-            </div>
-            {match.schedules_summary && (
-              <div className="flex items-start">
-                <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
-                <div>
-                  <span className="font-medium">Jadwal:</span>
-                  {renderScheduleSummary(match.schedules_summary)}
+          // Hitung sisa hari
+          let daysLeft = null
+          if (match.contract_end_date) {
+            const end = new Date(match.contract_end_date).getTime()
+            const nowTime = Date.now()
+            daysLeft = Math.ceil((end - nowTime) / (1000 * 60 * 60 * 24))
+          }
+
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                      {avatar ? (
+                        <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        fullName.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{fullName}</h3>
+                      {grade && (
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                          {grade}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
                 </div>
-              </div>
-            )}
-            {startDate && (
-              <div className="flex items-start">
-                <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
-                <span className="text-muted-foreground">
-                  <span className="font-medium">Mulai:</span> {new Date(startDate).toLocaleDateString('id-ID')}
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* === TOMBOL AKSI === */}
-          {isTutorPending && (
-            <div className="mt-4 flex gap-2">
-              <Button
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                onClick={() => handleSchedule(match.id)}
-                disabled={processingId === match.id}
-              >
-                <Calendar className="w-4 h-4" />
-                Setuju & Atur Jadwal
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 gap-1.5"
-                onClick={() => openRejectDialog(match.id)}
-                disabled={processingId === match.id}
-              >
-                <XCircle className="w-4 h-4" />
-                Tolak
-              </Button>
-            </div>
-          )}
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <span className="text-muted-foreground">
+                      {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
+                  </div>
+                  {match.tutor_bio && (
+                    <div className="flex items-start">
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Mapel:</span> {subjects}
+                    </span>
+                  </div>
+                  {match.schedules_summary && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <div>
+                        <span className="font-medium">Jadwal:</span>
+                        {renderScheduleSummary(match.schedules_summary)}
+                      </div>
+                    </div>
+                  )}
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                  {/* ===== INFORMASI KONTRAK ===== */}
+                  {match.accepted_at && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
+                      </span>
+                    </div>
+                  )}
+                  {match.contract_end_date && (
+                    <div className="flex items-start">
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
+                        {daysLeft !== null && daysLeft >= 0 ? (
+                          <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                        ) : daysLeft !== null && daysLeft < 0 ? (
+                          <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-          {isStudentPending && (
-            <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
-              <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi tutor</p>
-              <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
-            </div>
-          )}
-
-          {isActive && (
-            <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-center">
-              <p className="text-xs font-medium text-green-700">✓ Pencocokan aktif. Silakan lanjutkan belajar.</p>
-            </div>
-          )}
-
-          {isRejected && initiatedBy === 'tutor' && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
-              ✗ Penawaran ditolak oleh Anda
-            </div>
-          )}
-          {isRejected && initiatedBy === 'student' && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
-              ✗ Penawaran ditolak oleh tutor
-            </div>
-          )}
-          {isRejected && status === 'cancelled' && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 text-center">
-              ✗ Penawaran dibatalkan
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {/* Tombol (disabled untuk saat ini) */}
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" disabled>
+                    <Calendar className="w-4 h-4 mr-1.5" />
+                    Lihat Jadwal
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 text-red-500 border-red-200 hover:bg-red-50" disabled>
+                    <XCircle className="w-4 h-4 mr-1.5" />
+                    Hentikan Kontrak
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
     )
   }
 
-  // === RENDER TAB ===
-  const renderActive = () => (
-    activeMatches.length === 0 ? (
-      <Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada pencocokan aktif.</CardContent></Card>
-    ) : (
+  // 2. Permintaan Masuk (dari tutor)
+  const renderTutorPendingCards = () => {
+    if (tutorPendingMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada permintaan masuk dari tutor.
+          </CardContent>
+        </Card>
+      )
+    }
+    return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {activeMatches.map(m => renderMatchCard(m, 'active'))}
+        {tutorPendingMatches.map((match) => {
+          const fullName = match.tutor_full_name || 'Tutor'
+          const grade = match.tutor_verified_grade_levels?.join(', ') || ''
+          const rate = match.tutor_hourly_rate || 0
+          const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
+          const startDate = match.start_date
+          const avatar = match.tutor_avatar_url
+
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                    {avatar ? (
+                      <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
+                    ) : (
+                      fullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{fullName}</h3>
+                    {grade && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {grade}
+                      </Badge>
+                    )}
+                  </div>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    Menunggu
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <span className="text-muted-foreground">
+                      {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
+                  </div>
+                  {match.tutor_bio && (
+                    <div className="flex items-start">
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Mapel:</span> {subjects}
+                    </span>
+                  </div>
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                    onClick={() => handleSchedule(match.id)}
+                    disabled={processingId === match.id}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Setuju & Atur Jadwal
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1 gap-1.5"
+                    onClick={() => openRejectDialog(match.id)}
+                    disabled={processingId === match.id}
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Tolak
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     )
-  )
+  }
 
-  const renderTutorPending = () => (
-    tutorPendingMatches.length === 0 ? (
-      <Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada permintaan masuk dari tutor.</CardContent></Card>
-    ) : (
+  // 3. Permintaan Saya (dari student, sudah kirim jadwal)
+  const renderStudentPendingCards = () => {
+    if (studentPendingMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada permintaan jadwal yang Anda kirim.
+          </CardContent>
+        </Card>
+      )
+    }
+    return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {tutorPendingMatches.map(m => renderMatchCard(m, 'tutorPending'))}
+        {studentPendingMatches.map((match) => {
+          const fullName = match.tutor_full_name || 'Tutor'
+          const grade = match.tutor_verified_grade_levels?.join(', ') || ''
+          const rate = match.tutor_hourly_rate || 0
+          const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
+          const startDate = match.start_date
+          const avatar = match.tutor_avatar_url
+
+          const scheduleDisplay = match.schedules_summary
+            ? renderScheduleSummary(match.schedules_summary)
+            : 'Belum ditentukan'
+
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                    {avatar ? (
+                      <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
+                    ) : (
+                      fullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{fullName}</h3>
+                    {grade && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        {grade}
+                      </Badge>
+                    )}
+                  </div>
+                  <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
+                    Menunggu
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <span className="text-muted-foreground">
+                      {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
+                  </div>
+                  {match.tutor_bio && (
+                    <div className="flex items-start">
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Mapel:</span> {subjects}
+                    </span>
+                  </div>
+                  <div className="flex items-start">
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                    <div className="text-muted-foreground">
+                      <span className="font-medium">Jadwal:</span> {scheduleDisplay}
+                    </div>
+                  </div>
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
+                  <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi tutor</p>
+                  <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     )
-  )
+  }
 
-  const renderStudentPending = () => (
-    studentPendingMatches.length === 0 ? (
-      <Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada permintaan jadwal yang Anda kirim.</CardContent></Card>
-    ) : (
+  // 4. Penolakan
+  const renderRejectedCards = () => {
+    if (rejectedMatches.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Belum ada penolakan.
+          </CardContent>
+        </Card>
+      )
+    }
+    return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {studentPendingMatches.map(m => renderMatchCard(m, 'studentPending'))}
+        {rejectedMatches.map((match) => {
+          const fullName = match.tutor_full_name || 'Tutor'
+          const grade = match.tutor_verified_grade_levels?.join(', ') || ''
+          const rate = match.tutor_hourly_rate || 0
+          const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
+          const startDate = match.start_date
+          const avatar = match.tutor_avatar_url
+          const status = match.status
+          const initiatedBy = match.initiated_by
+
+          const scheduleDisplay = match.schedules_summary
+            ? renderScheduleSummary(match.schedules_summary)
+            : 'Belum ditentukan'
+
+          return (
+            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                      {avatar ? (
+                        <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        fullName.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{fullName}</h3>
+                      {grade && (
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                          {grade}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">Ditolak</Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-gray-400 hover:text-red-500"
+                      onClick={() => handleHide(match.id)}
+                      title="Sembunyikan"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <span className="text-muted-foreground">
+                      {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
+                  </div>
+                  {match.tutor_bio && (
+                    <div className="flex items-start">
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start">
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Mapel:</span> {subjects}
+                    </span>
+                  </div>
+                  <div className="flex items-start">
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                    <div className="text-muted-foreground">
+                      <span className="font-medium">Jadwal:</span> {scheduleDisplay}
+                    </div>
+                  </div>
+                  {startDate && (
+                    <div className="flex items-start">
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {status === 'declined' && initiatedBy === 'tutor' && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-xs font-medium text-red-700">✗ Penawaran ditolak oleh Anda</p>
+                  </div>
+                )}
+                {status === 'declined' && initiatedBy === 'student' && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-xs font-medium text-red-700">✗ Penawaran ditolak oleh tutor</p>
+                  </div>
+                )}
+                {status === 'cancelled' && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-xs font-medium text-red-700">✗ Penawaran dibatalkan</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     )
-  )
+  }
 
-  const renderRejected = () => (
-    rejectedMatches.length === 0 ? (
-      <Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada penolakan.</CardContent></Card>
-    ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {rejectedMatches.map(m => renderMatchCard(m, 'rejected'))}
-      </div>
-    )
-  )
-
-  // === MAIN RENDER ===
+  // ===== MAIN RENDER =====
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between">
@@ -513,10 +799,10 @@ export default function TutorOffersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active">{renderActive()}</TabsContent>
-        <TabsContent value="tutor-pending">{renderTutorPending()}</TabsContent>
-        <TabsContent value="student-pending">{renderStudentPending()}</TabsContent>
-        <TabsContent value="rejected">{renderRejected()}</TabsContent>
+        <TabsContent value="active">{renderActiveCards()}</TabsContent>
+        <TabsContent value="tutor-pending">{renderTutorPendingCards()}</TabsContent>
+        <TabsContent value="student-pending">{renderStudentPendingCards()}</TabsContent>
+        <TabsContent value="rejected">{renderRejectedCards()}</TabsContent>
       </Tabs>
 
       {/* Dialog Konfirmasi Tolak */}
