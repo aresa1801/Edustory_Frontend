@@ -81,7 +81,7 @@ export async function POST(
     const { error: updateError } = await supabaseAdmin
       .from('matches')
       .update({
-        status: 'matched',
+        status: 'pending',
         initiated_by: 'student',
         schedules_summary: summaryArray,
       })
