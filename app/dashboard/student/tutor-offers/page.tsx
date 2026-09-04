@@ -317,14 +317,6 @@ export default function TutorOffersPage() {
                       </div>
                     </div>
                   )}
-                  {startDate && (
-                    <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
-                      </span>
-                    </div>
-                  )}
                   {/* ===== INFORMASI KONTRAK ===== */}
                   {match.accepted_at && (
                     <div className="flex items-start">
