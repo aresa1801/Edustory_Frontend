@@ -32,6 +32,214 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+// ============================================================
+// KOMPONEN KARTU PERMINTAAN STUDENT (dengan countdown)
+// ============================================================
+interface StudentPendingCardProps {
+  match: any
+  onAccept: (matchId: string) => void
+  onReject: (matchId: string) => void
+  processing: boolean
+  formatDate: (dateStr: string) => string
+  renderScheduleSummary: (summary: any) => React.ReactNode
+  getStudentRate: (match: any) => number
+}
+
+function StudentPendingCard({
+  match,
+  onAccept,
+  onReject,
+  processing,
+  formatDate,
+  renderScheduleSummary,
+  getStudentRate,
+}: StudentPendingCardProps) {
+  const [timeLeft, setTimeLeft] = useState('')
+
+  useEffect(() => {
+    if (!match.schedule_submitted_at) return
+    const deadline = new Date(match.schedule_submitted_at)
+    deadline.setDate(deadline.getDate() + 2)
+
+    const updateTimer = () => {
+      const now = new Date()
+      const diff = deadline.getTime() - now.getTime()
+      if (diff <= 0) {
+        setTimeLeft('⏳ Waktu habis')
+        return
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+      setTimeLeft(
+        `${days} hari ${hours.toString().padStart(2, '0')}:${minutes
+          .toString()
+          .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      )
+    }
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [match.schedule_submitted_at])
+
+  const fullName = match.student_full_name || 'Siswa'
+  const grade = match.student_grade || ''
+  const rate = getStudentRate(match)
+  const address = match.student_address || ''
+  const sessionsPerMonth = match.student_sessions_per_month || 0
+  const sessionDisplay =
+    sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+  const startDate = match.start_date
+  const avatar = match.student_avatar
+
+  const scheduleDisplay = match.schedules_summary
+    ? renderScheduleSummary(match.schedules_summary)
+    : match.student_schedule || 'Belum ditentukan'
+
+  const matchedSubjects = match.matched_subjects || []
+  const subjectDisplay =
+    matchedSubjects.length > 0
+      ? matchedSubjects.join(', ')
+      : 'Tidak ada mata pelajaran yang cocok'
+  const isNoMatch = matchedSubjects.length === 0
+
+  const lat = match.student_latitude
+  const lng = match.student_longitude
+  const hasCoords = lat != null && lng != null && address
+
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+            {avatar ? (
+              <img
+                src={avatar}
+                alt={fullName}
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              fullName.charAt(0).toUpperCase()
+            )}
+          </div>
+          <div>
+            <h3 className="font-semibold">{fullName}</h3>
+            {grade && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+              >
+                {grade}
+              </Badge>
+            )}
+          </div>
+          <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
+            Menunggu
+          </Badge>
+        </div>
+
+        <div className="space-y-1.5 text-sm">
+          <div className="flex items-center">
+            <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+            <span className="text-muted-foreground">
+              {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
+            </span>
+          </div>
+
+          <div className="flex items-start">
+            <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+            <span
+              className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+            >
+              {subjectDisplay}
+            </span>
+          </div>
+
+          <div className="flex items-start">
+            <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+            <span className="text-muted-foreground">
+              {address || 'Alamat belum diisi'}
+            </span>
+            {hasCoords && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                onClick={() => {
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+                  window.open(url, '_blank')
+                }}
+                title="Buka Google Maps & lihat rute"
+              >
+                <Map className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-start">
+            <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+            <div className="text-muted-foreground">
+              <span className="font-medium">Jadwal:</span> {scheduleDisplay}
+            </div>
+          </div>
+
+          <div className="flex items-start">
+            <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+            <span className="text-muted-foreground">
+              <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
+            </span>
+          </div>
+
+          {startDate && (
+            <div className="flex items-start">
+              <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+              <span className="text-muted-foreground">
+                <span className="font-medium">Mulai:</span> {formatDate(startDate)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {match.schedule_submitted_at && (
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-orange-400" />
+            <span className="text-muted-foreground">
+              <span className="font-medium">Sisa waktu merespon:</span>{' '}
+              <span className="font-mono text-orange-600">{timeLeft}</span>
+            </span>
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+            onClick={() => onAccept(match.id)}
+            disabled={processing}
+          >
+            <CheckCircle className="w-4 h-4" />
+            Terima
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="flex-1 gap-1.5"
+            onClick={() => onReject(match.id)}
+            disabled={processing}
+          >
+            <XCircle className="w-4 h-4" />
+            Tolak
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// KOMPONEN UTAMA
+// ============================================================
 export default function MyStudentsPage() {
   const { user: authUser, loading: authLoading } = useAuth()
   const [matches, setMatches] = useState<any[]>([])
@@ -136,7 +344,11 @@ export default function MyStudentsPage() {
   }
 
   const getStudentRate = (match: any) => {
-    if (match?.student_budget_per_month && match?.student_sessions_per_month && match.student_sessions_per_month > 0) {
+    if (
+      match?.student_budget_per_month &&
+      match?.student_sessions_per_month &&
+      match.student_sessions_per_month > 0
+    ) {
       return Math.round(match.student_budget_per_month / match.student_sessions_per_month)
     }
     return 0
@@ -153,25 +365,15 @@ export default function MyStudentsPage() {
           {summary.map((item, idx) => (
             <div key={idx} className="flex items-start gap-1">
               <span className="font-medium">{item.subject}:</span>
-              <span>{item.day}, {item.time} ({item.count} sesi)</span>
+              <span>
+                {item.day}, {item.time} ({item.count} sesi)
+              </span>
             </div>
           ))}
         </div>
       )
     }
     return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
-  }
-
-  const getToken = async () => {
-    try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      return session?.access_token || null
-    } catch (e) {
-      console.warn('Gagal ambil token dari Supabase client:', e)
-      return null
-    }
   }
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -247,12 +449,14 @@ export default function MyStudentsPage() {
         <Alert variant="destructive">
           <AlertDescription>❌ {error}</AlertDescription>
         </Alert>
-        <Button onClick={handleRefresh} className="mt-4">Refresh Halaman</Button>
+        <Button onClick={handleRefresh} className="mt-4">
+          Refresh Halaman
+        </Button>
       </div>
     )
   }
 
-  // ===== FILTER YANG BENAR =====
+  // ===== FILTER =====
   const tutorPendingMatches = matches.filter(
     (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
   )
@@ -286,14 +490,16 @@ export default function MyStudentsPage() {
           const address = match.student_address || ''
           const schedule = match.student_schedule || ''
           const sessionsPerMonth = match.student_sessions_per_month || 0
-          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const sessionDisplay =
+            sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
 
           const matchedSubjects = match.matched_subjects || []
-          const subjectDisplay = matchedSubjects.length > 0
-            ? matchedSubjects.join(', ')
-            : 'Tidak ada mata pelajaran yang cocok'
+          const subjectDisplay =
+            matchedSubjects.length > 0
+              ? matchedSubjects.join(', ')
+              : 'Tidak ada mata pelajaran yang cocok'
           const isNoMatch = matchedSubjects.length === 0
 
           const lat = match.student_latitude
@@ -301,12 +507,19 @@ export default function MyStudentsPage() {
           const hasCoords = lat != null && lng != null && address
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card
+              key={match.id}
+              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+            >
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                     {avatar ? (
-                      <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                      <img
+                        src={avatar}
+                        alt={fullName}
+                        className="w-full h-full object-cover rounded-full"
+                      />
                     ) : (
                       fullName.charAt(0).toUpperCase()
                     )}
@@ -314,7 +527,10 @@ export default function MyStudentsPage() {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                      >
                         {grade}
                       </Badge>
                     )}
@@ -334,14 +550,18 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                    <span
+                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                    >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
                     <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    <span className="text-muted-foreground">
+                      {address || 'Alamat belum diisi'}
+                    </span>
                     {hasCoords && (
                       <Button
                         variant="ghost"
@@ -360,7 +580,9 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{schedule || 'Jadwal belum ditentukan'}</span>
+                    <span className="text-muted-foreground">
+                      {schedule || 'Jadwal belum ditentukan'}
+                    </span>
                   </div>
 
                   <div className="flex items-start">
@@ -379,12 +601,12 @@ export default function MyStudentsPage() {
                     </div>
                   )}
 
-                  {/* ===== INFORMASI KONTRAK ===== */}
                   {match.accepted_at && (
                     <div className="flex items-start">
                       <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
                       <span className="text-muted-foreground">
-                        <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
+                        <span className="font-medium">Kontrak mulai:</span>{' '}
+                        {formatDate(match.accepted_at)}
                       </span>
                     </div>
                   )}
@@ -392,14 +614,22 @@ export default function MyStudentsPage() {
                     <div className="flex items-start">
                       <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
                       <span className="text-muted-foreground">
-                        <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
+                        <span className="font-medium">Berakhir:</span>{' '}
+                        {formatDate(match.contract_end_date)}
                         {(() => {
-                          const daysLeft = Math.ceil((new Date(match.contract_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          const daysLeft = Math.ceil(
+                            (new Date(match.contract_end_date).getTime() - Date.now()) /
+                              (1000 * 60 * 60 * 24)
+                          )
                           return daysLeft >= 0 ? (
-                            <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                            <span className="text-xs text-gray-400 ml-2">
+                              (sisa {daysLeft} hari)
+                            </span>
                           ) : (
-                            <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
-                          );
+                            <span className="text-xs text-red-500 ml-2">
+                              (lewat {Math.abs(daysLeft)} hari)
+                            </span>
+                          )
                         })()}
                       </span>
                     </div>
@@ -419,7 +649,7 @@ export default function MyStudentsPage() {
     )
   }
 
-  // ===== RENDER: Permintaan Student (dengan tombol Terima/Tolak) =====
+  // ===== RENDER: Permintaan Student (dengan tombol Terima/Tolak & timer) =====
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
@@ -432,173 +662,18 @@ export default function MyStudentsPage() {
     }
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {studentPendingMatches.map((match: any) => {
-          const fullName = match.student_full_name || 'Siswa'
-          const grade = match.student_grade || ''
-          const rate = getStudentRate(match)
-          const address = match.student_address || ''
-          const sessionsPerMonth = match.student_sessions_per_month || 0
-          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
-          const startDate = match.start_date
-          const avatar = match.student_avatar
-
-          const scheduleDisplay = match.schedules_summary
-            ? renderScheduleSummary(match.schedules_summary)
-            : match.student_schedule || 'Belum ditentukan'
-
-          const matchedSubjects = match.matched_subjects || []
-          const subjectDisplay = matchedSubjects.length > 0
-            ? matchedSubjects.join(', ')
-            : 'Tidak ada mata pelajaran yang cocok'
-          const isNoMatch = matchedSubjects.length === 0
-
-          const lat = match.student_latitude
-          const lng = match.student_longitude
-          const hasCoords = lat != null && lng != null && address
-
-          // ===== COUNTDOWN TIMER =====
-          const [timeLeft, setTimeLeft] = useState<string>('')
-          useEffect(() => {
-            if (!match.schedule_submitted_at) return
-            const deadline = new Date(match.schedule_submitted_at)
-            deadline.setDate(deadline.getDate() + 2) // 2 hari
-
-            const updateTimer = () => {
-              const now = new Date()
-              const diff = deadline.getTime() - now.getTime()
-              if (diff <= 0) {
-                setTimeLeft('⏳ Waktu habis')
-                return
-              }
-              const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-              const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-              const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-              const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-              setTimeLeft(`${days} hari ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
-            }
-            updateTimer()
-            const interval = setInterval(updateTimer, 1000)
-            return () => clearInterval(interval)
-          }, [match.schedule_submitted_at])
-
-          return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {avatar ? (
-                      <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      fullName.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{fullName}</h3>
-                    {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                        {grade}
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
-                    Menunggu
-                  </Badge>
-                </div>
-
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                    <span className="text-muted-foreground">
-                      {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
-                      {subjectDisplay}
-                    </span>
-                  </div>
-
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
-                    {hasCoords && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
-                        onClick={() => {
-                          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
-                          window.open(url, '_blank')
-                        }}
-                        title="Buka Google Maps & lihat rute"
-                      >
-                        <Map className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                    <div className="text-muted-foreground">
-                      <span className="font-medium">Jadwal:</span> {scheduleDisplay}
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
-                    </span>
-                  </div>
-
-                  {startDate && (
-                    <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mulai:</span> {formatDate(startDate)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {match.schedule_submitted_at && (
-                <div className="mt-2 flex items-center gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-orange-400" />
-                  <span className="text-muted-foreground">
-                    <span className="font-medium">Sisa waktu merespon:</span>{' '}
-                    <span className="font-mono text-orange-600">{timeLeft}</span>
-                  </span>
-                </div>
-              )}
-
-                {/* ===== TOMBOL TERIMA & TOLAK ===== */}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                    onClick={() => handleAccept(match.id)}
-                    disabled={processingAction}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Terima
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="flex-1 gap-1.5"
-                    onClick={() => openRejectDialog(match.id)}
-                    disabled={processingAction}
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Tolak
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+        {studentPendingMatches.map((match: any) => (
+          <StudentPendingCard
+            key={match.id}
+            match={match}
+            onAccept={handleAccept}
+            onReject={openRejectDialog}
+            processing={processingAction}
+            formatDate={formatDate}
+            renderScheduleSummary={renderScheduleSummary}
+            getStudentRate={getStudentRate}
+          />
+        ))}
       </div>
     )
   }
@@ -615,8 +690,14 @@ export default function MyStudentsPage() {
       )
     }
     const statusMap: Record<string, { label: string; color: string }> = {
-      matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+      matched: {
+        label: 'Dikonfirmasi',
+        color: 'bg-green-500/20 text-green-700 border-green-500/30',
+      },
+      active: {
+        label: 'Aktif',
+        color: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
+      },
     }
 
     return (
@@ -627,7 +708,8 @@ export default function MyStudentsPage() {
           const rate = getStudentRate(match)
           const address = match.student_address || ''
           const sessionsPerMonth = match.student_sessions_per_month || 0
-          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const sessionDisplay =
+            sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const status = match.status
           const avatar = match.student_avatar
 
@@ -636,9 +718,10 @@ export default function MyStudentsPage() {
             : match.student_schedule || 'Belum ditentukan'
 
           const matchedSubjects = match.matched_subjects || []
-          const subjectDisplay = matchedSubjects.length > 0
-            ? matchedSubjects.join(', ')
-            : 'Tidak ada mata pelajaran yang cocok'
+          const subjectDisplay =
+            matchedSubjects.length > 0
+              ? matchedSubjects.join(', ')
+              : 'Tidak ada mata pelajaran yang cocok'
           const isNoMatch = matchedSubjects.length === 0
 
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
@@ -648,13 +731,20 @@ export default function MyStudentsPage() {
           const hasCoords = lat != null && lng != null && address
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card
+              key={match.id}
+              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                       {avatar ? (
-                        <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                        <img
+                          src={avatar}
+                          alt={fullName}
+                          className="w-full h-full object-cover rounded-full"
+                        />
                       ) : (
                         fullName.charAt(0).toUpperCase()
                       )}
@@ -662,13 +752,18 @@ export default function MyStudentsPage() {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                        >
                           {grade}
                         </Badge>
                       )}
                     </div>
                   </div>
-                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                  <Badge className={`${statusConfig.color} text-xs`}>
+                    {statusConfig.label}
+                  </Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -681,14 +776,18 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                    <span
+                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                    >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
                     <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    <span className="text-muted-foreground">
+                      {address || 'Alamat belum diisi'}
+                    </span>
                     {hasCoords && (
                       <Button
                         variant="ghost"
@@ -719,12 +818,12 @@ export default function MyStudentsPage() {
                     </span>
                   </div>
 
-                  {/* ===== INFORMASI KONTRAK (khusus Pencocokan Aktif) ===== */}
                   {match.accepted_at && (
                     <div className="flex items-start">
                       <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
                       <span className="text-muted-foreground">
-                        <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
+                        <span className="font-medium">Kontrak mulai:</span>{' '}
+                        {formatDate(match.accepted_at)}
                       </span>
                     </div>
                   )}
@@ -732,27 +831,39 @@ export default function MyStudentsPage() {
                     <div className="flex items-start">
                       <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
                       <span className="text-muted-foreground">
-                        <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
+                        <span className="font-medium">Berakhir:</span>{' '}
+                        {formatDate(match.contract_end_date)}
                         {(() => {
-                          const daysLeft = Math.ceil((new Date(match.contract_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          const daysLeft = Math.ceil(
+                            (new Date(match.contract_end_date).getTime() - Date.now()) /
+                              (1000 * 60 * 60 * 24)
+                          )
                           return daysLeft >= 0 ? (
-                            <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                            <span className="text-xs text-gray-400 ml-2">
+                              (sisa {daysLeft} hari)
+                            </span>
                           ) : (
-                            <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
-                          );
+                            <span className="text-xs text-red-500 ml-2">
+                              (lewat {Math.abs(daysLeft)} hari)
+                            </span>
+                          )
                         })()}
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* ===== TOMBOL TAMBAHAN ===== */}
                 <div className="mt-4 flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" disabled>
                     <Calendar className="w-4 h-4 mr-1.5" />
                     Lihat Jadwal
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 text-red-500 border-red-200 hover:bg-red-50" disabled>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-red-500 border-red-200 hover:bg-red-50"
+                    disabled
+                  >
                     <XCircle className="w-4 h-4 mr-1.5" />
                     Hentikan Kontrak
                   </Button>
@@ -784,7 +895,8 @@ export default function MyStudentsPage() {
           const rate = getStudentRate(match)
           const address = match.student_address || ''
           const sessionsPerMonth = match.student_sessions_per_month || 0
-          const sessionDisplay = sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
+          const sessionDisplay =
+            sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const status = match.status
           const avatar = match.student_avatar
@@ -795,9 +907,10 @@ export default function MyStudentsPage() {
             : match.student_schedule || 'Belum ditentukan'
 
           const matchedSubjects = match.matched_subjects || []
-          const subjectDisplay = matchedSubjects.length > 0
-            ? matchedSubjects.join(', ')
-            : 'Tidak ada mata pelajaran yang cocok'
+          const subjectDisplay =
+            matchedSubjects.length > 0
+              ? matchedSubjects.join(', ')
+              : 'Tidak ada mata pelajaran yang cocok'
           const isNoMatch = matchedSubjects.length === 0
 
           const lat = match.student_latitude
@@ -805,13 +918,20 @@ export default function MyStudentsPage() {
           const hasCoords = lat != null && lng != null && address
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card
+              key={match.id}
+              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                       {avatar ? (
-                        <img src={avatar} alt={fullName} className="w-full h-full object-cover rounded-full" />
+                        <img
+                          src={avatar}
+                          alt={fullName}
+                          className="w-full h-full object-cover rounded-full"
+                        />
                       ) : (
                         fullName.charAt(0).toUpperCase()
                       )}
@@ -819,14 +939,19 @@ export default function MyStudentsPage() {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                        >
                           {grade}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">Ditolak</Badge>
+                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">
+                      Ditolak
+                    </Badge>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -852,14 +977,18 @@ export default function MyStudentsPage() {
 
                   <div className="flex items-start">
                     <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
-                    <span className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}>
+                    <span
+                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                    >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
                     <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
-                    <span className="text-muted-foreground">{address || 'Alamat belum diisi'}</span>
+                    <span className="text-muted-foreground">
+                      {address || 'Alamat belum diisi'}
+                    </span>
                     {hasCoords && (
                       <Button
                         variant="ghost"
@@ -902,19 +1031,25 @@ export default function MyStudentsPage() {
 
                 {status === 'declined' && initiatedBy === 'tutor' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran anda ditolak oleh student</p>
+                    <p className="text-xs font-medium text-red-700">
+                      ✗ Penawaran anda ditolak oleh student
+                    </p>
                   </div>
                 )}
 
                 {status === 'declined' && initiatedBy === 'student' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Permintaan jadwal siswa ditolak</p>
+                    <p className="text-xs font-medium text-red-700">
+                      ✗ Permintaan jadwal siswa ditolak
+                    </p>
                   </div>
                 )}
 
                 {status === 'cancelled' && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran dibatalkan</p>
+                    <p className="text-xs font-medium text-red-700">
+                      ✗ Penawaran dibatalkan
+                    </p>
                   </div>
                 )}
               </CardContent>
@@ -925,14 +1060,22 @@ export default function MyStudentsPage() {
     )
   }
 
+  // ===== RENDER UTAMA =====
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Siswa Saya</h1>
-          <p className="text-muted-foreground">Kelola siswa aktif dan permintaan baru.</p>
+          <p className="text-muted-foreground">
+            Kelola siswa aktif dan permintaan baru.
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-1.5"
+        >
           <RefreshCw className="w-4 h-4" />
           Refresh Data
         </Button>
@@ -1025,8 +1168,12 @@ export default function MyStudentsPage() {
         </TabsList>
 
         <TabsContent value="active">{renderActiveCards()}</TabsContent>
-        <TabsContent value="student-pending">{renderStudentPendingCards()}</TabsContent>
-        <TabsContent value="tutor-pending">{renderTutorPendingCards()}</TabsContent>
+        <TabsContent value="student-pending">
+          {renderStudentPendingCards()}
+        </TabsContent>
+        <TabsContent value="tutor-pending">
+          {renderTutorPendingCards()}
+        </TabsContent>
         <TabsContent value="rejected">{renderRejectedCards()}</TabsContent>
       </Tabs>
 
@@ -1061,7 +1208,9 @@ export default function MyStudentsPage() {
       <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{messageType === 'success' ? '✅ Sukses' : '❌ Error'}</DialogTitle>
+            <DialogTitle>
+              {messageType === 'success' ? '✅ Sukses' : '❌ Error'}
+            </DialogTitle>
             <DialogDescription>{messageText}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
