@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
             verified_grade_levels: [],
             target_grade_level: null,
             created_at: now,
+            
             updated_at: now,
           })
 
