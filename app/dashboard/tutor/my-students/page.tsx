@@ -22,6 +22,7 @@ import {
   XCircle,
   Trash2,
   Calendar,
+  Circle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -92,6 +93,7 @@ function StudentPendingCard({
     sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
   const startDate = match.start_date
   const avatar = match.student_avatar
+  const isOnline = match.student_is_online ?? true
 
   const scheduleDisplay = match.schedules_summary
     ? renderScheduleSummary(match.schedules_summary)
@@ -134,9 +136,21 @@ function StudentPendingCard({
               </Badge>
             )}
           </div>
-          <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
-            Menunggu
-          </Badge>
+          <div className="ml-auto flex items-center gap-2">
+            <Badge className="bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
+              Menunggu
+            </Badge>
+            <div className="flex items-center gap-1 text-xs">
+              <Circle
+                className={`h-2.5 w-2.5 fill-current ${
+                  isOnline ? 'text-green-500' : 'text-gray-400'
+                }`}
+              />
+              <span className="text-muted-foreground">
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-1.5 text-sm">
@@ -245,6 +259,7 @@ export default function MyStudentsPage() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'online' | 'offline'>('online')
 
   const [totalStudents, setTotalStudents] = useState(0)
   const [tutorPendingCount, setTutorPendingCount] = useState(0)
@@ -336,6 +351,10 @@ export default function MyStudentsPage() {
 
   const handleRefresh = () => {
     fetchData()
+  }
+
+  const toggleMode = () => {
+    setMode(prev => (prev === 'online' ? 'offline' : 'online'))
   }
 
   const formatDate = (dateStr: string) => {
@@ -457,17 +476,24 @@ export default function MyStudentsPage() {
   }
 
   // ===== FILTER =====
-  const tutorPendingMatches = matches.filter(
-    (m: any) => m.status === 'pending' && m.initiated_by === 'tutor'
+  const filteredByMode = (list: any[]) => {
+    return list.filter((m: any) => {
+      const isOnline = m.student_is_online ?? true
+      return mode === 'online' ? isOnline === true : isOnline === false
+    })
+  }
+
+  const tutorPendingMatches = filteredByMode(
+    matches.filter((m: any) => m.status === 'pending' && m.initiated_by === 'tutor')
   )
-  const studentPendingMatches = matches.filter(
-    (m: any) => m.status === 'pending' && m.initiated_by === 'student'
+  const studentPendingMatches = filteredByMode(
+    matches.filter((m: any) => m.status === 'pending' && m.initiated_by === 'student')
   )
-  const activeMatches = matches.filter(
-    (m: any) => m.status === 'matched' || m.status === 'active'
+  const activeMatches = filteredByMode(
+    matches.filter((m: any) => m.status === 'matched' || m.status === 'active')
   )
-  const rejectedMatches = matches.filter(
-    (m: any) => m.status === 'declined' || m.status === 'cancelled'
+  const rejectedMatches = filteredByMode(
+    matches.filter((m: any) => m.status === 'declined' || m.status === 'cancelled')
   )
 
   // ===== RENDER: Permintaan Diajukan (dari tutor) =====
@@ -494,6 +520,7 @@ export default function MyStudentsPage() {
             sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const startDate = match.start_date
           const avatar = match.student_avatar
+          const isOnline = match.student_is_online ?? true
 
           const matchedSubjects = match.matched_subjects || []
           const subjectDisplay =
@@ -535,9 +562,21 @@ export default function MyStudentsPage() {
                       </Badge>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
-                    Menunggu
-                  </Badge>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                      Menunggu
+                    </Badge>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Circle
+                        className={`h-2.5 w-2.5 fill-current ${
+                          isOnline ? 'text-green-500' : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="text-muted-foreground">
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -712,6 +751,7 @@ export default function MyStudentsPage() {
             sessionsPerMonth > 0 ? `${sessionsPerMonth} sesi/bulan` : 'Tidak ditentukan'
           const status = match.status
           const avatar = match.student_avatar
+          const isOnline = match.student_is_online ?? true
 
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
@@ -761,9 +801,21 @@ export default function MyStudentsPage() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`${statusConfig.color} text-xs`}>
-                    {statusConfig.label}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${statusConfig.color} text-xs`}>
+                      {statusConfig.label}
+                    </Badge>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Circle
+                        className={`h-2.5 w-2.5 fill-current ${
+                          isOnline ? 'text-green-500' : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="text-muted-foreground">
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -901,6 +953,7 @@ export default function MyStudentsPage() {
           const status = match.status
           const avatar = match.student_avatar
           const initiatedBy = match.initiated_by
+          const isOnline = match.student_is_online ?? true
 
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
@@ -952,6 +1005,16 @@ export default function MyStudentsPage() {
                     <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">
                       Ditolak
                     </Badge>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Circle
+                        className={`h-2.5 w-2.5 fill-current ${
+                          isOnline ? 'text-green-500' : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="text-muted-foreground">
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1070,15 +1133,39 @@ export default function MyStudentsPage() {
             Kelola siswa aktif dan permintaan baru.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          className="gap-1.5"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh Data
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-medium ${mode === 'offline' ? 'text-muted-foreground' : 'text-primary'}`}>
+              Online
+            </span>
+            <button
+              onClick={toggleMode}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                mode === 'online' ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+              role="switch"
+              aria-checked={mode === 'online'}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  mode === 'online' ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+            <span className={`text-xs font-medium ${mode === 'online' ? 'text-muted-foreground' : 'text-primary'}`}>
+              Offline
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="gap-1.5"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Data
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
