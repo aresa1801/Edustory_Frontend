@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
     }
 
-    // 2. Ambil semua matches (dengan kolom statis)
+    // 2. Ambil semua matches
     const { data: matches, error: matchError } = await supabase
       .from('matches')
       .select('*')
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: matchError.message }, { status: 500 })
     }
 
-    // ===== 3. Auto-decline permintaan student yang sudah lewat 2 hari =====
+    // 3. Auto-decline expired student requests (> 2 hari)
     const now = new Date()
     const twoDaysAgo = new Date(now)
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -51,33 +51,64 @@ export async function GET(request: NextRequest) {
     )
 
     if (expiredStudentRequests.length > 0) {
-      console.log(
-        `⏰ Menemukan ${expiredStudentRequests.length} permintaan student yang sudah melewati 2 hari, akan di-auto decline`
-      )
       const expiredIds = expiredStudentRequests.map((m: any) => m.id)
-      const { error: updateError } = await supabase
+      await supabase
         .from('matches')
         .update({
           status: 'declined',
           initiated_by: 'tutor', // menandakan ditolak oleh guru (karena tidak merespon)
+          ended_at: now.toISOString(),
         })
         .in('id', expiredIds)
 
-      if (updateError) {
-        console.error('❌ Gagal update expired requests:', updateError)
-        // tetap lanjutkan, kita akan return data yang sudah diambil sebelumnya
-      } else {
-        console.log('✅ Expired requests berhasil di-decline')
-        // Ambil ulang data yang sudah diperbarui
-        const { data: updatedMatches, error: refetchError } = await supabase
-          .from('matches')
-          .select('*')
-          .eq('tutor_id', tutor.id)
-          .order('created_at', { ascending: false })
+      // 4. Auto-complete expired contracts (contract_end_date sudah lewat)
+      // Ini perlu dilakukan setelah update expired student requests, agar data terbaru
+    }
 
-        if (!refetchError && updatedMatches) {
-          return NextResponse.json(updatedMatches || [])
-        }
+    // 5. Auto-complete expired contracts (setelah update atau tanpa update)
+    // Kita lakukan terpisah, bisa di sini atau setelah update
+    // Karena kita sudah punya matches (belum di-update), kita filter lagi dari matches asli?
+    // Lebih baik setelah update expired, ambil ulang data
+    // Tapi kita bisa langsung lakukan update pada data yang sudah diambil
+
+    // Ambil ulang data jika ada perubahan
+    let finalMatches = matches
+    let refetch = false
+
+    if (expiredStudentRequests.length > 0) {
+      refetch = true
+    }
+
+    // Auto-complete kontrak yang sudah habis (75 hari)
+    const expiredContracts = (matches || []).filter(
+      (m: any) =>
+        (m.status === 'matched' || m.status === 'active') &&
+        m.contract_end_date &&
+        new Date(m.contract_end_date) < now
+    )
+
+    if (expiredContracts.length > 0) {
+      const expiredIds = expiredContracts.map((m: any) => m.id)
+      await supabase
+        .from('matches')
+        .update({
+          status: 'completed',
+          ended_at: now.toISOString(),
+        })
+        .in('id', expiredIds)
+      refetch = true
+    }
+
+    // Jika ada perubahan, ambil ulang data fresh
+    if (refetch) {
+      const { data: freshMatches, error: refetchError } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('tutor_id', tutor.id)
+        .order('created_at', { ascending: false })
+
+      if (!refetchError && freshMatches) {
+        return NextResponse.json(freshMatches)
       }
     }
 
