@@ -456,6 +456,31 @@ export default function MyStudentsPage() {
           const lng = match.student_longitude
           const hasCoords = lat != null && lng != null && address
 
+          // ===== COUNTDOWN TIMER =====
+          const [timeLeft, setTimeLeft] = useState<string>('')
+          useEffect(() => {
+            if (!match.schedule_submitted_at) return
+            const deadline = new Date(match.schedule_submitted_at)
+            deadline.setDate(deadline.getDate() + 2) // 2 hari
+
+            const updateTimer = () => {
+              const now = new Date()
+              const diff = deadline.getTime() - now.getTime()
+              if (diff <= 0) {
+                setTimeLeft('⏳ Waktu habis')
+                return
+              }
+              const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+              const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+              const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+              const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+              setTimeLeft(`${days} hari ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
+            }
+            updateTimer()
+            const interval = setInterval(updateTimer, 1000)
+            return () => clearInterval(interval)
+          }, [match.schedule_submitted_at])
+
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
               <CardContent className="p-5">
@@ -537,6 +562,16 @@ export default function MyStudentsPage() {
                     </div>
                   )}
                 </div>
+
+                {match.schedule_submitted_at && (
+                <div className="mt-2 flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-orange-400" />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium">Sisa waktu merespon:</span>{' '}
+                    <span className="font-mono text-orange-600">{timeLeft}</span>
+                  </span>
+                </div>
+              )}
 
                 {/* ===== TOMBOL TERIMA & TOLAK ===== */}
                 <div className="mt-4 flex gap-2">

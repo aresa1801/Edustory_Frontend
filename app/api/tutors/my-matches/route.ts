@@ -37,6 +37,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: matchError.message }, { status: 500 })
     }
 
+    // ===== 3. Auto-decline permintaan student yang sudah lewat 2 hari =====
+    const now = new Date()
+    const twoDaysAgo = new Date(now)
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
+
+    const expiredStudentRequests = (matches || []).filter(
+      (m: any) =>
+        m.status === 'pending' &&
+        m.initiated_by === 'student' &&
+        m.schedule_submitted_at &&
+        new Date(m.schedule_submitted_at) < twoDaysAgo
+    )
+
+    if (expiredStudentRequests.length > 0) {
+      console.log(
+        `⏰ Menemukan ${expiredStudentRequests.length} permintaan student yang sudah melewati 2 hari, akan di-auto decline`
+      )
+      const expiredIds = expiredStudentRequests.map((m: any) => m.id)
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update({
+          status: 'declined',
+          initiated_by: 'tutor', // menandakan ditolak oleh guru (karena tidak merespon)
+        })
+        .in('id', expiredIds)
+
+      if (updateError) {
+        console.error('❌ Gagal update expired requests:', updateError)
+        // tetap lanjutkan, kita akan return data yang sudah diambil sebelumnya
+      } else {
+        console.log('✅ Expired requests berhasil di-decline')
+        // Ambil ulang data yang sudah diperbarui
+        const { data: updatedMatches, error: refetchError } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('tutor_id', tutor.id)
+          .order('created_at', { ascending: false })
+
+        if (!refetchError && updatedMatches) {
+          return NextResponse.json(updatedMatches || [])
+        }
+      }
+    }
+
     return NextResponse.json(matches || [])
   } catch (err) {
     console.error('[API] Error:', err)

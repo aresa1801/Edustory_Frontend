@@ -78,14 +78,16 @@ export async function POST(
     }
 
     // === 3. Update match dengan summaryArray (dari frontend) ===
-    const { error: updateError } = await supabaseAdmin
-      .from('matches')
-      .update({
-        status: 'pending',
-        initiated_by: 'student',
-        schedules_summary: summaryArray,
-      })
-      .eq('id', matchId);
+    const now = new Date().toISOString();
+      const { error: updateError } = await supabaseAdmin
+        .from('matches')
+        .update({
+          status: 'pending',               // tetap pending
+          initiated_by: 'student',
+          schedules_summary: summaryArray,
+          schedule_submitted_at: now,      // <-- TAMBAHKAN INI
+        })
+        .eq('id', matchId);
 
     if (updateError) {
       console.error('❌ Update match error:', updateError);
