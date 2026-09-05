@@ -57,6 +57,7 @@ interface Match {
   schedules_summary?: any
   accepted_at?: string
   contract_end_date?: string
+  schedule_submitted_at?: string
 }
 
 export default function TutorOffersPage() {
@@ -75,6 +76,9 @@ export default function TutorOffersPage() {
   const [tutorPendingCount, setTutorPendingCount] = useState(0)
   const [studentPendingCount, setStudentPendingCount] = useState(0)
   const [rejectedCount, setRejectedCount] = useState(0)
+
+  // === TIMER COUNTDOWN UNTUK PERMINTAAN SAYA ===
+  const [timeLeftMap, setTimeLeftMap] = useState<Record<string, string>>({})
 
   const fetchData = async () => {
     if (!user) return
@@ -123,6 +127,36 @@ export default function TutorOffersPage() {
     fetchData()
     return () => { isMounted.current = false }
   }, [user?.id, authLoading])
+
+  // === UPDATE TIMER SETIAP DETIK ===
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newMap: Record<string, string> = {}
+      const pendingStudentMatches = matches.filter(
+        (m) => m.status === 'pending' && m.initiated_by === 'student'
+      )
+      pendingStudentMatches.forEach((match) => {
+        if (!match.schedule_submitted_at) return
+        const deadline = new Date(match.schedule_submitted_at)
+        deadline.setDate(deadline.getDate() + 2)
+        const now = new Date()
+        const diff = deadline.getTime() - now.getTime()
+        if (diff <= 0) {
+          newMap[match.id] = '⏳ Waktu habis'
+        } else {
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+          newMap[match.id] = `${days} hari ${hours.toString().padStart(2, '0')}:${minutes
+            .toString()
+            .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        }
+      })
+      setTimeLeftMap(newMap)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [matches])
 
   const handleRefresh = () => {
     if (!isMounted.current) return
@@ -244,12 +278,10 @@ export default function TutorOffersPage() {
           const grade = match.tutor_verified_grade_levels?.join(', ') || ''
           const rate = match.tutor_hourly_rate || 0
           const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
-          const startDate = match.start_date
           const status = match.status
           const avatar = match.tutor_avatar_url
           const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
 
-          // Hitung sisa hari
           let daysLeft = null
           if (match.contract_end_date) {
             const end = new Date(match.contract_end_date).getTime()
@@ -317,7 +349,6 @@ export default function TutorOffersPage() {
                       </div>
                     </div>
                   )}
-                  {/* ===== INFORMASI KONTRAK ===== */}
                   {match.accepted_at && (
                     <div className="flex items-start">
                       <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
@@ -341,7 +372,6 @@ export default function TutorOffersPage() {
                   )}
                 </div>
 
-                {/* Tombol (disabled untuk saat ini) */}
                 <div className="mt-4 flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" disabled>
                     <Calendar className="w-4 h-4 mr-1.5" />
@@ -469,7 +499,7 @@ export default function TutorOffersPage() {
     )
   }
 
-  // 3. Permintaan Saya (dari student, sudah kirim jadwal)
+  // 3. Permintaan Saya (dari student, sudah kirim jadwal) + TIMER
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
@@ -493,6 +523,8 @@ export default function TutorOffersPage() {
           const scheduleDisplay = match.schedules_summary
             ? renderScheduleSummary(match.schedules_summary)
             : 'Belum ditentukan'
+
+          const timeLeft = timeLeftMap[match.id] || ''
 
           return (
             <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
@@ -561,9 +593,16 @@ export default function TutorOffersPage() {
                   )}
                 </div>
 
-                <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center">
+                {/* ===== KOTAK MENUNGGU + TIMER ===== */}
+                <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center space-y-1">
                   <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi tutor</p>
-                  <p className="text-xs text-gray-500 mt-1">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
+                  <p className="text-xs text-gray-500">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
+                  {timeLeft && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-orange-600 mt-1">
+                      <Clock className="w-4 h-4" />
+                      <span className="font-mono font-medium">{timeLeft}</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
