@@ -87,7 +87,9 @@ export async function POST(request: NextRequest) {
           .from('tutors')
           .insert({
             user_id: userId,
-            specializations: [],
+            specializations_sd: [],
+            specializations_smp: [],
+            specializations_sma: [],
             experience_years: null,
             hourly_rate: null,
             qualifications: null,
