@@ -111,7 +111,6 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
       { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
     ],
   },
-  // Data dummy untuk kontrak selesai
   {
     id: '4',
     studentName: 'Siti Rahayu',
@@ -210,6 +209,7 @@ export default function SchedulePage() {
   const [mode, setMode] = useState<'online' | 'offline' | 'all'>('all')
   const [selectedStudent, setSelectedStudent] = useState<StudentSchedule | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
+  const [alertMessage, setAlertMessage] = useState<string | null>(null)
 
   // Simulasi load data
   useEffect(() => {
@@ -220,7 +220,6 @@ export default function SchedulePage() {
     }, 500)
   }, [])
 
-  // Filter data
   const activeStudents = students.filter(
     (s) => (s.status === 'matched' || s.status === 'active')
   )
@@ -228,7 +227,6 @@ export default function SchedulePage() {
     (s) => s.status === 'completed'
   )
 
-  // Filter berdasarkan mode online/offline
   const filterByMode = (list: StudentSchedule[]) => {
     if (mode === 'online') return list.filter(s => s.isOnline === true)
     if (mode === 'offline') return list.filter(s => s.isOnline === false)
@@ -265,7 +263,8 @@ export default function SchedulePage() {
   }
 
   const handleExtendContract = (student: StudentSchedule) => {
-    alert(`Ajukan perpanjangan kontrak untuk ${student.studentName}`)
+    setAlertMessage(`Silakan menunggu siswa untuk perpanjangan`)
+    setTimeout(() => setAlertMessage(null), 3000)
   }
 
   if (loading) {
@@ -279,6 +278,13 @@ export default function SchedulePage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* Alert notifikasi */}
+      {alertMessage && (
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <AlertDescription>{alertMessage}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -387,7 +393,8 @@ export default function SchedulePage() {
                           <div>
                             <h3 className="font-semibold text-sm">{student.studentName}</h3>
                             <span className="text-xs text-muted-foreground">
-                              {student.studentGrade}
+                              {student.studentGrade} |{' '}
+                              {student.matchedSubjects.join(', ')}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">
@@ -478,12 +485,10 @@ export default function SchedulePage() {
                         <div>
                           <h3 className="font-semibold text-sm">{student.studentName}</h3>
                           <span className="text-xs text-muted-foreground">
-                            {student.studentGrade}
+                            {student.studentGrade} |{' '}
+                            {student.matchedSubjects.join(', ')}
                           </span>
                         </div>
-                        <Badge className="bg-slate-500/20 text-slate-700 border-slate-500/30 text-xs">
-                          Selesai
-                        </Badge>
                         <div className="flex items-center gap-1 text-xs">
                           <Circle
                             className={`h-2 w-2 fill-current ${
