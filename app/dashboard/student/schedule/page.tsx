@@ -1,325 +1,652 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { createClient } from '@/lib/auth'
-import { Calendar, Clock, User, BookOpen } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Calendar,
+  Clock,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Circle,
+  Users,
+  RefreshCw,
+  BookOpen,
+  CheckCircle,
+  RotateCw,
+  Star,
+} from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
-const STATUS_COLORS: Record<string, string> = {
-  matched: 'bg-green-500/20 text-green-300 border-green-500/30',
-  active: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  completed: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-  cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  matched: 'Dikonfirmasi',
-  active: 'Aktif Belajar',
-  pending: 'Menunggu',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
-}
-
-const FREQUENCY_LABELS: Record<string, string> = {
-  'once-a-week': '1× per minggu',
-  'twice-a-week': '2× per minggu',
-  'three-times-a-week': '3× per minggu',
-  daily: 'Setiap hari',
-  flexible: 'Fleksibel',
-}
-
-interface ScheduleItem {
+// ========== TIPE DATA ==========
+interface TutorSchedule {
   id: string
-  status: string
+  tutorName: string
+  studentGrade: string
+  tutorPhone: string
+  tutorEmail: string
+  tutorAddress: string
   subject: string
+  matchedSubjects: string[]
   frequency: string
   startDate: string
-  tutorName: string
+  status: 'matched' | 'active' | 'pending' | 'completed'
+  isOnline: boolean
+  acceptedAt: string
+  contractEndDate: string
   tutorRating: number
-  gradeLevel: string
+  tutorExperience: number
+  tutorBio: string
+  schedulesSummary?: { subject: string; day: string; time: string; count: number }[]
 }
 
-export default function StudentSchedulePage() {
-  const [loading, setLoading] = useState(true)
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [studentProfile, setStudentProfile] = useState<any>(null)
+// ========== DATA DUMMY ==========
+const DUMMY_TUTORS: TutorSchedule[] = [
+  {
+    id: '1',
+    tutorName: 'Agus Setiabudi',
+    studentGrade: 'SMA Kelas 11',
+    tutorPhone: '081234567890',
+    tutorEmail: 'agus@email.com',
+    tutorAddress: 'Jalan Teknika Selatan, Sekip Utara, Yogyakarta 55281',
+    subject: 'Sejarah',
+    matchedSubjects: ['Sejarah'],
+    frequency: 'flexible',
+    startDate: '2026-09-03',
+    status: 'matched',
+    isOnline: true,
+    acceptedAt: '2026-09-04T07:00:00Z',
+    contractEndDate: '2026-11-18T07:00:00Z',
+    tutorRating: 4.5,
+    tutorExperience: 3,
+    tutorBio: 'Pengajar sejarah berpengalaman 3 tahun.',
+    schedulesSummary: [
+      { subject: 'Sejarah', day: 'Selasa', time: '12.00 - 13.00', count: 5 },
+      { subject: 'Sejarah', day: 'Selasa', time: '13.00 - 14.00', count: 5 },
+    ],
+  },
+  {
+    id: '2',
+    tutorName: 'Budi Santoso',
+    studentGrade: 'SMA Kelas 10',
+    tutorPhone: '087654321098',
+    tutorEmail: 'budi@email.com',
+    tutorAddress: 'Jl. Sanggrahan no. 4 Ambarawa 50611',
+    subject: 'Kimia',
+    matchedSubjects: ['Kimia', 'Akuntansi'],
+    frequency: 'twice-a-week',
+    startDate: '2026-09-02',
+    status: 'active',
+    isOnline: false,
+    acceptedAt: '2026-09-02T08:00:00Z',
+    contractEndDate: '2026-11-16T08:00:00Z',
+    tutorRating: 4.2,
+    tutorExperience: 5,
+    tutorBio: 'Guru kimia dan akuntansi dengan pengalaman 5 tahun.',
+    schedulesSummary: [
+      { subject: 'Kimia', day: 'Rabu', time: '15.00 - 16.00', count: 4 },
+      { subject: 'Akuntansi', day: 'Jumat', time: '15.00 - 16.00', count: 4 },
+    ],
+  },
+  {
+    id: '3',
+    tutorName: 'Citra Dewi',
+    studentGrade: 'SMA Kelas 12',
+    tutorPhone: '085678901234',
+    tutorEmail: 'citra@email.com',
+    tutorAddress: 'Jl. Merdeka No. 10, Jakarta',
+    subject: 'Matematika',
+    matchedSubjects: ['Matematika', 'Fisika'],
+    frequency: 'three-times-a-week',
+    startDate: '2026-09-01',
+    status: 'active',
+    isOnline: true,
+    acceptedAt: '2026-09-01T09:00:00Z',
+    contractEndDate: '2026-11-15T09:00:00Z',
+    tutorRating: 4.8,
+    tutorExperience: 7,
+    tutorBio: 'Spesialis matematika dan fisika untuk SMA.',
+    schedulesSummary: [
+      { subject: 'Matematika', day: 'Senin', time: '10.00 - 11.00', count: 6 },
+      { subject: 'Fisika', day: 'Rabu', time: '10.00 - 11.00', count: 4 },
+      { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
+    ],
+  },
+  {
+    id: '4',
+    tutorName: 'Dedi Pratama',
+    studentGrade: 'SMA Kelas 11',
+    tutorPhone: '081298765432',
+    tutorEmail: 'dedi@email.com',
+    tutorAddress: 'Jl. Kenanga No. 5, Bandung',
+    subject: 'Biologi',
+    matchedSubjects: ['Biologi', 'Kimia'],
+    frequency: 'twice-a-week',
+    startDate: '2026-06-01',
+    status: 'completed',
+    isOnline: false,
+    acceptedAt: '2026-06-01T08:00:00Z',
+    contractEndDate: '2026-08-15T08:00:00Z',
+    tutorRating: 4.0,
+    tutorExperience: 4,
+    tutorBio: 'Guru biologi dan kimia.',
+    schedulesSummary: [
+      { subject: 'Biologi', day: 'Senin', time: '14.00 - 15.00', count: 8 },
+      { subject: 'Kimia', day: 'Rabu', time: '14.00 - 15.00', count: 8 },
+    ],
+  },
+  {
+    id: '5',
+    tutorName: 'Eka Wahyuni',
+    studentGrade: 'SMA Kelas 10',
+    tutorPhone: '087812345678',
+    tutorEmail: 'eka@email.com',
+    tutorAddress: 'Jl. Mawar No. 12, Surabaya',
+    subject: 'Matematika',
+    matchedSubjects: ['Matematika'],
+    frequency: 'once-a-week',
+    startDate: '2026-05-15',
+    status: 'completed',
+    isOnline: false,
+    acceptedAt: '2026-05-15T09:00:00Z',
+    contractEndDate: '2026-07-30T09:00:00Z',
+    tutorRating: 4.9,
+    tutorExperience: 6,
+    tutorBio: 'Guru matematika berpengalaman.',
+    schedulesSummary: [
+      { subject: 'Matematika', day: 'Jumat', time: '16.00 - 17.00', count: 10 },
+    ],
+  },
+]
 
-  const isMounted = useRef(true)
-  const fetchDone = useRef(false)
-  const timeoutId = useRef<NodeJS.Timeout | null>(null)
+// ========== HELPER ==========
+const STATUS_LABELS: Record<string, string> = {
+  matched: 'Aktif',
+  active: 'Aktif',
+  pending: 'Menunggu',
+  completed: 'Selesai',
+}
 
-  const fetchSchedule = async () => {
-    if (fetchDone.current) return
-    fetchDone.current = true
+const STATUS_COLORS: Record<string, string> = {
+  matched: 'bg-green-500/20 text-green-700 border-green-500/30',
+  active: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
+  completed: 'bg-slate-500/20 text-slate-700 border-slate-500/30',
+}
 
-    setLoading(true)
-    setError(null)
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
 
-    try {
-      console.log('[Schedule] 🔄 Fetching schedule...')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+function getDaysLeft(endDateStr: string): number {
+  const end = new Date(endDateStr).getTime()
+  const now = Date.now()
+  return Math.ceil((end - now) / (1000 * 60 * 60 * 24))
+}
 
-      if (!user) {
-        console.log('[Schedule] ⚠️ User not found')
-        setStudentProfile(null)
-        setSchedule([])
-        return
-      }
-
-      // ✅ Pakai maybeSingle() bukan single()
-      const { data: studentData, error: studentErr } = await supabase
-        .from('students')
-        .select('id, grade_level, preferred_schedule, sessions_per_month, budget_per_month')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (studentErr && studentErr.code !== 'PGRST116') {
-        console.error('[Schedule] ❌ Student error:', studentErr)
-        throw studentErr
-      }
-
-      if (!studentData) {
-        console.log('[Schedule] ⚠️ No student profile found')
-        setStudentProfile(null)
-        setSchedule([])
-        return
-      }
-
-      setStudentProfile(studentData)
-
-      // Ambil matches
-      const { data: matches, error: matchErr } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          status,
-          subject,
-          lesson_frequency,
-          start_date,
-          tutors:tutor_id(
-            rating,
-            user_profiles:user_id(name)
-          )
-        `)
-        .eq('student_id', studentData.id)
-        .in('status', ['matched', 'active', 'pending', 'completed'])
-        .order('start_date', { ascending: true })
-
-      if (matchErr && matchErr.code !== 'PGRST116') {
-        console.error('[Schedule] ❌ Match error:', matchErr)
-        throw matchErr
-      }
-
-      const items: ScheduleItem[] = (matches || []).map((m: any) => ({
-        id: m.id,
-        status: m.status,
-        subject: m.subject || '-',
-        frequency: m.lesson_frequency || 'flexible',
-        startDate: m.start_date,
-        tutorName: m.tutors?.user_profiles?.name || 'Tutor',
-        tutorRating: m.tutors?.rating || 0,
-        gradeLevel: studentData.grade_level || '-',
-      }))
-
-      if (isMounted.current) {
-        setSchedule(items)
-        setError(null)
-        console.log('[Schedule] ✅ Schedule loaded:', items.length)
-      }
-    } catch (err: any) {
-      console.error('[Schedule] ❌ Error:', err)
-      if (isMounted.current) {
-        setError(err.message || 'Gagal memuat jadwal, namun halaman tetap dapat digunakan.')
-        setSchedule([])
-      }
-    } finally {
-      if (isMounted.current) {
-        setLoading(false)
-        console.log('[Schedule] 🏁 Loading selesai')
-      }
-    }
+function renderScheduleSummary(summary: any) {
+  if (!summary) return null
+  if (typeof summary === 'string') {
+    return <span className="text-muted-foreground">{summary}</span>
   }
+  if (Array.isArray(summary)) {
+    return (
+      <div className="space-y-0.5">
+        {summary.map((item, idx) => (
+          <div key={idx} className="text-sm text-muted-foreground">
+            <span className="font-medium">{item.subject}:</span>{' '}
+            {item.day}, {item.time} ({item.count} sesi)
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
+}
 
+// ========== KOMPONEN UTAMA ==========
+export default function StudentSchedulePage() {
+  const [loading, setLoading] = useState(false)
+  const [tutors, setTutors] = useState<TutorSchedule[]>([])
+  const [mode, setMode] = useState<'online' | 'offline' | 'all'>('all')
+  const [selectedTutor, setSelectedTutor] = useState<TutorSchedule | null>(null)
+  const [showProfileDialog, setShowProfileDialog] = useState(false)
+
+  // Simulasi load data
   useEffect(() => {
-    isMounted.current = true
-
-    // ⏱️ TIMEOUT 3 DETIK - PASTIKAN LOADING BERHENTI
-    timeoutId.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[Schedule] ⏱️ Timeout 3 detik, force loading=false')
-        setLoading(false)
-        setError('Waktu pengambilan data habis, tampilkan data kosong.')
-      }
-    }, 3000)
-
-    fetchSchedule()
-
-    return () => {
-      isMounted.current = false
-      if (timeoutId.current) clearTimeout(timeoutId.current)
-    }
+    setLoading(true)
+    setTimeout(() => {
+      setTutors(DUMMY_TUTORS)
+      setLoading(false)
+    }, 500)
   }, [])
 
-  // --- RENDER LOADING ---
+  // Filter data
+  const activeTutors = tutors.filter(
+    (t) => (t.status === 'matched' || t.status === 'active')
+  )
+  const completedTutors = tutors.filter(
+    (t) => t.status === 'completed'
+  )
+
+  // Filter berdasarkan mode online/offline
+  const filterByMode = (list: TutorSchedule[]) => {
+    if (mode === 'online') return list.filter(t => t.isOnline === true)
+    if (mode === 'offline') return list.filter(t => t.isOnline === false)
+    return list
+  }
+
+  const filteredActive = filterByMode(activeTutors)
+  const filteredCompleted = filterByMode(completedTutors)
+
+  const totalActive = activeTutors.length
+  const totalCompleted = completedTutors.length
+  const totalOnline = tutors.filter(t => t.isOnline).length
+  const totalOffline = tutors.filter(t => !t.isOnline).length
+
+  const toggleMode = () => {
+    if (mode === 'all') setMode('online')
+    else if (mode === 'online') setMode('offline')
+    else setMode('all')
+  }
+
+  const getModeLabel = () => {
+    if (mode === 'all') return 'Semua'
+    if (mode === 'online') return 'Online'
+    return 'Offline'
+  }
+
+  const handleViewSchedule = (tutor: TutorSchedule) => {
+    alert(`Lihat jadwal untuk ${tutor.tutorName}`)
+  }
+
+  const handleViewProfile = (tutor: TutorSchedule) => {
+    setSelectedTutor(tutor)
+    setShowProfileDialog(true)
+  }
+
+  const handleRequestExtension = (tutor: TutorSchedule) => {
+    alert(`✅ Permintaan perpanjangan untuk ${tutor.tutorName} telah dikirim! Silakan tunggu konfirmasi dari tutor.`)
+  }
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Spinner className="h-10 w-10 text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">Memuat jadwal belajar...</p>
+      <div className="flex items-center justify-center py-16">
+        <Spinner className="h-8 w-8" />
+        <p className="ml-3 text-muted-foreground">Memuat jadwal...</p>
       </div>
     )
   }
 
-  // Hitung statistik
-  const activeSchedule = schedule.filter(s => ['matched', 'active'].includes(s.status))
-  const pendingSchedule = schedule.filter(s => s.status === 'pending')
-  const completedSchedule = schedule.filter(s => s.status === 'completed')
-
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Jadwal Belajar</h1>
-        <p className="text-muted-foreground">
-          Jadwal sesi belajar Anda bersama tutor yang telah dikonfirmasi.
-        </p>
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Jadwal Belajar</h1>
+          <p className="text-muted-foreground">
+            Kelola jadwal belajar dengan tutor yang sudah dikonfirmasi.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Filter:</span>
+            <button
+              onClick={toggleMode}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border bg-background hover:bg-muted transition-colors"
+            >
+              {getModeLabel()}
+            </button>
+          </div>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Error alert (tidak mengganggu UI) */}
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Learning Plan Summary */}
-      {studentProfile && (
-        <Card className="mb-6 bg-primary/5 border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" />
-              Rencana Belajar Anda
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {studentProfile.grade_level && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Tingkat Kelas</p>
-                  <p className="text-sm font-semibold text-foreground">{studentProfile.grade_level}</p>
-                </div>
-              )}
-              {studentProfile.preferred_schedule && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Jadwal Diinginkan</p>
-                  <p className="text-sm font-semibold text-foreground">{studentProfile.preferred_schedule}</p>
-                </div>
-              )}
-              {studentProfile.sessions_per_month && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Pertemuan/Bulan</p>
-                  <p className="text-sm font-semibold text-foreground">{studentProfile.sessions_per_month}× sesi</p>
-                </div>
-              )}
-              {studentProfile.budget_per_month && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Budget/Bulan</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    Rp {Number(studentProfile.budget_per_month).toLocaleString('id-ID')}
-                  </p>
-                </div>
-              )}
+      {/* Statistik */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-4 h-4 text-blue-500" />
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Aktif</p>
-          <p className="text-2xl font-bold text-blue-300">{activeSchedule.length}</p>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Tutor</p>
+              <p className="text-xl font-bold">{tutors.length}</p>
+            </div>
+          </div>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Menunggu</p>
-          <p className="text-2xl font-bold text-yellow-300">{pendingSchedule.length}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <Circle className="w-4 h-4 text-green-500 fill-green-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Online</p>
+              <p className="text-xl font-bold">{totalOnline}</p>
+            </div>
+          </div>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Selesai</p>
-          <p className="text-2xl font-bold text-green-300">{completedSchedule.length}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-400/20 flex items-center justify-center">
+              <Circle className="w-4 h-4 text-gray-400 fill-gray-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Offline</p>
+              <p className="text-xl font-bold">{totalOffline}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-500/20 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-slate-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Kontrak Selesai</p>
+              <p className="text-xl font-bold">{totalCompleted}</p>
+            </div>
+          </div>
         </Card>
       </div>
 
-      {/* Schedule List / Empty State */}
-      {schedule.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Belum Ada Jadwal Belajar</h3>
-            <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-              Jadwal akan muncul setelah Anda menerima penawaran dari tutor atau setelah tutor mengkonfirmasi permintaan Anda.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {schedule.map(item => (
-            <Card key={item.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{item.tutorName}</h3>
-                      <div className="space-y-1 mt-1">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <BookOpen className="w-4 h-4" />
-                          <span>{item.subject} · {item.gradeLevel}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          <span>{FREQUENCY_LABELS[item.frequency] || item.frequency}</span>
-                        </div>
-                        {item.startDate && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="w-4 h-4" />
-                            <span>
-                              Mulai: {new Date(item.startDate).toLocaleDateString('id-ID', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                              })}
+      {/* ===== BAGIAN 1: AKTIF ===== */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Circle className="w-4 h-4 text-green-500 fill-green-500" />
+          Aktif ({filteredActive.length})
+        </h2>
+        {filteredActive.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {mode === 'all'
+                ? 'Belum ada tutor aktif.'
+                : `Tidak ada tutor aktif dengan status ${getModeLabel().toLowerCase()}.`}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredActive.map((tutor) => {
+              const daysLeft = getDaysLeft(tutor.contractEndDate)
+              const isExpired = daysLeft < 0
+
+              return (
+                <Card
+                  key={tutor.id}
+                  className="border shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {tutor.tutorName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-sm">{tutor.tutorName}</h3>
+                            <span className="text-xs text-muted-foreground">
+                              {tutor.studentGrade} | {tutor.matchedSubjects.join(', ')}
                             </span>
                           </div>
-                        )}
-                        {item.tutorRating > 0 && (
-                          <div className="flex items-center gap-1 text-sm text-yellow-300">
-                            <span>★</span>
-                            <span className="font-medium">{item.tutorRating.toFixed(1)}</span>
+                          <div className="flex items-center gap-1 text-xs">
+                            <Circle
+                              className={`h-2 w-2 fill-current ${
+                                tutor.isOnline ? 'text-green-500' : 'text-gray-400'
+                              }`}
+                            />
+                            <span className="text-muted-foreground">
+                              {tutor.isOnline ? 'Online' : 'Offline'}
+                            </span>
                           </div>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            <span className="font-medium">Kontrak berakhir:</span>{' '}
+                            {formatDate(tutor.contractEndDate)}
+                            {!isExpired ? (
+                              <span className="text-gray-400 ml-1">
+                                (sisa {daysLeft} hari)
+                              </span>
+                            ) : (
+                              <span className="text-red-500 ml-1">
+                                (lewat {Math.abs(daysLeft)} hari)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleViewSchedule(tutor)}
+                        >
+                          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                          Lihat Jadwal
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleViewProfile(tutor)}
+                        >
+                          <User className="w-3.5 h-3.5 mr-1.5" />
+                          Profil
+                        </Button>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ===== BAGIAN 2: KONTRAK SELESAI ===== */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-slate-500" />
+          Kontrak Selesai ({filteredCompleted.length})
+        </h2>
+        {filteredCompleted.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {mode === 'all'
+                ? 'Belum ada kontrak yang selesai.'
+                : `Tidak ada kontrak selesai dengan status ${getModeLabel().toLowerCase()}.`}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredCompleted.map((tutor) => (
+              <Card
+                key={tutor.id}
+                className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
+              >
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {tutor.tutorName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-sm">{tutor.tutorName}</h3>
+                          <span className="text-xs text-muted-foreground">
+                            {tutor.studentGrade} | {tutor.matchedSubjects.join(', ')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs">
+                          <Circle
+                            className={`h-2 w-2 fill-current ${
+                              tutor.isOnline ? 'text-green-500' : 'text-gray-400'
+                            }`}
+                          />
+                          <span className="text-muted-foreground">
+                            {tutor.isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Clock className="w-3 h-3" />
+                        <span>
+                          <span className="font-medium">Berakhir pada:</span>{' '}
+                          {formatDate(tutor.contractEndDate)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleViewProfile(tutor)}
+                      >
+                        <User className="w-3.5 h-3.5 mr-1.5" />
+                        Profil
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => handleRequestExtension(tutor)}
+                      >
+                        <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                        Ajukan Perpanjangan
+                      </Button>
+                    </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`${STATUS_COLORS[item.status] || ''} border text-xs flex-shrink-0`}
-                  >
-                    {STATUS_LABELS[item.status] || item.status}
-                  </Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Dialog Profil Tutor */}
+      <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Profil Tutor</DialogTitle>
+            <DialogDescription>
+              Informasi lengkap tutor yang telah dikonfirmasi.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTutor && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                  {selectedTutor.tutorName.charAt(0).toUpperCase()}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedTutor.tutorName}</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedTutor.studentGrade}
+                  </Badge>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Circle
+                      className={`h-2.5 w-2.5 fill-current ${
+                        selectedTutor.isOnline ? 'text-green-500' : 'text-gray-400'
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {selectedTutor.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedTutor.tutorPhone || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedTutor.tutorEmail || '-'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  <span>{selectedTutor.tutorAddress || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mapel:</span>{' '}
+                    {selectedTutor.matchedSubjects.join(', ')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-yellow-500" />
+                  <span>
+                    <span className="font-medium">Rating:</span> {selectedTutor.tutorRating} / 5
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Pengalaman:</span> {selectedTutor.tutorExperience} tahun
+                  </span>
+                </div>
+                {selectedTutor.tutorBio && (
+                  <div className="flex items-start gap-2">
+                    <BookOpen className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <span>{selectedTutor.tutorBio}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mulai kontrak:</span>{' '}
+                    {formatDate(selectedTutor.acceptedAt)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Kontrak berakhir:</span>{' '}
+                    {formatDate(selectedTutor.contractEndDate)}
+                  </span>
+                </div>
+
+                {selectedTutor.schedulesSummary && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
+                    {renderScheduleSummary(selectedTutor.schedulesSummary)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setShowProfileDialog(false)}>
+              Tutup
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
