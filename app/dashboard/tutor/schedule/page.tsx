@@ -10,14 +10,13 @@ import {
   Calendar,
   Clock,
   User,
-  BookOpen,
   Phone,
   Mail,
   MapPin,
   Circle,
   Users,
   RefreshCw,
-  ChevronRight,
+  BookOpen,
 } from 'lucide-react'
 import {
   Dialog,
@@ -112,14 +111,6 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
 ]
 
 // ========== HELPER ==========
-const FREQUENCY_LABELS: Record<string, string> = {
-  'once-a-week': '1× per minggu',
-  'twice-a-week': '2× per minggu',
-  'three-times-a-week': '3× per minggu',
-  daily: 'Setiap hari',
-  flexible: 'Fleksibel',
-}
-
 const STATUS_LABELS: Record<string, string> = {
   matched: 'Dikonfirmasi',
   active: 'Aktif',
@@ -177,7 +168,7 @@ export default function SchedulePage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentSchedule | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
 
-  // Simulasi load data (nanti diganti fetch)
+  // Simulasi load data
   useEffect(() => {
     setLoading(true)
     setTimeout(() => {
@@ -226,7 +217,7 @@ export default function SchedulePage() {
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Jadwal Mengajar</h1>
           <p className="text-muted-foreground">
@@ -234,7 +225,6 @@ export default function SchedulePage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {/* Filter Online/Offline */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Filter:</span>
             <button
@@ -288,7 +278,7 @@ export default function SchedulePage() {
         </Card>
       </div>
 
-      {/* Daftar siswa */}
+      {/* Daftar siswa dalam format baris */}
       {filteredStudents.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
@@ -302,7 +292,7 @@ export default function SchedulePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="space-y-3">
           {filteredStudents.map((student) => {
             const daysLeft = getDaysLeft(student.contractEndDate)
             const isExpired = daysLeft < 0
@@ -310,109 +300,77 @@ export default function SchedulePage() {
             return (
               <Card
                 key={student.id}
-                className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+                className="border shadow-sm hover:shadow-md transition-shadow"
               >
-                <CardContent className="p-5">
-                  {/* Header kartu */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        {student.studentName.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{student.studentName}</h3>
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
-                          {student.studentGrade}
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    {/* Kiri: Nama, status, kontrak */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {student.studentName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-sm">{student.studentName}</h3>
+                          <span className="text-xs text-muted-foreground">
+                            {student.studentGrade}
+                          </span>
+                        </div>
+                        <Badge className={`${STATUS_COLORS[student.status] || ''} text-xs border`}>
+                          {STATUS_LABELS[student.status] || student.status}
                         </Badge>
+                        <div className="flex items-center gap-1 text-xs">
+                          <Circle
+                            className={`h-2 w-2 fill-current ${
+                              student.isOnline ? 'text-green-500' : 'text-gray-400'
+                            }`}
+                          />
+                          <span className="text-muted-foreground">
+                            {student.isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Kontrak berakhir + countdown */}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Clock className="w-3 h-3" />
+                        <span>
+                          <span className="font-medium">Kontrak berakhir:</span>{' '}
+                          {formatDate(student.contractEndDate)}
+                          {!isExpired ? (
+                            <span className="text-gray-400 ml-1">
+                              (sisa {daysLeft} hari)
+                            </span>
+                          ) : (
+                            <span className="text-red-500 ml-1">
+                              (lewat {Math.abs(daysLeft)} hari)
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${STATUS_COLORS[student.status] || ''} text-xs border`}>
-                        {STATUS_LABELS[student.status] || student.status}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Circle
-                          className={`h-2.5 w-2.5 fill-current ${
-                            student.isOnline ? 'text-green-500' : 'text-gray-400'
-                          }`}
-                        />
-                        <span className="text-muted-foreground">
-                          {student.isOnline ? 'Online' : 'Offline'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Informasi */}
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-purple-400" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mapel:</span>{' '}
-                        {student.matchedSubjects.join(', ')}
-                      </span>
+                    {/* Kanan: Tombol aksi */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleViewSchedule(student)}
+                      >
+                        <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                        Lihat Jadwal
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleViewProfile(student)}
+                      >
+                        <User className="w-3.5 h-3.5 mr-1.5" />
+                        Profil Siswa
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-orange-400" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Frekuensi:</span>{' '}
-                        {FREQUENCY_LABELS[student.frequency] || student.frequency}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-400" />
-                      <span className="text-muted-foreground">
-                        <span className="font-medium">Mulai:</span> {formatDate(student.startDate)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Jadwal ringkas */}
-                  {student.schedulesSummary && (
-                    <div className="mt-2 p-2 bg-muted/50 rounded-md">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
-                      {renderScheduleSummary(student.schedulesSummary)}
-                    </div>
-                  )}
-
-                  {/* Countdown kontrak */}
-                  <div className="mt-3 flex items-center gap-2 text-sm">
-                    <Clock className="w-4 h-4 text-orange-400" />
-                    <span className="text-muted-foreground">
-                      <span className="font-medium">Kontrak berakhir:</span>{' '}
-                      {formatDate(student.contractEndDate)}
-                      {!isExpired ? (
-                        <span className="text-xs text-gray-400 ml-2">
-                          (sisa {daysLeft} hari)
-                        </span>
-                      ) : (
-                        <span className="text-xs text-red-500 ml-2">
-                          (lewat {Math.abs(daysLeft)} hari)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Tombol aksi */}
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleViewSchedule(student)}
-                    >
-                      <Calendar className="w-4 h-4 mr-1.5" />
-                      Lihat Jadwal
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleViewProfile(student)}
-                    >
-                      <User className="w-4 h-4 mr-1.5" />
-                      Profil Siswa
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -488,6 +446,14 @@ export default function SchedulePage() {
                     {formatDate(selectedStudent.contractEndDate)}
                   </span>
                 </div>
+
+                {/* Tampilkan ringkasan jadwal di profil jika ada */}
+                {selectedStudent.schedulesSummary && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
+                    {renderScheduleSummary(selectedStudent.schedulesSummary)}
+                  </div>
+                )}
               </div>
             </div>
           )}
