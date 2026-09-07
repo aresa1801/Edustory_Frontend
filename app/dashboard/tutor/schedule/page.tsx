@@ -17,6 +17,9 @@ import {
   Users,
   RefreshCw,
   BookOpen,
+  CheckCircle,
+  XCircle,
+  RotateCw,
 } from 'lucide-react'
 import {
   Dialog,
@@ -108,11 +111,51 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
       { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
     ],
   },
+  // Data dummy untuk kontrak selesai
+  {
+    id: '4',
+    studentName: 'Siti Rahayu',
+    studentGrade: 'SMA Kelas 11',
+    studentPhone: '081298765432',
+    studentEmail: 'siti@email.com',
+    studentAddress: 'Jl. Kenanga No. 5, Bandung',
+    subject: 'Biologi',
+    matchedSubjects: ['Biologi', 'Kimia'],
+    frequency: 'twice-a-week',
+    startDate: '2026-06-01',
+    status: 'completed',
+    isOnline: false,
+    acceptedAt: '2026-06-01T08:00:00Z',
+    contractEndDate: '2026-08-15T08:00:00Z',
+    schedulesSummary: [
+      { subject: 'Biologi', day: 'Senin', time: '14.00 - 15.00', count: 8 },
+      { subject: 'Kimia', day: 'Rabu', time: '14.00 - 15.00', count: 8 },
+    ],
+  },
+  {
+    id: '5',
+    studentName: 'Dewi Lestari',
+    studentGrade: 'SMA Kelas 10',
+    studentPhone: '087812345678',
+    studentEmail: 'dewi@email.com',
+    studentAddress: 'Jl. Mawar No. 12, Surabaya',
+    subject: 'Matematika',
+    matchedSubjects: ['Matematika'],
+    frequency: 'once-a-week',
+    startDate: '2026-05-15',
+    status: 'completed',
+    isOnline: false,
+    acceptedAt: '2026-05-15T09:00:00Z',
+    contractEndDate: '2026-07-30T09:00:00Z',
+    schedulesSummary: [
+      { subject: 'Matematika', day: 'Jumat', time: '16.00 - 17.00', count: 10 },
+    ],
+  },
 ]
 
 // ========== HELPER ==========
 const STATUS_LABELS: Record<string, string> = {
-  matched: 'Dikonfirmasi',
+  matched: 'Aktif',
   active: 'Aktif',
   pending: 'Menunggu',
   completed: 'Selesai',
@@ -177,11 +220,28 @@ export default function SchedulePage() {
     }, 500)
   }, [])
 
-  const filteredStudents = students.filter((s) => {
-    if (mode === 'online') return s.isOnline === true
-    if (mode === 'offline') return s.isOnline === false
-    return true
-  })
+  // Filter data
+  const activeStudents = students.filter(
+    (s) => (s.status === 'matched' || s.status === 'active')
+  )
+  const completedStudents = students.filter(
+    (s) => s.status === 'completed'
+  )
+
+  // Filter berdasarkan mode online/offline
+  const filterByMode = (list: StudentSchedule[]) => {
+    if (mode === 'online') return list.filter(s => s.isOnline === true)
+    if (mode === 'offline') return list.filter(s => s.isOnline === false)
+    return list
+  }
+
+  const filteredActive = filterByMode(activeStudents)
+  const filteredCompleted = filterByMode(completedStudents)
+
+  const totalActive = activeStudents.length
+  const totalCompleted = completedStudents.length
+  const totalOnline = students.filter(s => s.isOnline).length
+  const totalOffline = students.filter(s => !s.isOnline).length
 
   const toggleMode = () => {
     if (mode === 'all') setMode('online')
@@ -196,13 +256,16 @@ export default function SchedulePage() {
   }
 
   const handleViewSchedule = (student: StudentSchedule) => {
-    // Nanti redirect ke detail jadwal
     alert(`Lihat jadwal untuk ${student.studentName}`)
   }
 
   const handleViewProfile = (student: StudentSchedule) => {
     setSelectedStudent(student)
     setShowProfileDialog(true)
+  }
+
+  const handleExtendContract = (student: StudentSchedule) => {
+    alert(`Ajukan perpanjangan kontrak untuk ${student.studentName}`)
   }
 
   if (loading) {
@@ -242,7 +305,7 @@ export default function SchedulePage() {
       </div>
 
       {/* Statistik ringkas */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -261,7 +324,7 @@ export default function SchedulePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Online</p>
-              <p className="text-xl font-bold">{students.filter(s => s.isOnline).length}</p>
+              <p className="text-xl font-bold">{totalOnline}</p>
             </div>
           </div>
         </Card>
@@ -272,42 +335,144 @@ export default function SchedulePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Offline</p>
-              <p className="text-xl font-bold">{students.filter(s => !s.isOnline).length}</p>
+              <p className="text-xl font-bold">{totalOffline}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-500/20 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-slate-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Kontrak Selesai</p>
+              <p className="text-xl font-bold">{totalCompleted}</p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Daftar siswa dalam format baris */}
-      {filteredStudents.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Tidak Ada Siswa</h3>
-            <p className="text-muted-foreground">
+      {/* ===== BAGIAN 1: AKTIF ===== */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Circle className="w-4 h-4 text-green-500 fill-green-500" />
+          Aktif ({filteredActive.length})
+        </h2>
+        {filteredActive.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
               {mode === 'all'
-                ? 'Belum ada siswa yang dikonfirmasi.'
-                : `Tidak ada siswa dengan status ${getModeLabel().toLowerCase()}.`}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {filteredStudents.map((student) => {
-            const daysLeft = getDaysLeft(student.contractEndDate)
-            const isExpired = daysLeft < 0
+                ? 'Belum ada siswa aktif.'
+                : `Tidak ada siswa aktif dengan status ${getModeLabel().toLowerCase()}.`}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredActive.map((student) => {
+              const daysLeft = getDaysLeft(student.contractEndDate)
+              const isExpired = daysLeft < 0
 
-            return (
+              return (
+                <Card
+                  key={student.id}
+                  className="border shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {student.studentName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-sm">{student.studentName}</h3>
+                            <span className="text-xs text-muted-foreground">
+                              {student.studentGrade}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs">
+                            <Circle
+                              className={`h-2 w-2 fill-current ${
+                                student.isOnline ? 'text-green-500' : 'text-gray-400'
+                              }`}
+                            />
+                            <span className="text-muted-foreground">
+                              {student.isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            <span className="font-medium">Kontrak berakhir:</span>{' '}
+                            {formatDate(student.contractEndDate)}
+                            {!isExpired ? (
+                              <span className="text-gray-400 ml-1">
+                                (sisa {daysLeft} hari)
+                              </span>
+                            ) : (
+                              <span className="text-red-500 ml-1">
+                                (lewat {Math.abs(daysLeft)} hari)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleViewSchedule(student)}
+                        >
+                          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                          Lihat Jadwal
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleViewProfile(student)}
+                        >
+                          <User className="w-3.5 h-3.5 mr-1.5" />
+                          Profil
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ===== BAGIAN 2: KONTRAK SELESAI ===== */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-slate-500" />
+          Kontrak Selesai ({filteredCompleted.length})
+        </h2>
+        {filteredCompleted.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {mode === 'all'
+                ? 'Belum ada kontrak yang selesai.'
+                : `Tidak ada kontrak selesai dengan status ${getModeLabel().toLowerCase()}.`}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredCompleted.map((student) => (
               <Card
                 key={student.id}
-                className="border shadow-sm hover:shadow-md transition-shadow"
+                className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
               >
                 <CardContent className="p-4">
                   <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    {/* Kiri: Nama, status, kontrak */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                           {student.studentName.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -316,8 +481,8 @@ export default function SchedulePage() {
                             {student.studentGrade}
                           </span>
                         </div>
-                        <Badge className={`${STATUS_COLORS[student.status] || ''} text-xs border`}>
-                          {STATUS_LABELS[student.status] || student.status}
+                        <Badge className="bg-slate-500/20 text-slate-700 border-slate-500/30 text-xs">
+                          Selesai
                         </Badge>
                         <div className="flex items-center gap-1 text-xs">
                           <Circle
@@ -330,37 +495,15 @@ export default function SchedulePage() {
                           </span>
                         </div>
                       </div>
-
-                      {/* Kontrak berakhir + countdown */}
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                         <Clock className="w-3 h-3" />
                         <span>
-                          <span className="font-medium">Kontrak berakhir:</span>{' '}
+                          <span className="font-medium">Berakhir pada:</span>{' '}
                           {formatDate(student.contractEndDate)}
-                          {!isExpired ? (
-                            <span className="text-gray-400 ml-1">
-                              (sisa {daysLeft} hari)
-                            </span>
-                          ) : (
-                            <span className="text-red-500 ml-1">
-                              (lewat {Math.abs(daysLeft)} hari)
-                            </span>
-                          )}
                         </span>
                       </div>
                     </div>
-
-                    {/* Kanan: Tombol aksi */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => handleViewSchedule(student)}
-                      >
-                        <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                        Lihat Jadwal
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -368,16 +511,25 @@ export default function SchedulePage() {
                         onClick={() => handleViewProfile(student)}
                       >
                         <User className="w-3.5 h-3.5 mr-1.5" />
-                        Profil Siswa
+                        Profil
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => handleExtendContract(student)}
+                      >
+                        <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                        Perpanjang
                       </Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Dialog Profil Siswa */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
@@ -447,7 +599,6 @@ export default function SchedulePage() {
                   </span>
                 </div>
 
-                {/* Tampilkan ringkasan jadwal di profil jika ada */}
                 {selectedStudent.schedulesSummary && (
                   <div className="mt-2 p-2 bg-muted/50 rounded-md">
                     <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
