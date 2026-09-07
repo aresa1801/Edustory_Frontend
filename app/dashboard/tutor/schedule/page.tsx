@@ -6,34 +6,112 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
-import { createClient } from '@/lib/auth'
-import { Calendar, Clock, User, BookOpen } from 'lucide-react'
+import {
+  Calendar,
+  Clock,
+  User,
+  BookOpen,
+  Phone,
+  Mail,
+  MapPin,
+  Circle,
+  Users,
+  RefreshCw,
+  ChevronRight,
+} from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
-interface ScheduleItem {
+// ========== TIPE DATA ==========
+interface StudentSchedule {
   id: string
   studentName: string
+  studentGrade: string
+  studentPhone: string
+  studentEmail: string
+  studentAddress: string
   subject: string
-  gradeLevel: string
+  matchedSubjects: string[]
   frequency: string
   startDate: string
-  status: string
-  phone?: string
+  status: 'matched' | 'active' | 'pending' | 'completed'
+  isOnline: boolean
+  acceptedAt: string
+  contractEndDate: string
+  schedulesSummary?: { subject: string; day: string; time: string; count: number }[]
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  matched: 'bg-green-500/20 text-green-300 border-green-500/30',
-  active: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  completed: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-}
+// ========== DATA DUMMY ==========
+const DUMMY_STUDENTS: StudentSchedule[] = [
+  {
+    id: '1',
+    studentName: 'Agus Kurniasariawan',
+    studentGrade: 'SMA Kelas 11',
+    studentPhone: '081234567890',
+    studentEmail: 'agus@email.com',
+    studentAddress: 'Jalan Teknika Selatan, Sekip Utara, Yogyakarta 55281',
+    subject: 'Sejarah',
+    matchedSubjects: ['Sejarah'],
+    frequency: 'flexible',
+    startDate: '2026-09-03',
+    status: 'matched',
+    isOnline: true,
+    acceptedAt: '2026-09-04T07:00:00Z',
+    contractEndDate: '2026-11-18T07:00:00Z',
+    schedulesSummary: [
+      { subject: 'Sejarah', day: 'Selasa', time: '12.00 - 13.00', count: 5 },
+      { subject: 'Sejarah', day: 'Selasa', time: '13.00 - 14.00', count: 5 },
+    ],
+  },
+  {
+    id: '2',
+    studentName: 'Josepha Marsha',
+    studentGrade: 'SMA Kelas 10',
+    studentPhone: '087654321098',
+    studentEmail: 'josepha@email.com',
+    studentAddress: 'Jl. Sanggrahan no. 4 Ambarawa 50611',
+    subject: 'Kimia',
+    matchedSubjects: ['Kimia', 'Akuntansi'],
+    frequency: 'twice-a-week',
+    startDate: '2026-09-02',
+    status: 'active',
+    isOnline: false,
+    acceptedAt: '2026-09-02T08:00:00Z',
+    contractEndDate: '2026-11-16T08:00:00Z',
+    schedulesSummary: [
+      { subject: 'Kimia', day: 'Rabu', time: '15.00 - 16.00', count: 4 },
+      { subject: 'Akuntansi', day: 'Jumat', time: '15.00 - 16.00', count: 4 },
+    ],
+  },
+  {
+    id: '3',
+    studentName: 'Budi Santoso',
+    studentGrade: 'SMA Kelas 12',
+    studentPhone: '085678901234',
+    studentEmail: 'budi@email.com',
+    studentAddress: 'Jl. Merdeka No. 10, Jakarta',
+    subject: 'Matematika',
+    matchedSubjects: ['Matematika', 'Fisika'],
+    frequency: 'three-times-a-week',
+    startDate: '2026-09-01',
+    status: 'active',
+    isOnline: true,
+    acceptedAt: '2026-09-01T09:00:00Z',
+    contractEndDate: '2026-11-15T09:00:00Z',
+    schedulesSummary: [
+      { subject: 'Matematika', day: 'Senin', time: '10.00 - 11.00', count: 6 },
+      { subject: 'Fisika', day: 'Rabu', time: '10.00 - 11.00', count: 4 },
+      { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
+    ],
+  },
+]
 
-const STATUS_LABELS: Record<string, string> = {
-  matched: 'Dikonfirmasi',
-  active: 'Aktif Mengajar',
-  pending: 'Menunggu',
-  completed: 'Selesai',
-}
-
+// ========== HELPER ==========
 const FREQUENCY_LABELS: Record<string, string> = {
   'once-a-week': '1× per minggu',
   'twice-a-week': '2× per minggu',
@@ -42,210 +120,384 @@ const FREQUENCY_LABELS: Record<string, string> = {
   flexible: 'Fleksibel',
 }
 
-export default function SchedulePage() {
-  const [loading, setLoading] = useState(true)
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([])
-  const [error, setError] = useState<string | null>(null)
+const STATUS_LABELS: Record<string, string> = {
+  matched: 'Dikonfirmasi',
+  active: 'Aktif',
+  pending: 'Menunggu',
+  completed: 'Selesai',
+}
 
-  useEffect(() => {
-    let isMounted = true
+const STATUS_COLORS: Record<string, string> = {
+  matched: 'bg-green-500/20 text-green-700 border-green-500/30',
+  active: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
+  completed: 'bg-slate-500/20 text-slate-700 border-slate-500/30',
+}
 
-    const fetchSchedule = async () => {
-      try {
-        console.log('[Schedule] Fetching data...')
-        const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) {
-          console.error('[Schedule] Auth error:', userError)
-          throw userError
-        }
-        if (!user) {
-          throw new Error('Anda harus login terlebih dahulu')
-        }
-        console.log('[Schedule] User:', user.id)
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
 
-        // 1. Cari tutor ID
-        const { data: tutorData, error: tutorErr } = await supabase
-          .from('tutors')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle()
+function getDaysLeft(endDateStr: string): number {
+  const end = new Date(endDateStr).getTime()
+  const now = Date.now()
+  return Math.ceil((end - now) / (1000 * 60 * 60 * 24))
+}
 
-        if (tutorErr) {
-          console.error('[Schedule] Tutor fetch error:', tutorErr)
-          throw tutorErr
-        }
-
-        if (!tutorData) {
-          console.log('[Schedule] No tutor record found')
-          if (isMounted) {
-            setError('Anda belum terdaftar sebagai tutor. Silakan daftar terlebih dahulu.')
-          }
-          return
-        }
-        console.log('[Schedule] Tutor found:', tutorData)
-
-        // 2. Ambil matches
-        const { data: matches, error: matchError } = await supabase
-          .from('matches')
-          .select(`
-            id,
-            subject,
-            lesson_frequency,
-            start_date,
-            status,
-            students!inner (
-              grade_level,
-              user_profiles!user_id (
-                name,
-                phone
-              )
-            )
-          `)
-          .eq('tutor_id', tutorData.id)
-          .in('status', ['matched', 'active', 'pending'])
-          .order('start_date', { ascending: true })
-
-        if (matchError) {
-          console.error('[Schedule] Matches fetch error:', matchError)
-          throw matchError
-        }
-
-        console.log('[Schedule] Matches count:', matches?.length || 0)
-
-        const items: ScheduleItem[] = (matches || []).map((m: any) => ({
-          id: m.id,
-          studentName: m.students?.user_profiles?.name || 'Siswa',
-          subject: m.subject || '-',
-          gradeLevel: m.students?.grade_level || '-',
-          frequency: m.lesson_frequency || 'flexible',
-          startDate: m.start_date,
-          status: m.status,
-          phone: m.students?.user_profiles?.phone,
-        }))
-
-        if (isMounted) {
-          setSchedule(items)
-          setError(null)
-        }
-      } catch (err) {
-        console.error('[Schedule] Error:', err)
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat jadwal')
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    fetchSchedule()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  if (loading) {
+function renderScheduleSummary(summary: any) {
+  if (!summary) return null
+  if (typeof summary === 'string') {
+    return <span className="text-muted-foreground">{summary}</span>
+  }
+  if (Array.isArray(summary)) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
-        <p className="ml-2 text-muted-foreground">Memuat...</p>
+      <div className="space-y-0.5">
+        {summary.map((item, idx) => (
+          <div key={idx} className="text-sm text-muted-foreground">
+            <span className="font-medium">{item.subject}:</span>{' '}
+            {item.day}, {item.time} ({item.count} sesi)
+          </div>
+        ))}
       </div>
     )
   }
+  return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
+}
 
-  if (error) {
+// ========== KOMPONEN UTAMA ==========
+export default function SchedulePage() {
+  const [loading, setLoading] = useState(false)
+  const [students, setStudents] = useState<StudentSchedule[]>([])
+  const [mode, setMode] = useState<'online' | 'offline' | 'all'>('all')
+  const [selectedStudent, setSelectedStudent] = useState<StudentSchedule | null>(null)
+  const [showProfileDialog, setShowProfileDialog] = useState(false)
+
+  // Simulasi load data (nanti diganti fetch)
+  useEffect(() => {
+    setLoading(true)
+    setTimeout(() => {
+      setStudents(DUMMY_STUDENTS)
+      setLoading(false)
+    }, 500)
+  }, [])
+
+  const filteredStudents = students.filter((s) => {
+    if (mode === 'online') return s.isOnline === true
+    if (mode === 'offline') return s.isOnline === false
+    return true
+  })
+
+  const toggleMode = () => {
+    if (mode === 'all') setMode('online')
+    else if (mode === 'online') setMode('offline')
+    else setMode('all')
+  }
+
+  const getModeLabel = () => {
+    if (mode === 'all') return 'Semua'
+    if (mode === 'online') return 'Online'
+    return 'Offline'
+  }
+
+  const handleViewSchedule = (student: StudentSchedule) => {
+    // Nanti redirect ke detail jadwal
+    alert(`Lihat jadwal untuk ${student.studentName}`)
+  }
+
+  const handleViewProfile = (student: StudentSchedule) => {
+    setSelectedStudent(student)
+    setShowProfileDialog(true)
+  }
+
+  if (loading) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="flex items-center justify-center py-16">
+        <Spinner className="h-8 w-8" />
+        <p className="ml-3 text-muted-foreground">Memuat jadwal...</p>
+      </div>
     )
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Jadwal Mengajar</h1>
-        <p className="text-muted-foreground">
-          Lihat daftar sesi mengajar Anda berdasarkan pencocokan yang aktif.
-        </p>
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Jadwal Mengajar</h1>
+          <p className="text-muted-foreground">
+            Kelola jadwal mengajar dengan siswa yang sudah dikonfirmasi.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Filter Online/Offline */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Filter:</span>
+            <button
+              onClick={toggleMode}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border bg-background hover:bg-muted transition-colors"
+            >
+              {getModeLabel()}
+            </button>
+          </div>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {schedule.length === 0 ? (
+      {/* Statistik ringkas */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-4 h-4 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Siswa</p>
+              <p className="text-xl font-bold">{students.length}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <Circle className="w-4 h-4 text-green-500 fill-green-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Online</p>
+              <p className="text-xl font-bold">{students.filter(s => s.isOnline).length}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-400/20 flex items-center justify-center">
+              <Circle className="w-4 h-4 text-gray-400 fill-gray-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Offline</p>
+              <p className="text-xl font-bold">{students.filter(s => !s.isOnline).length}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Daftar siswa */}
+      {filteredStudents.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Belum Ada Jadwal</h3>
+            <h3 className="text-lg font-semibold mb-2">Tidak Ada Siswa</h3>
             <p className="text-muted-foreground">
-              Jadwal akan muncul setelah Anda menerima permintaan dari siswa.
+              {mode === 'all'
+                ? 'Belum ada siswa yang dikonfirmasi.'
+                : `Tidak ada siswa dengan status ${getModeLabel().toLowerCase()}.`}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {schedule.map(item => (
-            <Card key={item.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-primary" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {filteredStudents.map((student) => {
+            const daysLeft = getDaysLeft(student.contractEndDate)
+            const isExpired = daysLeft < 0
+
+            return (
+              <Card
+                key={student.id}
+                className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+              >
+                <CardContent className="p-5">
+                  {/* Header kartu */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {student.studentName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{student.studentName}</h3>
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                          {student.studentGrade}
+                        </Badge>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{item.studentName}</h3>
-                      <div className="mt-1 space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <BookOpen className="w-4 h-4" />
-                          <span>{item.subject} · Kelas {item.gradeLevel}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          <span>{FREQUENCY_LABELS[item.frequency] || item.frequency}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="w-4 h-4" />
-                          <span>
-                            Mulai: {item.startDate ? new Date(item.startDate).toLocaleDateString('id-ID', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                            }) : 'Belum diatur'}
-                          </span>
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${STATUS_COLORS[student.status] || ''} text-xs border`}>
+                        {STATUS_LABELS[student.status] || student.status}
+                      </Badge>
+                      <div className="flex items-center gap-1 text-xs">
+                        <Circle
+                          className={`h-2.5 w-2.5 fill-current ${
+                            student.isOnline ? 'text-green-500' : 'text-gray-400'
+                          }`}
+                        />
+                        <span className="text-muted-foreground">
+                          {student.isOnline ? 'Online' : 'Offline'}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge
-                      variant="outline"
-                      className={`${STATUS_COLORS[item.status] || ''} border text-xs`}
-                    >
-                      {STATUS_LABELS[item.status] || item.status}
-                    </Badge>
-                    {item.phone && item.status === 'matched' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                        onClick={() =>
-                          window.open(
-                            `https://wa.me/${item.phone?.replace(/\D/g, '')}`,
-                            '_blank'
-                          )
-                        }
-                      >
-                        💬 WhatsApp
-                      </Button>
-                    )}
+
+                  {/* Informasi */}
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-purple-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mapel:</span>{' '}
+                        {student.matchedSubjects.join(', ')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-orange-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Frekuensi:</span>{' '}
+                        {FREQUENCY_LABELS[student.frequency] || student.frequency}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                      <span className="text-muted-foreground">
+                        <span className="font-medium">Mulai:</span> {formatDate(student.startDate)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {/* Jadwal ringkas */}
+                  {student.schedulesSummary && (
+                    <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
+                      {renderScheduleSummary(student.schedulesSummary)}
+                    </div>
+                  )}
+
+                  {/* Countdown kontrak */}
+                  <div className="mt-3 flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-orange-400" />
+                    <span className="text-muted-foreground">
+                      <span className="font-medium">Kontrak berakhir:</span>{' '}
+                      {formatDate(student.contractEndDate)}
+                      {!isExpired ? (
+                        <span className="text-xs text-gray-400 ml-2">
+                          (sisa {daysLeft} hari)
+                        </span>
+                      ) : (
+                        <span className="text-xs text-red-500 ml-2">
+                          (lewat {Math.abs(daysLeft)} hari)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Tombol aksi */}
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewSchedule(student)}
+                    >
+                      <Calendar className="w-4 h-4 mr-1.5" />
+                      Lihat Jadwal
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewProfile(student)}
+                    >
+                      <User className="w-4 h-4 mr-1.5" />
+                      Profil Siswa
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
+
+      {/* Dialog Profil Siswa */}
+      <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Profil Siswa</DialogTitle>
+            <DialogDescription>
+              Informasi lengkap siswa yang telah dikonfirmasi.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedStudent && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                  {selectedStudent.studentName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedStudent.studentName}</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedStudent.studentGrade}
+                  </Badge>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Circle
+                      className={`h-2.5 w-2.5 fill-current ${
+                        selectedStudent.isOnline ? 'text-green-500' : 'text-gray-400'
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {selectedStudent.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedStudent.studentPhone || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedStudent.studentEmail || '-'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  <span>{selectedStudent.studentAddress || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mapel:</span>{' '}
+                    {selectedStudent.matchedSubjects.join(', ')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mulai kontrak:</span>{' '}
+                    {formatDate(selectedStudent.acceptedAt)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Kontrak berakhir:</span>{' '}
+                    {formatDate(selectedStudent.contractEndDate)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setShowProfileDialog(false)}>
+              Tutup
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
