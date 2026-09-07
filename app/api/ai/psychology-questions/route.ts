@@ -1,54 +1,65 @@
 /**
  * POST /api/ai/psychology-questions
+ * ---------------------------------------------------------------------------
+ * Generates SITUATIONAL psychology items for tutor candidates.
  *
- * Generates psychology assessment questions for tutor candidates using DeepSeek AI.
- * Returns an array of multiple-choice questions with 4 options each.
- * Falls back to an empty array on AI error so the UI can use static questions.
+ * Redesigned to remove the flawed "one correct key turns all into social-
+ * desirability guessing". Each item is a realistic teaching scenario with four
+ * plausible courses of action. NO `correctAnswer` is emitted — the client cannot
+ * self-score. On submit, an independent AI grader evaluates the candidate's
+ * chosen responses against per-category rubrics (teaching approach, classroom
+ * management, empathy, integrity, etc.) in a fair + transparent manner.
  *
  * Request body: { count?: number }  (default 15)
- * Response:     { questions: AIPsychologyQuestion[] }
+ * Response:     { questions: PsychologyQuestion[] }
  */
 
 import { createServerClient } from '@/lib/supabase/server'
-import { deepseekJSON } from '@/lib/deepseek'
+import { deepseekChat } from '@/lib/deepseek'
 import { NextRequest, NextResponse } from 'next/server'
 
-export interface AIPsychologyQuestion {
+export interface PsychologyQuestion {
   id: number
   question: string
   options: { value: string; text: string }[]
-  correctAnswer: string
+  /** Coaching/attribute the item probes (normalised to rubric dimensions). */
   category: string
+  // deliberately no correctAnswer
 }
 
-interface DeepSeekQuestionsResponse {
-  questions: AIPsychologyQuestion[]
+interface AiItem {
+  question?: string
+  options?: { value?: string; text?: string }[]
+  category?: string
 }
 
-const PSYCHOLOGY_CATEGORIES = [
+export const PSYCHOLOGY_CATEGORIES = [
   'Teaching Approach',
   'Student Management',
   'Emotional Intelligence',
   'Integrity',
   'Relationship Building',
   'Growth Mindset',
-  'Pedagogical Knowledge',
-  'Continuous Improvement',
   'Classroom Management',
-  'Professional Growth',
+  'Continuous Improvement',
   'Motivation',
   'Assessment',
   'Guided Learning',
   'Inclusive Teaching',
-  'Values',
+  'Professional Conduct',
 ]
+
+function stripJson(text: string): string {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1) return text
+  return text.slice(start, end + 1)
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth check — only authenticated users may call this endpoint
     const authClient = await createServerClient()
     const { data: { user } } = await authClient.auth.getUser()
-
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -56,58 +67,51 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const count: number = Math.min(Math.max(Number(body.count) || 15, 5), 20)
 
-    const systemPrompt = `Anda adalah ahli psikologi pendidikan yang membantu mengevaluasi calon tutor.
-Buat soal penilaian psikologi dengan format pilihan ganda yang mengukur kompetensi mengajar.
-Setiap soal harus memiliki 4 pilihan (a, b, c, d) dengan satu jawaban terbaik yang mencerminkan
-pendekatan profesional dan empatik seorang tutor yang efektif.
-Kembalikan HANYA objek JSON dengan struktur berikut (tanpa teks lain):
-{
-  "questions": [
-    {
-      "id": 1,
-      "question": "...",
-      "options": [
-        {"value": "a", "text": "..."},
-        {"value": "b", "text": "..."},
-        {"value": "c", "text": "..."},
-        {"value": "d", "text": "..."}
-      ],
-      "correctAnswer": "b",
-      "category": "Teaching Approach"
-    }
-  ]
-}`
-
-    const userPrompt = `Buat ${count} soal penilaian psikologi untuk calon tutor dalam Bahasa Indonesia.
-Gunakan kategori berikut secara merata: ${PSYCHOLOGY_CATEGORIES.slice(0, count).join(', ')}.
-Pastikan jawaban yang benar bervariasi (tidak selalu 'b') dan soal-soal mencakup skenario nyata mengajar.
-Soal harus relevan untuk konteks tutor privat Indonesia (SD, SMP, SMA).`
-
-    const result = await deepseekJSON<DeepSeekQuestionsResponse>(
+    // Generate JSON manually (not deepseekJSON) so partial/illegal JSON can be
+    // recovered with best-effort parsing instead of a hard throw.
+    const raw = await deepseekChat(
       [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        {
+          role: 'system',
+          content:
+            'Anda adalah psikolog pendidikan yang menyusun asesmen situasional bagi calon tutor privat (SD/SMP/SMA). Buat skenario realistis tanpa jawaban yang jelas "salah"; setiap pilihan harus pilihan yang masuk akal namun dengan kualitas tindakan berbeda. Dalam output TIDAK ada field correctAnswer atau skor. Kembalikan HANYA objek JSON {\"items\":[...]} tanpa teks lain.',
+        },
+        {
+          role: 'user',
+          content: `Buat ${count} skenario situasional untuk calon tutor dalam Bahasa Indonesia. Jenjang SD/SMP/SMA. Untuk tiap item: { "question": "...", "options": [{"value":"a","text":"..."},{"value":"b","text":"..."},{"value":"c","text":"..."},{"value":"d","text":"..."}], "category": "<salah satu dari: ${PSYCHOLOGY_CATEGORIES.join(' | ')}>" }. Tidak boleh menyertakan correctAnswer. Distribusikan merata antar kategori.`,
+        },
       ],
-      { temperature: 0.8, max_tokens: 4096 }
+      { temperature: 0.9, max_tokens: 4096 }
     )
 
-    // Basic validation
-    if (!Array.isArray(result?.questions)) {
-      throw new Error('Invalid response structure from AI')
+    let parsed: { items?: AiItem[] } = {}
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      parsed = JSON.parse(stripJson(raw)) // best-effort recovery
     }
 
-    const questions = result.questions.slice(0, count).map((q, idx) => ({
-      id: q.id ?? idx + 1,
-      question: q.question ?? '',
-      options: Array.isArray(q.options) ? q.options : [],
-      correctAnswer: q.correctAnswer ?? 'b',
-      category: q.category ?? PSYCHOLOGY_CATEGORIES[idx % PSYCHOLOGY_CATEGORIES.length],
-    }))
+    const items = Array.isArray(parsed?.items) ? parsed.items : []
+    if (!items.length) {
+      return NextResponse.json({ questions: [], source: 'none' })
+    }
 
-    return NextResponse.json({ questions })
-  } catch (error) {
-    console.error('Error generating psychology questions:', error)
-    // Return empty array — UI will fall back to static questions
-    return NextResponse.json({ questions: [], fallback: true })
+    let auto = 0
+    const questions: PsychologyQuestion[] = items.slice(0, count).map((it) => {
+      const opts = (Array.isArray(it.options) ? it.options : [])
+        .filter((o) => o && typeof o.value === 'string' && typeof o.text === 'string')
+        .slice(0, 4)
+      return {
+        id: ++auto,
+        question: String(it.question ?? '').trim(),
+        options: opts.length >= 2 ? opts.map((o) => ({ value: o.value!, text: o.text! })) : [],
+        category: String(it.category ?? 'Teaching Approach').trim(),
+      }
+    }).filter((q) => q.question && q.options.length >= 2)
+
+    return NextResponse.json({ questions, source: 'ai' })
+  } catch (e) {
+    console.error('Error generating psychology questions:', e)
+    return NextResponse.json({ questions: [], source: 'error' })
   }
 }

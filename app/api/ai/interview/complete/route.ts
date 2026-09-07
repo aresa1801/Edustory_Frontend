@@ -70,14 +70,6 @@ interface AssessmentResult {
   overall_score: number
 }
 
-const FALLBACK_DIMENSIONS: Record<string, DimensionScore> = {
-  komunikasi_kejelasan:      { score: 5, justification: 'Tidak dapat dianalisis.', quote: '—' },
-  empati_kesabaran:          { score: 5, justification: 'Tidak dapat dianalisis.', quote: '—' },
-  kemampuan_menyederhanakan: { score: 5, justification: 'Tidak dapat dianalisis.', quote: '—' },
-  penguasaan_materi:         { score: 5, justification: 'Tidak dapat dianalisis.', quote: '—' },
-  kesesuaian_tutor:          { score: 5, justification: 'Tidak dapat dianalisis.', quote: '—' },
-}
-
 export async function POST(req: NextRequest) {
   try {
     const authClient = await createServerClient()
@@ -105,7 +97,10 @@ export async function POST(req: NextRequest) {
       })
       .join('\n\n')
 
-    // Generate structured assessment via DeepSeek
+    // Generate structured assessment via DeepSeek.
+    // If the model call fails we do NOT fabricate a patching score (which would
+    // auto-pass or auto-fail unfairly). Instead we return a retryable error so
+    // the candidate can retry, and we never persist a misleading result.
     let assessment: AssessmentResult
     try {
       assessment = await deepseekJSON<AssessmentResult>(
@@ -121,14 +116,14 @@ export async function POST(req: NextRequest) {
       )
     } catch (aiError) {
       console.error('[Interview Complete] AI assessment failed:', aiError)
-      assessment = {
-        candidate_name: candidateName,
-        recommendation: 'Pertimbangkan dengan Catatan',
-        summary:
-          'Penilaian tidak dapat dibuat secara otomatis. Harap tinjau transkrip secara manual.',
-        dimensions: FALLBACK_DIMENSIONS,
-        overall_score: 5.0,
-      }
+      // No score, no progress mutation, no auto-reject.
+      return NextResponse.json(
+        {
+          error: 'AI gagal menilai wawancara Anda. Tidak ada skor yang disimpan — silakan coba lagi.',
+          retryable: true,
+        },
+        { status: 502 }
+      )
     }
 
     // Clamp overall_score (1–10) and convert to 0–100

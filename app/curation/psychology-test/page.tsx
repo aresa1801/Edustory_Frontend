@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -9,372 +9,281 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { Badge } from '@/components/ui/badge'
 
-// Static fallback questions — used when AI generation is unavailable
-const PSYCHOLOGY_QUESTIONS = [
+/**
+ * Psychology Test — server-authoritative, AI-graded.
+ * - Questions are situational (no single "correct" key, so the client cannot
+ *   cheat by matching an answer key).
+ * - On submit the client sends its chosen responses + the question set.
+ * - The server AI-grades across tutor attributes (empathy, classroom management,
+ *   integrity…) and returns an auditable per-dimension breakdown.
+ */
+
+type PresentedPsychologyQuestion = {
+  id: number
+  question: string
+  options: { value: string; text: string }[]
+  category: string
+}
+
+type Dimension = { dimension: string; label: string; score: number; justification: string }
+
+type ServerResult = {
+  score: number
+  passed: boolean
+  dimensions: Dimension[]
+  summary?: string
+}
+
+// Lightweight offline fallback scenarios (no answer key ever shipped).
+const FALLBACK_QUESTIONS: PresentedPsychologyQuestion[] = [
   {
     id: 1,
-    question: "Ketika siswa tidak memahami penjelasan Anda untuk ketiga kalinya, Anda akan:",
+    category: 'Student Management',
+    question: 'Seorang siswa terus menjawab dengan suara keras dan mengganggu saat Anda menjelaskan. Tindakan paling profesional Anda:',
     options: [
-      { value: 'a', text: "Mengulang dengan suara lebih keras" },
-      { value: 'b', text: "Mencari cara penjelasan yang berbeda" },
-      { value: 'c', text: "Memberikan latihan soal tambahan" },
-      { value: 'd', text: "Menyarankan siswa untuk belajar lebih giat" }
+      { value: 'a', text: 'Menghentikan kelas dan menegurnya di depan semua siswa' },
+      { value: 'b', text: 'Mendekatinya, lalu berbicara pelan secara pribadi sambil tetap melanjutkan kelas' },
+      { value: 'c', text: 'Mengabaikannya dan berharap ia berhenti sendiri' },
+      { value: 'd', text: 'Menambah volume suara agar lebih dominan' },
     ],
-    correctAnswer: 'b',
-    category: 'Teaching Approach'
   },
   {
     id: 2,
-    question: "Bagaimana Anda merespons siswa yang sering terlambat?",
+    category: 'Empathy',
+    question: 'Siswa terlihat murung dan tidak fokus pada sesi hari itu. Sikap Anda:',
     options: [
-      { value: 'a', text: "Memberikan teguran keras" },
-      { value: 'b', text: "Mencari tahu alasan di balik keterlambatan" },
-      { value: 'c', text: "Mengabaikan karena bukan urusan Anda" },
-      { value: 'd', text: "Melaporkan ke orang tua/siswa" }
+      { value: 'a', text: 'Langsung menuntut ia fokus karena waktu terbatas' },
+      { value: 'b', text: 'Menyapa dengan hangat dan menanyakan apakah ada yang ingin ia ceritakan' },
+      { value: 'c', text: 'Menganggap itu bukan bagian dari tugas tutor' },
+      { value: 'd', text: 'Mengurangi jam sesinya agar tidak mengganggu ritme' },
     ],
-    correctAnswer: 'b',
-    category: 'Student Management'
   },
   {
     id: 3,
-    question: "Seorang siswa menunjukkan tanda-tanda kecemasan tinggi. Respons pertama Anda adalah:",
+    category: 'Integrity',
+    question: 'Anda tidak yakin menjawab pertanyaan siswa di luar bidang Anda. Yang Anda lakukan:',
     options: [
-      { value: 'a', text: "Mengabaikan karena fokus di akademik" },
-      { value: 'b', text: "Mendiskusikan dengan siswa untuk memahami masalahnya" },
-      { value: 'c', text: "Memberikan lebih banyak soal latihan" },
-      { value: 'd', text: "Menyarankan siswa berkonsultasi dengan psikolog" }
+      { value: 'a', text: 'Menjawab sekenanya agar terlihat menguasai' },
+      { value: 'b', text: 'Mengatakan jujur bahwa ini di luar bidang Anda, lalu mencari jawabannya bersama' },
+      { value: 'c', text: 'Mengatakan itu tidak penting untuk ujian' },
+      { value: 'd', text: 'Mengalihkan pembicaraan' },
     ],
-    correctAnswer: 'b',
-    category: 'Emotional Intelligence'
   },
   {
     id: 4,
-    question: "Ketika siswa bertanya tentang topik di luar kompetensi Anda, Anda akan:",
+    category: 'Teaching Approach',
+    question: 'Siswa belum paham meski sudah dua kali Anda jelaskan dengan cara sama. Langkah terbaik:',
     options: [
-      { value: 'a', text: "Menjawab meskipun tidak yakin" },
-      { value: 'b', text: "Jujur bahwa itu bukan keahlian Anda dan mencari sumber bersama" },
-      { value: 'c', text: "Mengatakan itu tidak penting untuk belajar" },
-      { value: 'd', text: "Mengubah topik" }
+      { value: 'a', text: 'Mengulang lebih keras dan lebih lambat' },
+      { value: 'b', text: 'Mencoba pendekatan/analogi berbeda yang disesuaikan dengan gaya belajarnya' },
+      { value: 'c', text: 'Memberi banyak soal agar ia hafal pola' },
+      { value: 'd', text: 'Menyuruhnya bertanya pada teman' },
     ],
-    correctAnswer: 'b',
-    category: 'Integrity'
   },
   {
     id: 5,
-    question: "Bagaimana Anda membangun kepercayaan dengan siswa baru?",
+    category: 'Growth Mindset',
+    question: 'Siswa bilang "saya memang payah di matematika." Respons Anda:',
     options: [
-      { value: 'a', text: "Menunjukkan otoritas dan kontrol kelas yang ketat" },
-      { value: 'b', text: "Mengenal mereka, mendengarkan kebutuhan, dan konsisten" },
-      { value: 'c', text: "Memberikan banyak PR untuk menunjukkan Anda peduli" },
-      { value: 'd', text: "Bersikap friendly tanpa batasan" }
+      { value: 'a', text: 'Menggantinya ke pelajaran yang ia kuasai' },
+      { value: 'b', text: 'Menormalkan kesulitan dan menjelaskan bahwa kemampuan bisa dilatih bertahap' },
+      { value: 'c', text: 'Diam saja agar tidak mempermalukannya' },
+      { value: 'd', text: 'Mengatakan sebagian orang memang kurang berbakat' },
     ],
-    correctAnswer: 'b',
-    category: 'Relationship Building'
   },
   {
     id: 6,
-    question: "Siswa Anda mengatakan mereka 'bodoh' dalam matematika. Respons Anda:",
+    category: 'Inclusive Teaching',
+    question: 'Seorang siswa dengan kesulitan belajar baru bergabung. Pendekatan Anda:',
     options: [
-      { value: 'a', text: "Setuju dan pindah ke mata pelajaran yang lebih mudah" },
-      { value: 'b', text: "Tidak setuju dan jelaskan bahwa kecerdasan dapat dikembangkan" },
-      { value: 'c', text: "Tidak mengomentari" },
-      { value: 'd', text: "Katakan bahwa beberapa orang memang kurang berbakat" }
+      { value: 'a', text: 'Memberi materi sama dan berharap ia mengejar' },
+      { value: 'b', text: 'Menyesuaikan kecepatan & cara penjelasan untuk mendukungnya tanpa menurunkan harapan' },
+      { value: 'c', text: 'Menetapkan standar lebih rendah tanpa dukungan' },
+      { value: 'd', text: 'Menyarankan orang tua mencari tutor lain yang lebih khusus' },
     ],
-    correctAnswer: 'b',
-    category: 'Growth Mindset'
   },
   {
     id: 7,
-    question: "Bagaimana pendekatan Anda terhadap diferensiasi pembelajaran?",
+    category: 'Professional Conduct',
+    question: 'Orang tua meminta Anda mengerjakan PR anak sepenuhnya. Keputusan Anda:',
     options: [
-      { value: 'a', text: "Semua siswa harus belajar dengan cara yang sama" },
-      { value: 'b', text: "Menyesuaikan strategi berdasarkan gaya belajar dan kemampuan siswa" },
-      { value: 'c', text: "Hanya fokus pada siswa yang cepat belajar" },
-      { value: 'd', text: "Memberikan pekerjaan rumah yang sama untuk semua" }
+      { value: 'a', text: 'Menerima karena takut kehilangan klien' },
+      { value: 'b', text: 'Menolak dengan sopan dan menjelaskan pentingnya anak memahami sendiri' },
+      { value: 'c', text: 'Mengerjakan sebagian agar cepat selesai' },
+      { value: 'd', text: 'Meminta tambahan bayaran untuk itu' },
     ],
-    correctAnswer: 'b',
-    category: 'Pedagogical Knowledge'
   },
   {
     id: 8,
-    question: "Anda menemukan bahwa strategi mengajar Anda tidak efektif untuk kelas. Apa yang Anda lakukan?",
+    category: 'Communication',
+    question: 'Saat menjelaskan konsep sulit, bahasa yang paling tepat digunakan tutor:',
     options: [
-      { value: 'a', text: "Terus gunakan strategi yang sama karena itu yang saya kuasai" },
-      { value: 'b', text: "Refleksi, minta feedback, dan coba pendekatan baru" },
-      { value: 'c', text: "Menyalahkan siswa karena tidak fokus" },
-      { value: 'd', text: "Mengurangi ekspektasi akademik" }
+      { value: 'a', text: 'Istilah teknis agar terlihat kompeten' },
+      { value: 'b', text: 'Bahasa sederhana yang dipahami siswa, lalu hubungkan dengan istilah resminya' },
+      { value: 'c', text: 'Banyak singkatan supaya cepat' },
+      { value: 'd', text: 'Berbicara cepat agar materi habis' },
     ],
-    correctAnswer: 'b',
-    category: 'Continuous Improvement'
   },
-  {
-    id: 9,
-    question: "Bagaimana Anda menangani siswa yang mengganggu kelas?",
-    options: [
-      { value: 'a', text: "Mengeluarkan dari kelas tanpa diskusi" },
-      { value: 'b', text: "Memahami penyebab, membantu dengan empati, dan menetapkan batasan jelas" },
-      { value: 'c', text: "Meningkatkan hukuman" },
-      { value: 'd', text: "Mengabaikan" }
-    ],
-    correctAnswer: 'b',
-    category: 'Classroom Management'
-  },
-  {
-    id: 10,
-    question: "Sikap Anda tentang feedback dari siswa atau orang tua:",
-    options: [
-      { value: 'a', text: "Menolak karena saya tahu yang terbaik" },
-      { value: 'b', text: "Menerima dengan terbuka dan gunakan untuk meningkatkan pengajaran" },
-      { value: 'c', text: "Menerima tetapi tidak mengubah apa pun" },
-      { value: 'd', text: "Hanya menerima jika positif" }
-    ],
-    correctAnswer: 'b',
-    category: 'Professional Growth'
-  },
-  {
-    id: 11,
-    question: "Bagaimana Anda memotivasi siswa yang kurang tertarik belajar?",
-    options: [
-      { value: 'a', text: "Memberikan nilai bagus tanpa usaha" },
-      { value: 'b', text: "Menemukan koneksi dengan minat mereka dan memberikan tantangan yang sesuai" },
-      { value: 'c', text: "Mengancam nilai jelek" },
-      { value: 'd', text: "Membiarkan mereka tidak belajar" }
-    ],
-    correctAnswer: 'b',
-    category: 'Motivation'
-  },
-  {
-    id: 12,
-    question: "Pendekatan Anda dalam mengevaluasi pembelajaran siswa:",
-    options: [
-      { value: 'a', text: "Hanya melalui tes tertulis" },
-      { value: 'b', text: "Beragam metode untuk mengukur pemahaman dan kemajuan" },
-      { value: 'c', text: "Hanya pekerjaan rumah" },
-      { value: 'd', text: "Tanpa evaluasi formal" }
-    ],
-    correctAnswer: 'b',
-    category: 'Assessment'
-  },
-  {
-    id: 13,
-    question: "Siswa membuat kesalahan dalam pemahaman konsep. Anda:",
-    options: [
-      { value: 'a', text: "Langsung memberikan jawaban yang benar" },
-      { value: 'b', text: "Memandu mereka untuk menemukan kesalahan dan cara memperbaikinya" },
-      { value: 'c', text: "Mengatakan 'Anda salah' tanpa penjelasan" },
-      { value: 'd', text: "Memberikan nilai jelek dan melanjutkan" }
-    ],
-    correctAnswer: 'b',
-    category: 'Guided Learning'
-  },
-  {
-    id: 14,
-    question: "Bagaimana Anda menangani siswa dengan kebutuhan khusus atau kesulitan belajar?",
-    options: [
-      { value: 'a', text: "Mengabaikan karena bukan tanggung jawab Anda" },
-      { value: 'b', text: "Beradaptasi dan mencari strategi khusus untuk mendukung mereka" },
-      { value: 'c', text: "Menyarankan mereka mencari tutor khusus" },
-      { value: 'd', text: "Mengurangi standar akademik tanpa dukungan" }
-    ],
-    correctAnswer: 'b',
-    category: 'Inclusive Teaching'
-  },
-  {
-    id: 15,
-    question: "Apa prioritas utama Anda sebagai seorang guru?",
-    options: [
-      { value: 'a', text: "Menyelesaikan kurikulum tepat waktu" },
-      { value: 'b', text: "Memastikan siswa memahami dan tumbuh" },
-      { value: 'c', text: "Mendapatkan nilai akademik tertinggi" },
-      { value: 'd', text: "Menyelesaikan pekerjaan rumah saya" }
-    ],
-    correctAnswer: 'b',
-    category: 'Values'
-  }
 ]
-
-type Question = typeof PSYCHOLOGY_QUESTIONS[0]
 
 export default function PsychologyTestPage() {
   const router = useRouter()
-  const [questions, setQuestions] = useState<Question[]>(PSYCHOLOGY_QUESTIONS)
-  const [questionsLoading, setQuestionsLoading] = useState(true)
-  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [questions, setQuestions] = useState<PresentedPsychologyQuestion[]>([])
+  const [loaderText, setLoaderText] = useState('Mempersiapkan soal psikologi...')
+  const [failed, setFailed] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(30 * 60)
-  const [submitted, setSubmitted] = useState(false)
-  const [score, setScore] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<ServerResult | null>(null)
+  const [stage, setStage] = useState<'loading' | 'ready' | 'done'>('loading')
 
-  // Attempt to load AI-generated questions; fall back to static list on error
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const answeredCount = Object.keys(answers).length
+
   useEffect(() => {
     let cancelled = false
-    const loadAIQuestions = async () => {
+    const load = async () => {
       try {
         const res = await fetch('/api/ai/psychology-questions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ count: 15 }),
         })
-        if (!res.ok) throw new Error('AI questions unavailable')
         const data = await res.json()
-        if (!cancelled && Array.isArray(data.questions) && data.questions.length >= 5) {
-          setQuestions(data.questions)
-        }
+        if (cancelled) return
+        const qs = Array.isArray(data?.questions)
+          ? (data.questions as PresentedPsychologyQuestion[]).slice(0, 15)
+          : []
+        setQuestions(qs.length >= 5 ? qs : FALLBACK_QUESTIONS)
+        setLoaderText(qs.length ? '' : 'Soal AI belum siap — memakai soal cadangan.')
+        setStage('ready')
       } catch {
-        // Keep static fallback questions
-      } finally {
-        if (!cancelled) setQuestionsLoading(false)
+        if (!cancelled) {
+          setQuestions(FALLBACK_QUESTIONS)
+          setLoaderText('')
+          setStage('ready')
+        }
       }
     }
-    loadAIQuestions()
-    return () => { cancelled = true }
+    load()
+    return () => {
+      cancelled = true
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
   }, [])
 
-  const calculateScore = useCallback((qs: Question[], ans: Record<number, string>) => {
-    let correct = 0
-    qs.forEach((q) => {
-      if (ans[q.id] === q.correctAnswer) correct++
-    })
-    return Math.round((correct / qs.length) * 100)
-  }, [])
-
-  const handleSubmit = useCallback(async (
-    currentAnswers: Record<number, string>,
-    currentQuestions: Question[],
-    elapsed: number,
-  ) => {
-    setLoading(true)
-    const finalScore = calculateScore(currentQuestions, currentAnswers)
-    setScore(finalScore)
-    setSubmitted(true)
-
+  const handleSubmit = useCallback(async () => {
+    setSubmitting(true)
     try {
-      await fetch('/api/assessments/psychology', {
+      const res = await fetch('/api/assessments/psychology', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: currentAnswers,
-          score: finalScore,
-          timeTaken: elapsed,
-        }),
+        body: JSON.stringify({ answers, questions }),
       })
-    } catch (error) {
-      console.error('Error submitting psychology test:', error)
+      const data = await res.json()
+      if (!res.ok && !data.passed) throw new Error(data?.error || 'Gagal menilai')
+      setResult({
+        score: Math.round(Number(data.score) || 0),
+        passed: !!data.passed,
+        dimensions: Array.isArray(data.dimensions) ? data.dimensions : [],
+        summary: data.summary,
+      })
+      setStage('done')
+    } catch (e) {
+      setFailed(true)
+      alert(e instanceof Error ? e.message : 'Gagal menilai jawaban psikologi.')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
-  }, [calculateScore])
+  }, [answers, questions])
 
-  useEffect(() => {
-    if (questionsLoading) return
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          // Use functional updates to capture latest state in the interval callback
-          setAnswers((latestAnswers) => {
-            setQuestions((latestQuestions) => {
-              handleSubmit(latestAnswers, latestQuestions, 30 * 60)
-              return latestQuestions
-            })
-            return latestAnswers
-          })
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [questionsLoading, handleSubmit])
+  // ---- RENDER -------------------------------------------------------
 
-  const handleAnswerChange = (value: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questions[currentQuestion].id]: value,
-    }))
-  }
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
-    }
-  }
-
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1)
-    }
-  }
-
-  const handleSubmitClick = () => {
-    handleSubmit(answers, questions, 30 * 60 - timeRemaining)
-  }
-
-  if (questionsLoading) {
+  if (stage === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
         <div className="text-center">
           <Spinner className="h-8 w-8 mx-auto mb-4" />
-          <p className="text-muted-foreground">Mempersiapkan soal dengan AI...</p>
+          <p className="text-muted-foreground">{loaderText}</p>
         </div>
       </div>
     )
   }
 
-  if (submitted) {
+  if (stage === 'done' && result) {
+    const pass = result.passed
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
         <Card className="w-full max-w-2xl p-8 text-center">
           <h2 className="text-3xl font-bold mb-4">Hasil Tes Psikologi</h2>
-          <div className="my-8">
-            <div className="text-6xl font-bold text-primary mb-4">{score}</div>
-            <p className="text-xl text-muted-foreground mb-6">
-              Skor Anda dari 100
-            </p>
-            {score >= 70 ? (
-              <Alert className="bg-green-50 border-green-200 mb-6">
+          <div className="my-6">
+            <div className="text-6xl font-bold text-primary mb-4">{result.score}</div>
+            <p className="text-xl text-muted-foreground mb-4">Skor Anda dari 100</p>
+            {pass ? (
+              <Alert className="bg-green-50 border-green-200 mb-4">
                 <AlertDescription className="text-green-800">
-                  Selamat! Anda lulus tes psikologi. Mari lanjut ke bagian selanjutnya.
+                  Selamat! Anda lulus tes psikologi.
                 </AlertDescription>
               </Alert>
             ) : (
-              <Alert className="bg-yellow-50 border-yellow-200 mb-6">
+              <Alert className="bg-yellow-50 border-yellow-200 mb-4">
                 <AlertDescription className="text-yellow-800">
                   Skor Anda belum memenuhi standar minimum (70). Silakan coba lagi.
                 </AlertDescription>
               </Alert>
             )}
           </div>
-          {loading ? (
-            <Spinner className="mx-auto" />
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              {score >= 70 ? (
-                <Button
-                  className="bg-primary hover:bg-primary/90"
-                  onClick={() => router.push('/curation/academic-test')}
-                >
-                  Lanjut ke Kemampuan Akademik →
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                onClick={() => router.push('/curation/progress')}
-              >
-                Lihat Progres
-              </Button>
+          {result.dimensions.length > 0 && (
+            <div className="text-left mx-auto max-w-md mb-6 space-y-2">
+              <p className="font-semibold text-foreground">Rincian atribut mengajar:</p>
+              {result.dimensions.map((d) => (
+                <div key={d.dimension} className="text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{d.label}</span>
+                    <span className="font-medium">{d.score}</span>
+                  </div>
+                  {d.justification && (
+                    <p className="text-xs text-muted-foreground italic">{d.justification}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
+          {result.summary && (
+            <p className="text-sm text-muted-foreground italic mb-4">{result.summary}</p>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {pass ? (
+              <Button className="bg-primary hover:bg-primary/90" onClick={() => router.push('/curation/academic-test')}>
+                Lanjut ke Kemampuan Akademik →
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={() => router.push('/curation/progress')}>
+              Lihat Progres
+            </Button>
+          </div>
         </Card>
       </div>
     )
   }
 
-  const question = questions[currentQuestion]
-  const progress = ((currentQuestion + 1) / questions.length) * 100
-  const minutes = Math.floor(timeRemaining / 60)
-  const seconds = timeRemaining % 60
+  if (failed && !result) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <h2 className="text-xl font-bold mb-4">Terjadi kesalahan</h2>
+          <Button onClick={() => router.push('/curation/progress')} variant="outline">
+            Kembali ke Progres
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+
+  const question = questions[currentIndex]
+  const progress = ((currentIndex + 1) / questions.length) * 100
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
@@ -382,40 +291,28 @@ export default function PsychologyTestPage() {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-3xl font-bold text-foreground">Tes Psikologi Tutor</h1>
-            <div className="text-2xl font-bold text-primary">
-              {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
+            <span className="text-sm text-muted-foreground">Terjawab {answeredCount}/{questions.length}</span>
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
-            Pertanyaan {currentQuestion + 1} dari {questions.length}
+            Situasi {currentIndex + 1} dari {questions.length}
           </p>
         </div>
 
         <Card className="p-8 mb-8">
           <div className="mb-4">
-            <span className="inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold mb-4">
-              {question.category}
-            </span>
+            <Badge variant="outline" className="bg-primary/10 text-primary">{question.category}</Badge>
           </div>
-          <h2 className="text-xl font-semibold text-foreground mb-6">
-            {question.question}
-          </h2>
-
+          <h2 className="text-xl font-semibold text-foreground mb-6">{question.question}</h2>
           <RadioGroup
             value={answers[question.id] || ''}
-            onValueChange={handleAnswerChange}
+            onValueChange={(v) => setAnswers((prev) => ({ ...prev, [question.id]: v }))}
           >
             <div className="space-y-3">
-              {question.options.map((option) => (
-                <div key={option.value} className="flex items-center space-x-3">
-                  <RadioGroupItem value={option.value} id={option.value} />
-                  <Label
-                    htmlFor={option.value}
-                    className="cursor-pointer flex-1"
-                  >
-                    {option.text}
-                  </Label>
+              {question.options.map((o) => (
+                <div key={o.value} className="flex items-start space-x-3">
+                  <RadioGroupItem value={o.value} id={`${question.id}-${o.value}`} className="mt-1" />
+                  <Label htmlFor={`${question.id}-${o.value}`} className="cursor-pointer">{o.text}</Label>
                 </div>
               ))}
             </div>
@@ -423,28 +320,16 @@ export default function PsychologyTestPage() {
         </Card>
 
         <div className="flex justify-between gap-4">
-          <Button
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
-            variant="outline"
-          >
+          <Button onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))} disabled={currentIndex === 0} variant="outline">
             Sebelumnya
           </Button>
-
-          {currentQuestion === questions.length - 1 ? (
-            <Button
-              onClick={handleSubmitClick}
-              className="bg-primary hover:bg-primary/90"
-              disabled={loading}
-            >
-              {loading ? <Spinner className="mr-2 h-4 w-4" /> : null}
+          {currentIndex === questions.length - 1 ? (
+            <Button onClick={handleSubmit} className="bg-primary hover:bg-primary/90" disabled={submitting}>
+              {submitting ? <Spinner className="mr-2 h-4 w-4" /> : null}
               Selesai & Submit
             </Button>
           ) : (
-            <Button
-              onClick={handleNext}
-              className="bg-primary hover:bg-primary/90"
-            >
+            <Button onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))} className="bg-primary hover:bg-primary/90">
               Selanjutnya
             </Button>
           )}
