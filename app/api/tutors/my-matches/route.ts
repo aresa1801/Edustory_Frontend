@@ -37,8 +37,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: matchError.message }, { status: 500 })
     }
 
-    // 3. Auto-decline expired student requests (> 2 hari)
     const now = new Date()
+    let refetch = false
+
+    // ============================================================
+    // 3. Auto-decline expired student requests (> 2 hari)
+    // ============================================================
     const twoDaysAgo = new Date(now)
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
 
@@ -56,30 +60,16 @@ export async function GET(request: NextRequest) {
         .from('matches')
         .update({
           status: 'declined',
-          initiated_by: 'tutor', // menandakan ditolak oleh guru (karena tidak merespon)
+          initiated_by: 'tutor',
           ended_at: now.toISOString(),
         })
         .in('id', expiredIds)
-
-      // 4. Auto-complete expired contracts (contract_end_date sudah lewat)
-      // Ini perlu dilakukan setelah update expired student requests, agar data terbaru
-    }
-
-    // 5. Auto-complete expired contracts (setelah update atau tanpa update)
-    // Kita lakukan terpisah, bisa di sini atau setelah update
-    // Karena kita sudah punya matches (belum di-update), kita filter lagi dari matches asli?
-    // Lebih baik setelah update expired, ambil ulang data
-    // Tapi kita bisa langsung lakukan update pada data yang sudah diambil
-
-    // Ambil ulang data jika ada perubahan
-    let finalMatches = matches
-    let refetch = false
-
-    if (expiredStudentRequests.length > 0) {
       refetch = true
     }
 
-    // Auto-complete kontrak yang sudah habis (75 hari)
+    // ============================================================
+    // 4. Auto-complete expired contracts (75 hari)
+    // ============================================================
     const expiredContracts = (matches || []).filter(
       (m: any) =>
         (m.status === 'matched' || m.status === 'active') &&
@@ -89,6 +79,8 @@ export async function GET(request: NextRequest) {
 
     if (expiredContracts.length > 0) {
       const expiredIds = expiredContracts.map((m: any) => m.id)
+
+      // Update matches
       await supabase
         .from('matches')
         .update({
@@ -96,10 +88,19 @@ export async function GET(request: NextRequest) {
           ended_at: now.toISOString(),
         })
         .in('id', expiredIds)
+
+      // Update match_schedules juga
+      await supabase
+        .from('match_schedules')
+        .update({ status: 'completed' })
+        .in('match_id', expiredIds)
+
       refetch = true
     }
 
-    // Jika ada perubahan, ambil ulang data fresh
+    // ============================================================
+    // 5. Jika ada perubahan, ambil ulang data fresh
+    // ============================================================
     if (refetch) {
       const { data: freshMatches, error: refetchError } = await supabase
         .from('matches')

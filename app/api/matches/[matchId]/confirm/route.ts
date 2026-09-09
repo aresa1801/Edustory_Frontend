@@ -39,7 +39,7 @@ export async function POST(
 
     console.log('✅ Match found:', match);
 
-    // ===== INI YANG DIUBAH =====
+    // ===== PREPARE PAYLOAD =====
     let updatePayload: any = {};
     if (action === 'accept') {
       const now = new Date();
@@ -57,7 +57,6 @@ export async function POST(
         status: 'declined',
       };
     }
-    // ===== END =====
 
     console.log('🔄 Updating match with payload:', updatePayload);
 
@@ -75,6 +74,63 @@ export async function POST(
     }
 
     console.log('✅ Match updated successfully');
+
+    // ===== INSERT INTO match_schedules jika action ACCEPT =====
+    if (action === 'accept') {
+      // Ambil schedules_summary, student_id, tutor_id dari match
+      const { data: matchData, error: fetchError } = await supabaseAdmin
+        .from('matches')
+        .select('schedules_summary, student_id, tutor_id')
+        .eq('id', matchId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Failed to fetch match data for match_schedules:', fetchError);
+        // Tidak throw error, hanya warning karena match sudah update
+      } else if (matchData) {
+        // Hitung total sesi dari schedules_summary
+        let totalSessions = 0;
+        if (matchData.schedules_summary && Array.isArray(matchData.schedules_summary)) {
+          totalSessions = matchData.schedules_summary.reduce(
+            (acc: number, item: any) => acc + (item.count || 0),
+            0
+          );
+        }
+
+        // Siapkan data untuk insert match_schedules
+        const scheduleInsertData: any = {
+          match_id: matchId,
+          student_id: matchData.student_id,
+          tutor_id: matchData.tutor_id,
+          schedules_summary_fix: matchData.schedules_summary || null,
+          status: 'active',
+        };
+
+        // Isi sesi_1..sesi_20 berdasarkan totalSessions
+        for (let i = 1; i <= 20; i++) {
+          const key = `sesi_${i}`;
+          if (i <= totalSessions) {
+            scheduleInsertData[key] = null; // null = belum ada kehadiran
+          } else {
+            scheduleInsertData[key] = null; // null juga untuk yang tidak ada sesi
+          }
+        }
+
+        console.log('📝 Inserting match_schedules with data:', scheduleInsertData);
+
+        const { error: insertError } = await supabaseAdmin
+          .from('match_schedules')
+          .insert(scheduleInsertData);
+
+        if (insertError) {
+          console.error('❌ Failed to insert match_schedules:', insertError);
+          // Tidak throw error, hanya warning
+        } else {
+          console.log('✅ match_schedules record created successfully');
+        }
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ Error:', error);
