@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
+import { useRouter } from 'next/navigation'
 import {
   Calendar,
   Clock,
@@ -114,6 +115,7 @@ function renderScheduleSummary(summary: any) {
 
 // ========== KOMPONEN UTAMA ==========
 export default function TutorSchedulePage() {
+  const router = useRouter()
   const { user: authUser, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -200,7 +202,7 @@ export default function TutorSchedulePage() {
   }
 
   const handleViewSchedule = (schedule: ScheduleItem) => {
-    alert(`Lihat jadwal untuk ${schedule.student.name}`)
+    router.push(`/dashboard/tutor/schedule/${schedule.matchId}`)
   }
 
   const handleViewProfile = (schedule: ScheduleItem) => {
