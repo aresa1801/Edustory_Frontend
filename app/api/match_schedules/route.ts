@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    let profileId: string | null = null
-    let profileTable = role === 'tutor' ? 'tutors' : 'students'
+    // Cari profile id
+    const profileTable = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(profileTable)
       .select('id')
@@ -34,77 +34,103 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    profileId = profile.id
-
-    // Build query
+    // Get match_schedules dengan join
     let query = supabaseAdmin
       .from('match_schedules')
       .select(`
         *,
-        students!inner(
-          id, name, grade_level, phone, email, address, avatar_url, is_online,
-          user_profiles!user_id(email)
-        ),
-        tutors!inner(
-          id, full_name, phone, bio, experience_years, hourly_rate, rating, total_reviews,
-          verified_grade_levels, avatar_url, is_online,
-          user_profiles!user_id(email)
+        matches!inner(
+          id,
+          student_id,
+          tutor_id,
+          matched_subjects,
+          student_full_name,
+          student_grade,
+          student_avatar,
+          student_address,
+          accepted_at,
+          contract_end_date,
+          status
         )
       `)
 
     if (role === 'tutor') {
-      query = query.eq('tutor_id', profileId)
+      query = query.eq('tutor_id', profile.id)
     } else {
-      query = query.eq('student_id', profileId)
+      query = query.eq('student_id', profile.id)
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false })
+    const { data: schedules, error: scheduleError } = await query.order('created_at', { ascending: false })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (scheduleError) {
+      return NextResponse.json({ error: scheduleError.message }, { status: 500 })
     }
 
-    // Transform data agar mudah digunakan di frontend
-    const transformed = (data || []).map((item: any) => ({
-      id: item.id,
-      matchId: item.match_id,
-      status: item.status,
-      schedulesSummaryFix: item.schedules_summary_fix,
-      schedulesCustom: item.schedules_custom,
-      sesi: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(i => {
-        const key = `sesi_${i}`
-        return item[key] ?? null
-      }),
-      videoCall: item.video_call,
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-      // Data student
-      student: item.students ? {
-        id: item.students.id,
-        name: item.students.name,
-        grade: item.students.grade_level,
-        phone: item.students.phone,
-        email: item.students.user_profiles?.email || item.students.email,
-        address: item.students.address,
-        avatar: item.students.avatar_url,
-        isOnline: item.students.is_online ?? true,
-      } : null,
-      // Data tutor
-      tutor: item.tutors ? {
-        id: item.tutors.id,
-        fullName: item.tutors.full_name,
-        phone: item.tutors.phone,
-        bio: item.tutors.bio,
-        experienceYears: item.tutors.experience_years,
-        hourlyRate: item.tutors.hourly_rate,
-        rating: item.tutors.rating,
-        totalReviews: item.tutors.total_reviews,
-        verifiedGradeLevels: item.tutors.verified_grade_levels,
-        avatar: item.tutors.avatar_url,
-        isOnline: item.tutors.is_online ?? true,
-        email: item.tutors.user_profiles?.email || item.tutors.email,
-      } : null,
-    }))
+    // Get detailed profiles
+    const studentIds = [...new Set((schedules || []).map((s: any) => s.student_id))]
+    const tutorIds = [...new Set((schedules || []).map((s: any) => s.tutor_id))]
+
+    const { data: students } = await supabaseAdmin
+      .from('students')
+      .select('id, name, gender, phone, bio, school_name, school_type, school_city, parent_name, parent_relation, parent_phone, parent_email, is_online')
+      .in('id', studentIds)
+
+    const { data: tutors } = await supabaseAdmin
+      .from('tutors')
+      .select('id, full_name, phone, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online')
+      .in('id', tutorIds)
+
+    // Map
+    const studentsMap = new Map((students || []).map((s: any) => [s.id, s]))
+    const tutorsMap = new Map((tutors || []).map((t: any) => [t.id, t]))
+
+    const transformed = (schedules || []).map((item: any) => {
+      const studentDetail = studentsMap.get(item.student_id)
+      const tutorDetail = tutorsMap.get(item.tutor_id)
+      const match = item.matches
+
+      return {
+        id: item.id,
+        matchId: item.match_id,
+        status: item.status,
+        schedulesSummaryFix: item.schedules_summary_fix,
+        schedulesCustom: item.schedules_custom,
+        acceptedAt: match?.accepted_at,
+        contractEndDate: match?.contract_end_date,
+        student: {
+          id: item.student_id,
+          name: match?.student_full_name || studentDetail?.name,
+          avatar: match?.student_avatar,
+          grade: match?.student_grade,
+          address: match?.student_address,
+          matchedSubjects: match?.matched_subjects || [],
+          gender: studentDetail?.gender,
+          phone: studentDetail?.phone,
+          bio: studentDetail?.bio,
+          schoolName: studentDetail?.school_name,
+          schoolType: studentDetail?.school_type,
+          schoolCity: studentDetail?.school_city,
+          parentName: studentDetail?.parent_name,
+          parentRelation: studentDetail?.parent_relation,
+          parentPhone: studentDetail?.parent_phone,
+          parentEmail: studentDetail?.parent_email,
+          isOnline: studentDetail?.is_online ?? true,
+        },
+        tutor: tutorDetail ? {
+          id: tutorDetail.id,
+          fullName: tutorDetail.full_name,
+          phone: tutorDetail.phone,
+          bio: tutorDetail.bio,
+          experienceYears: tutorDetail.experience_years,
+          hourlyRate: tutorDetail.hourly_rate,
+          rating: tutorDetail.rating,
+          totalReviews: tutorDetail.total_reviews,
+          verifiedGradeLevels: tutorDetail.verified_grade_levels,
+          avatar: tutorDetail.avatar_url,
+          isOnline: tutorDetail.is_online ?? true,
+        } : null,
+      }
+    })
 
     return NextResponse.json(transformed)
   } catch (err) {

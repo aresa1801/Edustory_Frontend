@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -9,19 +10,14 @@ import {
   Calendar,
   Clock,
   User,
-  Phone,
-  Mail,
-  MapPin,
   Circle,
   Users,
   RefreshCw,
-  BookOpen,
   CheckCircle,
   RotateCw,
   School,
   UsersRound,
   Target,
-  Home,
   GraduationCap,
 } from 'lucide-react'
 import {
@@ -33,207 +29,48 @@ import {
 } from '@/components/ui/dialog'
 
 // ========== TIPE DATA ==========
-interface StudentSchedule {
+interface StudentProfile {
   id: string
-  studentName: string
-  studentGrade: string
-  studentGender: string
-  studentPhone: string
-  studentEmail: string
-  studentAddress: string
-  studentAbout: string
-  // Data Sekolah
+  name: string
+  avatar: string | null
+  grade: string
+  address: string
+  matchedSubjects: string[]
+  gender: string
+  phone: string
+  bio: string
   schoolName: string
-  schoolLevel: string
+  schoolType: string
   schoolCity: string
-  // Data Orang Tua
   parentName: string
   parentRelation: string
   parentPhone: string
   parentEmail: string
-  // Tujuan belajar
-  learningGoal: string
-  // Jadwal
-  matchedSubjects: string[]
-  frequency: string
-  startDate: string
-  status: 'matched' | 'active' | 'pending' | 'completed'
   isOnline: boolean
-  acceptedAt: string
-  contractEndDate: string
-  schedulesSummary?: { subject: string; day: string; time: string; count: number }[]
-  schedulesCustom?: { subject: string; day: string; time: string; count: number }[] | null
 }
 
-// ========== DATA DUMMY ==========
-const DUMMY_STUDENTS: StudentSchedule[] = [
-  {
-    id: '1',
-    studentName: 'Agus Kurniasariawan',
-    studentGrade: 'SMA Kelas 11',
-    studentGender: 'Laki-laki',
-    studentPhone: '082223450823',
-    studentEmail: 'agus@email.com',
-    studentAddress: 'Jalan Teknika Selatan, Sekip Utara, Yogyakarta 55281',
-    studentAbout: 'Saya suka belajar IPA',
-    schoolName: 'SMA Angkasa 1',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Jakarta Utara',
-    parentName: 'Gilbert',
-    parentRelation: 'Ayah',
-    parentPhone: '081102346578',
-    parentEmail: 'ardi.santoso@gmail.com',
-    learningGoal: 'Ingin lulus UTBK dengan nilai tinggi dan masuk FK UGM',
-    matchedSubjects: ['Sejarah'],
-    frequency: 'flexible',
-    startDate: '2026-09-03',
-    status: 'matched',
-    isOnline: true,
-    acceptedAt: '2026-09-04T07:00:00Z',
-    contractEndDate: '2026-11-18T07:00:00Z',
-    schedulesSummary: [
-      { subject: 'Sejarah', day: 'Selasa', time: '12.00 - 13.00', count: 5 },
-      { subject: 'Sejarah', day: 'Selasa', time: '13.00 - 14.00', count: 5 },
-    ],
-    schedulesCustom: null,
-  },
-  {
-    id: '2',
-    studentName: 'Josepha Marsha',
-    studentGrade: 'SMA Kelas 10',
-    studentGender: 'Perempuan',
-    studentPhone: '087654321098',
-    studentEmail: 'josepha@email.com',
-    studentAddress: 'Jl. Sanggrahan no. 4 Ambarawa 50611',
-    studentAbout: 'Suka belajar sambil mendengarkan musik',
-    schoolName: 'SMA Negeri 3 Semarang',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Semarang',
-    parentName: 'Bambang Marsha',
-    parentRelation: 'Ayah',
-    parentPhone: '081234567890',
-    parentEmail: 'bambang.marsha@gmail.com',
-    learningGoal: 'Ingin menguasai Kimia dan Akuntansi untuk olimpiade',
-    matchedSubjects: ['Kimia', 'Akuntansi'],
-    frequency: 'twice-a-week',
-    startDate: '2026-09-02',
-    status: 'active',
-    isOnline: false,
-    acceptedAt: '2026-09-02T08:00:00Z',
-    contractEndDate: '2026-11-16T08:00:00Z',
-    schedulesSummary: [
-      { subject: 'Kimia', day: 'Rabu', time: '15.00 - 16.00', count: 4 },
-      { subject: 'Akuntansi', day: 'Jumat', time: '15.00 - 16.00', count: 4 },
-    ],
-    schedulesCustom: [
-      { subject: 'Kimia', day: 'Sabtu', time: '10.00 - 11.00', count: 1 },
-    ],
-  },
-  {
-    id: '3',
-    studentName: 'Budi Santoso',
-    studentGrade: 'SMA Kelas 12',
-    studentGender: 'Laki-laki',
-    studentPhone: '085678901234',
-    studentEmail: 'budi@email.com',
-    studentAddress: 'Jl. Merdeka No. 10, Jakarta',
-    studentAbout: 'Suka tantangan soal matematika tingkat tinggi',
-    schoolName: 'SMA Negeri 8 Jakarta',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Jakarta Selatan',
-    parentName: 'Siti Santoso',
-    parentRelation: 'Ibu',
-    parentPhone: '081298765432',
-    parentEmail: 'siti.santoso@gmail.com',
-    learningGoal: 'Persiapan SNBT 2027',
-    matchedSubjects: ['Matematika', 'Fisika'],
-    frequency: 'three-times-a-week',
-    startDate: '2026-09-01',
-    status: 'active',
-    isOnline: true,
-    acceptedAt: '2026-09-01T09:00:00Z',
-    contractEndDate: '2026-11-15T09:00:00Z',
-    schedulesSummary: [
-      { subject: 'Matematika', day: 'Senin', time: '10.00 - 11.00', count: 6 },
-      { subject: 'Fisika', day: 'Rabu', time: '10.00 - 11.00', count: 4 },
-      { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
-    ],
-    schedulesCustom: null,
-  },
-  {
-    id: '4',
-    studentName: 'Siti Rahayu',
-    studentGrade: 'SMA Kelas 11',
-    studentGender: 'Perempuan',
-    studentPhone: '081298765432',
-    studentEmail: 'siti@email.com',
-    studentAddress: 'Jl. Kenanga No. 5, Bandung',
-    studentAbout: 'Suka biologi dan kimia',
-    schoolName: 'SMA Negeri 1 Bandung',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Bandung',
-    parentName: 'Ahmad Rahayu',
-    parentRelation: 'Ayah',
-    parentPhone: '081234567890',
-    parentEmail: 'ahmad.rahayu@gmail.com',
-    learningGoal: 'Ingin menjadi dokter',
-    matchedSubjects: ['Biologi', 'Kimia'],
-    frequency: 'twice-a-week',
-    startDate: '2026-06-01',
-    status: 'completed',
-    isOnline: false,
-    acceptedAt: '2026-06-01T08:00:00Z',
-    contractEndDate: '2026-08-15T08:00:00Z',
-    schedulesSummary: [
-      { subject: 'Biologi', day: 'Senin', time: '14.00 - 15.00', count: 8 },
-      { subject: 'Kimia', day: 'Rabu', time: '14.00 - 15.00', count: 8 },
-    ],
-    schedulesCustom: null,
-  },
-  {
-    id: '5',
-    studentName: 'Dewi Lestari',
-    studentGrade: 'SMA Kelas 10',
-    studentGender: 'Perempuan',
-    studentPhone: '087812345678',
-    studentEmail: 'dewi@email.com',
-    studentAddress: 'Jl. Mawar No. 12, Surabaya',
-    studentAbout: 'Suka belajar santai tapi fokus',
-    schoolName: 'SMA Negeri 5 Surabaya',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Surabaya',
-    parentName: 'Rina Lestari',
-    parentRelation: 'Ibu',
-    parentPhone: '087812345678',
-    parentEmail: 'rina.lestari@gmail.com',
-    learningGoal: 'Meningkatkan nilai matematika',
-    matchedSubjects: ['Matematika'],
-    frequency: 'once-a-week',
-    startDate: '2026-05-15',
-    status: 'completed',
-    isOnline: false,
-    acceptedAt: '2026-05-15T09:00:00Z',
-    contractEndDate: '2026-07-30T09:00:00Z',
-    schedulesSummary: [
-      { subject: 'Matematika', day: 'Jumat', time: '16.00 - 17.00', count: 10 },
-    ],
-    schedulesCustom: null,
-  },
-]
+interface ScheduleItem {
+  id: string
+  matchId: string
+  status: 'active' | 'completed' | 'cancelled'
+  schedulesSummaryFix: any
+  schedulesCustom: any
+  acceptedAt: string
+  contractEndDate: string
+  student: StudentProfile
+}
 
 // ========== HELPER ==========
 const STATUS_LABELS: Record<string, string> = {
-  matched: 'Aktif',
   active: 'Aktif',
-  pending: 'Menunggu',
   completed: 'Selesai',
+  cancelled: 'Dibatalkan',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  matched: 'bg-green-500/20 text-green-700 border-green-500/30',
   active: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
-  pending: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
   completed: 'bg-slate-500/20 text-slate-700 border-slate-500/30',
+  cancelled: 'bg-red-500/20 text-red-700 border-red-500/30',
 }
 
 function formatDate(dateStr: string) {
@@ -246,23 +83,27 @@ function formatDate(dateStr: string) {
 }
 
 function getDaysLeft(endDateStr: string): number {
+  if (!endDateStr) return 0
   const end = new Date(endDateStr).getTime()
   const now = Date.now()
   return Math.ceil((end - now) / (1000 * 60 * 60 * 24))
 }
 
 function renderScheduleSummary(summary: any) {
-  if (!summary) return <span className="text-sm text-muted-foreground">-</span>
+  if (!summary) return <span className="text-sm text-muted-foreground italic">-</span>
   if (typeof summary === 'string') {
     return <span className="text-sm text-muted-foreground">{summary}</span>
   }
   if (Array.isArray(summary)) {
+    if (summary.length === 0) {
+      return <span className="text-sm text-muted-foreground italic">-</span>
+    }
     return (
       <div className="space-y-1">
         {summary.map((item, idx) => (
           <div key={idx} className="text-sm text-muted-foreground">
-            <span className="font-medium">{item.subject}:</span>{' '}
-            {item.day}, {item.time} ({item.count} sesi)
+            <span className="font-medium">{item.subject}:</span> {item.day}, {item.time} (
+            {item.count} sesi)
           </div>
         ))}
       </div>
@@ -273,37 +114,78 @@ function renderScheduleSummary(summary: any) {
 
 // ========== KOMPONEN UTAMA ==========
 export default function TutorSchedulePage() {
-  const [loading, setLoading] = useState(false)
-  const [students, setStudents] = useState<StudentSchedule[]>([])
+  const { user: authUser, loading: authLoading } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([])
   const [mode, setMode] = useState<'online' | 'offline' | 'all'>('all')
-  const [selectedStudent, setSelectedStudent] = useState<StudentSchedule | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<StudentProfile | null>(null)
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
 
-  // Simulasi load data
-  useEffect(() => {
+  // ========== FETCH DATA ==========
+  const fetchData = async () => {
+    if (!authUser) return
     setLoading(true)
-    setTimeout(() => {
-      setStudents(DUMMY_STUDENTS)
+    setError(null)
+    try {
+      const res = await fetch(
+        `/api/match-schedules?user_id=${authUser.id}&role=tutor`,
+        {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+        }
+      )
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Gagal mengambil data jadwal')
+      }
+      const data: ScheduleItem[] = await res.json()
+      setSchedules(data)
+    } catch (err: any) {
+      console.error('[TutorSchedule] Fetch error:', err)
+      setError(err.message || 'Terjadi kesalahan')
+    } finally {
       setLoading(false)
-    }, 500)
-  }, [])
+    }
+  }
 
-  const activeStudents = students.filter(
-    (s) => s.status === 'matched' || s.status === 'active'
+  useEffect(() => {
+    if (authLoading) return
+    if (!authUser) {
+      setLoading(false)
+      return
+    }
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, authLoading])
+
+  const handleRefresh = () => fetchData()
+
+  // ========== FILTER ==========
+  const activeSchedules = schedules.filter(
+    (s) => s.status === 'active' && !isExpiredContract(s.contractEndDate)
   )
-  const completedStudents = students.filter((s) => s.status === 'completed')
+  const completedSchedules = schedules.filter(
+    (s) => s.status === 'completed' || isExpiredContract(s.contractEndDate)
+  )
 
-  const filterByMode = (list: StudentSchedule[]) => {
-    if (mode === 'online') return list.filter((s) => s.isOnline === true)
-    if (mode === 'offline') return list.filter((s) => s.isOnline === false)
+  function isExpiredContract(endDate: string) {
+    if (!endDate) return false
+    return new Date(endDate).getTime() < Date.now()
+  }
+
+  const filterByMode = (list: ScheduleItem[]) => {
+    if (mode === 'online') return list.filter((s) => s.student.isOnline === true)
+    if (mode === 'offline') return list.filter((s) => s.student.isOnline === false)
     return list
   }
 
-  const filteredActive = filterByMode(activeStudents)
-  const filteredCompleted = filterByMode(completedStudents)
+  const filteredActive = filterByMode(activeSchedules)
+  const filteredCompleted = filterByMode(completedSchedules)
 
-  const totalOnline = students.filter((s) => s.isOnline).length
-  const totalOffline = students.filter((s) => !s.isOnline).length
+  const totalOnline = schedules.filter((s) => s.student.isOnline).length
+  const totalOffline = schedules.filter((s) => !s.student.isOnline).length
 
   const toggleMode = () => {
     if (mode === 'all') setMode('online')
@@ -317,16 +199,18 @@ export default function TutorSchedulePage() {
     return 'Offline'
   }
 
-  const handleViewSchedule = (student: StudentSchedule) => {
-    alert(`Lihat jadwal untuk ${student.studentName}`)
+  const handleViewSchedule = (schedule: ScheduleItem) => {
+    alert(`Lihat jadwal untuk ${schedule.student.name}`)
   }
 
-  const handleViewProfile = (student: StudentSchedule) => {
-    setSelectedStudent(student)
+  const handleViewProfile = (schedule: ScheduleItem) => {
+    setSelectedSchedule(schedule)
+    setSelectedStudent(schedule.student)
     setShowProfileDialog(true)
   }
 
-  if (loading) {
+  // ========== LOADING / ERROR ==========
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Spinner className="h-8 w-8" />
@@ -335,6 +219,23 @@ export default function TutorSchedulePage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto p-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-red-500 font-medium">❌ {error}</p>
+            <Button variant="outline" onClick={handleRefresh} className="mt-4">
+              <RefreshCw className="w-4 h-4 mr-1.5" />
+              Refresh
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ========== RENDER ==========
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
@@ -355,7 +256,7 @@ export default function TutorSchedulePage() {
               {getModeLabel()}
             </button>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleRefresh}>
             <RefreshCw className="w-4 h-4" />
             Refresh
           </Button>
@@ -371,7 +272,7 @@ export default function TutorSchedulePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total Siswa</p>
-              <p className="text-xl font-bold">{students.length}</p>
+              <p className="text-xl font-bold">{schedules.length}</p>
             </div>
           </div>
         </Card>
@@ -404,7 +305,7 @@ export default function TutorSchedulePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Kontrak Selesai</p>
-              <p className="text-xl font-bold">{completedStudents.length}</p>
+              <p className="text-xl font-bold">{completedSchedules.length}</p>
             </div>
           </div>
         </Card>
@@ -426,26 +327,34 @@ export default function TutorSchedulePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredActive.map((student) => {
-              const daysLeft = getDaysLeft(student.contractEndDate)
-              const isExpired = daysLeft < 0
+            {filteredActive.map((schedule) => {
+              const daysLeft = getDaysLeft(schedule.contractEndDate)
+              const student = schedule.student
 
               return (
                 <Card
-                  key={student.id}
+                  key={schedule.id}
                   className="border shadow-sm hover:shadow-md transition-shadow"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {student.studentName.charAt(0).toUpperCase()}
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                            {student.avatar ? (
+                              <img
+                                src={student.avatar}
+                                alt={student.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              student.name.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div>
-                            <h3 className="font-semibold text-sm">{student.studentName}</h3>
+                            <h3 className="font-semibold text-sm">{student.name}</h3>
                             <span className="text-xs text-muted-foreground">
-                              {student.studentGrade} | {student.matchedSubjects.join(', ')}
+                              {student.grade} | {student.matchedSubjects.join(', ')}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">
@@ -463,8 +372,8 @@ export default function TutorSchedulePage() {
                           <Clock className="w-3 h-3" />
                           <span>
                             <span className="font-medium">Kontrak berakhir:</span>{' '}
-                            {formatDate(student.contractEndDate)}
-                            {!isExpired ? (
+                            {formatDate(schedule.contractEndDate)}
+                            {daysLeft >= 0 ? (
                               <span className="text-gray-400 ml-1">
                                 (sisa {daysLeft} hari)
                               </span>
@@ -481,7 +390,7 @@ export default function TutorSchedulePage() {
                           variant="outline"
                           size="sm"
                           className="text-xs"
-                          onClick={() => handleViewSchedule(student)}
+                          onClick={() => handleViewSchedule(schedule)}
                         >
                           <Calendar className="w-3.5 h-3.5 mr-1.5" />
                           Lihat Jadwal
@@ -490,7 +399,7 @@ export default function TutorSchedulePage() {
                           variant="outline"
                           size="sm"
                           className="text-xs"
-                          onClick={() => handleViewProfile(student)}
+                          onClick={() => handleViewProfile(schedule)}
                         >
                           <User className="w-3.5 h-3.5 mr-1.5" />
                           Profil Siswa
@@ -521,72 +430,83 @@ export default function TutorSchedulePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredCompleted.map((student) => (
-              <Card
-                key={student.id}
-                className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
-              >
-                <CardContent className="p-4">
-                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {student.studentName.charAt(0).toUpperCase()}
+            {filteredCompleted.map((schedule) => {
+              const student = schedule.student
+              return (
+                <Card
+                  key={schedule.id}
+                  className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                            {student.avatar ? (
+                              <img
+                                src={student.avatar}
+                                alt={student.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              student.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-sm">{student.name}</h3>
+                            <span className="text-xs text-muted-foreground">
+                              {student.grade} | {student.matchedSubjects.join(', ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs">
+                            <Circle
+                              className={`h-2 w-2 fill-current ${
+                                student.isOnline ? 'text-green-500' : 'text-gray-400'
+                              }`}
+                            />
+                            <span className="text-muted-foreground">
+                              {student.isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-sm">{student.studentName}</h3>
-                          <span className="text-xs text-muted-foreground">
-                            {student.studentGrade} | {student.matchedSubjects.join(', ')}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs">
-                          <Circle
-                            className={`h-2 w-2 fill-current ${
-                              student.isOnline ? 'text-green-500' : 'text-gray-400'
-                            }`}
-                          />
-                          <span className="text-muted-foreground">
-                            {student.isOnline ? 'Online' : 'Offline'}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            <span className="font-medium">Berakhir pada:</span>{' '}
+                            {formatDate(schedule.contractEndDate)}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <Clock className="w-3 h-3" />
-                        <span>
-                          <span className="font-medium">Berakhir pada:</span>{' '}
-                          {formatDate(student.contractEndDate)}
-                        </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleViewProfile(schedule)}
+                        >
+                          <User className="w-3.5 h-3.5 mr-1.5" />
+                          Profil Siswa
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled
+                        >
+                          <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                          Menunggu Perpanjangan
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => handleViewProfile(student)}
-                      >
-                        <User className="w-3.5 h-3.5 mr-1.5" />
-                        Profil Siswa
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                        disabled
-                      >
-                        <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-                        Menunggu Perpanjangan
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* ========== DIALOG PROFIL SISWA (DIPERBESAR) ========== */}
+      {/* ========== DIALOG PROFIL SISWA ========== */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -596,18 +516,26 @@ export default function TutorSchedulePage() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedStudent && (
+          {selectedStudent && selectedSchedule && (
             <div className="space-y-6 py-2">
-              {/* ===== HEADER PROFIL ===== */}
+              {/* HEADER PROFIL */}
               <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
-                  {selectedStudent.studentName.charAt(0).toUpperCase()}
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 overflow-hidden">
+                  {selectedStudent.avatar ? (
+                    <img
+                      src={selectedStudent.avatar}
+                      alt={selectedStudent.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    selectedStudent.name.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">{selectedStudent.studentName}</h3>
+                  <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge variant="secondary" className="text-xs">
-                      {selectedStudent.studentGrade}
+                      {selectedStudent.grade}
                     </Badge>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
@@ -623,7 +551,7 @@ export default function TutorSchedulePage() {
                 </div>
               </div>
 
-              {/* ===== GRID 3 KOLOM: DATA SISWA, SEKOLAH, ORANG TUA ===== */}
+              {/* GRID 3 KOLOM */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* KOLOM 1: DATA SISWA */}
                 <Card className="border shadow-sm">
@@ -635,27 +563,23 @@ export default function TutorSchedulePage() {
                     <div className="space-y-2 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Nama Lengkap</p>
-                        <p className="font-medium">{selectedStudent.studentName}</p>
+                        <p className="font-medium">{selectedStudent.name || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Jenis Kelamin</p>
-                        <p className="font-medium">{selectedStudent.studentGender || '-'}</p>
+                        <p className="font-medium">{selectedStudent.gender || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">No. HP / WhatsApp</p>
-                        <p className="font-medium">{selectedStudent.studentPhone || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium break-all">{selectedStudent.studentEmail || '-'}</p>
+                        <p className="font-medium">{selectedStudent.phone || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Alamat Rumah</p>
-                        <p className="font-medium">{selectedStudent.studentAddress || '-'}</p>
+                        <p className="font-medium">{selectedStudent.address || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Tentang Saya</p>
-                        <p className="font-medium italic">{selectedStudent.studentAbout || '-'}</p>
+                        <p className="font-medium italic">{selectedStudent.bio || '-'}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -675,7 +599,7 @@ export default function TutorSchedulePage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Jenjang Sekolah</p>
-                        <p className="font-medium">{selectedStudent.schoolLevel || '-'}</p>
+                        <p className="font-medium">{selectedStudent.schoolType || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Kota Sekolah</p>
@@ -683,7 +607,7 @@ export default function TutorSchedulePage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Kelas</p>
-                        <p className="font-medium">{selectedStudent.studentGrade || '-'}</p>
+                        <p className="font-medium">{selectedStudent.grade || '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
@@ -717,14 +641,16 @@ export default function TutorSchedulePage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Email Orang Tua</p>
-                        <p className="font-medium break-all">{selectedStudent.parentEmail || '-'}</p>
+                        <p className="font-medium break-all">
+                          {selectedStudent.parentEmail || '-'}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* ===== TUJUAN BELAJAR ===== */}
+              {/* TUJUAN BELAJAR (placeholder sementara) */}
               <Card className="border shadow-sm bg-blue-50/50">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center gap-2">
@@ -732,14 +658,13 @@ export default function TutorSchedulePage() {
                     <h4 className="font-semibold text-sm">Tujuan Belajar</h4>
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    {selectedStudent.learningGoal || 'Belum ada tujuan belajar yang ditentukan.'}
+                    -
                   </p>
                 </CardContent>
               </Card>
 
-              {/* ===== JADWAL: TERKINI (KIRI) & KUSTOM (KANAN) ===== */}
+              {/* JADWAL: TERKINI & KUSTOM */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* KIRI: JADWAL TERKINI */}
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
@@ -747,12 +672,11 @@ export default function TutorSchedulePage() {
                       <h4 className="font-semibold text-sm">Jadwal Terkini</h4>
                     </div>
                     <div className="pt-1">
-                      {renderScheduleSummary(selectedStudent.schedulesSummary)}
+                      {renderScheduleSummary(selectedSchedule.schedulesSummaryFix)}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* KANAN: JADWAL KUSTOM */}
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
@@ -760,8 +684,8 @@ export default function TutorSchedulePage() {
                       <h4 className="font-semibold text-sm">Jadwal Kustom</h4>
                     </div>
                     <div className="pt-1">
-                      {selectedStudent.schedulesCustom ? (
-                        renderScheduleSummary(selectedStudent.schedulesCustom)
+                      {selectedSchedule.schedulesCustom ? (
+                        renderScheduleSummary(selectedSchedule.schedulesCustom)
                       ) : (
                         <p className="text-sm text-muted-foreground italic">
                           Belum ada jadwal kustom.
@@ -772,7 +696,7 @@ export default function TutorSchedulePage() {
                 </Card>
               </div>
 
-              {/* ===== KONTRAK ===== */}
+              {/* KONTRAK */}
               <Card className="border shadow-sm bg-muted/30">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 pb-2 border-b mb-3">
@@ -782,11 +706,13 @@ export default function TutorSchedulePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
-                      <p className="font-medium">{formatDate(selectedStudent.acceptedAt)}</p>
+                      <p className="font-medium">{formatDate(selectedSchedule.acceptedAt)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Berakhir Kontrak</p>
-                      <p className="font-medium">{formatDate(selectedStudent.contractEndDate)}</p>
+                      <p className="font-medium">
+                        {formatDate(selectedSchedule.contractEndDate)}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
