@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import {
   Video,
   Navigation,
   PlayCircle,
+  RefreshCw,
 } from 'lucide-react'
 
 interface ScheduleDetailViewProps {
@@ -49,6 +50,13 @@ function parseTimeRange(timeStr: string): { start: number; end: number } {
   }
 }
 
+function formatDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getDatesBetween(start: string, end: string): Date[] {
   if (!start || !end) return []
   const dates: Date[] = []
@@ -64,10 +72,6 @@ function getDatesBetween(start: string, end: string): Date[] {
   return dates
 }
 
-function getDayName(date: Date): string {
-  return date.toLocaleDateString('id-ID', { weekday: 'long' })
-}
-
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('id-ID', {
@@ -77,16 +81,54 @@ function formatDate(dateStr: string) {
   })
 }
 
-function buildScheduleLookup(
-  summary: any
-): Record<string, Record<string, string>> {
-  const lookup: Record<string, Record<string, string>> = {}
-  if (!Array.isArray(summary)) return lookup
+// ========== BUILD SESSION MAP (PRESISI) ==========
+// Bangun map: { "YYYY-MM-DD|12.00 - 13.00": "Sejarah" }
+// berdasarkan accepted_at + schedules_summary_fix (day, time, count)
+function buildSessionMap(
+  acceptedAt: string,
+  summary: any[]
+): Record<string, string> {
+  const map: Record<string, string> = {}
+  if (!acceptedAt || !Array.isArray(summary)) return map
+
+  const startDate = new Date(acceptedAt)
+  startDate.setHours(0, 0, 0, 0)
+
+  // Nama hari → index (0 = Minggu, 1 = Senin, ...)
+  const dayIndexMap: Record<string, number> = {
+    Minggu: 0,
+    Senin: 1,
+    Selasa: 2,
+    Rabu: 3,
+    Kamis: 4,
+    Jumat: 5,
+    Sabtu: 6,
+  }
+
   summary.forEach((item: any) => {
-    if (!lookup[item.day]) lookup[item.day] = {}
-    lookup[item.day][item.time] = item.subject
+    const targetDay = dayIndexMap[item.day]
+    if (targetDay === undefined) return
+
+    const count = item.count || 0
+    const time = item.time
+    const subject = item.subject
+
+    if (!time || !subject || count <= 0) return
+
+    // Cari hari pertama yang cocok dari startDate
+    const current = new Date(startDate)
+    const diff = (targetDay - current.getDay() + 7) % 7
+    current.setDate(current.getDate() + diff)
+
+    // Isi sebanyak count sesi (mingguan)
+    for (let i = 0; i < count; i++) {
+      const key = `${formatDateKey(current)}|${time}`
+      map[key] = subject
+      current.setDate(current.getDate() + 7)
+    }
   })
-  return lookup
+
+  return map
 }
 
 function getTimeSlots(summary: any): string[] {
@@ -138,6 +180,7 @@ function getSlotStatus(
   now: Date
 ): SlotStatus {
   const { start, end } = parseTimeRange(timeSlot)
+  const dateKey = formatDateKey(date)
 
   const startTime = new Date(date)
   startTime.setHours(start, 0, 0, 0)
@@ -145,34 +188,26 @@ function getSlotStatus(
   const endTime = new Date(date)
   endTime.setHours(end, 0, 0, 0)
 
-  // Cari session yang cocok (tanggal & jam mulai sama)
+  // Cari session yang cocok: tanggal sama & jam sama
   const matched = sessions.find((s) => {
     const sd = new Date(s.scheduled_at)
-    return (
-      sd.getFullYear() === startTime.getFullYear() &&
-      sd.getMonth() === startTime.getMonth() &&
-      sd.getDate() === startTime.getDate() &&
-      sd.getHours() === startTime.getHours()
-    )
+    return formatDateKey(sd) === dateKey && sd.getHours() === start
   })
 
-  // Hangus
   if (matched?.cancelled_at) return 'cancelled'
 
-  // Ongoing kalau sudah started & masih dalam rentang jam
   if (matched?.started_at) {
     if (now >= startTime && now < endTime) return 'ongoing'
     return 'past'
   }
 
-  // Belum started & belum cancelled
   const deadline = new Date(
     startTime.getTime() + READY_WINDOW_MINUTES * 60 * 1000
   )
 
   if (now < startTime) return 'upcoming'
-  if (now >= startTime && now < deadline) return 'upcoming' // masih menunggu
-  return 'cancelled' // lewat 20 menit, hangus
+  if (now >= startTime && now < deadline) return 'upcoming'
+  return 'cancelled'
 }
 
 // ========== KOMPONEN ==========
@@ -182,16 +217,19 @@ export default function ScheduleDetailView({
 }: ScheduleDetailViewProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<ScheduleData | null>(null)
   const [now, setNow] = useState(new Date())
   const [readyLoading, setReadyLoading] = useState(false)
 
   // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(
+    async (isRefresh = false) => {
       try {
-        setLoading(true)
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
+
         const res = await fetch(`/api/match-schedules/${matchId}`, {
           cache: 'no-store',
         })
@@ -201,16 +239,22 @@ export default function ScheduleDetailView({
         }
         const result = await res.json()
         setData(result)
+        setError(null)
       } catch (err: any) {
         setError(err.message)
       } finally {
         setLoading(false)
+        setRefreshing(false)
       }
-    }
-    if (matchId) fetchData()
-  }, [matchId])
+    },
+    [matchId]
+  )
 
-  // Real-time clock: update tiap 30 detik
+  useEffect(() => {
+    if (matchId) fetchData(false)
+  }, [matchId, fetchData])
+
+  // Real-time clock
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date())
@@ -218,7 +262,7 @@ export default function ScheduleDetailView({
     return () => clearInterval(interval)
   }, [])
 
-  // Compute calendar dates
+  // Calendar dates
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
     return getDatesBetween(data.acceptedAt, data.contractEndDate)
@@ -245,10 +289,11 @@ export default function ScheduleDetailView({
 
   const visibleDates = monthGroups[activeMonth] || []
 
-  const scheduleLookup = useMemo(() => {
-    if (!data?.schedulesSummaryFix) return {}
-    return buildScheduleLookup(data.schedulesSummaryFix)
-  }, [data?.schedulesSummaryFix])
+  // Session map (presisi: hanya tanggal yang benar-benar ada sesi)
+  const sessionMap = useMemo(() => {
+    if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
+    return buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
+  }, [data?.acceptedAt, data?.schedulesSummaryFix])
 
   const timeSlots = useMemo(() => {
     if (!data?.schedulesSummaryFix) return []
@@ -256,6 +301,7 @@ export default function ScheduleDetailView({
   }, [data?.schedulesSummaryFix])
 
   const handleBack = () => router.back()
+  const handleRefresh = () => fetchData(true)
 
   const handleReady = async () => {
     if (!data) return
@@ -288,14 +334,7 @@ export default function ScheduleDetailView({
           ? '✅ Kedua pihak siap! Sesi dimulai.'
           : '✅ Kamu sudah siap. Menunggu pihak lain...'
       )
-
-      // Refresh data
-      const refresh = await fetch(`/api/match-schedules/${matchId}`, {
-        cache: 'no-store',
-      })
-      if (refresh.ok) {
-        setData(await refresh.json())
-      }
+      await fetchData(true)
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
@@ -320,7 +359,9 @@ export default function ScheduleDetailView({
     return (
       <div className="max-w-4xl mx-auto p-4">
         <Alert variant="destructive">
-          <AlertDescription>❌ {error || 'Data tidak ditemukan'}</AlertDescription>
+          <AlertDescription>
+            ❌ {error || 'Data tidak ditemukan'}
+          </AlertDescription>
         </Alert>
         <Button onClick={handleBack} className="mt-4">
           <ArrowLeft className="w-4 h-4 mr-1.5" />
@@ -348,16 +389,30 @@ export default function ScheduleDetailView({
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
       {/* ===== HEADER ===== */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={handleBack}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Detail Jadwal</h1>
-          <p className="text-muted-foreground text-sm">
-            Jadwal mengajar yang sudah dikonfirmasi
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={handleBack}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Detail Jadwal</h1>
+            <p className="text-muted-foreground text-sm">
+              Jadwal mengajar yang sudah dikonfirmasi
+            </p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="gap-1.5"
+        >
+          <RefreshCw
+            className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+          />
+          Refresh
+        </Button>
       </div>
 
       {/* ===== INFO CARDS ===== */}
@@ -384,7 +439,9 @@ export default function ScheduleDetailView({
                 <div className="flex items-center gap-1 mt-0.5">
                   <Circle
                     className={`h-2 w-2 fill-current ${
-                      counterpartIsOnline ? 'text-green-500' : 'text-gray-400'
+                      counterpartIsOnline
+                        ? 'text-green-500'
+                        : 'text-gray-400'
                     }`}
                   />
                   <span className="text-xs text-muted-foreground">
@@ -407,7 +464,9 @@ export default function ScheduleDetailView({
                 <p className="text-xs text-muted-foreground">
                   Berakhir Kontrak
                 </p>
-                <p className="font-medium">{formatDate(data.contractEndDate)}</p>
+                <p className="font-medium">
+                  {formatDate(data.contractEndDate)}
+                </p>
               </div>
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">
@@ -422,7 +481,7 @@ export default function ScheduleDetailView({
         </Card>
       </div>
 
-      {/* ===== KALENDER GRID (FIXED) ===== */}
+      {/* ===== KALENDER GRID ===== */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
@@ -511,8 +570,8 @@ export default function ScheduleDetailView({
                         {slot}
                       </td>
                       {visibleDates.map((date, colIdx) => {
-                        const dayName = getDayName(date)
-                        const subject = scheduleLookup[dayName]?.[slot]
+                        const key = `${formatDateKey(date)}|${slot}`
+                        const subject = sessionMap[key]
                         const isScheduled = !!subject
 
                         const status: SlotStatus = isScheduled
