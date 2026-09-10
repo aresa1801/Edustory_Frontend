@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+const READY_WINDOW_MINUTES = 20
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { matchId: string } }
@@ -77,14 +79,49 @@ export async function GET(
     const studentDetail = studentRes.data
     const tutorDetail = tutorRes.data
 
-    // 3. Ambil sesi dari tabel sessions (opsional, kalau ada)
+    // 3. Ambil sesi dari tabel sessions + kolom baru
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
-      .select('id, scheduled_at, status, notes')
+      .select(
+        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at'
+      )
       .eq('match_id', matchId)
       .order('scheduled_at', { ascending: true })
 
-    // 4. Transform response
+    // 4. Auto-mark hangus: kalau lewat 20 menit & belum started & belum cancelled
+    const now = new Date()
+    const expiredIds: string[] = []
+
+    const processedSessions = (sessionsData || []).map((s: any) => {
+      if (s.started_at || s.cancelled_at) return s
+
+      const scheduledAt = new Date(s.scheduled_at)
+      const diffMinutes =
+        (now.getTime() - scheduledAt.getTime()) / 1000 / 60
+
+      if (diffMinutes > READY_WINDOW_MINUTES) {
+        expiredIds.push(s.id)
+        return {
+          ...s,
+          cancelled_at: now.toISOString(),
+          status: 'cancelled',
+        }
+      }
+      return s
+    })
+
+    // Update DB sekali untuk yang expired
+    if (expiredIds.length > 0) {
+      await supabaseAdmin
+        .from('sessions')
+        .update({
+          cancelled_at: now.toISOString(),
+          status: 'cancelled',
+        })
+        .in('id', expiredIds)
+    }
+
+    // 5. Transform response
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
@@ -102,8 +139,10 @@ export async function GET(
         grade: match?.student_grade || '',
         address: match?.student_address || '',
         matchedSubjects: match?.matched_subjects || [],
-        latitude: match?.student_latitude ?? studentDetail?.latitude ?? null,
-        longitude: match?.student_longitude ?? studentDetail?.longitude ?? null,
+        latitude:
+          match?.student_latitude ?? studentDetail?.latitude ?? null,
+        longitude:
+          match?.student_longitude ?? studentDetail?.longitude ?? null,
         gender: studentDetail?.gender || '',
         phone: studentDetail?.phone || '',
         bio: studentDetail?.bio || '',
@@ -114,7 +153,8 @@ export async function GET(
         parentRelation: studentDetail?.parent_relation || '',
         parentPhone: studentDetail?.parent_phone || '',
         parentEmail: studentDetail?.parent_email || '',
-        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
+        isOnline:
+          match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: tutorDetail
@@ -133,7 +173,7 @@ export async function GET(
           }
         : null,
 
-      sessions: sessionsData || [],
+      sessions: processedSessions,
     }
 
     return NextResponse.json(response)
