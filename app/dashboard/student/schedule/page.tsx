@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,11 +19,7 @@ import {
   BookOpen,
   CheckCircle,
   RotateCw,
-  School,
-  UsersRound,
-  Target,
-  Home,
-  GraduationCap,
+  Star,
 } from 'lucide-react'
 import {
   Dialog,
@@ -33,27 +30,14 @@ import {
 } from '@/components/ui/dialog'
 
 // ========== TIPE DATA ==========
-interface StudentSchedule {
+interface TutorSchedule {
   id: string
-  studentName: string
+  tutorName: string
   studentGrade: string
-  studentGender: string
-  studentPhone: string
-  studentEmail: string
-  studentAddress: string
-  studentAbout: string
-  // Data Sekolah
-  schoolName: string
-  schoolLevel: string
-  schoolCity: string
-  // Data Orang Tua
-  parentName: string
-  parentRelation: string
-  parentPhone: string
-  parentEmail: string
-  // Tujuan belajar
-  learningGoal: string
-  // Jadwal
+  tutorPhone: string
+  tutorEmail: string
+  tutorAddress: string
+  subject: string
   matchedSubjects: string[]
   frequency: string
   startDate: string
@@ -61,29 +45,22 @@ interface StudentSchedule {
   isOnline: boolean
   acceptedAt: string
   contractEndDate: string
+  tutorRating: number
+  tutorExperience: number
+  tutorBio: string
   schedulesSummary?: { subject: string; day: string; time: string; count: number }[]
-  schedulesCustom?: { subject: string; day: string; time: string; count: number }[] | null
 }
 
 // ========== DATA DUMMY ==========
-const DUMMY_STUDENTS: StudentSchedule[] = [
+const DUMMY_TUTORS: TutorSchedule[] = [
   {
     id: '1',
-    studentName: 'Agus Kurniasariawan',
+    tutorName: 'Agus Setiabudi',
     studentGrade: 'SMA Kelas 11',
-    studentGender: 'Laki-laki',
-    studentPhone: '082223450823',
-    studentEmail: 'agus@email.com',
-    studentAddress: 'Jalan Teknika Selatan, Sekip Utara, Yogyakarta 55281',
-    studentAbout: 'Saya suka belajar IPA',
-    schoolName: 'SMA Angkasa 1',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Jakarta Utara',
-    parentName: 'Gilbert',
-    parentRelation: 'Ayah',
-    parentPhone: '081102346578',
-    parentEmail: 'ardi.santoso@gmail.com',
-    learningGoal: 'Ingin lulus UTBK dengan nilai tinggi dan masuk FK UGM',
+    tutorPhone: '081234567890',
+    tutorEmail: 'agus@email.com',
+    tutorAddress: 'Jalan Teknika Selatan, Sekip Utara, Yogyakarta 55281',
+    subject: 'Sejarah',
     matchedSubjects: ['Sejarah'],
     frequency: 'flexible',
     startDate: '2026-09-03',
@@ -91,29 +68,22 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
     isOnline: true,
     acceptedAt: '2026-09-04T07:00:00Z',
     contractEndDate: '2026-11-18T07:00:00Z',
+    tutorRating: 4.5,
+    tutorExperience: 3,
+    tutorBio: 'Pengajar sejarah berpengalaman 3 tahun.',
     schedulesSummary: [
       { subject: 'Sejarah', day: 'Selasa', time: '12.00 - 13.00', count: 5 },
       { subject: 'Sejarah', day: 'Selasa', time: '13.00 - 14.00', count: 5 },
     ],
-    schedulesCustom: null,
   },
   {
     id: '2',
-    studentName: 'Josepha Marsha',
+    tutorName: 'Budi Santoso',
     studentGrade: 'SMA Kelas 10',
-    studentGender: 'Perempuan',
-    studentPhone: '087654321098',
-    studentEmail: 'josepha@email.com',
-    studentAddress: 'Jl. Sanggrahan no. 4 Ambarawa 50611',
-    studentAbout: 'Suka belajar sambil mendengarkan musik',
-    schoolName: 'SMA Negeri 3 Semarang',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Semarang',
-    parentName: 'Bambang Marsha',
-    parentRelation: 'Ayah',
-    parentPhone: '081234567890',
-    parentEmail: 'bambang.marsha@gmail.com',
-    learningGoal: 'Ingin menguasai Kimia dan Akuntansi untuk olimpiade',
+    tutorPhone: '087654321098',
+    tutorEmail: 'budi@email.com',
+    tutorAddress: 'Jl. Sanggrahan no. 4 Ambarawa 50611',
+    subject: 'Kimia',
     matchedSubjects: ['Kimia', 'Akuntansi'],
     frequency: 'twice-a-week',
     startDate: '2026-09-02',
@@ -121,31 +91,22 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
     isOnline: false,
     acceptedAt: '2026-09-02T08:00:00Z',
     contractEndDate: '2026-11-16T08:00:00Z',
+    tutorRating: 4.2,
+    tutorExperience: 5,
+    tutorBio: 'Guru kimia dan akuntansi dengan pengalaman 5 tahun.',
     schedulesSummary: [
       { subject: 'Kimia', day: 'Rabu', time: '15.00 - 16.00', count: 4 },
       { subject: 'Akuntansi', day: 'Jumat', time: '15.00 - 16.00', count: 4 },
     ],
-    schedulesCustom: [
-      { subject: 'Kimia', day: 'Sabtu', time: '10.00 - 11.00', count: 1 },
-    ],
   },
   {
     id: '3',
-    studentName: 'Budi Santoso',
+    tutorName: 'Citra Dewi',
     studentGrade: 'SMA Kelas 12',
-    studentGender: 'Laki-laki',
-    studentPhone: '085678901234',
-    studentEmail: 'budi@email.com',
-    studentAddress: 'Jl. Merdeka No. 10, Jakarta',
-    studentAbout: 'Suka tantangan soal matematika tingkat tinggi',
-    schoolName: 'SMA Negeri 8 Jakarta',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Jakarta Selatan',
-    parentName: 'Siti Santoso',
-    parentRelation: 'Ibu',
-    parentPhone: '081298765432',
-    parentEmail: 'siti.santoso@gmail.com',
-    learningGoal: 'Persiapan SNBT 2027',
+    tutorPhone: '085678901234',
+    tutorEmail: 'citra@email.com',
+    tutorAddress: 'Jl. Merdeka No. 10, Jakarta',
+    subject: 'Matematika',
     matchedSubjects: ['Matematika', 'Fisika'],
     frequency: 'three-times-a-week',
     startDate: '2026-09-01',
@@ -153,30 +114,23 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
     isOnline: true,
     acceptedAt: '2026-09-01T09:00:00Z',
     contractEndDate: '2026-11-15T09:00:00Z',
+    tutorRating: 4.8,
+    tutorExperience: 7,
+    tutorBio: 'Spesialis matematika dan fisika untuk SMA.',
     schedulesSummary: [
       { subject: 'Matematika', day: 'Senin', time: '10.00 - 11.00', count: 6 },
       { subject: 'Fisika', day: 'Rabu', time: '10.00 - 11.00', count: 4 },
       { subject: 'Matematika', day: 'Jumat', time: '10.00 - 11.00', count: 6 },
     ],
-    schedulesCustom: null,
   },
   {
     id: '4',
-    studentName: 'Siti Rahayu',
+    tutorName: 'Dedi Pratama',
     studentGrade: 'SMA Kelas 11',
-    studentGender: 'Perempuan',
-    studentPhone: '081298765432',
-    studentEmail: 'siti@email.com',
-    studentAddress: 'Jl. Kenanga No. 5, Bandung',
-    studentAbout: 'Suka biologi dan kimia',
-    schoolName: 'SMA Negeri 1 Bandung',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Bandung',
-    parentName: 'Ahmad Rahayu',
-    parentRelation: 'Ayah',
-    parentPhone: '081234567890',
-    parentEmail: 'ahmad.rahayu@gmail.com',
-    learningGoal: 'Ingin menjadi dokter',
+    tutorPhone: '081298765432',
+    tutorEmail: 'dedi@email.com',
+    tutorAddress: 'Jl. Kenanga No. 5, Bandung',
+    subject: 'Biologi',
     matchedSubjects: ['Biologi', 'Kimia'],
     frequency: 'twice-a-week',
     startDate: '2026-06-01',
@@ -184,29 +138,22 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
     isOnline: false,
     acceptedAt: '2026-06-01T08:00:00Z',
     contractEndDate: '2026-08-15T08:00:00Z',
+    tutorRating: 4.0,
+    tutorExperience: 4,
+    tutorBio: 'Guru biologi dan kimia.',
     schedulesSummary: [
       { subject: 'Biologi', day: 'Senin', time: '14.00 - 15.00', count: 8 },
       { subject: 'Kimia', day: 'Rabu', time: '14.00 - 15.00', count: 8 },
     ],
-    schedulesCustom: null,
   },
   {
     id: '5',
-    studentName: 'Dewi Lestari',
+    tutorName: 'Eka Wahyuni',
     studentGrade: 'SMA Kelas 10',
-    studentGender: 'Perempuan',
-    studentPhone: '087812345678',
-    studentEmail: 'dewi@email.com',
-    studentAddress: 'Jl. Mawar No. 12, Surabaya',
-    studentAbout: 'Suka belajar santai tapi fokus',
-    schoolName: 'SMA Negeri 5 Surabaya',
-    schoolLevel: 'SMA / SMK',
-    schoolCity: 'Surabaya',
-    parentName: 'Rina Lestari',
-    parentRelation: 'Ibu',
-    parentPhone: '087812345678',
-    parentEmail: 'rina.lestari@gmail.com',
-    learningGoal: 'Meningkatkan nilai matematika',
+    tutorPhone: '087812345678',
+    tutorEmail: 'eka@email.com',
+    tutorAddress: 'Jl. Mawar No. 12, Surabaya',
+    subject: 'Matematika',
     matchedSubjects: ['Matematika'],
     frequency: 'once-a-week',
     startDate: '2026-05-15',
@@ -214,10 +161,12 @@ const DUMMY_STUDENTS: StudentSchedule[] = [
     isOnline: false,
     acceptedAt: '2026-05-15T09:00:00Z',
     contractEndDate: '2026-07-30T09:00:00Z',
+    tutorRating: 4.9,
+    tutorExperience: 6,
+    tutorBio: 'Guru matematika berpengalaman.',
     schedulesSummary: [
       { subject: 'Matematika', day: 'Jumat', time: '16.00 - 17.00', count: 10 },
     ],
-    schedulesCustom: null,
   },
 ]
 
@@ -252,13 +201,13 @@ function getDaysLeft(endDateStr: string): number {
 }
 
 function renderScheduleSummary(summary: any) {
-  if (!summary) return <span className="text-sm text-muted-foreground">-</span>
+  if (!summary) return null
   if (typeof summary === 'string') {
-    return <span className="text-sm text-muted-foreground">{summary}</span>
+    return <span className="text-muted-foreground">{summary}</span>
   }
   if (Array.isArray(summary)) {
     return (
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {summary.map((item, idx) => (
           <div key={idx} className="text-sm text-muted-foreground">
             <span className="font-medium">{item.subject}:</span>{' '}
@@ -268,42 +217,48 @@ function renderScheduleSummary(summary: any) {
       </div>
     )
   }
-  return <span className="text-sm text-muted-foreground">{JSON.stringify(summary)}</span>
+  return <span className="text-muted-foreground">{JSON.stringify(summary)}</span>
 }
 
 // ========== KOMPONEN UTAMA ==========
-export default function TutorSchedulePage() {
+export default function StudentSchedulePage() {
   const [loading, setLoading] = useState(false)
-  const [students, setStudents] = useState<StudentSchedule[]>([])
+  const [tutors, setTutors] = useState<TutorSchedule[]>([])
   const [mode, setMode] = useState<'online' | 'offline' | 'all'>('all')
-  const [selectedStudent, setSelectedStudent] = useState<StudentSchedule | null>(null)
+  const [selectedTutor, setSelectedTutor] = useState<TutorSchedule | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
 
   // Simulasi load data
   useEffect(() => {
     setLoading(true)
     setTimeout(() => {
-      setStudents(DUMMY_STUDENTS)
+      setTutors(DUMMY_TUTORS)
       setLoading(false)
     }, 500)
   }, [])
 
-  const activeStudents = students.filter(
-    (s) => s.status === 'matched' || s.status === 'active'
+  // Filter data
+  const activeTutors = tutors.filter(
+    (t) => (t.status === 'matched' || t.status === 'active')
   )
-  const completedStudents = students.filter((s) => s.status === 'completed')
+  const completedTutors = tutors.filter(
+    (t) => t.status === 'completed'
+  )
 
-  const filterByMode = (list: StudentSchedule[]) => {
-    if (mode === 'online') return list.filter((s) => s.isOnline === true)
-    if (mode === 'offline') return list.filter((s) => s.isOnline === false)
+  // Filter berdasarkan mode online/offline
+  const filterByMode = (list: TutorSchedule[]) => {
+    if (mode === 'online') return list.filter(t => t.isOnline === true)
+    if (mode === 'offline') return list.filter(t => t.isOnline === false)
     return list
   }
 
-  const filteredActive = filterByMode(activeStudents)
-  const filteredCompleted = filterByMode(completedStudents)
+  const filteredActive = filterByMode(activeTutors)
+  const filteredCompleted = filterByMode(completedTutors)
 
-  const totalOnline = students.filter((s) => s.isOnline).length
-  const totalOffline = students.filter((s) => !s.isOnline).length
+  const totalActive = activeTutors.length
+  const totalCompleted = completedTutors.length
+  const totalOnline = tutors.filter(t => t.isOnline).length
+  const totalOffline = tutors.filter(t => !t.isOnline).length
 
   const toggleMode = () => {
     if (mode === 'all') setMode('online')
@@ -317,13 +272,17 @@ export default function TutorSchedulePage() {
     return 'Offline'
   }
 
-  const handleViewSchedule = (student: StudentSchedule) => {
-    alert(`Lihat jadwal untuk ${student.studentName}`)
+  const handleViewSchedule = (tutor: TutorSchedule) => {
+    alert(`Lihat jadwal untuk ${tutor.tutorName}`)
   }
 
-  const handleViewProfile = (student: StudentSchedule) => {
-    setSelectedStudent(student)
+  const handleViewProfile = (tutor: TutorSchedule) => {
+    setSelectedTutor(tutor)
     setShowProfileDialog(true)
+  }
+
+  const handleRequestExtension = (tutor: TutorSchedule) => {
+    alert(`✅ Permintaan perpanjangan untuk ${tutor.tutorName} telah dikirim! Silakan tunggu konfirmasi dari tutor.`)
   }
 
   if (loading) {
@@ -340,9 +299,9 @@ export default function TutorSchedulePage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Jadwal Mengajar</h1>
+          <h1 className="text-2xl font-bold">Jadwal Belajar</h1>
           <p className="text-muted-foreground">
-            Kelola jadwal mengajar dengan siswa yang sudah dikonfirmasi.
+            Kelola jadwal belajar dengan tutor yang sudah dikonfirmasi.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -370,8 +329,8 @@ export default function TutorSchedulePage() {
               <Users className="w-4 h-4 text-blue-500" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Total Siswa</p>
-              <p className="text-xl font-bold">{students.length}</p>
+              <p className="text-xs text-muted-foreground">Total Tutor</p>
+              <p className="text-xl font-bold">{tutors.length}</p>
             </div>
           </div>
         </Card>
@@ -404,7 +363,7 @@ export default function TutorSchedulePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Kontrak Selesai</p>
-              <p className="text-xl font-bold">{completedStudents.length}</p>
+              <p className="text-xl font-bold">{totalCompleted}</p>
             </div>
           </div>
         </Card>
@@ -420,42 +379,42 @@ export default function TutorSchedulePage() {
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               {mode === 'all'
-                ? 'Belum ada siswa aktif.'
-                : `Tidak ada siswa aktif dengan status ${getModeLabel().toLowerCase()}.`}
+                ? 'Belum ada tutor aktif.'
+                : `Tidak ada tutor aktif dengan status ${getModeLabel().toLowerCase()}.`}
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredActive.map((student) => {
-              const daysLeft = getDaysLeft(student.contractEndDate)
+            {filteredActive.map((tutor) => {
+              const daysLeft = getDaysLeft(tutor.contractEndDate)
               const isExpired = daysLeft < 0
 
               return (
                 <Card
-                  key={student.id}
+                  key={tutor.id}
                   className="border shadow-sm hover:shadow-md transition-shadow"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {student.studentName.charAt(0).toUpperCase()}
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {tutor.tutorName.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <h3 className="font-semibold text-sm">{student.studentName}</h3>
+                            <h3 className="font-semibold text-sm">{tutor.tutorName}</h3>
                             <span className="text-xs text-muted-foreground">
-                              {student.studentGrade} | {student.matchedSubjects.join(', ')}
+                              {tutor.studentGrade} | {tutor.matchedSubjects.join(', ')}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">
                             <Circle
                               className={`h-2 w-2 fill-current ${
-                                student.isOnline ? 'text-green-500' : 'text-gray-400'
+                                tutor.isOnline ? 'text-green-500' : 'text-gray-400'
                               }`}
                             />
                             <span className="text-muted-foreground">
-                              {student.isOnline ? 'Online' : 'Offline'}
+                              {tutor.isOnline ? 'Online' : 'Offline'}
                             </span>
                           </div>
                         </div>
@@ -463,7 +422,7 @@ export default function TutorSchedulePage() {
                           <Clock className="w-3 h-3" />
                           <span>
                             <span className="font-medium">Kontrak berakhir:</span>{' '}
-                            {formatDate(student.contractEndDate)}
+                            {formatDate(tutor.contractEndDate)}
                             {!isExpired ? (
                               <span className="text-gray-400 ml-1">
                                 (sisa {daysLeft} hari)
@@ -481,7 +440,7 @@ export default function TutorSchedulePage() {
                           variant="outline"
                           size="sm"
                           className="text-xs"
-                          onClick={() => handleViewSchedule(student)}
+                          onClick={() => handleViewSchedule(tutor)}
                         >
                           <Calendar className="w-3.5 h-3.5 mr-1.5" />
                           Lihat Jadwal
@@ -490,10 +449,10 @@ export default function TutorSchedulePage() {
                           variant="outline"
                           size="sm"
                           className="text-xs"
-                          onClick={() => handleViewProfile(student)}
+                          onClick={() => handleViewProfile(tutor)}
                         >
                           <User className="w-3.5 h-3.5 mr-1.5" />
-                          Profil Siswa
+                          Profil
                         </Button>
                       </div>
                     </div>
@@ -521,9 +480,9 @@ export default function TutorSchedulePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredCompleted.map((student) => (
+            {filteredCompleted.map((tutor) => (
               <Card
-                key={student.id}
+                key={tutor.id}
                 className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
               >
                 <CardContent className="p-4">
@@ -531,22 +490,22 @@ export default function TutorSchedulePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {student.studentName.charAt(0).toUpperCase()}
+                          {tutor.tutorName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-sm">{student.studentName}</h3>
+                          <h3 className="font-semibold text-sm">{tutor.tutorName}</h3>
                           <span className="text-xs text-muted-foreground">
-                            {student.studentGrade} | {student.matchedSubjects.join(', ')}
+                            {tutor.studentGrade} | {tutor.matchedSubjects.join(', ')}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-xs">
                           <Circle
                             className={`h-2 w-2 fill-current ${
-                              student.isOnline ? 'text-green-500' : 'text-gray-400'
+                              tutor.isOnline ? 'text-green-500' : 'text-gray-400'
                             }`}
                           />
                           <span className="text-muted-foreground">
-                            {student.isOnline ? 'Online' : 'Offline'}
+                            {tutor.isOnline ? 'Online' : 'Offline'}
                           </span>
                         </div>
                       </div>
@@ -554,7 +513,7 @@ export default function TutorSchedulePage() {
                         <Clock className="w-3 h-3" />
                         <span>
                           <span className="font-medium">Berakhir pada:</span>{' '}
-                          {formatDate(student.contractEndDate)}
+                          {formatDate(tutor.contractEndDate)}
                         </span>
                       </div>
                     </div>
@@ -563,19 +522,19 @@ export default function TutorSchedulePage() {
                         variant="outline"
                         size="sm"
                         className="text-xs"
-                        onClick={() => handleViewProfile(student)}
+                        onClick={() => handleViewProfile(tutor)}
                       >
                         <User className="w-3.5 h-3.5 mr-1.5" />
-                        Profil Siswa
+                        Profil
                       </Button>
                       <Button
                         variant="default"
                         size="sm"
                         className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                        disabled
+                        onClick={() => handleRequestExtension(tutor)}
                       >
                         <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-                        Menunggu Perpanjangan
+                        Ajukan Perpanjangan
                       </Button>
                     </div>
                   </div>
@@ -586,215 +545,102 @@ export default function TutorSchedulePage() {
         )}
       </div>
 
-      {/* ========== DIALOG PROFIL SISWA (DIPERBESAR) ========== */}
+      {/* Dialog Profil Tutor */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Profil Siswa</DialogTitle>
+            <DialogTitle className="text-xl">Profil Tutor</DialogTitle>
             <DialogDescription>
-              Informasi lengkap siswa yang telah dikonfirmasi.
+              Informasi lengkap tutor yang telah dikonfirmasi.
             </DialogDescription>
           </DialogHeader>
-
-          {selectedStudent && (
-            <div className="space-y-6 py-2">
-              {/* ===== HEADER PROFIL ===== */}
-              <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
-                  {selectedStudent.studentName.charAt(0).toUpperCase()}
+          {selectedTutor && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                  {selectedTutor.tutorName.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">{selectedStudent.studentName}</h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {selectedStudent.studentGrade}
-                    </Badge>
-                    <div className="flex items-center gap-1 text-xs">
-                      <Circle
-                        className={`h-2.5 w-2.5 fill-current ${
-                          selectedStudent.isOnline ? 'text-green-500' : 'text-gray-400'
-                        }`}
-                      />
-                      <span className="text-muted-foreground">
-                        {selectedStudent.isOnline ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
+                  <h3 className="text-lg font-semibold">{selectedTutor.tutorName}</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedTutor.studentGrade}
+                  </Badge>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Circle
+                      className={`h-2.5 w-2.5 fill-current ${
+                        selectedTutor.isOnline ? 'text-green-500' : 'text-gray-400'
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {selectedTutor.isOnline ? 'Online' : 'Offline'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* ===== GRID 3 KOLOM: DATA SISWA, SEKOLAH, ORANG TUA ===== */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* KOLOM 1: DATA SISWA */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <User className="w-4 h-4 text-blue-500" />
-                      <h4 className="font-semibold text-sm">Data Siswa</h4>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Nama Lengkap</p>
-                        <p className="font-medium">{selectedStudent.studentName}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Jenis Kelamin</p>
-                        <p className="font-medium">{selectedStudent.studentGender || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">No. HP / WhatsApp</p>
-                        <p className="font-medium">{selectedStudent.studentPhone || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium break-all">{selectedStudent.studentEmail || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Alamat Rumah</p>
-                        <p className="font-medium">{selectedStudent.studentAddress || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Tentang Saya</p>
-                        <p className="font-medium italic">{selectedStudent.studentAbout || '-'}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedTutor.tutorPhone || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedTutor.tutorEmail || '-'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  <span>{selectedTutor.tutorAddress || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mapel:</span>{' '}
+                    {selectedTutor.matchedSubjects.join(', ')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-yellow-500" />
+                  <span>
+                    <span className="font-medium">Rating:</span> {selectedTutor.tutorRating} / 5
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Pengalaman:</span> {selectedTutor.tutorExperience} tahun
+                  </span>
+                </div>
+                {selectedTutor.tutorBio && (
+                  <div className="flex items-start gap-2">
+                    <BookOpen className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <span>{selectedTutor.tutorBio}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Mulai kontrak:</span>{' '}
+                    {formatDate(selectedTutor.acceptedAt)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>
+                    <span className="font-medium">Kontrak berakhir:</span>{' '}
+                    {formatDate(selectedTutor.contractEndDate)}
+                  </span>
+                </div>
 
-                {/* KOLOM 2: DATA SEKOLAH */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <School className="w-4 h-4 text-purple-500" />
-                      <h4 className="font-semibold text-sm">Data Sekolah</h4>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Nama Sekolah</p>
-                        <p className="font-medium">{selectedStudent.schoolName || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Jenjang Sekolah</p>
-                        <p className="font-medium">{selectedStudent.schoolLevel || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Kota Sekolah</p>
-                        <p className="font-medium">{selectedStudent.schoolCity || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Kelas</p>
-                        <p className="font-medium">{selectedStudent.studentGrade || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
-                        <p className="font-medium">
-                          {selectedStudent.matchedSubjects.join(', ') || '-'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* KOLOM 3: DATA ORANG TUA */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <UsersRound className="w-4 h-4 text-green-500" />
-                      <h4 className="font-semibold text-sm">Data Orang Tua / Wali</h4>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Nama Orang Tua / Wali</p>
-                        <p className="font-medium">{selectedStudent.parentName || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Hubungan</p>
-                        <p className="font-medium">{selectedStudent.parentRelation || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">No. HP Orang Tua</p>
-                        <p className="font-medium">{selectedStudent.parentPhone || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Email Orang Tua</p>
-                        <p className="font-medium break-all">{selectedStudent.parentEmail || '-'}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {selectedTutor.schedulesSummary && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Jadwal:</p>
+                    {renderScheduleSummary(selectedTutor.schedulesSummary)}
+                  </div>
+                )}
               </div>
-
-              {/* ===== TUJUAN BELAJAR ===== */}
-              <Card className="border shadow-sm bg-blue-50/50">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-semibold text-sm">Tujuan Belajar</h4>
-                  </div>
-                  <p className="text-sm font-medium text-foreground">
-                    {selectedStudent.learningGoal || 'Belum ada tujuan belajar yang ditentukan.'}
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* ===== JADWAL: TERKINI (KIRI) & KUSTOM (KANAN) ===== */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* KIRI: JADWAL TERKINI */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <Calendar className="w-4 h-4 text-orange-500" />
-                      <h4 className="font-semibold text-sm">Jadwal Terkini</h4>
-                    </div>
-                    <div className="pt-1">
-                      {renderScheduleSummary(selectedStudent.schedulesSummary)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* KANAN: JADWAL KUSTOM */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <RotateCw className="w-4 h-4 text-teal-500" />
-                      <h4 className="font-semibold text-sm">Jadwal Kustom</h4>
-                    </div>
-                    <div className="pt-1">
-                      {selectedStudent.schedulesCustom ? (
-                        renderScheduleSummary(selectedStudent.schedulesCustom)
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          Belum ada jadwal kustom.
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* ===== KONTRAK ===== */}
-              <Card className="border shadow-sm bg-muted/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 pb-2 border-b mb-3">
-                    <GraduationCap className="w-4 h-4 text-indigo-500" />
-                    <h4 className="font-semibold text-sm">Informasi Kontrak</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
-                      <p className="font-medium">{formatDate(selectedStudent.acceptedAt)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Berakhir Kontrak</p>
-                      <p className="font-medium">{formatDate(selectedStudent.contractEndDate)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           )}
-
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end">
             <Button variant="outline" onClick={() => setShowProfileDialog(false)}>
               Tutup
             </Button>
@@ -803,5 +649,4 @@ export default function TutorSchedulePage() {
       </Dialog>
     </div>
   )
-  
 }
