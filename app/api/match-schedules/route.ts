@@ -49,7 +49,11 @@ export async function GET(req: NextRequest) {
           student_is_online,
           accepted_at,
           contract_end_date,
-          status
+          status,
+          tutor_full_name,
+          tutor_avatar_url,
+          tutor_hourly_rate,
+          tutor_rating
         )
       `)
 
@@ -127,26 +131,27 @@ export async function GET(req: NextRequest) {
           parentRelation: studentDetail?.parent_relation,
           parentPhone: studentDetail?.parent_phone,
           parentEmail: studentDetail?.parent_email,
-          // ✅ Ambil dari matches.student_is_online
           isOnline:
             match?.student_is_online ?? studentDetail?.is_online ?? true,
         },
-        tutor: tutorDetail
-          ? {
-              id: tutorDetail.id,
-              fullName: tutorDetail.full_name,
-              phone: tutorDetail.phone,
-              email: tutorDetail.email,
-              bio: tutorDetail.bio,
-              experienceYears: tutorDetail.experience_years,
-              hourlyRate: tutorDetail.hourly_rate,
-              rating: tutorDetail.rating,
-              totalReviews: tutorDetail.total_reviews,
-              verifiedGradeLevels: tutorDetail.verified_grade_levels,
-              avatar: tutorDetail.avatar_url,
-              isOnline: tutorDetail.is_online ?? true,
-            }
-          : null,
+        // ✅ JANGAN NULL — fallback ke match snapshot
+        tutor: {
+          id: item.tutor_id,
+          fullName:
+            tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
+          phone: tutorDetail?.phone || '',
+          email: tutorDetail?.email || '',
+          bio: tutorDetail?.bio || '',
+          experienceYears: tutorDetail?.experience_years || 0,
+          hourlyRate:
+            tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
+          rating: tutorDetail?.rating ?? match?.tutor_rating ?? 0,
+          totalReviews: tutorDetail?.total_reviews || 0,
+          verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
+          avatar:
+            tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
+          isOnline: tutorDetail?.is_online ?? true,
+        },
       }
     })
 
