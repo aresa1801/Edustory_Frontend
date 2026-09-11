@@ -18,6 +18,8 @@ import {
   Navigation,
   PlayCircle,
   RefreshCw,
+  Clock,
+  User,
 } from 'lucide-react'
 
 interface ScheduleDetailViewProps {
@@ -81,9 +83,16 @@ function formatDate(dateStr: string) {
   })
 }
 
+function formatLongDate(d: Date) {
+  return d.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 // ========== BUILD SESSION MAP (PRESISI) ==========
-// Bangun map: { "YYYY-MM-DD|12.00 - 13.00": "Sejarah" }
-// berdasarkan accepted_at + schedules_summary_fix (day, time, count)
 function buildSessionMap(
   acceptedAt: string,
   summary: any[]
@@ -94,7 +103,6 @@ function buildSessionMap(
   const startDate = new Date(acceptedAt)
   startDate.setHours(0, 0, 0, 0)
 
-  // Nama hari → index (0 = Minggu, 1 = Senin, ...)
   const dayIndexMap: Record<string, number> = {
     Minggu: 0,
     Senin: 1,
@@ -115,12 +123,10 @@ function buildSessionMap(
 
     if (!time || !subject || count <= 0) return
 
-    // Cari hari pertama yang cocok dari startDate
     const current = new Date(startDate)
     const diff = (targetDay - current.getDay() + 7) % 7
     current.setDate(current.getDate() + diff)
 
-    // Isi sebanyak count sesi (mingguan)
     for (let i = 0; i < count; i++) {
       const key = `${formatDateKey(current)}|${time}`
       map[key] = subject
@@ -188,7 +194,6 @@ function getSlotStatus(
   const endTime = new Date(date)
   endTime.setHours(end, 0, 0, 0)
 
-  // Cari session yang cocok: tanggal sama & jam sama
   const matched = sessions.find((s) => {
     const sd = new Date(s.scheduled_at)
     return formatDateKey(sd) === dateKey && sd.getHours() === start
@@ -223,7 +228,6 @@ export default function ScheduleDetailView({
   const [now, setNow] = useState(new Date())
   const [readyLoading, setReadyLoading] = useState(false)
 
-  // Fetch data
   const fetchData = useCallback(
     async (isRefresh = false) => {
       try {
@@ -254,7 +258,6 @@ export default function ScheduleDetailView({
     if (matchId) fetchData(false)
   }, [matchId, fetchData])
 
-  // Real-time clock
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date())
@@ -289,7 +292,6 @@ export default function ScheduleDetailView({
 
   const visibleDates = monthGroups[activeMonth] || []
 
-  // Session map (presisi: hanya tanggal yang benar-benar ada sesi)
   const sessionMap = useMemo(() => {
     if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
     return buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
@@ -299,6 +301,75 @@ export default function ScheduleDetailView({
     if (!data?.schedulesSummaryFix) return []
     return getTimeSlots(data.schedulesSummaryFix)
   }, [data?.schedulesSummaryFix])
+
+  // ===== NEXT SESSION =====
+  const nextSession = useMemo(() => {
+    let next: { date: Date; timeSlot: string; subject: string } | null = null
+    for (const [key, subject] of Object.entries(sessionMap)) {
+      const [dateStr, timeSlot] = key.split('|')
+      const { start } = parseTimeRange(timeSlot)
+      const date = new Date(dateStr)
+      date.setHours(start, 0, 0, 0)
+      if (date > now) {
+        if (!next || date < next.date) {
+          next = { date, timeSlot, subject }
+        }
+      }
+    }
+    return next
+  }, [sessionMap, now])
+
+  // ===== JADWAL TERKINI (count disesuaikan) =====
+  const adjustedScheduleSummary = useMemo(() => {
+    if (!Array.isArray(data?.schedulesSummaryFix)) return []
+    if (!data?.acceptedAt) return data?.schedulesSummaryFix || []
+
+    const startDate = new Date(data.acceptedAt)
+    startDate.setHours(0, 0, 0, 0)
+
+    const dayIndexMap: Record<string, number> = {
+      Minggu: 0,
+      Senin: 1,
+      Selasa: 2,
+      Rabu: 3,
+      Kamis: 4,
+      Jumat: 5,
+      Sabtu: 6,
+    }
+
+    return data.schedulesSummaryFix.map((item: any) => {
+      const targetDay = dayIndexMap[item.day]
+      if (targetDay === undefined) return item
+
+      const count = item.count || 0
+      const time = item.time
+
+      if (!time || count <= 0) return item
+
+      const current = new Date(startDate)
+      const diff = (targetDay - current.getDay() + 7) % 7
+      current.setDate(current.getDate() + diff)
+
+      let passedCount = 0
+      for (let i = 0; i < count; i++) {
+        const { end } = parseTimeRange(time)
+        const sessionEnd = new Date(current)
+        sessionEnd.setHours(end, 0, 0, 0)
+
+        if (sessionEnd <= now) {
+          passedCount++
+        }
+        current.setDate(current.getDate() + 7)
+      }
+
+      return {
+        ...item,
+        count: Math.max(0, count - passedCount),
+        originalCount: count,
+        passedCount,
+      }
+    })
+  }, [data?.schedulesSummaryFix, data?.acceptedAt, now])
 
   const handleBack = () => router.back()
   const handleRefresh = () => fetchData(true)
@@ -371,9 +442,14 @@ export default function ScheduleDetailView({
     )
   }
 
+  // ===== COUNTERPART =====
+  // Kalau role=tutor → tampil SISWA
+  // Kalau role=student → tampil TUTOR
   const counterpartLabel = role === 'tutor' ? 'Siswa' : 'Tutor'
   const counterpartName =
-    role === 'tutor' ? data.student.name : data.tutor?.fullName || 'Tutor'
+    role === 'tutor'
+      ? data.student.name || 'Siswa'
+      : data.tutor?.fullName || 'Tutor'
   const counterpartAvatar =
     role === 'tutor' ? data.student.avatar : data.tutor?.avatar
   const counterpartIsOnline =
@@ -381,10 +457,17 @@ export default function ScheduleDetailView({
       ? data.student.isOnline
       : data.tutor?.isOnline ?? true
 
+  // Koordinat (khusus tutor & siswa offline)
   const isStudentOffline = data.student.isOnline === false
   const hasCoords =
     data.student.latitude != null && data.student.longitude != null
   const showCoordinates = role === 'tutor' && isStudentOffline && hasCoords
+
+  const openMapsToStudent = () => {
+    if (!hasCoords) return
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${data.student.latitude},${data.student.longitude}&travelmode=driving`
+    window.open(url, '_blank')
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
@@ -397,7 +480,9 @@ export default function ScheduleDetailView({
           <div>
             <h1 className="text-2xl font-bold">Detail Jadwal</h1>
             <p className="text-muted-foreground text-sm">
-              Jadwal mengajar yang sudah dikonfirmasi
+              {role === 'tutor'
+                ? 'Jadwal mengajar yang sudah dikonfirmasi'
+                : 'Jadwal belajar yang sudah dikonfirmasi'}
             </p>
           </div>
         </div>
@@ -417,10 +502,11 @@ export default function ScheduleDetailView({
 
       {/* ===== INFO CARDS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Counterpart card */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
                 {counterpartAvatar ? (
                   <img
                     src={counterpartAvatar}
@@ -431,11 +517,11 @@ export default function ScheduleDetailView({
                   counterpartName.charAt(0).toUpperCase()
                 )}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">
                   {counterpartLabel}
                 </p>
-                <p className="font-semibold">{counterpartName}</p>
+                <p className="font-semibold truncate">{counterpartName}</p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <Circle
                     className={`h-2 w-2 fill-current ${
@@ -449,10 +535,25 @@ export default function ScheduleDetailView({
                   </span>
                 </div>
               </div>
+
+              {/* Tombol Maps (khusus tutor & siswa offline) */}
+              {showCoordinates && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                  onClick={openMapsToStudent}
+                  title="Buka lokasi siswa di Google Maps"
+                >
+                  <MapPin className="w-4 h-4" />
+                  Lokasi
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
+        {/* Contract info */}
         <Card>
           <CardContent className="p-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -481,7 +582,7 @@ export default function ScheduleDetailView({
         </Card>
       </div>
 
-      {/* ===== KALENDER GRID ===== */}
+      {/* ===== KALENDER ===== */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
@@ -620,13 +721,38 @@ export default function ScheduleDetailView({
         </CardContent>
       </Card>
 
-      {/* ===== KOORDINAT ===== */}
+      {/* ===== JADWAL BERIKUTNYA ===== */}
+      {nextSession && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">
+                  Jadwal Berikutnya
+                </p>
+                <p className="font-semibold">
+                  {formatLongDate(nextSession.date)},{' '}
+                  {nextSession.timeSlot}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {nextSession.subject}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== KOORDINAT DETAIL (khusus tutor & siswa offline) ===== */}
       {showCoordinates && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Navigation className="w-4 h-4 text-amber-500" />
-              Koordinat Siswa
+              Lokasi Siswa
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -648,13 +774,7 @@ export default function ScheduleDetailView({
                 </p>
               </div>
             </div>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${data.student.latitude},${data.student.longitude}&travelmode=driving`
-                window.open(url, '_blank')
-              }}
-            >
+            <Button className="w-full sm:w-auto" onClick={openMapsToStudent}>
               <MapPin className="w-4 h-4 mr-1.5" />
               Buka di Google Maps
             </Button>
@@ -672,10 +792,10 @@ export default function ScheduleDetailView({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {Array.isArray(data.schedulesSummaryFix) &&
-            data.schedulesSummaryFix.length > 0 ? (
+            {Array.isArray(adjustedScheduleSummary) &&
+            adjustedScheduleSummary.length > 0 ? (
               <ul className="space-y-1">
-                {data.schedulesSummaryFix.map((item: any, idx: number) => (
+                {adjustedScheduleSummary.map((item: any, idx: number) => (
                   <li
                     key={idx}
                     className="text-sm flex items-start gap-2"
@@ -684,7 +804,12 @@ export default function ScheduleDetailView({
                       {item.subject}
                     </Badge>
                     <span className="text-muted-foreground">
-                      {item.day}, {item.time} ({item.count} sesi)
+                      {item.day}, {item.time}{' '}
+                      {item.count > 0 ? (
+                        <span>({item.count} sesi)</span>
+                      ) : (
+                        <span className="text-xs italic">(selesai)</span>
+                      )}
                     </span>
                   </li>
                 ))}
