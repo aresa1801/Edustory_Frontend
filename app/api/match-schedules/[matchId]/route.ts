@@ -157,21 +157,19 @@ export async function GET(
           match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
-      tutor: tutorDetail
-        ? {
-            id: tutorDetail.id,
-            fullName: tutorDetail.full_name,
-            phone: tutorDetail.phone,
-            bio: tutorDetail.bio,
-            experienceYears: tutorDetail.experience_years,
-            hourlyRate: tutorDetail.hourly_rate,
-            rating: tutorDetail.rating,
-            totalReviews: tutorDetail.total_reviews,
-            verifiedGradeLevels: tutorDetail.verified_grade_levels,
-            avatar: tutorDetail.avatar_url,
-            isOnline: tutorDetail.is_online ?? true,
-          }
-        : null,
+      tutor: {
+        id: schedule.tutor_id,
+        fullName: tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
+        phone: tutorDetail?.phone || '',
+        bio: tutorDetail?.bio || '',
+        experienceYears: tutorDetail?.experience_years || 0,
+        hourlyRate: tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
+        rating: tutorDetail?.rating ?? match?.tutor_rating ?? 0,
+        totalReviews: tutorDetail?.total_reviews || 0,
+        verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
+        avatar: tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
+        isOnline: tutorDetail?.is_online ?? true,
+      },
 
       sessions: processedSessions,
     }

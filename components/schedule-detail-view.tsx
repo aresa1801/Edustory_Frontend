@@ -506,7 +506,7 @@ export default function ScheduleDetailView({
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
                 {counterpartAvatar ? (
                   <img
                     src={counterpartAvatar}
@@ -518,16 +518,27 @@ export default function ScheduleDetailView({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">
-                  {counterpartLabel}
-                </p>
+                <p className="text-xs text-muted-foreground">{counterpartLabel}</p>
                 <p className="font-semibold truncate">{counterpartName}</p>
-                <div className="flex items-center gap-1 mt-0.5">
+                <p className="text-xs text-muted-foreground truncate">
+                  {role === 'tutor'
+                    ? `${data.student.grade || '-'} | ${
+                        data.student.matchedSubjects?.join(', ') || '-'
+                      }`
+                    : `${
+                        data.tutor?.rating
+                          ? `⭐ ${data.tutor.rating} | `
+                          : ''
+                      }${
+                        data.tutor?.experienceYears
+                          ? `${data.tutor.experienceYears} th pengalaman`
+                          : ''
+                      }`}
+                </p>
+                <div className="flex items-center gap-1 mt-1">
                   <Circle
                     className={`h-2 w-2 fill-current ${
-                      counterpartIsOnline
-                        ? 'text-green-500'
-                        : 'text-gray-400'
+                      counterpartIsOnline ? 'text-green-500' : 'text-gray-400'
                     }`}
                   />
                   <span className="text-xs text-muted-foreground">
@@ -539,14 +550,13 @@ export default function ScheduleDetailView({
               {/* Tombol Maps (khusus tutor & siswa offline) */}
               {showCoordinates && (
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="outline"
-                  className="gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                  className="h-9 w-9 shrink-0 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
                   onClick={openMapsToStudent}
                   title="Buka lokasi siswa di Google Maps"
                 >
                   <MapPin className="w-4 h-4" />
-                  Lokasi
                 </Button>
               )}
             </div>
@@ -724,23 +734,32 @@ export default function ScheduleDetailView({
       {/* ===== JADWAL BERIKUTNYA ===== */}
       {nextSession && (
         <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <Clock className="w-5 h-5 text-primary" />
+              <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 text-primary" />
               </div>
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground">
-                  Jadwal Berikutnya
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Jadwal Berikutnya</p>
+                <p className="font-semibold text-sm truncate">
+                  {formatLongDate(nextSession.date)}, {nextSession.timeSlot}
                 </p>
-                <p className="font-semibold">
-                  {formatLongDate(nextSession.date)},{' '}
-                  {nextSession.timeSlot}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {nextSession.subject}
-                </p>
+                <p className="text-xs text-muted-foreground">{nextSession.subject}</p>
               </div>
+
+              {/* Tombol Maps (khusus tutor & siswa offline) */}
+              {showCoordinates && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 shrink-0"
+                  onClick={openMapsToStudent}
+                  title="Buka lokasi siswa di Google Maps"
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span className="hidden sm:inline">Lokasi</span>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
