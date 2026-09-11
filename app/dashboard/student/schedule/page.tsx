@@ -155,14 +155,13 @@ export default function StudentSchedulePage() {
     if (mode === 'online')
       return list.filter((s) => s.student?.isOnline === true)
     if (mode === 'offline')
-      return list.filter((s) => !s.student?.isOnline)
+      return list.filter((s) => s.student?.isOnline === false)
     return list
   }
 
   const filteredActive = filterByMode(activeSchedules)
   const filteredCompleted = filterByMode(completedSchedules)
 
-  // Konsisten dengan filter
   const totalOnline = schedules.filter(
     (s) => s.student?.isOnline === true
   ).length
@@ -361,9 +360,7 @@ export default function StudentSchedulePage() {
                           <div className="flex items-center gap-1 text-xs">
                             <Circle
                               className={`h-2 w-2 fill-current ${
-                                schedule.student?.isOnline
-                                  ? 'text-green-500'
-                                  : 'text-gray-400'
+                                schedule.student?.isOnline ? 'text-green-500' : 'text-gray-400'
                               }`}
                             />
                             <span className="text-muted-foreground">
@@ -551,9 +548,7 @@ export default function StudentSchedulePage() {
                   <div className="flex items-center gap-1 mt-1">
                     <Circle
                       className={`h-2.5 w-2.5 fill-current ${
-                        selectedSchedule.student?.isOnline
-                          ? 'text-green-500'
-                          : 'text-gray-400'
+                        selectedSchedule.student?.isOnline ? 'text-green-500' : 'text-gray-400'
                       }`}
                     />
                     <span className="text-xs text-muted-foreground">
