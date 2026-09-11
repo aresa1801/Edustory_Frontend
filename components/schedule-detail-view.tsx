@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Clock,
   User,
+  XCircle,
 } from 'lucide-react'
 
 interface ScheduleDetailViewProps {
@@ -90,6 +91,11 @@ function formatLongDate(d: Date) {
     month: 'long',
     year: 'numeric',
   })
+}
+
+function getTotalSessions(summary: any): number {
+  if (!Array.isArray(summary)) return 0
+  return summary.reduce((sum: number, item: any) => sum + (item.count || 0), 0)
 }
 
 // ========== BUILD SESSION MAP (PRESISI) ==========
@@ -461,7 +467,8 @@ export default function ScheduleDetailView({
   const isStudentOffline = data.student.isOnline === false
   const hasCoords =
     data.student.latitude != null && data.student.longitude != null
-  const showCoordinates = role === 'tutor' && isStudentOffline && hasCoords
+  const showCoordinates =
+    role === 'tutor' && isStudentOffline && hasCoords
 
   const openMapsToStudent = () => {
     if (!hasCoords) return
@@ -520,45 +527,75 @@ export default function ScheduleDetailView({
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">{counterpartLabel}</p>
                 <p className="font-semibold truncate">{counterpartName}</p>
+
+                {/* Kelas + mapel */}
                 <p className="text-xs text-muted-foreground truncate">
                   {role === 'tutor'
                     ? `${data.student.grade || '-'} | ${
                         data.student.matchedSubjects?.join(', ') || '-'
                       }`
                     : `${
-                        data.tutor?.rating
-                          ? `⭐ ${data.tutor.rating} | `
-                          : ''
+                        data.tutor?.rating ? `⭐ ${data.tutor.rating} | ` : ''
                       }${
                         data.tutor?.experienceYears
                           ? `${data.tutor.experienceYears} th pengalaman`
                           : ''
                       }`}
                 </p>
-                <div className="flex items-center gap-1 mt-1">
-                  <Circle
-                    className={`h-2 w-2 fill-current ${
-                      counterpartIsOnline ? 'text-green-500' : 'text-gray-400'
-                    }`}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {counterpartIsOnline ? 'Online' : 'Offline'}
+
+                {/* Harga/jam + total sesi */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
+                  <span>
+                    <span className="font-medium text-foreground">
+                      {role === 'tutor'
+                        ? data.student.sessionsPerMonth > 0
+                          ? `Rp ${Math.round(
+                              data.student.budgetPerMonth /
+                                data.student.sessionsPerMonth
+                            ).toLocaleString('id-ID')}`
+                          : '-'
+                        : data.tutor?.hourlyRate
+                        ? `Rp ${Number(
+                            data.tutor.hourlyRate
+                          ).toLocaleString('id-ID')}`
+                        : '-'}
+                    </span>
+                    /jam
+                  </span>
+                  <span>
+                    <span className="font-medium text-foreground">
+                      {getTotalSessions(data.schedulesSummaryFix)}
+                    </span>{' '}
+                    sesi
                   </span>
                 </div>
-              </div>
 
-              {/* Tombol Maps (khusus tutor & siswa offline) */}
-              {showCoordinates && (
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-9 w-9 shrink-0 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
-                  onClick={openMapsToStudent}
-                  title="Buka lokasi siswa di Google Maps"
-                >
-                  <MapPin className="w-4 h-4" />
-                </Button>
-              )}
+                {/* Status + map (khusus offline counterpart) */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-1">
+                    <Circle
+                      className={`h-2 w-2 fill-current ${
+                        counterpartIsOnline ? 'text-green-500' : 'text-gray-400'
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {counterpartIsOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+
+                  {!counterpartIsOnline && showCoordinates && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                      onClick={openMapsToStudent}
+                      title="Lihat lokasi siswa di Google Maps"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -903,12 +940,14 @@ export default function ScheduleDetailView({
 
             {role === 'student' && (
               <Button
-                variant="outline"
+                variant="destructive"
                 className="flex-1"
-                onClick={handleRequestReschedule}
+                onClick={() =>
+                  alert('Fitur selesaikan kontrak akan segera hadir.')
+                }
               >
-                <RotateCw className="w-4 h-4 mr-1.5" />
-                Ajukan Perpindahan
+                <XCircle className="w-4 h-4 mr-1.5" />
+                Selesaikan Kontrak
               </Button>
             )}
 

@@ -38,6 +38,8 @@ export async function GET(
           student_latitude,
           student_longitude,
           student_is_online,
+          student_budget_per_month,
+          student_sessions_per_month,
           accepted_at,
           contract_end_date,
           tutor_full_name,
@@ -153,8 +155,9 @@ export async function GET(
         parentRelation: studentDetail?.parent_relation || '',
         parentPhone: studentDetail?.parent_phone || '',
         parentEmail: studentDetail?.parent_email || '',
-        isOnline:
-          match?.student_is_online ?? studentDetail?.is_online ?? true,
+        budgetPerMonth: match?.student_budget_per_month ?? 0,
+        sessionsPerMonth: match?.student_sessions_per_month ?? 0,
+        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: {
