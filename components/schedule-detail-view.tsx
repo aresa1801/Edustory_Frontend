@@ -12,15 +12,14 @@ import {
   Calendar,
   MapPin,
   Circle,
-  CheckCircle,
   RotateCw,
   Video,
-  Navigation,
   PlayCircle,
   RefreshCw,
   Clock,
-  User,
   XCircle,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react'
 
 interface ScheduleDetailViewProps {
@@ -98,7 +97,7 @@ function getTotalSessions(summary: any): number {
   return summary.reduce((sum: number, item: any) => sum + (item.count || 0), 0)
 }
 
-// ========== BUILD SESSION MAP (PRESISI) ==========
+// ========== BUILD SESSION MAP ==========
 function buildSessionMap(
   acceptedAt: string,
   summary: any[]
@@ -264,10 +263,11 @@ export default function ScheduleDetailView({
     if (matchId) fetchData(false)
   }, [matchId, fetchData])
 
+  // Ticker 1 detik untuk timer countdown realtime
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date())
-    }, 30 * 1000)
+    }, 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -308,22 +308,84 @@ export default function ScheduleDetailView({
     return getTimeSlots(data.schedulesSummaryFix)
   }, [data?.schedulesSummaryFix])
 
-  // ===== NEXT SESSION =====
+  // ===== NEXT SESSION (termasuk yang sedang dalam window 20 menit) =====
   const nextSession = useMemo(() => {
-    let next: { date: Date; timeSlot: string; subject: string } | null = null
+    let next: {
+      date: Date
+      timeSlot: string
+      subject: string
+      sessionRow: any | null
+    } | null = null
+
     for (const [key, subject] of Object.entries(sessionMap)) {
       const [dateStr, timeSlot] = key.split('|')
       const { start } = parseTimeRange(timeSlot)
       const date = new Date(dateStr)
       date.setHours(start, 0, 0, 0)
-      if (date > now) {
+
+      const deadline = date.getTime() + READY_WINDOW_MINUTES * 60 * 1000
+
+      // Hanya ambil yang belum melewati deadline window 20 menit
+      if (deadline > now.getTime()) {
         if (!next || date < next.date) {
-          next = { date, timeSlot, subject }
+          // Cari sesi di DB untuk cek apakah sudah started/cancelled
+          const sessionRow = (data?.sessions || []).find((s: any) => {
+            const sd = new Date(s.scheduled_at)
+            return (
+              formatDateKey(sd) === formatDateKey(date) &&
+              sd.getHours() === start
+            )
+          })
+          next = { date, timeSlot, subject, sessionRow: sessionRow || null }
         }
       }
     }
     return next
-  }, [sessionMap, now])
+  }, [sessionMap, now, data?.sessions])
+
+  // ===== TIMER STATE =====
+  const timerState = useMemo(() => {
+    if (!nextSession) return null
+
+    const startMs = nextSession.date.getTime()
+    const nowMs = now.getTime()
+    const deadlineMs = startMs + READY_WINDOW_MINUTES * 60 * 1000
+
+    // Cek apakah sesi sudah started / cancelled
+    const isStarted = !!nextSession.sessionRow?.started_at
+    const isCancelled = !!nextSession.sessionRow?.cancelled_at
+
+    if (isCancelled) {
+      return { state: 'cancelled' as const }
+    }
+
+    if (isStarted) {
+      return { state: 'started' as const }
+    }
+
+    if (nowMs < startMs) {
+      // Belum masuk jam belajar
+      const diffMin = Math.ceil((startMs - nowMs) / 60000)
+      return { state: 'before' as const, minutesUntil: diffMin }
+    }
+
+    if (nowMs >= deadlineMs) {
+      // Sudah lewat 20 menit tanpa klik
+      return { state: 'expired' as const }
+    }
+
+    // Dalam window 20 menit
+    const remainingMs = deadlineMs - nowMs
+    const min = Math.floor(remainingMs / 60000)
+    const sec = Math.floor((remainingMs % 60000) / 1000)
+    return {
+      state: 'active' as const,
+      label: `${min.toString().padStart(2, '0')}:${sec
+        .toString()
+        .padStart(2, '0')}`,
+      remainingMs,
+    }
+  }, [nextSession, now])
 
   // ===== JADWAL TERKINI (count disesuaikan) =====
   const adjustedScheduleSummary = useMemo(() => {
@@ -419,10 +481,6 @@ export default function ScheduleDetailView({
     }
   }
 
-  const handleRequestReschedule = () => {
-    alert('📅 Fitur ajukan perpindahan jadwal akan segera hadir.')
-  }
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -449,8 +507,6 @@ export default function ScheduleDetailView({
   }
 
   // ===== COUNTERPART =====
-  // Kalau role=tutor → tampil SISWA
-  // Kalau role=student → tampil TUTOR
   const counterpartLabel = role === 'tutor' ? 'Siswa' : 'Tutor'
   const counterpartName =
     role === 'tutor'
@@ -463,7 +519,6 @@ export default function ScheduleDetailView({
       ? data.student.isOnline
       : data.tutor?.isOnline ?? true
 
-  // Koordinat (khusus tutor & siswa offline)
   const isStudentOffline = data.student.isOnline === false
   const hasCoords =
     data.student.latitude != null && data.student.longitude != null
@@ -528,23 +583,8 @@ export default function ScheduleDetailView({
                 <p className="text-xs text-muted-foreground">{counterpartLabel}</p>
                 <p className="font-semibold truncate">{counterpartName}</p>
 
-                {/* Kelas + mapel */}
-                <p className="text-xs text-muted-foreground truncate">
-                  {role === 'tutor'
-                    ? `${data.student.grade || '-'} | ${
-                        data.student.matchedSubjects?.join(', ') || '-'
-                      }`
-                    : `${
-                        data.tutor?.rating ? `⭐ ${data.tutor.rating} | ` : ''
-                      }${
-                        data.tutor?.experienceYears
-                          ? `${data.tutor.experienceYears} th pengalaman`
-                          : ''
-                      }`}
-                </p>
-
                 {/* Harga/jam + total sesi */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                   <span>
                     <span className="font-medium text-foreground">
                       {role === 'tutor'
@@ -768,20 +808,132 @@ export default function ScheduleDetailView({
         </CardContent>
       </Card>
 
-      {/* ===== JADWAL BERIKUTNYA ===== */}
-      {nextSession && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-primary" />
+      {/* ===== JADWAL BERIKUTNYA + TIMER ===== */}
+      {nextSession && timerState && (
+        <Card
+          className={`transition-colors ${
+            timerState.state === 'active'
+              ? 'border-green-500/60 bg-green-500/5'
+              : timerState.state === 'expired'
+              ? 'border-red-500/60 bg-red-500/5'
+              : timerState.state === 'cancelled'
+              ? 'border-red-500/40 bg-red-500/5'
+              : timerState.state === 'started'
+              ? 'border-green-500/40 bg-green-500/5'
+              : 'border-primary/40 bg-primary/5'
+          }`}
+        >
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                  timerState.state === 'active'
+                    ? 'bg-green-500/20'
+                    : timerState.state === 'expired' ||
+                      timerState.state === 'cancelled'
+                    ? 'bg-red-500/20'
+                    : timerState.state === 'started'
+                    ? 'bg-green-500/20'
+                    : 'bg-primary/20'
+                }`}
+              >
+                {timerState.state === 'expired' ||
+                timerState.state === 'cancelled' ? (
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                ) : timerState.state === 'started' ? (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Clock
+                    className={`w-5 h-5 ${
+                      timerState.state === 'active'
+                        ? 'text-green-500'
+                        : 'text-primary'
+                    }`}
+                  />
+                )}
               </div>
+
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">Jadwal Berikutnya</p>
-                <p className="font-semibold text-sm truncate">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground">
+                    Jadwal Berikutnya
+                  </p>
+                  {timerState.state === 'active' && (
+                    <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
+                      SEDANG BERLANGSUNG
+                    </Badge>
+                  )}
+                  {timerState.state === 'expired' && (
+                    <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
+                      WAKTU HABIS
+                    </Badge>
+                  )}
+                  {timerState.state === 'cancelled' && (
+                    <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
+                      HANGUS
+                    </Badge>
+                  )}
+                  {timerState.state === 'started' && (
+                    <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
+                      BERLANGSUNG
+                    </Badge>
+                  )}
+                </div>
+                <p className="font-semibold text-sm">
                   {formatLongDate(nextSession.date)}, {nextSession.timeSlot}
                 </p>
-                <p className="text-xs text-muted-foreground">{nextSession.subject}</p>
+                <p className="text-xs text-muted-foreground">
+                  {nextSession.subject}
+                </p>
+
+                {/* Pesan & timer */}
+                {timerState.state === 'before' && (
+                  <p className="text-xs text-primary mt-1">
+                    Dimulai dalam {timerState.minutesUntil} menit. Tombol "Siap
+                    Belajar/Mengajar" akan aktif saat jam belajar dimulai.
+                  </p>
+                )}
+
+                {timerState.state === 'active' && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        Sisa waktu:
+                      </span>
+                      <span className="font-mono font-bold text-green-400 text-lg">
+                        {timerState.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Tekan tombol{' '}
+                      <span className="font-semibold text-green-400">
+                        "{role === 'tutor' ? 'Siap Mengajar' : 'Siap Belajar'}"
+                      </span>{' '}
+                      sekarang. Jika kedua pihak tidak menekan dalam batas
+                      waktu, sesi akan hangus.
+                    </p>
+                  </div>
+                )}
+
+                {timerState.state === 'expired' && (
+                  <p className="text-xs text-red-400 mt-1">
+                    Waktu 20 menit sudah habis tanpa konfirmasi. Sesi ini
+                    ditandai <strong>hangus</strong> dan tidak dapat
+                    dilanjutkan.
+                  </p>
+                )}
+
+                {timerState.state === 'cancelled' && (
+                  <p className="text-xs text-red-400 mt-1">
+                    Sesi ini sudah dibatalkan/hangus.
+                  </p>
+                )}
+
+                {timerState.state === 'started' && (
+                  <p className="text-xs text-green-400 mt-1">
+                    Kedua pihak sudah siap. Sesi sedang berlangsung.
+                  </p>
+                )}
               </div>
 
               {/* Tombol Maps (khusus tutor & siswa offline) */}
@@ -902,32 +1054,16 @@ export default function ScheduleDetailView({
               Mulai Video Call
             </Button>
 
-            {role === 'student' && (
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() =>
-                  alert('Fitur selesaikan kontrak akan segera hadir.')
-                }
-              >
-                <XCircle className="w-4 h-4 mr-1.5" />
-                Selesaikan Kontrak
-              </Button>
-            )}
-
-            {role === 'tutor' && (
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() =>
-                  alert('📅 Belum ada pengajuan perpindahan dari siswa.')
-                }
-                disabled
-              >
-                <CheckCircle className="w-4 h-4 mr-1.5" />
-                Terima Perpindahan
-              </Button>
-            )}
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() =>
+                alert('Fitur selesaikan kontrak akan segera hadir.')
+              }
+            >
+              <XCircle className="w-4 h-4 mr-1.5" />
+              Selesaikan Kontrak
+            </Button>
           </div>
         </CardContent>
       </Card>
