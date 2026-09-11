@@ -153,17 +153,17 @@ export default function StudentSchedulePage() {
 
   const filterByMode = (list: TutorSchedule[]) => {
     if (mode === 'online')
-      return list.filter((s) => s.tutor?.isOnline === true)
+      return list.filter((s) => s.student?.isOnline === true)
     if (mode === 'offline')
-      return list.filter((s) => s.tutor?.isOnline === false)
+      return list.filter((s) => s.student?.isOnline === false)
     return list
   }
 
   const filteredActive = filterByMode(activeSchedules)
   const filteredCompleted = filterByMode(completedSchedules)
 
-  const totalOnline = schedules.filter((s) => s.tutor?.isOnline).length
-  const totalOffline = schedules.filter((s) => !s.tutor?.isOnline).length
+  const totalOnline = schedules.filter((s) => s.student?.isOnline).length
+  const totalOffline = schedules.filter((s) => !s.student?.isOnline).length
 
   const toggleMode = () => {
     if (mode === 'all') setMode('online')
@@ -356,13 +356,13 @@ export default function StudentSchedulePage() {
                           <div className="flex items-center gap-1 text-xs">
                             <Circle
                               className={`h-2 w-2 fill-current ${
-                                tutor.isOnline
+                                schedule.student?.isOnline
                                   ? 'text-green-500'
                                   : 'text-gray-400'
                               }`}
                             />
                             <span className="text-muted-foreground">
-                              {tutor.isOnline ? 'Online' : 'Offline'}
+                              {schedule.student?.isOnline ? 'Online' : 'Offline'}
                             </span>
                           </div>
                         </div>
@@ -546,13 +546,13 @@ export default function StudentSchedulePage() {
                   <div className="flex items-center gap-1 mt-1">
                     <Circle
                       className={`h-2.5 w-2.5 fill-current ${
-                        selectedSchedule.tutor.isOnline
+                        selectedSchedule.student?.isOnline
                           ? 'text-green-500'
                           : 'text-gray-400'
                       }`}
                     />
                     <span className="text-xs text-muted-foreground">
-                      {selectedSchedule.tutor.isOnline ? 'Online' : 'Offline'}
+                      {selectedSchedule.student?.isOnline ? 'Online' : 'Offline'}
                     </span>
                   </div>
                 </div>
