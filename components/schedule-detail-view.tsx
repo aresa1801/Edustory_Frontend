@@ -461,15 +461,17 @@ export default function ScheduleDetailView({
 
     setReadyLoading(true)
 
-    // ✅ OPTIMISTIC UPDATE — langsung ubah UI dulu
     const readyField = role === 'tutor' ? 'tutor_ready_at' : 'student_ready_at'
+    const readyAt = new Date().toISOString()
     const prevSessions = data.sessions
-    const optimisticSessions = data.sessions.map((s: any) =>
-      s.id === activeSession.id
-        ? { ...s, [readyField]: new Date().toISOString() }
-        : s
-    )
-    setData({ ...data, sessions: optimisticSessions })
+
+    // 1. Optimistic update
+    setData({
+      ...data,
+      sessions: data.sessions.map((s: any) =>
+        s.id === activeSession.id ? { ...s, [readyField]: readyAt } : s
+      ),
+    })
 
     try {
       const res = await fetch(`/api/sessions/${activeSession.id}/ready`, {
@@ -478,25 +480,40 @@ export default function ScheduleDetailView({
         body: JSON.stringify({ role }),
       })
 
-      let result: any = null
+      let result: any
       try {
         result = await res.json()
-      } catch (parseErr) {
-        // response bukan JSON (kemungkinan 404 HTML)
+      } catch {
         throw new Error(
-          `Server error (${res.status}). Pastikan API /api/sessions/[id]/ready sudah dibuat.`
+          `Server error ${res.status}. Pastikan API /api/sessions/[sessionId]/ready ada.`
         )
       }
 
-      if (!res.ok) {
-        throw new Error(result.error || `Server error (${res.status})`)
-      }
+      if (!res.ok) throw new Error(result.error || `Server error ${res.status}`)
 
-      // Sync ulang dari server (untuk dapat started_at, dll)
-      await fetchData(true)
+      // 2. Update state DARI RESPONS PATCH (bukan refetch)
+      const bothReady = !!result.both_ready
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              sessions: prev.sessions.map((s: any) =>
+                s.id === activeSession.id
+                  ? {
+                      ...s,
+                      [readyField]: readyAt,
+                      ...(bothReady
+                        ? { started_at: readyAt, status: 'ongoing' }
+                        : {}),
+                    }
+                  : s
+              ),
+            }
+          : prev
+      )
     } catch (err: any) {
-      // Revert optimistic update kalau gagal
-      setData({ ...data, sessions: prevSessions })
+      // 3. Revert kalau gagal
+      setData((prev) => (prev ? { ...prev, sessions: prevSessions } : prev))
       alert('❌ ' + err.message)
     } finally {
       setReadyLoading(false)
