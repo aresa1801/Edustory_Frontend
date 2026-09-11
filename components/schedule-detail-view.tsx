@@ -802,42 +802,6 @@ export default function ScheduleDetailView({
         </Card>
       )}
 
-      {/* ===== KOORDINAT DETAIL (khusus tutor & siswa offline) ===== */}
-      {showCoordinates && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Navigation className="w-4 h-4 text-amber-500" />
-              Lokasi Siswa
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Siswa ini sedang offline. Gunakan koordinat berikut untuk
-              menemui siswa di lokasi.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 p-3 rounded-md bg-background border">
-                <p className="text-xs text-muted-foreground">Alamat</p>
-                <p className="font-medium text-sm">
-                  {data.student.address || '-'}
-                </p>
-              </div>
-              <div className="flex-1 p-3 rounded-md bg-background border">
-                <p className="text-xs text-muted-foreground">Koordinat</p>
-                <p className="font-mono text-sm">
-                  {data.student.latitude}, {data.student.longitude}
-                </p>
-              </div>
-            </div>
-            <Button className="w-full sm:w-auto" onClick={openMapsToStudent}>
-              <MapPin className="w-4 h-4 mr-1.5" />
-              Buka di Google Maps
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {/* ===== JADWAL TERKINI & KUSTOM ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
