@@ -460,17 +460,43 @@ export default function ScheduleDetailView({
     }
 
     setReadyLoading(true)
+
+    // ✅ OPTIMISTIC UPDATE — langsung ubah UI dulu
+    const readyField = role === 'tutor' ? 'tutor_ready_at' : 'student_ready_at'
+    const prevSessions = data.sessions
+    const optimisticSessions = data.sessions.map((s: any) =>
+      s.id === activeSession.id
+        ? { ...s, [readyField]: new Date().toISOString() }
+        : s
+    )
+    setData({ ...data, sessions: optimisticSessions })
+
     try {
       const res = await fetch(`/api/sessions/${activeSession.id}/ready`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
       })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Gagal')
 
+      let result: any = null
+      try {
+        result = await res.json()
+      } catch (parseErr) {
+        // response bukan JSON (kemungkinan 404 HTML)
+        throw new Error(
+          `Server error (${res.status}). Pastikan API /api/sessions/[id]/ready sudah dibuat.`
+        )
+      }
+
+      if (!res.ok) {
+        throw new Error(result.error || `Server error (${res.status})`)
+      }
+
+      // Sync ulang dari server (untuk dapat started_at, dll)
       await fetchData(true)
     } catch (err: any) {
+      // Revert optimistic update kalau gagal
+      setData({ ...data, sessions: prevSessions })
       alert('❌ ' + err.message)
     } finally {
       setReadyLoading(false)

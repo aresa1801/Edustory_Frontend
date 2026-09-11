@@ -8,14 +8,14 @@ export async function PATCH(
   { params }: { params: { sessionId: string } }
 ) {
   try {
-    const supabase = createClient(
+    const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
     const { sessionId } = params
     const body = await req.json()
-    const { role } = body // 'tutor' | 'student'
+    const { role } = body
 
     if (!role || !['tutor', 'student'].includes(role)) {
       return NextResponse.json(
@@ -25,14 +25,19 @@ export async function PATCH(
     }
 
     // 1. Ambil session
-    const { data: session, error: sErr } = await supabase
+    const { data: session, error: sErr } = await supabaseAdmin
       .from('sessions')
-      .select('id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at')
+      .select(
+        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status'
+      )
       .eq('id', sessionId)
       .single()
 
     if (sErr || !session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      )
     }
 
     // 2. Cek window 20 menit
@@ -41,10 +46,12 @@ export async function PATCH(
     const diffMinutes = (now.getTime() - scheduledAt.getTime()) / 1000 / 60
 
     if (diffMinutes > READY_WINDOW_MINUTES) {
-      // Window lewat → tandai hangus
-      await supabase
+      await supabaseAdmin
         .from('sessions')
-        .update({ cancelled_at: now.toISOString(), status: 'cancelled' })
+        .update({
+          cancelled_at: now.toISOString(),
+          status: 'cancelled',
+        })
         .eq('id', sessionId)
 
       return NextResponse.json(
@@ -62,12 +69,14 @@ export async function PATCH(
       role === 'tutor' ? session.student_ready_at : session.tutor_ready_at
 
     // 4. Kalau kedua sisi sudah ready → set started_at
+    let bothReady = false
     if (otherReadyAt && !session.started_at) {
       updatePayload.started_at = now.toISOString()
       updatePayload.status = 'ongoing'
+      bothReady = true
     }
 
-    const { error: uErr } = await supabase
+    const { error: uErr } = await supabaseAdmin
       .from('sessions')
       .update(updatePayload)
       .eq('id', sessionId)
@@ -78,7 +87,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      both_ready: !!updatePayload.started_at,
+      both_ready: bothReady,
       ready_at: now.toISOString(),
     })
   } catch (err) {
