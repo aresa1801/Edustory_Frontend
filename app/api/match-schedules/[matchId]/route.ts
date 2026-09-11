@@ -72,7 +72,7 @@ export async function GET(
       supabaseAdmin
         .from('tutors')
         .select(
-          'id, full_name, phone, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+          'id, full_name, phone, email, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
         )
         .eq('id', schedule.tutor_id)
         .single(),
@@ -112,7 +112,6 @@ export async function GET(
       return s
     })
 
-    // Update DB sekali untuk yang expired
     if (expiredIds.length > 0) {
       await supabaseAdmin
         .from('sessions')
@@ -164,6 +163,7 @@ export async function GET(
         id: schedule.tutor_id,
         fullName: tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
         phone: tutorDetail?.phone || '',
+        email: tutorDetail?.email || '',
         bio: tutorDetail?.bio || '',
         experienceYears: tutorDetail?.experience_years || 0,
         hourlyRate: tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
