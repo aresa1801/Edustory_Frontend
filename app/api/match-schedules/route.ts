@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const userId = searchParams.get('user_id')
-    const role = searchParams.get('role') // 'tutor' atau 'student'
+    const role = searchParams.get('role')
 
     if (!userId || !role) {
       return NextResponse.json(
@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Cari profile id
     const profileTable = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(profileTable)
@@ -34,7 +33,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Get match_schedules dengan join
     let query = supabaseAdmin
       .from('match_schedules')
       .select(`
@@ -48,6 +46,7 @@ export async function GET(req: NextRequest) {
           student_grade,
           student_avatar,
           student_address,
+          student_is_online,
           accepted_at,
           contract_end_date,
           status
@@ -60,28 +59,42 @@ export async function GET(req: NextRequest) {
       query = query.eq('student_id', profile.id)
     }
 
-    const { data: schedules, error: scheduleError } = await query.order('created_at', { ascending: false })
+    const { data: schedules, error: scheduleError } = await query.order(
+      'created_at',
+      { ascending: false }
+    )
 
     if (scheduleError) {
-      return NextResponse.json({ error: scheduleError.message }, { status: 500 })
+      return NextResponse.json(
+        { error: scheduleError.message },
+        { status: 500 }
+      )
     }
 
-    // Get detailed profiles
-    const studentIds = [...new Set((schedules || []).map((s: any) => s.student_id))]
-    const tutorIds = [...new Set((schedules || []).map((s: any) => s.tutor_id))]
+    const studentIds = [
+      ...new Set((schedules || []).map((s: any) => s.student_id)),
+    ]
+    const tutorIds = [
+      ...new Set((schedules || []).map((s: any) => s.tutor_id)),
+    ]
 
     const { data: students } = await supabaseAdmin
       .from('students')
-      .select('id, name, gender, phone, bio, school_name, school_type, school_city, parent_name, parent_relation, parent_phone, parent_email, is_online')
+      .select(
+        'id, name, gender, phone, bio, school_name, school_type, school_city, parent_name, parent_relation, parent_phone, parent_email, is_online'
+      )
       .in('id', studentIds)
 
     const { data: tutors } = await supabaseAdmin
       .from('tutors')
-      .select('id, full_name, phone, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online')
+      .select(
+        'id, full_name, phone, email, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+      )
       .in('id', tutorIds)
 
-    // Map
-    const studentsMap = new Map((students || []).map((s: any) => [s.id, s]))
+    const studentsMap = new Map(
+      (students || []).map((s: any) => [s.id, s])
+    )
     const tutorsMap = new Map((tutors || []).map((t: any) => [t.id, t]))
 
     const transformed = (schedules || []).map((item: any) => {
@@ -114,21 +127,26 @@ export async function GET(req: NextRequest) {
           parentRelation: studentDetail?.parent_relation,
           parentPhone: studentDetail?.parent_phone,
           parentEmail: studentDetail?.parent_email,
-          isOnline: studentDetail?.is_online ?? true,
+          // ✅ Ambil dari matches.student_is_online
+          isOnline:
+            match?.student_is_online ?? studentDetail?.is_online ?? true,
         },
-        tutor: tutorDetail ? {
-          id: tutorDetail.id,
-          fullName: tutorDetail.full_name,
-          phone: tutorDetail.phone,
-          bio: tutorDetail.bio,
-          experienceYears: tutorDetail.experience_years,
-          hourlyRate: tutorDetail.hourly_rate,
-          rating: tutorDetail.rating,
-          totalReviews: tutorDetail.total_reviews,
-          verifiedGradeLevels: tutorDetail.verified_grade_levels,
-          avatar: tutorDetail.avatar_url,
-          isOnline: tutorDetail.is_online ?? true,
-        } : null,
+        tutor: tutorDetail
+          ? {
+              id: tutorDetail.id,
+              fullName: tutorDetail.full_name,
+              phone: tutorDetail.phone,
+              email: tutorDetail.email,
+              bio: tutorDetail.bio,
+              experienceYears: tutorDetail.experience_years,
+              hourlyRate: tutorDetail.hourly_rate,
+              rating: tutorDetail.rating,
+              totalReviews: tutorDetail.total_reviews,
+              verifiedGradeLevels: tutorDetail.verified_grade_levels,
+              avatar: tutorDetail.avatar_url,
+              isOnline: tutorDetail.is_online ?? true,
+            }
+          : null,
       }
     })
 
