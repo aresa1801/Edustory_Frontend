@@ -263,7 +263,6 @@ export default function ScheduleDetailView({
     if (matchId) fetchData(false)
   }, [matchId, fetchData])
 
-  // Ticker 1 detik untuk timer countdown realtime
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date())
@@ -271,7 +270,6 @@ export default function ScheduleDetailView({
     return () => clearInterval(interval)
   }, [])
 
-  // Calendar dates
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
     return getDatesBetween(data.acceptedAt, data.contractEndDate)
@@ -308,7 +306,7 @@ export default function ScheduleDetailView({
     return getTimeSlots(data.schedulesSummaryFix)
   }, [data?.schedulesSummaryFix])
 
-  // ===== NEXT SESSION (termasuk yang sedang dalam window 20 menit) =====
+  // ===== NEXT SESSION =====
   const nextSession = useMemo(() => {
     let next: {
       date: Date
@@ -325,10 +323,8 @@ export default function ScheduleDetailView({
 
       const deadline = date.getTime() + READY_WINDOW_MINUTES * 60 * 1000
 
-      // Hanya ambil yang belum melewati deadline window 20 menit
       if (deadline > now.getTime()) {
         if (!next || date < next.date) {
-          // Cari sesi di DB untuk cek apakah sudah started/cancelled
           const sessionRow = (data?.sessions || []).find((s: any) => {
             const sd = new Date(s.scheduled_at)
             return (
@@ -351,9 +347,15 @@ export default function ScheduleDetailView({
     const nowMs = now.getTime()
     const deadlineMs = startMs + READY_WINDOW_MINUTES * 60 * 1000
 
-    // Cek apakah sesi sudah started / cancelled
-    const isStarted = !!nextSession.sessionRow?.started_at
-    const isCancelled = !!nextSession.sessionRow?.cancelled_at
+    const sessionRow = nextSession.sessionRow
+    const isStarted = !!sessionRow?.started_at
+    const isCancelled = !!sessionRow?.cancelled_at
+    const tutorReady = !!sessionRow?.tutor_ready_at
+    const studentReady = !!sessionRow?.student_ready_at
+
+    // Siapa yang sudah ready
+    const iAmReady = role === 'tutor' ? tutorReady : studentReady
+    const otherReady = role === 'tutor' ? studentReady : tutorReady
 
     if (isCancelled) {
       return { state: 'cancelled' as const }
@@ -364,17 +366,14 @@ export default function ScheduleDetailView({
     }
 
     if (nowMs < startMs) {
-      // Belum masuk jam belajar
       const diffMin = Math.ceil((startMs - nowMs) / 60000)
       return { state: 'before' as const, minutesUntil: diffMin }
     }
 
     if (nowMs >= deadlineMs) {
-      // Sudah lewat 20 menit tanpa klik
       return { state: 'expired' as const }
     }
 
-    // Dalam window 20 menit
     const remainingMs = deadlineMs - nowMs
     const min = Math.floor(remainingMs / 60000)
     const sec = Math.floor((remainingMs % 60000) / 1000)
@@ -384,8 +383,10 @@ export default function ScheduleDetailView({
         .toString()
         .padStart(2, '0')}`,
       remainingMs,
+      iAmReady,
+      otherReady,
     }
-  }, [nextSession, now])
+  }, [nextSession, now, role])
 
   // ===== JADWAL TERKINI (count disesuaikan) =====
   const adjustedScheduleSummary = useMemo(() => {
@@ -468,11 +469,6 @@ export default function ScheduleDetailView({
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal')
 
-      alert(
-        result.both_ready
-          ? '✅ Kedua pihak siap! Sesi dimulai.'
-          : '✅ Kamu sudah siap. Menunggu pihak lain...'
-      )
       await fetchData(true)
     } catch (err: any) {
       alert('❌ ' + err.message)
@@ -531,6 +527,10 @@ export default function ScheduleDetailView({
     window.open(url, '_blank')
   }
 
+  // Kunci tombol kalau sudah klik
+  const iAmAlreadyReady =
+    timerState?.state === 'active' && !!timerState.iAmReady
+
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
       {/* ===== HEADER ===== */}
@@ -564,7 +564,6 @@ export default function ScheduleDetailView({
 
       {/* ===== INFO CARDS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Counterpart card */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -580,10 +579,11 @@ export default function ScheduleDetailView({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{counterpartLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  {counterpartLabel}
+                </p>
                 <p className="font-semibold truncate">{counterpartName}</p>
 
-                {/* Harga/jam + total sesi */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                   <span>
                     <span className="font-medium text-foreground">
@@ -610,12 +610,13 @@ export default function ScheduleDetailView({
                   </span>
                 </div>
 
-                {/* Status + map (khusus offline counterpart) */}
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex items-center gap-1">
                     <Circle
                       className={`h-2 w-2 fill-current ${
-                        counterpartIsOnline ? 'text-green-500' : 'text-gray-400'
+                        counterpartIsOnline
+                          ? 'text-green-500'
+                          : 'text-gray-400'
                       }`}
                     />
                     <span className="text-xs text-muted-foreground">
@@ -640,7 +641,6 @@ export default function ScheduleDetailView({
           </CardContent>
         </Card>
 
-        {/* Contract info */}
         <Card>
           <CardContent className="p-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -695,7 +695,6 @@ export default function ScheduleDetailView({
           </div>
         </CardHeader>
         <CardContent>
-          {/* Legend */}
           <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
@@ -904,14 +903,41 @@ export default function ScheduleDetailView({
                         {timerState.label}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Tekan tombol{' '}
-                      <span className="font-semibold text-green-400">
-                        "{role === 'tutor' ? 'Siap Mengajar' : 'Siap Belajar'}"
-                      </span>{' '}
-                      sekarang. Jika kedua pihak tidak menekan dalam batas
-                      waktu, sesi akan hangus.
-                    </p>
+
+                    {/* Belum klik → suruh klik */}
+                    {!timerState.iAmReady && (
+                      <p className="text-xs text-muted-foreground">
+                        Tekan tombol{' '}
+                        <span className="font-semibold text-green-400">
+                          "
+                          {role === 'tutor'
+                            ? 'Siap Mengajar'
+                            : 'Siap Belajar'}
+                          "
+                        </span>{' '}
+                        sekarang. Jika kedua pihak tidak menekan dalam batas
+                        waktu, sesi akan hangus.
+                      </p>
+                    )}
+
+                    {/* Sudah klik, tunggu lawan */}
+                    {timerState.iAmReady && (
+                      <p className="text-xs text-green-400">
+                        ✅ Kamu sudah siap. Sekarang tinggal menunggu{' '}
+                        <strong>
+                          {role === 'tutor' ? 'murid' : 'tutor'}
+                        </strong>{' '}
+                        untuk menekan tombol{' '}
+                        <span className="font-semibold">
+                          "
+                          {role === 'tutor'
+                            ? 'Siap Belajar'
+                            : 'Siap Mengajar'}
+                          "
+                        </span>{' '}
+                        dan proses belajar-mengajar akan berlangsung.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -936,7 +962,6 @@ export default function ScheduleDetailView({
                 )}
               </div>
 
-              {/* Tombol Maps (khusus tutor & siswa offline) */}
               {showCoordinates && (
                 <Button
                   size="sm"
@@ -968,10 +993,7 @@ export default function ScheduleDetailView({
             adjustedScheduleSummary.length > 0 ? (
               <ul className="space-y-1">
                 {adjustedScheduleSummary.map((item: any, idx: number) => (
-                  <li
-                    key={idx}
-                    className="text-sm flex items-start gap-2"
-                  >
+                  <li key={idx} className="text-sm flex items-start gap-2">
                     <Badge variant="outline" className="text-xs shrink-0">
                       {item.subject}
                     </Badge>
@@ -1006,10 +1028,7 @@ export default function ScheduleDetailView({
             data.schedulesCustom.length > 0 ? (
               <ul className="space-y-1">
                 {data.schedulesCustom.map((item: any, idx: number) => (
-                  <li
-                    key={idx}
-                    className="text-sm flex items-start gap-2"
-                  >
+                  <li key={idx} className="text-sm flex items-start gap-2">
                     <Badge variant="outline" className="text-xs shrink-0">
                       {item.subject}
                     </Badge>
@@ -1033,16 +1052,28 @@ export default function ScheduleDetailView({
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+              className={`flex-1 gap-1.5 ${
+                iAmAlreadyReady
+                  ? 'bg-green-700 hover:bg-green-700 cursor-default'
+                  : 'bg-green-600 hover:bg-green-700'
+              } text-white`}
               onClick={handleReady}
-              disabled={readyLoading}
+              disabled={readyLoading || iAmAlreadyReady}
             >
               {readyLoading ? (
                 <Spinner className="w-4 h-4" />
+              ) : iAmAlreadyReady ? (
+                <CheckCircle className="w-4 h-4" />
               ) : (
                 <PlayCircle className="w-4 h-4" />
               )}
-              {role === 'tutor' ? 'Siap Mengajar' : 'Siap Belajar'}
+              {iAmAlreadyReady
+                ? role === 'tutor'
+                  ? 'Sudah Siap Mengajar'
+                  : 'Sudah Siap Belajar'
+                : role === 'tutor'
+                ? 'Siap Mengajar'
+                : 'Siap Belajar'}
             </Button>
 
             <Button
