@@ -155,7 +155,7 @@ export default function StudentSchedulePage() {
     if (mode === 'online')
       return list.filter((s) => s.student?.isOnline === true)
     if (mode === 'offline')
-      return list.filter((s) => s.student?.isOnline === false)
+      return list.filter((s) => !s.student?.isOnline)
     return list
   }
 
