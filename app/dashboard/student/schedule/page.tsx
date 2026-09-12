@@ -19,6 +19,8 @@ import {
   RotateCw,
   Star,
   Briefcase,
+  Lock,
+  GraduationCap,
 } from 'lucide-react'
 import {
   Dialog,
@@ -573,9 +575,7 @@ export default function StudentSchedulePage() {
                         }`}
                       />
                       <span className="text-muted-foreground">
-                        {selectedSchedule.tutor.isOnline
-                          ? 'Online'
-                          : 'Offline'}
+                        {selectedSchedule.tutor.isOnline ? 'Online' : 'Offline'}
                       </span>
                     </div>
                   </div>
@@ -589,15 +589,11 @@ export default function StudentSchedulePage() {
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <User className="w-4 h-4 text-blue-500" />
-                      <h4 className="font-semibold text-sm">
-                        Informasi Pribadi
-                      </h4>
+                      <h4 className="font-semibold text-sm">Informasi Pribadi</h4>
                     </div>
                     <div className="space-y-2 text-sm">
                       <div>
-                        <p className="text-xs text-muted-foreground">
-                          Nama Lengkap
-                        </p>
+                        <p className="text-xs text-muted-foreground">Nama Lengkap</p>
                         <p className="font-medium">
                           {selectedSchedule.tutor.fullName || '-'}
                         </p>
@@ -617,9 +613,7 @@ export default function StudentSchedulePage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">
-                          Bio Singkat
-                        </p>
+                        <p className="text-xs text-muted-foreground">Bio Singkat</p>
                         <p className="font-medium italic">
                           {selectedSchedule.tutor.bio || '-'}
                         </p>
@@ -664,12 +658,8 @@ export default function StudentSchedulePage() {
                         <p className="font-medium">
                           {Array.isArray(
                             selectedSchedule.tutor.verifiedGradeLevels
-                          ) &&
-                          selectedSchedule.tutor.verifiedGradeLevels.length >
-                            0
-                            ? selectedSchedule.tutor.verifiedGradeLevels.join(
-                                ', '
-                              )
+                          ) && selectedSchedule.tutor.verifiedGradeLevels.length > 0
+                            ? selectedSchedule.tutor.verifiedGradeLevels.join(', ')
                             : '-'}
                         </p>
                       </div>
@@ -688,18 +678,16 @@ export default function StudentSchedulePage() {
                   </CardContent>
                 </Card>
 
-                {/* KOLOM 3: RATING & ULASAN */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b">
+                {/* KOLOM 3: RATING & ULASAN (FIXED HEIGHT) */}
+                <Card className="border shadow-sm flex flex-col h-[420px]">
+                  <CardContent className="p-4 flex flex-col h-full min-h-0">
+                    <div className="flex items-center gap-2 pb-2 border-b shrink-0">
                       <Star className="w-4 h-4 text-yellow-500" />
-                      <h4 className="font-semibold text-sm">
-                        Rating & Ulasan
-                      </h4>
+                      <h4 className="font-semibold text-sm">Rating & Ulasan</h4>
                     </div>
 
                     {/* Skor Rating */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0 pt-3">
                       <span className="text-3xl font-bold text-yellow-400">
                         {selectedSchedule.tutor.rating || 0}
                       </span>
@@ -709,10 +697,7 @@ export default function StudentSchedulePage() {
                             <Star
                               key={i}
                               className={`w-3.5 h-3.5 ${
-                                i <=
-                                Math.round(
-                                  selectedSchedule.tutor.rating || 0
-                                )
+                                i <= Math.round(selectedSchedule.tutor.rating || 0)
                                   ? 'text-yellow-500 fill-yellow-500'
                                   : 'text-gray-500'
                               }`}
@@ -725,42 +710,169 @@ export default function StudentSchedulePage() {
                       </div>
                     </div>
 
-                    {/* Ulasan dummy */}
-                    <div className="space-y-2 pt-2 border-t">
-                      <p className="text-xs font-medium text-muted-foreground">
+                    {/* Ulasan — scrollable */}
+                    <div className="flex-1 min-h-0 flex flex-col pt-3 border-t mt-3">
+                      <p className="text-xs font-medium text-muted-foreground shrink-0 mb-2">
                         Ulasan Terbaru
                       </p>
-                      {DUMMY_REVIEWS.map((review) => (
-                        <div
-                          key={review.id}
-                          className="text-xs space-y-1 pb-2 border-b last:border-0"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">
-                              {review.studentName}
-                            </span>
-                            <div className="flex items-center gap-0.5">
-                              {[1, 2, 3, 4, 5].map((i) => (
-                                <Star
-                                  key={i}
-                                  className={`w-2.5 h-2.5 ${
-                                    i <= review.rating
-                                      ? 'text-yellow-500 fill-yellow-500'
-                                      : 'text-gray-500'
-                                  }`}
-                                />
-                              ))}
+                      <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                        {DUMMY_REVIEWS.map((review) => (
+                          <div
+                            key={review.id}
+                            className="text-xs space-y-1 pb-2 border-b last:border-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">
+                                {review.studentName}
+                              </span>
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-2.5 h-2.5 ${
+                                      i <= review.rating
+                                        ? 'text-yellow-500 fill-yellow-500'
+                                        : 'text-gray-500'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
                             </div>
+                            <p className="text-muted-foreground italic">
+                              "{review.comment}"
+                            </p>
                           </div>
-                          <p className="text-muted-foreground italic">
-                            "{review.comment}"
-                          </p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
+
+              {/* ===== BERIKAN RATING (LOCKED) ===== */}
+              <Card className="border shadow-sm bg-slate-500/5 border-slate-500/20">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-slate-500" />
+                    <h4 className="font-semibold text-sm text-muted-foreground">
+                      Berikan Rating
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-slate-500/20 text-slate-300 border-slate-500/30"
+                    >
+                      🔒 Terkunci
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground italic">
+                    Rating akan terbuka setelah kontrak belajar selesai. Kamu bisa
+                    menilai kualitas mengajar tutor ini kapan saja setelahnya.
+                  </p>
+                  <div className="flex items-center gap-1 opacity-30 pointer-events-none">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star
+                        key={i}
+                        className="w-6 h-6 text-gray-500"
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ===== JADWAL TERKINI & KUSTOM ===== */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Calendar className="w-4 h-4 text-orange-500" />
+                      <h4 className="font-semibold text-sm">Jadwal Terkini</h4>
+                    </div>
+                    <div className="pt-1 space-y-1">
+                      {selectedSchedule.schedulesSummaryFix &&
+                      Array.isArray(selectedSchedule.schedulesSummaryFix) &&
+                      selectedSchedule.schedulesSummaryFix.length > 0 ? (
+                        selectedSchedule.schedulesSummaryFix.map(
+                          (item: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="text-sm text-muted-foreground"
+                            >
+                              <span className="font-medium text-foreground">
+                                {item.subject}:
+                              </span>{' '}
+                              {item.day}, {item.time} ({item.count} sesi)
+                            </div>
+                          )
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Belum ada jadwal terkini.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <RotateCw className="w-4 h-4 text-teal-500" />
+                      <h4 className="font-semibold text-sm">Jadwal Kustom</h4>
+                    </div>
+                    <div className="pt-1">
+                      {selectedSchedule.schedulesCustom &&
+                      Array.isArray(selectedSchedule.schedulesCustom) &&
+                      selectedSchedule.schedulesCustom.length > 0 ? (
+                        <div className="space-y-1">
+                          {selectedSchedule.schedulesCustom.map(
+                            (item: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className="text-sm text-muted-foreground"
+                              >
+                                <span className="font-medium text-foreground">
+                                  {item.subject}:
+                                </span>{' '}
+                                {item.day}, {item.time} ({item.count} sesi)
+                              </div>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Belum ada jadwal kustom.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* ===== INFORMASI KONTRAK ===== */}
+              <Card className="border shadow-sm bg-muted/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 pb-2 border-b mb-3">
+                    <GraduationCap className="w-4 h-4 text-indigo-500" />
+                    <h4 className="font-semibold text-sm">Informasi Kontrak</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
+                      <p className="font-medium">
+                        {formatDate(selectedSchedule.acceptedAt)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        Berakhir Kontrak
+                      </p>
+                      <p className="font-medium">
+                        {formatDate(selectedSchedule.contractEndDate)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
