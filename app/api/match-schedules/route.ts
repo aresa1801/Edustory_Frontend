@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     const { data: tutors } = await supabaseAdmin
       .from('tutors')
       .select(
-        'id, full_name, phone, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+        'id, full_name, phone, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url'
       )
       .in('id', tutorIds)
 
@@ -150,7 +150,6 @@ export async function GET(req: NextRequest) {
           verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
           avatar:
             tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
-          isOnline: tutorDetail?.is_online ?? true,
           matchedSubjects: match?.matched_subjects || [],
         },
       }

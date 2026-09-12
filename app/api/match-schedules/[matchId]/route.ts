@@ -71,7 +71,7 @@ export async function GET(
       supabaseAdmin
         .from('tutors')
         .select(
-          'id, full_name, phone, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+          'id, full_name, phone, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url'
         )
         .eq('id', schedule.tutor_id)
         .single(),
@@ -172,7 +172,6 @@ export async function GET(
         verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
         avatar:
           tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
-        isOnline: tutorDetail?.is_online ?? true,
         matchedSubjects: match?.matched_subjects || [],
       },
 
