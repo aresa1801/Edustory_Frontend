@@ -37,6 +37,7 @@ interface TutorSchedule {
   status: 'active' | 'completed' | 'cancelled'
   schedulesSummaryFix: any
   schedulesCustom: any
+  ulasan: any[]
   acceptedAt: string
   contractEndDate: string
   student: any
@@ -47,39 +48,16 @@ interface TutorSchedule {
     email: string
     bio: string
     experienceYears: number
+    qualifications: string
     hourlyRate: number
     rating: number
     totalReviews: number
     verifiedGradeLevels: string[]
+    matchedSubjects: string[]
     avatar: string | null
     isOnline: boolean
   }
 }
-
-// ========== DUMMY REVIEWS (sementara) ==========
-const DUMMY_REVIEWS = [
-  {
-    id: 'r1',
-    studentName: 'Dewi L.',
-    rating: 5,
-    comment: 'Penjelasan sangat jelas, sabar dalam mengajar. Recommended!',
-    date: '2026-08-20',
-  },
-  {
-    id: 'r2',
-    studentName: 'Rian S.',
-    rating: 4,
-    comment: 'Materi tersampaikan dengan baik, meski kadang agak cepat.',
-    date: '2026-07-15',
-  },
-  {
-    id: 'r3',
-    studentName: 'Putri A.',
-    rating: 5,
-    comment: 'Sangat membantu persiapan ujian. Terima kasih!',
-    date: '2026-06-10',
-  },
-]
 
 // ========== HELPER ==========
 function formatDate(dateStr: string) {
@@ -110,6 +88,14 @@ export default function StudentSchedulePage() {
   const [selectedSchedule, setSelectedSchedule] = useState<TutorSchedule | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
 
+  // ========== STATE REVIEWS ==========
+  const [tutorReviews, setTutorReviews] = useState<any[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [myRating, setMyRating] = useState(0)
+  const [myComment, setMyComment] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [showReviewForm, setShowReviewForm] = useState(false)
+
   // ========== FETCH DATA ==========
   const fetchData = async (isRefresh = false) => {
     if (!authUser) return
@@ -137,6 +123,24 @@ export default function StudentSchedulePage() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+    }
+  }
+
+  // ========== FETCH TUTOR REVIEWS ==========
+  const fetchTutorReviews = async (tutorId: string) => {
+    setReviewsLoading(true)
+    try {
+      const res = await fetch(`/api/tutors/${tutorId}/reviews`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error('Gagal memuat ulasan')
+      const data = await res.json()
+      setTutorReviews(data.reviews || [])
+    } catch (err) {
+      console.error(err)
+      setTutorReviews([])
+    } finally {
+      setReviewsLoading(false)
     }
   }
 
@@ -199,12 +203,55 @@ export default function StudentSchedulePage() {
   const handleViewProfile = (schedule: TutorSchedule) => {
     setSelectedSchedule(schedule)
     setShowProfileDialog(true)
+    // Reset form
+    setMyRating(0)
+    setMyComment('')
+    setShowReviewForm(false)
+    // Fetch reviews
+    if (schedule.tutor?.id) {
+      fetchTutorReviews(schedule.tutor.id)
+    }
   }
 
   const handleRequestExtension = (schedule: TutorSchedule) => {
     alert(
       `✅ Permintaan perpanjangan untuk ${schedule.tutor.fullName} telah dikirim! Silakan tunggu konfirmasi dari tutor.`
     )
+  }
+
+  const handleSubmitReview = async () => {
+    if (!selectedSchedule || myRating === 0) return
+    setSubmittingReview(true)
+    try {
+      const res = await fetch(
+        `/api/match-schedules/${selectedSchedule.matchId}/review`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rating: myRating,
+            comment: myComment,
+          }),
+        }
+      )
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+
+      alert('✅ Ulasan berhasil dikirim!')
+      setShowReviewForm(false)
+      setMyRating(0)
+      setMyComment('')
+
+      // Refresh reviews + data schedules
+      if (selectedSchedule.tutor?.id) {
+        await fetchTutorReviews(selectedSchedule.tutor.id)
+      }
+      await fetchData(true)
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setSubmittingReview(false)
+    }
   }
 
   // ========== LOADING / ERROR ==========
@@ -363,8 +410,7 @@ export default function StudentSchedulePage() {
                               {tutor.fullName}
                             </h3>
                             <span className="text-xs text-muted-foreground">
-                              {schedule.student?.matchedSubjects?.join(', ') ||
-                                '-'}
+                              {tutor.matchedSubjects?.join(', ') || '-'}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">
@@ -474,8 +520,7 @@ export default function StudentSchedulePage() {
                               {tutor.fullName}
                             </h3>
                             <span className="text-xs text-muted-foreground">
-                              {schedule.student?.matchedSubjects?.join(', ') ||
-                                '-'}
+                              {tutor.matchedSubjects?.join(', ') || '-'}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">
@@ -600,9 +645,7 @@ export default function StudentSchedulePage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium break-all">
-                          {selectedSchedule.tutor.email || '-'}
-                        </p>
+                        <p className="font-medium break-all">-</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">
@@ -616,6 +659,18 @@ export default function StudentSchedulePage() {
                         <p className="text-xs text-muted-foreground">Bio Singkat</p>
                         <p className="font-medium italic">
                           {selectedSchedule.tutor.bio || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Mata Pelajaran
+                        </p>
+                        <p className="font-medium">
+                          {selectedSchedule.tutor.matchedSubjects?.join(', ') ||
+                            selectedSchedule.student?.matchedSubjects?.join(
+                              ', '
+                            ) ||
+                            '-'}
                         </p>
                       </div>
                     </div>
@@ -656,11 +711,7 @@ export default function StudentSchedulePage() {
                           Kualifikasi & Sertifikasi
                         </p>
                         <p className="font-medium">
-                          {Array.isArray(
-                            selectedSchedule.tutor.verifiedGradeLevels
-                          ) && selectedSchedule.tutor.verifiedGradeLevels.length > 0
-                            ? selectedSchedule.tutor.verifiedGradeLevels.join(', ')
-                            : '-'}
+                          {selectedSchedule.tutor.qualifications || '-'}
                         </p>
                       </div>
                       <div>
@@ -716,68 +767,198 @@ export default function StudentSchedulePage() {
                         Ulasan Terbaru
                       </p>
                       <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                        {DUMMY_REVIEWS.map((review) => (
-                          <div
-                            key={review.id}
-                            className="text-xs space-y-1 pb-2 border-b last:border-0"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">
-                                {review.studentName}
-                              </span>
-                              <div className="flex items-center gap-0.5">
-                                {[1, 2, 3, 4, 5].map((i) => (
-                                  <Star
-                                    key={i}
-                                    className={`w-2.5 h-2.5 ${
-                                      i <= review.rating
-                                        ? 'text-yellow-500 fill-yellow-500'
-                                        : 'text-gray-500'
-                                    }`}
-                                  />
-                                ))}
+                        {reviewsLoading ? (
+                          <p className="text-xs text-muted-foreground italic">
+                            Memuat ulasan...
+                          </p>
+                        ) : tutorReviews.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic">
+                            Belum ada ulasan.
+                          </p>
+                        ) : (
+                          tutorReviews.map((review: any, idx: number) => (
+                            <div
+                              key={
+                                (review.match_schedule_id || 'r') + '-' + idx
+                              }
+                              className="text-xs space-y-1 pb-2 border-b last:border-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">
+                                  {review.student_name || 'Siswa'}
+                                </span>
+                                <div className="flex items-center gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-2.5 h-2.5 ${
+                                        i <= review.rating
+                                          ? 'text-yellow-500 fill-yellow-500'
+                                          : 'text-gray-500'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
                               </div>
+                              {review.comment && (
+                                <p className="text-muted-foreground italic">
+                                  "{review.comment}"
+                                </p>
+                              )}
                             </div>
-                            <p className="text-muted-foreground italic">
-                              "{review.comment}"
-                            </p>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* ===== BERIKAN RATING (LOCKED) ===== */}
-              <Card className="border shadow-sm bg-slate-500/5 border-slate-500/20">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-slate-500" />
-                    <h4 className="font-semibold text-sm text-muted-foreground">
-                      Berikan Rating
-                    </h4>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] bg-slate-500/20 text-slate-300 border-slate-500/30"
-                    >
-                      🔒 Terkunci
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground italic">
-                    Rating akan terbuka setelah kontrak belajar selesai. Kamu bisa
-                    menilai kualitas mengajar tutor ini kapan saja setelahnya.
-                  </p>
-                  <div className="flex items-center gap-1 opacity-30 pointer-events-none">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star
-                        key={i}
-                        className="w-6 h-6 text-gray-500"
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* ===== BERIKAN RATING ===== */}
+              {(() => {
+                const isCompleted =
+                  selectedSchedule.status === 'completed' ||
+                  isExpired(selectedSchedule.contractEndDate)
+
+                // Cek apakah sudah pernah review match ini
+                const alreadyReviewed = (
+                  selectedSchedule.ulasan || []
+                ).some(
+                  (r: any) =>
+                    r.match_id === selectedSchedule.matchId ||
+                    r.student_id === selectedSchedule.student?.id
+                )
+
+                return (
+                  <Card
+                    className={`border shadow-sm ${
+                      isCompleted
+                        ? 'bg-yellow-500/5 border-yellow-500/20'
+                        : 'bg-slate-500/5 border-slate-500/20'
+                    }`}
+                  >
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        {isCompleted ? (
+                          <Star className="w-4 h-4 text-yellow-500" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-slate-500" />
+                        )}
+                        <h4
+                          className={`font-semibold text-sm ${
+                            isCompleted ? 'text-foreground' : 'text-muted-foreground'
+                          }`}
+                        >
+                          Berikan Rating
+                        </h4>
+                        {!isCompleted && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-slate-500/20 text-slate-300 border-slate-500/30"
+                          >
+                            🔒 Terkunci
+                          </Badge>
+                        )}
+                        {isCompleted && alreadyReviewed && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-green-500/20 text-green-200 border-green-500/30"
+                          >
+                            ✓ Sudah Diulas
+                          </Badge>
+                        )}
+                      </div>
+
+                      {!isCompleted ? (
+                        <p className="text-sm text-muted-foreground italic">
+                          Rating akan terbuka setelah kontrak belajar selesai.
+                          Kamu bisa menilai kualitas mengajar tutor ini kapan
+                          saja setelahnya.
+                        </p>
+                      ) : alreadyReviewed ? (
+                        <p className="text-sm text-muted-foreground italic">
+                          Kamu sudah memberikan ulasan untuk sesi belajar ini.
+                          Terima kasih! 🎉
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm text-muted-foreground">
+                            Bagaimana pengalaman belajarmu dengan tutor ini?
+                            Klik bintang untuk memberi nilai.
+                          </p>
+
+                          {/* Bintang yang bisa diklik */}
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  setMyRating(i)
+                                  setShowReviewForm(true)
+                                }}
+                                className="transition-transform hover:scale-110"
+                              >
+                                <Star
+                                  className={`w-8 h-8 ${
+                                    i <= myRating
+                                      ? 'text-yellow-500 fill-yellow-500'
+                                      : 'text-gray-500'
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                            {myRating > 0 && (
+                              <span className="ml-2 text-sm text-muted-foreground">
+                                {myRating} / 5
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Form komentar */}
+                          {showReviewForm && myRating > 0 && (
+                            <div className="space-y-3 pt-2 border-t">
+                              <textarea
+                                placeholder="Tulis pengalamanmu belajar dengan tutor ini (opsional)..."
+                                value={myComment}
+                                onChange={(e) => setMyComment(e.target.value)}
+                                rows={3}
+                                className="w-full p-3 text-sm rounded-md bg-background border border-input resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setShowReviewForm(false)
+                                    setMyRating(0)
+                                    setMyComment('')
+                                  }}
+                                  disabled={submittingReview}
+                                >
+                                  Batal
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                  onClick={handleSubmitReview}
+                                  disabled={submittingReview || myRating === 0}
+                                >
+                                  {submittingReview ? (
+                                    <Spinner className="w-3.5 h-3.5" />
+                                  ) : (
+                                    'Kirim Ulasan'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })()}
 
               {/* ===== JADWAL TERKINI & KUSTOM ===== */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -857,7 +1038,9 @@ export default function StudentSchedulePage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
+                      <p className="text-xs text-muted-foreground">
+                        Mulai Kontrak
+                      </p>
                       <p className="font-medium">
                         {formatDate(selectedSchedule.acceptedAt)}
                       </p>

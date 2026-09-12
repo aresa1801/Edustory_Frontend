@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     if (!userId || !role) {
       return NextResponse.json(
-        { error: 'user_id dan role (tutor/student) required' },
+        { error: 'user_id dan role required' },
         { status: 400 }
       )
     }
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     const { data: tutors } = await supabaseAdmin
       .from('tutors')
       .select(
-        'id, full_name, phone, email, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+        'id, full_name, phone, email, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
       )
       .in('id', tutorIds)
 
@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
         status: item.status,
         schedulesSummaryFix: item.schedules_summary_fix,
         schedulesCustom: item.schedules_custom,
+        ulasan: item.ulasan || [],
         acceptedAt: match?.accepted_at,
         contractEndDate: match?.contract_end_date,
         student: {
@@ -134,7 +135,6 @@ export async function GET(req: NextRequest) {
           isOnline:
             match?.student_is_online ?? studentDetail?.is_online ?? true,
         },
-        // ✅ JANGAN NULL — fallback ke match snapshot
         tutor: {
           id: item.tutor_id,
           fullName:
@@ -143,6 +143,7 @@ export async function GET(req: NextRequest) {
           email: tutorDetail?.email || '',
           bio: tutorDetail?.bio || '',
           experienceYears: tutorDetail?.experience_years || 0,
+          qualifications: tutorDetail?.qualifications || '',
           hourlyRate:
             tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
           rating: tutorDetail?.rating ?? match?.tutor_rating ?? 0,
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
           avatar:
             tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
           isOnline: tutorDetail?.is_online ?? true,
+          matchedSubjects: match?.matched_subjects || [],
         },
       }
     })

@@ -15,7 +15,6 @@ export async function GET(
 
     const { matchId } = params
 
-    // 1. Ambil match_schedules + matches
     const { data: schedule, error: schedError } = await supabaseAdmin
       .from('match_schedules')
       .select(`
@@ -26,6 +25,7 @@ export async function GET(
         status,
         schedules_summary_fix,
         schedules_custom,
+        ulasan,
         video_call,
         created_at,
         matches!inner(
@@ -60,7 +60,6 @@ export async function GET(
 
     const match = (schedule as any).matches
 
-    // 2. Ambil detail student & tutor
     const [studentRes, tutorRes] = await Promise.all([
       supabaseAdmin
         .from('students')
@@ -72,7 +71,7 @@ export async function GET(
       supabaseAdmin
         .from('tutors')
         .select(
-          'id, full_name, phone, email, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
+          'id, full_name, phone, email, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, is_online'
         )
         .eq('id', schedule.tutor_id)
         .single(),
@@ -81,7 +80,6 @@ export async function GET(
     const studentDetail = studentRes.data
     const tutorDetail = tutorRes.data
 
-    // 3. Ambil sesi dari tabel sessions + kolom baru
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
       .select(
@@ -90,7 +88,6 @@ export async function GET(
       .eq('match_id', matchId)
       .order('scheduled_at', { ascending: true })
 
-    // 4. Auto-mark hangus: kalau lewat 20 menit & belum started & belum cancelled
     const now = new Date()
     const expiredIds: string[] = []
 
@@ -122,13 +119,13 @@ export async function GET(
         .in('id', expiredIds)
     }
 
-    // 5. Transform response
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
       status: schedule.status,
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
+      ulasan: schedule.ulasan || [],
       videoCall: schedule.video_call,
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
@@ -156,22 +153,28 @@ export async function GET(
         parentEmail: studentDetail?.parent_email || '',
         budgetPerMonth: match?.student_budget_per_month ?? 0,
         sessionsPerMonth: match?.student_sessions_per_month ?? 0,
-        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
+        isOnline:
+          match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: {
         id: schedule.tutor_id,
-        fullName: tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
+        fullName:
+          tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
         phone: tutorDetail?.phone || '',
         email: tutorDetail?.email || '',
         bio: tutorDetail?.bio || '',
         experienceYears: tutorDetail?.experience_years || 0,
-        hourlyRate: tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
+        qualifications: tutorDetail?.qualifications || '',
+        hourlyRate:
+          tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
         rating: tutorDetail?.rating ?? match?.tutor_rating ?? 0,
         totalReviews: tutorDetail?.total_reviews || 0,
         verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
-        avatar: tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
+        avatar:
+          tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
         isOnline: tutorDetail?.is_online ?? true,
+        matchedSubjects: match?.matched_subjects || [],
       },
 
       sessions: processedSessions,
