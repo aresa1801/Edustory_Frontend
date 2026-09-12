@@ -12,16 +12,12 @@ import {
   Calendar,
   Clock,
   User,
-  Phone,
-  Mail,
   Circle,
   Users,
   RefreshCw,
-  BookOpen,
   CheckCircle,
   RotateCw,
   Star,
-  Award,
   Briefcase,
 } from 'lucide-react'
 import {
@@ -58,13 +54,32 @@ interface TutorSchedule {
   }
 }
 
-// ========== HELPER ==========
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Aktif',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
-}
+// ========== DUMMY REVIEWS (sementara) ==========
+const DUMMY_REVIEWS = [
+  {
+    id: 'r1',
+    studentName: 'Dewi L.',
+    rating: 5,
+    comment: 'Penjelasan sangat jelas, sabar dalam mengajar. Recommended!',
+    date: '2026-08-20',
+  },
+  {
+    id: 'r2',
+    studentName: 'Rian S.',
+    rating: 4,
+    comment: 'Materi tersampaikan dengan baik, meski kadang agak cepat.',
+    date: '2026-07-15',
+  },
+  {
+    id: 'r3',
+    studentName: 'Putri A.',
+    rating: 5,
+    comment: 'Sangat membantu persiapan ujian. Terima kasih!',
+    date: '2026-06-10',
+  },
+]
 
+// ========== HELPER ==========
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('id-ID', {
@@ -79,11 +94,6 @@ function getDaysLeft(endDateStr: string): number {
   const end = new Date(endDateStr).getTime()
   const now = Date.now()
   return Math.ceil((end - now) / (1000 * 60 * 60 * 24))
-}
-
-function getTotalSessions(summary: any): number {
-  if (!Array.isArray(summary)) return 0
-  return summary.reduce((sum: number, item: any) => sum + (item.count || 0), 0)
 }
 
 // ========== KOMPONEN UTAMA ==========
@@ -165,9 +175,7 @@ export default function StudentSchedulePage() {
   const totalOnline = schedules.filter(
     (s) => s.student?.isOnline === true
   ).length
-  const totalOffline = schedules.filter(
-    (s) => !s.student?.isOnline
-  ).length
+  const totalOffline = schedules.filter((s) => !s.student?.isOnline).length
 
   const toggleMode = () => {
     if (mode === 'all') setMode('online')
@@ -360,11 +368,15 @@ export default function StudentSchedulePage() {
                           <div className="flex items-center gap-1 text-xs">
                             <Circle
                               className={`h-2 w-2 fill-current ${
-                                schedule.student?.isOnline ? 'text-green-500' : 'text-gray-400'
+                                schedule.student?.isOnline
+                                  ? 'text-green-500'
+                                  : 'text-gray-400'
                               }`}
                             />
                             <span className="text-muted-foreground">
-                              {schedule.student?.isOnline ? 'Online' : 'Offline'}
+                              {schedule.student?.isOnline
+                                ? 'Online'
+                                : 'Offline'}
                             </span>
                           </div>
                         </div>
@@ -518,19 +530,19 @@ export default function StudentSchedulePage() {
 
       {/* ===== DIALOG PROFIL TUTOR ===== */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl">Profil Tutor</DialogTitle>
+            <DialogTitle className="text-2xl">Profil Tutor</DialogTitle>
             <DialogDescription>
               Informasi lengkap tutor yang telah dikonfirmasi.
             </DialogDescription>
           </DialogHeader>
 
           {selectedSchedule?.tutor && (
-            <div className="space-y-4 py-2">
-              {/* Header */}
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 overflow-hidden">
+            <div className="space-y-6 py-2">
+              {/* ===== HEADER PROFIL ===== */}
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 overflow-hidden">
                   {selectedSchedule.tutor.avatar ? (
                     <img
                       src={selectedSchedule.tutor.avatar}
@@ -542,126 +554,213 @@ export default function StudentSchedulePage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-xl font-bold">
                     {selectedSchedule.tutor.fullName}
                   </h3>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Circle
-                      className={`h-2.5 w-2.5 fill-current ${
-                        selectedSchedule.student?.isOnline ? 'text-green-500' : 'text-gray-400'
-                      }`}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {selectedSchedule.student?.isOnline ? 'Online' : 'Offline'}
-                    </span>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <Badge
+                      variant="secondary"
+                      className="text-xs bg-green-500/20 text-green-200 border-green-500/30"
+                    >
+                      Tutor
+                    </Badge>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Circle
+                        className={`h-2.5 w-2.5 fill-current ${
+                          selectedSchedule.tutor.isOnline
+                            ? 'text-green-500'
+                            : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="text-muted-foreground">
+                        {selectedSchedule.tutor.isOnline
+                          ? 'Online'
+                          : 'Offline'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* INFORMASI PRIBADI */}
-              <Card className="border shadow-sm">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <User className="w-4 h-4 text-blue-500" />
-                    <h4 className="font-semibold text-sm">
-                      Informasi Pribadi
-                    </h4>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Nama Lengkap
-                      </p>
-                      <p className="font-medium">
-                        {selectedSchedule.tutor.fullName || '-'}
-                      </p>
+              {/* ===== GRID 3 KOLOM ===== */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* KOLOM 1: INFORMASI PRIBADI */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <User className="w-4 h-4 text-blue-500" />
+                      <h4 className="font-semibold text-sm">
+                        Informasi Pribadi
+                      </h4>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="font-medium break-all">
-                        {selectedSchedule.tutor.email || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Nomor WhatsApp
-                      </p>
-                      <p className="font-medium">
-                        {selectedSchedule.tutor.phone || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Bio Singkat
-                      </p>
-                      <p className="font-medium italic">
-                        {selectedSchedule.tutor.bio || '-'}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* INFORMASI PROFESIONAL */}
-              <Card className="border shadow-sm">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <Briefcase className="w-4 h-4 text-purple-500" />
-                    <h4 className="font-semibold text-sm">
-                      Informasi Profesional
-                    </h4>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Pengalaman Mengajar (Tahun)
-                      </p>
-                      <p className="font-medium">
-                        {selectedSchedule.tutor.experienceYears || 0}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Tarif Per Jam (Rp)
-                      </p>
-                      <p className="font-medium">
-                        {Number(
-                          selectedSchedule.tutor.hourlyRate || 0
-                        ).toLocaleString('id-ID')}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Kualifikasi & Sertifikasi
-                      </p>
-                      <p className="font-medium">
-                        {Array.isArray(
-                          selectedSchedule.tutor.verifiedGradeLevels
-                        ) &&
-                        selectedSchedule.tutor.verifiedGradeLevels.length > 0
-                          ? selectedSchedule.tutor.verifiedGradeLevels.join(
-                              ', '
-                            )
-                          : '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Rating & Ulasan
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        <span className="font-medium">
-                          {selectedSchedule.tutor.rating || 0}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          ({selectedSchedule.tutor.totalReviews || 0} ulasan)
-                        </span>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Nama Lengkap
+                        </p>
+                        <p className="font-medium">
+                          {selectedSchedule.tutor.fullName || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Email</p>
+                        <p className="font-medium break-all">
+                          {selectedSchedule.tutor.email || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Nomor WhatsApp
+                        </p>
+                        <p className="font-medium">
+                          {selectedSchedule.tutor.phone || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Bio Singkat
+                        </p>
+                        <p className="font-medium italic">
+                          {selectedSchedule.tutor.bio || '-'}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                {/* KOLOM 2: INFORMASI PROFESIONAL */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Briefcase className="w-4 h-4 text-purple-500" />
+                      <h4 className="font-semibold text-sm">
+                        Informasi Profesional
+                      </h4>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Pengalaman Mengajar
+                        </p>
+                        <p className="font-medium">
+                          {selectedSchedule.tutor.experienceYears || 0} tahun
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Tarif Per Jam
+                        </p>
+                        <p className="font-medium">
+                          Rp{' '}
+                          {Number(
+                            selectedSchedule.tutor.hourlyRate || 0
+                          ).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Kualifikasi & Sertifikasi
+                        </p>
+                        <p className="font-medium">
+                          {Array.isArray(
+                            selectedSchedule.tutor.verifiedGradeLevels
+                          ) &&
+                          selectedSchedule.tutor.verifiedGradeLevels.length >
+                            0
+                            ? selectedSchedule.tutor.verifiedGradeLevels.join(
+                                ', '
+                              )
+                            : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Status Verifikasi
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="mt-1 text-xs bg-green-500/20 text-green-200 border-green-500/30"
+                        >
+                          ✓ Terverifikasi
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* KOLOM 3: RATING & ULASAN */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Star className="w-4 h-4 text-yellow-500" />
+                      <h4 className="font-semibold text-sm">
+                        Rating & Ulasan
+                      </h4>
+                    </div>
+
+                    {/* Skor Rating */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-3xl font-bold text-yellow-400">
+                        {selectedSchedule.tutor.rating || 0}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <Star
+                              key={i}
+                              className={`w-3.5 h-3.5 ${
+                                i <=
+                                Math.round(
+                                  selectedSchedule.tutor.rating || 0
+                                )
+                                  ? 'text-yellow-500 fill-yellow-500'
+                                  : 'text-gray-500'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedSchedule.tutor.totalReviews || 0} ulasan
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Ulasan dummy */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Ulasan Terbaru
+                      </p>
+                      {DUMMY_REVIEWS.map((review) => (
+                        <div
+                          key={review.id}
+                          className="text-xs space-y-1 pb-2 border-b last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">
+                              {review.studentName}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-2.5 h-2.5 ${
+                                    i <= review.rating
+                                      ? 'text-yellow-500 fill-yellow-500'
+                                      : 'text-gray-500'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-muted-foreground italic">
+                            "{review.comment}"
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
