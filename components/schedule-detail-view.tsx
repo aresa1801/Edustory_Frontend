@@ -20,7 +20,13 @@ import {
   XCircle,
   AlertTriangle,
   CheckCircle,
+  Send,
 } from 'lucide-react'
+
+import RescheduleWizard, {
+  type SourceSlot,
+  type ReschedulePayload,
+} from '@/components/reschedule-wizard'
 
 interface ScheduleDetailViewProps {
   matchId: string
@@ -33,6 +39,7 @@ interface ScheduleData {
   status: string
   schedulesSummaryFix: any
   schedulesCustom: any
+  schedulesCustomRequest: any
   acceptedAt: string
   contractEndDate: string
   student: any
@@ -152,7 +159,7 @@ function getTimeSlots(summary: any): string[] {
 }
 
 // ========== STATUS SLOT ==========
-type SlotStatus = 'upcoming' | 'ongoing' | 'past' | 'cancelled'
+type SlotStatus = 'upcoming' | 'ongoing' | 'past' | 'cancelled' | 'moved'
 
 const SLOT_STATUS_STYLE: Record<
   SlotStatus,
@@ -182,6 +189,12 @@ const SLOT_STATUS_STYLE: Record<
     border: 'border-red-500/50',
     label: 'Hangus',
   },
+  moved: {
+    bg: 'bg-amber-500/40',
+    text: 'text-amber-100',
+    border: 'border-amber-500/60',
+    label: 'Dipindah',
+  },
 }
 
 function getSlotStatus(
@@ -205,6 +218,7 @@ function getSlotStatus(
   })
 
   if (matched?.cancelled_at) return 'cancelled'
+  if (matched?.moved_at) return 'moved'
 
   if (matched?.started_at) {
     if (now >= startTime && now < endTime) return 'ongoing'
@@ -232,6 +246,13 @@ export default function ScheduleDetailView({
   const [data, setData] = useState<ScheduleData | null>(null)
   const [now, setNow] = useState(new Date())
   const [readyLoading, setReadyLoading] = useState(false)
+
+  // ===== RESCHEDULE STATE =====
+  const [isRescheduleMode, setIsRescheduleMode] = useState(false)
+  const [rescheduleSource, setRescheduleSource] = useState<SourceSlot | null>(
+    null
+  )
+  const [submittingReschedule, setSubmittingReschedule] = useState(false)
 
   const fetchData = useCallback(
     async (isRefresh = false) => {
@@ -353,7 +374,6 @@ export default function ScheduleDetailView({
     const tutorReady = !!sessionRow?.tutor_ready_at
     const studentReady = !!sessionRow?.student_ready_at
 
-    // Siapa yang sudah ready
     const iAmReady = role === 'tutor' ? tutorReady : studentReady
     const otherReady = role === 'tutor' ? studentReady : tutorReady
 
@@ -388,7 +408,7 @@ export default function ScheduleDetailView({
     }
   }, [nextSession, now, role])
 
-  // ===== JADWAL TERKINI (count disesuaikan) =====
+  // ===== JADWAL TERKINI =====
   const adjustedScheduleSummary = useMemo(() => {
     if (!Array.isArray(data?.schedulesSummaryFix)) return []
     if (!data?.acceptedAt) return data?.schedulesSummaryFix || []
@@ -465,7 +485,6 @@ export default function ScheduleDetailView({
     const readyAt = new Date().toISOString()
     const prevSessions = data.sessions
 
-    // 1. Optimistic update
     setData({
       ...data,
       sessions: data.sessions.map((s: any) =>
@@ -491,7 +510,6 @@ export default function ScheduleDetailView({
 
       if (!res.ok) throw new Error(result.error || `Server error ${res.status}`)
 
-      // 2. Update state DARI RESPONS PATCH (bukan refetch)
       const bothReady = !!result.both_ready
       setData((prev) =>
         prev
@@ -512,11 +530,48 @@ export default function ScheduleDetailView({
           : prev
       )
     } catch (err: any) {
-      // 3. Revert kalau gagal
       setData((prev) => (prev ? { ...prev, sessions: prevSessions } : prev))
       alert('❌ ' + err.message)
     } finally {
       setReadyLoading(false)
+    }
+  }
+
+  // ===== RESCHEDULE HANDLERS =====
+  const enterRescheduleMode = () => {
+    setIsRescheduleMode(true)
+    setRescheduleSource(null)
+  }
+
+  const cancelReschedule = () => {
+    setIsRescheduleMode(false)
+    setRescheduleSource(null)
+  }
+
+  const handleConfirmReschedule = async (payload: ReschedulePayload) => {
+    if (!data) return
+    setSubmittingReschedule(true)
+    try {
+      // TODO: Ganti dengan API call setelah endpoint siap
+      // const res = await fetch(
+      //   `/api/match-schedules/${data.matchId}/reschedule`,
+      //   {
+      //     method: 'POST',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify(payload),
+      //   }
+      // )
+      // if (!res.ok) throw new Error((await res.json()).error)
+
+      console.log('Reschedule payload:', payload)
+      alert(
+        '✅ Permintaan perpindahan dikirim! Menunggu konfirmasi tutor (maks 2 hari).'
+      )
+      cancelReschedule()
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setSubmittingReschedule(false)
     }
   }
 
@@ -561,8 +616,7 @@ export default function ScheduleDetailView({
   const isStudentOffline = data.student.isOnline === false
   const hasCoords =
     data.student.latitude != null && data.student.longitude != null
-  const showCoordinates =
-    role === 'tutor' && isStudentOffline && hasCoords
+  const showCoordinates = role === 'tutor' && isStudentOffline && hasCoords
 
   const openMapsToStudent = () => {
     if (!hasCoords) return
@@ -570,153 +624,207 @@ export default function ScheduleDetailView({
     window.open(url, '_blank')
   }
 
-  // Kunci tombol kalau sudah klik
   const iAmAlreadyReady =
     timerState?.state === 'active' && !!timerState.iAmReady
 
+  // ===== RESCHEDULE MODE HELPERS =====
+  const isSlotSelectable = (status: SlotStatus) => status === 'upcoming'
+
+  const isSlotSelected = (date: Date, slot: string) =>
+    !!rescheduleSource &&
+    formatDateKey(rescheduleSource.date) === formatDateKey(date) &&
+    rescheduleSource.timeSlot === slot
+
+  const hasPendingRequest =
+    !!data.schedulesCustomRequest &&
+    (data.schedulesCustomRequest.status === 'pending' ||
+      !data.schedulesCustomRequest.status)
+
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
-      {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={handleBack}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Detail Jadwal</h1>
-            <p className="text-muted-foreground text-sm">
-              {role === 'tutor'
-                ? 'Jadwal mengajar yang sudah dikonfirmasi'
-                : 'Jadwal belajar yang sudah dikonfirmasi'}
-            </p>
+      {/* ====== FIXED OVERLAY (klik untuk batal) ====== */}
+      {isRescheduleMode && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
+          onClick={cancelReschedule}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ====== BAGIAN ATAS (DIM saat mode reschedule) ====== */}
+      <div
+        className={`space-y-6 relative transition-opacity duration-300 ${
+          isRescheduleMode
+            ? 'opacity-30 pointer-events-none select-none'
+            : 'z-10'
+        }`}
+      >
+        {/* HEADER */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={handleBack}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Detail Jadwal</h1>
+              <p className="text-muted-foreground text-sm">
+                {role === 'tutor'
+                  ? 'Jadwal mengajar yang sudah dikonfirmasi'
+                  : 'Jadwal belajar yang sudah dikonfirmasi'}
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="gap-1.5"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+            />
+            Refresh
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="gap-1.5"
-        >
-          <RefreshCw
-            className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
-          />
-          Refresh
-        </Button>
-      </div>
 
-      {/* ===== INFO CARDS ===== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
-                {counterpartAvatar ? (
-                  <img
-                    src={counterpartAvatar}
-                    alt={counterpartName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  counterpartName.charAt(0).toUpperCase()
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">
-                  {counterpartLabel}
-                </p>
-                <p className="font-semibold truncate">{counterpartName}</p>
-
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                  <span>
-                    <span className="font-medium text-foreground">
-                      {role === 'tutor'
-                        ? data.student.sessionsPerMonth > 0
-                          ? `Rp ${Math.round(
-                              data.student.budgetPerMonth /
-                                data.student.sessionsPerMonth
-                            ).toLocaleString('id-ID')}`
-                          : '-'
-                        : data.tutor?.hourlyRate
-                        ? `Rp ${Number(
-                            data.tutor.hourlyRate
-                          ).toLocaleString('id-ID')}`
-                        : '-'}
-                    </span>
-                    /jam
-                  </span>
-                  <span>
-                    <span className="font-medium text-foreground">
-                      {getTotalSessions(data.schedulesSummaryFix)}
-                    </span>{' '}
-                    sesi
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex items-center gap-1">
-                    <Circle
-                      className={`h-2 w-2 fill-current ${
-                        counterpartIsOnline
-                          ? 'text-green-500'
-                          : 'text-gray-400'
-                      }`}
+        {/* INFO CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
+                  {counterpartAvatar ? (
+                    <img
+                      src={counterpartAvatar}
+                      alt={counterpartName}
+                      className="w-full h-full object-cover"
                     />
-                    <span className="text-xs text-muted-foreground">
-                      {counterpartIsOnline ? 'Online' : 'Offline'}
+                  ) : (
+                    counterpartName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">
+                    {counterpartLabel}
+                  </p>
+                  <p className="font-semibold truncate">{counterpartName}</p>
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                    <span>
+                      <span className="font-medium text-foreground">
+                        {role === 'tutor'
+                          ? data.student.sessionsPerMonth > 0
+                            ? `Rp ${Math.round(
+                                data.student.budgetPerMonth /
+                                  data.student.sessionsPerMonth
+                              ).toLocaleString('id-ID')}`
+                            : '-'
+                          : data.tutor?.hourlyRate
+                          ? `Rp ${Number(
+                              data.tutor.hourlyRate
+                            ).toLocaleString('id-ID')}`
+                          : '-'}
+                      </span>
+                      /jam
+                    </span>
+                    <span>
+                      <span className="font-medium text-foreground">
+                        {getTotalSessions(data.schedulesSummaryFix)}
+                      </span>{' '}
+                      sesi
                     </span>
                   </div>
 
-                  {!counterpartIsOnline && showCoordinates && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
-                      onClick={openMapsToStudent}
-                      title="Lihat lokasi siswa di Google Maps"
-                    >
-                      <MapPin className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-1">
+                      <Circle
+                        className={`h-2 w-2 fill-current ${
+                          counterpartIsOnline
+                            ? 'text-green-500'
+                            : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {counterpartIsOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+
+                    {!counterpartIsOnline && showCoordinates && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                        onClick={openMapsToStudent}
+                        title="Lihat lokasi siswa di Google Maps"
+                      >
+                        <MapPin className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
-                <p className="font-medium">{formatDate(data.acceptedAt)}</p>
+          <Card>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Mulai Kontrak</p>
+                  <p className="font-medium">{formatDate(data.acceptedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Berakhir Kontrak
+                  </p>
+                  <p className="font-medium">
+                    {formatDate(data.contractEndDate)}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">
+                    Mata Pelajaran
+                  </p>
+                  <p className="font-medium">
+                    {data.student.matchedSubjects?.join(', ') || '-'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Berakhir Kontrak
-                </p>
-                <p className="font-medium">
-                  {formatDate(data.contractEndDate)}
-                </p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground">
-                  Mata Pelajaran
-                </p>
-                <p className="font-medium">
-                  {data.student.matchedSubjects?.join(', ') || '-'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* ===== KALENDER ===== */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      {/* ====== KALENDER (TERANG saat mode reschedule) ====== */}
+      <Card
+        className={`relative transition-all duration-300 ${
+          isRescheduleMode
+            ? 'z-40 ring-2 ring-primary shadow-2xl border-primary/50'
+            : 'z-10'
+        }`}
+      >
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tombol Ajukan Pindah Jadwal (student only) */}
+            {role === 'student' && !isRescheduleMode && (
+              <Button
+                size="sm"
+                onClick={enterRescheduleMode}
+                disabled={hasPendingRequest}
+                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                title={
+                  hasPendingRequest
+                    ? 'Masih ada permintaan perpindahan yang belum direspons'
+                    : 'Ajukan perpindahan jadwal'
+                }
+              >
+                <Send className="w-3.5 h-3.5" />
+                Ajukan Pindah Jadwal
+              </Button>
+            )}
+
             {monthKeys.map((key) => {
               const d = monthGroups[key][0]
               const label = d.toLocaleDateString('id-ID', {
@@ -738,6 +846,55 @@ export default function ScheduleDetailView({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Banner instruksi saat mode reschedule & belum pilih slot */}
+          {isRescheduleMode && !rescheduleSource && (
+            <div className="mb-4 p-3 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-primary">
+                  Pilih jadwal yang ingin dipindah
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Hanya slot <span className="text-blue-400 font-medium">biru</span>{' '}
+                  (akan datang) yang bisa dipilih. Klik area di luar kalender
+                  untuk membatalkan.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={cancelReschedule}
+                className="shrink-0"
+              >
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Banner saat sudah pilih source */}
+          {isRescheduleMode && rescheduleSource && (
+            <div className="mb-4 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-amber-400">
+                  Slot terpilih:{' '}
+                  {formatLongDate(rescheduleSource.date)},{' '}
+                  {rescheduleSource.timeSlot} ({rescheduleSource.subject})
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Lengkapi form di bawah untuk melanjutkan.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={cancelReschedule}
+                className="shrink-0"
+              >
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* LEGEND */}
           <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
@@ -756,6 +913,10 @@ export default function ScheduleDetailView({
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded bg-red-500/40 border border-red-400/60" />
               <span className="text-muted-foreground">Hangus</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-amber-500/50 border border-amber-400/60" />
+              <span className="text-muted-foreground">Dipindah</span>
             </div>
           </div>
 
@@ -815,18 +976,45 @@ export default function ScheduleDetailView({
 
                         const style = SLOT_STATUS_STYLE[status]
 
+                        // Bisa diklik saat mode reschedule & belum pilih source
+                        const canSelect =
+                          isRescheduleMode &&
+                          !rescheduleSource &&
+                          isScheduled &&
+                          isSlotSelectable(status)
+
+                        const selected = isSlotSelected(date, slot)
+
                         return (
                           <td
                             key={colIdx}
                             className={`border p-0.5 text-center ${
                               !isScheduled ? 'opacity-30' : ''
                             }`}
+                            onClick={(e) => {
+                              if (canSelect) {
+                                e.stopPropagation()
+                                setRescheduleSource({
+                                  date,
+                                  timeSlot: slot,
+                                  subject,
+                                })
+                              }
+                            }}
                           >
                             <div
-                              className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border ${
+                              className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
                                 isScheduled
                                   ? `${style.bg} ${style.text} ${style.border}`
                                   : 'bg-gray-100/5 text-gray-600 border-transparent'
+                              } ${
+                                canSelect
+                                  ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
+                                  : ''
+                              } ${
+                                selected
+                                  ? 'ring-2 ring-amber-400 scale-105 shadow-lg'
+                                  : ''
                               }`}
                               title={
                                 isScheduled
@@ -850,297 +1038,318 @@ export default function ScheduleDetailView({
         </CardContent>
       </Card>
 
-      {/* ===== JADWAL BERIKUTNYA + TIMER ===== */}
-      {nextSession && timerState && (
-        <Card
-          className={`transition-colors ${
-            timerState.state === 'active'
-              ? 'border-green-500/60 bg-green-500/5'
-              : timerState.state === 'expired'
-              ? 'border-red-500/60 bg-red-500/5'
-              : timerState.state === 'cancelled'
-              ? 'border-red-500/40 bg-red-500/5'
-              : timerState.state === 'started'
-              ? 'border-green-500/40 bg-green-500/5'
-              : 'border-primary/40 bg-primary/5'
-          }`}
-        >
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  timerState.state === 'active'
-                    ? 'bg-green-500/20'
-                    : timerState.state === 'expired' ||
-                      timerState.state === 'cancelled'
-                    ? 'bg-red-500/20'
-                    : timerState.state === 'started'
-                    ? 'bg-green-500/20'
-                    : 'bg-primary/20'
-                }`}
-              >
-                {timerState.state === 'expired' ||
-                timerState.state === 'cancelled' ? (
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                ) : timerState.state === 'started' ? (
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                ) : (
-                  <Clock
-                    className={`w-5 h-5 ${
-                      timerState.state === 'active'
-                        ? 'text-green-500'
-                        : 'text-primary'
-                    }`}
-                  />
-                )}
-              </div>
+      {/* ====== WIZARD (jika sudah pilih source) ====== */}
+      {isRescheduleMode && rescheduleSource && (
+        <div className="relative z-40">
+          <RescheduleWizard
+            source={rescheduleSource}
+            contractEndDate={data.contractEndDate}
+            matchedSubjects={data.student.matchedSubjects || []}
+            submitting={submittingReschedule}
+            onCancel={cancelReschedule}
+            onConfirm={handleConfirmReschedule}
+          />
+        </div>
+      )}
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs text-muted-foreground">
-                    Jadwal Berikutnya
-                  </p>
-                  {timerState.state === 'active' && (
-                    <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
-                      SEDANG BERLANGSUNG
-                    </Badge>
-                  )}
-                  {timerState.state === 'expired' && (
-                    <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
-                      WAKTU HABIS
-                    </Badge>
-                  )}
-                  {timerState.state === 'cancelled' && (
-                    <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
-                      HANGUS
-                    </Badge>
-                  )}
-                  {timerState.state === 'started' && (
-                    <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
-                      BERLANGSUNG
-                    </Badge>
+      {/* ====== BAGIAN BAWAH (DIM saat mode reschedule) ====== */}
+      <div
+        className={`space-y-6 relative transition-opacity duration-300 ${
+          isRescheduleMode
+            ? 'opacity-30 pointer-events-none select-none'
+            : 'z-10'
+        }`}
+      >
+        {/* NEXT SESSION + TIMER */}
+        {nextSession && timerState && (
+          <Card
+            className={`transition-colors ${
+              timerState.state === 'active'
+                ? 'border-green-500/60 bg-green-500/5'
+                : timerState.state === 'expired'
+                ? 'border-red-500/60 bg-red-500/5'
+                : timerState.state === 'cancelled'
+                ? 'border-red-500/40 bg-red-500/5'
+                : timerState.state === 'started'
+                ? 'border-green-500/40 bg-green-500/5'
+                : 'border-primary/40 bg-primary/5'
+            }`}
+          >
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                    timerState.state === 'active'
+                      ? 'bg-green-500/20'
+                      : timerState.state === 'expired' ||
+                        timerState.state === 'cancelled'
+                      ? 'bg-red-500/20'
+                      : timerState.state === 'started'
+                      ? 'bg-green-500/20'
+                      : 'bg-primary/20'
+                  }`}
+                >
+                  {timerState.state === 'expired' ||
+                  timerState.state === 'cancelled' ? (
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                  ) : timerState.state === 'started' ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Clock
+                      className={`w-5 h-5 ${
+                        timerState.state === 'active'
+                          ? 'text-green-500'
+                          : 'text-primary'
+                      }`}
+                    />
                   )}
                 </div>
-                <p className="font-semibold text-sm">
-                  {formatLongDate(nextSession.date)}, {nextSession.timeSlot}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {nextSession.subject}
-                </p>
 
-                {/* Pesan & timer */}
-                {timerState.state === 'before' && (
-                  <p className="text-xs text-primary mt-1">
-                    Dimulai dalam {timerState.minutesUntil} menit. Tombol "Siap
-                    Belajar/Mengajar" akan aktif saat jam belajar dimulai.
-                  </p>
-                )}
-
-                {timerState.state === 'active' && (
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        Sisa waktu:
-                      </span>
-                      <span className="font-mono font-bold text-green-400 text-lg">
-                        {timerState.label}
-                      </span>
-                    </div>
-
-                    {/* Belum klik → suruh klik */}
-                    {!timerState.iAmReady && (
-                      <p className="text-xs text-muted-foreground">
-                        Tekan tombol{' '}
-                        <span className="font-semibold text-green-400">
-                          "
-                          {role === 'tutor'
-                            ? 'Siap Mengajar'
-                            : 'Siap Belajar'}
-                          "
-                        </span>{' '}
-                        sekarang. Jika kedua pihak tidak menekan dalam batas
-                        waktu, sesi akan hangus.
-                      </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs text-muted-foreground">
+                      Jadwal Berikutnya
+                    </p>
+                    {timerState.state === 'active' && (
+                      <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
+                        SEDANG BERLANGSUNG
+                      </Badge>
                     )}
-
-                    {/* Sudah klik, tunggu lawan */}
-                    {timerState.iAmReady && (
-                      <p className="text-xs text-green-400">
-                        ✅ Kamu sudah siap. Sekarang tinggal menunggu{' '}
-                        <strong>
-                          {role === 'tutor' ? 'murid' : 'tutor'}
-                        </strong>{' '}
-                        untuk menekan tombol{' '}
-                        <span className="font-semibold">
-                          "
-                          {role === 'tutor'
-                            ? 'Siap Belajar'
-                            : 'Siap Mengajar'}
-                          "
-                        </span>{' '}
-                        dan proses belajar-mengajar akan berlangsung.
-                      </p>
+                    {timerState.state === 'expired' && (
+                      <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
+                        WAKTU HABIS
+                      </Badge>
+                    )}
+                    {timerState.state === 'cancelled' && (
+                      <Badge className="bg-red-500/20 text-red-200 border-red-500/40 text-[10px]">
+                        HANGUS
+                      </Badge>
+                    )}
+                    {timerState.state === 'started' && (
+                      <Badge className="bg-green-500/20 text-green-200 border-green-500/40 text-[10px]">
+                        BERLANGSUNG
+                      </Badge>
                     )}
                   </div>
-                )}
-
-                {timerState.state === 'expired' && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Waktu 20 menit sudah habis tanpa konfirmasi. Sesi ini
-                    ditandai <strong>hangus</strong> dan tidak dapat
-                    dilanjutkan.
+                  <p className="font-semibold text-sm">
+                    {formatLongDate(nextSession.date)}, {nextSession.timeSlot}
                   </p>
-                )}
-
-                {timerState.state === 'cancelled' && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Sesi ini sudah dibatalkan/hangus.
+                  <p className="text-xs text-muted-foreground">
+                    {nextSession.subject}
                   </p>
-                )}
 
-                {timerState.state === 'started' && (
-                  <p className="text-xs text-green-400 mt-1">
-                    Kedua pihak sudah siap. Sesi sedang berlangsung.
-                  </p>
+                  {timerState.state === 'before' && (
+                    <p className="text-xs text-primary mt-1">
+                      Dimulai dalam {timerState.minutesUntil} menit. Tombol
+                      "Siap Belajar/Mengajar" akan aktif saat jam belajar
+                      dimulai.
+                    </p>
+                  )}
+
+                  {timerState.state === 'active' && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          Sisa waktu:
+                        </span>
+                        <span className="font-mono font-bold text-green-400 text-lg">
+                          {timerState.label}
+                        </span>
+                      </div>
+
+                      {!timerState.iAmReady && (
+                        <p className="text-xs text-muted-foreground">
+                          Tekan tombol{' '}
+                          <span className="font-semibold text-green-400">
+                            "
+                            {role === 'tutor'
+                              ? 'Siap Mengajar'
+                              : 'Siap Belajar'}
+                            "
+                          </span>{' '}
+                          sekarang. Jika kedua pihak tidak menekan dalam batas
+                          waktu, sesi akan hangus.
+                        </p>
+                      )}
+
+                      {timerState.iAmReady && (
+                        <p className="text-xs text-green-400">
+                          ✅ Kamu sudah siap. Sekarang tinggal menunggu{' '}
+                          <strong>
+                            {role === 'tutor' ? 'murid' : 'tutor'}
+                          </strong>{' '}
+                          untuk menekan tombol{' '}
+                          <span className="font-semibold">
+                            "
+                            {role === 'tutor'
+                              ? 'Siap Belajar'
+                              : 'Siap Mengajar'}
+                            "
+                          </span>{' '}
+                          dan proses belajar-mengajar akan berlangsung.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {timerState.state === 'expired' && (
+                    <p className="text-xs text-red-400 mt-1">
+                      Waktu 20 menit sudah habis tanpa konfirmasi. Sesi ini
+                      ditandai <strong>hangus</strong> dan tidak dapat
+                      dilanjutkan.
+                    </p>
+                  )}
+
+                  {timerState.state === 'cancelled' && (
+                    <p className="text-xs text-red-400 mt-1">
+                      Sesi ini sudah dibatalkan/hangus.
+                    </p>
+                  )}
+
+                  {timerState.state === 'started' && (
+                    <p className="text-xs text-green-400 mt-1">
+                      Kedua pihak sudah siap. Sesi sedang berlangsung.
+                    </p>
+                  )}
+                </div>
+
+                {showCoordinates && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 shrink-0"
+                    onClick={openMapsToStudent}
+                    title="Buka lokasi siswa di Google Maps"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    <span className="hidden sm:inline">Lokasi</span>
+                  </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {showCoordinates && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 shrink-0"
-                  onClick={openMapsToStudent}
-                  title="Buka lokasi siswa di Google Maps"
-                >
-                  <MapPin className="w-4 h-4" />
-                  <span className="hidden sm:inline">Lokasi</span>
-                </Button>
+        {/* JADWAL TERKINI & KUSTOM */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-orange-500" />
+                Jadwal Terkini
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {Array.isArray(adjustedScheduleSummary) &&
+              adjustedScheduleSummary.length > 0 ? (
+                <ul className="space-y-1">
+                  {adjustedScheduleSummary.map((item: any, idx: number) => (
+                    <li key={idx} className="text-sm flex items-start gap-2">
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {item.subject}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        {item.day}, {item.time}{' '}
+                        {item.count > 0 ? (
+                          <span>({item.count} sesi)</span>
+                        ) : (
+                          <span className="text-xs italic">(selesai)</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Belum ada jadwal terkini.
+                </p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <RotateCw className="w-4 h-4 text-teal-500" />
+                Jadwal Kustom
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {Array.isArray(data.schedulesCustom) &&
+              data.schedulesCustom.length > 0 ? (
+                <ul className="space-y-1">
+                  {data.schedulesCustom.map((item: any, idx: number) => (
+                    <li key={idx} className="text-sm flex items-start gap-2">
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {item.subject}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        {item.day}, {item.time} ({item.count} sesi)
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Belum ada jadwal kustom.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ACTION BUTTONS */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                className={`flex-1 gap-1.5 ${
+                  iAmAlreadyReady
+                    ? 'bg-green-700 hover:bg-green-700 cursor-default'
+                    : 'bg-green-600 hover:bg-green-700'
+                } text-white`}
+                onClick={handleReady}
+                disabled={readyLoading || iAmAlreadyReady}
+              >
+                {readyLoading ? (
+                  <Spinner className="w-4 h-4" />
+                ) : iAmAlreadyReady ? (
+                  <CheckCircle className="w-4 h-4" />
+                ) : (
+                  <PlayCircle className="w-4 h-4" />
+                )}
+                {iAmAlreadyReady
+                  ? role === 'tutor'
+                    ? 'Sudah Siap Mengajar'
+                    : 'Sudah Siap Belajar'
+                  : role === 'tutor'
+                  ? 'Siap Mengajar'
+                  : 'Siap Belajar'}
+              </Button>
+
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => alert('🎥 Video call akan segera hadir.')}
+              >
+                <Video className="w-4 h-4 mr-1.5" />
+                Mulai Video Call
+              </Button>
+
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() =>
+                  alert('Fitur selesaikan kontrak akan segera hadir.')
+                }
+              >
+                <XCircle className="w-4 h-4 mr-1.5" />
+                Selesaikan Kontrak
+              </Button>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* ===== JADWAL TERKINI & KUSTOM ===== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-orange-500" />
-              Jadwal Terkini
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Array.isArray(adjustedScheduleSummary) &&
-            adjustedScheduleSummary.length > 0 ? (
-              <ul className="space-y-1">
-                {adjustedScheduleSummary.map((item: any, idx: number) => (
-                  <li key={idx} className="text-sm flex items-start gap-2">
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {item.subject}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {item.day}, {item.time}{' '}
-                      {item.count > 0 ? (
-                        <span>({item.count} sesi)</span>
-                      ) : (
-                        <span className="text-xs italic">(selesai)</span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Belum ada jadwal terkini.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <RotateCw className="w-4 h-4 text-teal-500" />
-              Jadwal Kustom
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Array.isArray(data.schedulesCustom) &&
-            data.schedulesCustom.length > 0 ? (
-              <ul className="space-y-1">
-                {data.schedulesCustom.map((item: any, idx: number) => (
-                  <li key={idx} className="text-sm flex items-start gap-2">
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {item.subject}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {item.day}, {item.time} ({item.count} sesi)
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Belum ada jadwal kustom.
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </div>
-
-      {/* ===== ACTION BUTTONS ===== */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              className={`flex-1 gap-1.5 ${
-                iAmAlreadyReady
-                  ? 'bg-green-700 hover:bg-green-700 cursor-default'
-                  : 'bg-green-600 hover:bg-green-700'
-              } text-white`}
-              onClick={handleReady}
-              disabled={readyLoading || iAmAlreadyReady}
-            >
-              {readyLoading ? (
-                <Spinner className="w-4 h-4" />
-              ) : iAmAlreadyReady ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : (
-                <PlayCircle className="w-4 h-4" />
-              )}
-              {iAmAlreadyReady
-                ? role === 'tutor'
-                  ? 'Sudah Siap Mengajar'
-                  : 'Sudah Siap Belajar'
-                : role === 'tutor'
-                ? 'Siap Mengajar'
-                : 'Siap Belajar'}
-            </Button>
-
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => alert('🎥 Video call akan segera hadir.')}
-            >
-              <Video className="w-4 h-4 mr-1.5" />
-              Mulai Video Call
-            </Button>
-
-            <Button
-              variant="destructive"
-              className="flex-1"
-              onClick={() =>
-                alert('Fitur selesaikan kontrak akan segera hadir.')
-              }
-            >
-              <XCircle className="w-4 h-4 mr-1.5" />
-              Selesaikan Kontrak
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

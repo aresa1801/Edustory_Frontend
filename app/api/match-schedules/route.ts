@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
         status: item.status,
         schedulesSummaryFix: item.schedules_summary_fix,
         schedulesCustom: item.schedules_custom,
+        schedulesCustomRequest: item.schedules_custom_request || null,
         ulasan: item.ulasan || [],
         acceptedAt: match?.accepted_at,
         contractEndDate: match?.contract_end_date,
