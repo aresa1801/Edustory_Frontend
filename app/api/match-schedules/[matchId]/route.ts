@@ -126,10 +126,11 @@ export async function GET(
       status: schedule.status,
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
+      
       schedulesCustomRequest: schedule.schedules_custom_request || null,
       ulasan: schedule.ulasan || [],
       videoCall: schedule.video_call,
-      
+
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
 
