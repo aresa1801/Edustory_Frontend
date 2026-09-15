@@ -1098,6 +1098,13 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                     )
                     const isCustomSlot = !!customInfo
 
+                    // ✅ FIX: displaySubject dengan fallback
+                    const displaySubject =
+                      subject ||
+                      movedInfo?.moved_from?.subject ||
+                      customInfo?.subject ||
+                      ''
+
                     // Tentukan status
                     let status: SlotStatus = 'past'
                     if (isMoved) {
@@ -1136,7 +1143,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                             alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
                             return
                           }
-                          if (canSelect) {
+                          if (canSelect && subject) {
                             e.stopPropagation()
                             setRescheduleSource({ date, timeSlot: slot, subject })
                           }
@@ -1156,15 +1163,16 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                           }`}
                           title={
                             isMoved
-                              ? `${subject} — Dipindah ke ${movedInfo.dateLabel}, ${movedInfo.time}`
+                              ? `${displaySubject} — Dipindah ke ${movedInfo?.dateLabel || movedInfo?.date}, ${movedInfo?.time}`
                               : isCustomSlot
-                              ? `${subject} — Jadwal hasil perpindahan`
+                              ? `${displaySubject} — Jadwal hasil perpindahan`
                               : isScheduled
-                              ? `${subject} - ${style.label} (${slot})`
+                              ? `${displaySubject} - ${style.label} (${slot})`
                               : ''
                           }
                         >
-                          {isScheduled || isMoved ? subject.charAt(0).toUpperCase() : ''}
+                          {/* ✅ FIX: charAt dengan guard */}
+                          {displaySubject ? displaySubject.charAt(0).toUpperCase() : ''}
                         </div>
                       </td>
                     )
