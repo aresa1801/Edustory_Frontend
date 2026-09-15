@@ -102,13 +102,16 @@ export default function RescheduleWizard({
     const end = new Date(contractEndDate)
     end.setHours(0, 0, 0, 0)
     const current = new Date(today)
+    const lastSlot = TARGET_TIME_SLOTS[TARGET_TIME_SLOTS.length - 1]
+
     while (current <= end && dates.length < 90) {
-      // Skip tanggal yang sudah lewat semua slot jam-nya (hari ini & sudah malam)
-      if (isSameDay(current, now)) {
-        const lastSlot = TARGET_TIME_SLOTS[TARGET_TIME_SLOTS.length - 1]
-        if (now.getHours() >= lastSlot.startHour) continue // skip hari ini
+      const isToday = isSameDay(current, now)
+      const skipToday = isToday && now.getHours() >= lastSlot.startHour
+
+      if (!skipToday) {
+        dates.push(new Date(current))
       }
-      dates.push(new Date(current))
+      // ✅ Selalu increment, tidak peduli skip atau tidak
       current.setDate(current.getDate() + 1)
     }
     return dates
