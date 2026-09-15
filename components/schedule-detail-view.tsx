@@ -8,7 +8,17 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Info } from 'lucide-react'
+import {
   ArrowLeft,
+  ArrowRight,
   Calendar,
   MapPin,
   Circle,
@@ -306,6 +316,7 @@ export default function ScheduleDetailView({
   )
   const [submittingReschedule, setSubmittingReschedule] = useState(false)
   const [processingRequest, setProcessingRequest] = useState(false)
+  const [infoItem, setInfoItem] = useState<any | null>(null)
 
   const fetchData = useCallback(
     async (isRefresh = false) => {
@@ -1527,18 +1538,31 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
 
                     {/* ===== Approved Custom Schedules ===== */}
                     {customList.length > 0 && (
-                      <ul className="space-y-1">
+                      <ul className="space-y-2">
                         {customList.map((item: any, idx: number) => (
                           <li
                             key={idx}
-                            className="text-sm flex items-start gap-2"
+                            className="text-sm flex items-start justify-between gap-2 p-2 rounded-md border border-border bg-muted/20"
                           >
-                            <Badge variant="outline" className="text-xs shrink-0">
-                              {item.subject}
-                            </Badge>
-                            <span className="text-muted-foreground">
-                              {item.day}, {item.time} ({item.count} sesi)
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <Badge variant="outline" className="text-xs">
+                                {item.subject}
+                              </Badge>
+                              <p className="text-muted-foreground mt-1 text-xs">
+                                {item.dateLabel
+                                  ? `${item.dateLabel}, ${item.time}`
+                                  : `${item.day}, ${item.time}`}
+                              </p>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => setInfoItem(item)}
+                              title="Lihat detail perpindahan"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                            </Button>
                           </li>
                         ))}
                       </ul>
@@ -1600,7 +1624,50 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card>   
+        {/* ===== DIALOG INFO PERPINDAHAN ===== */}
+<Dialog open={!!infoItem} onOpenChange={() => setInfoItem(null)}>
+  <DialogContent className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle>Informasi Perpindahan Jadwal</DialogTitle>
+      <DialogDescription>Detail jadwal yang dipindahkan</DialogDescription>
+    </DialogHeader>
+    {infoItem && (
+      <div className="space-y-3 py-2">
+        <div className="p-3 rounded-md border border-red-500/30 bg-red-500/5">
+          <p className="text-xs text-muted-foreground mb-1">Pindahan dari:</p>
+          <p className="font-semibold text-sm">
+            {infoItem.moved_from?.subject || infoItem.subject}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {infoItem.moved_from?.dayLabel
+              ? `${infoItem.moved_from.dayLabel}, ${infoItem.moved_from.time}`
+              : `${infoItem.moved_from?.day}, ${infoItem.moved_from?.time}`}
+          </p>
+        </div>
+
+        <div className="flex justify-center">
+          <ArrowRight className="w-5 h-5 text-primary rotate-90" />
+        </div>
+
+        <div className="p-3 rounded-md border border-green-500/30 bg-green-500/5">
+          <p className="text-xs text-muted-foreground mb-1">Dipindah ke:</p>
+          <p className="font-semibold text-sm">{infoItem.subject}</p>
+          <p className="text-sm text-muted-foreground">
+            {infoItem.dateLabel
+              ? `${infoItem.dateLabel}, ${infoItem.time}`
+              : `${infoItem.day}, ${infoItem.time}`}
+          </p>
+        </div>
+      </div>
+    )}
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setInfoItem(null)}>
+        Tutup
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
       </div>
     </div>
   )

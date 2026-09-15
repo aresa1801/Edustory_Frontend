@@ -25,7 +25,6 @@ export async function POST(
       )
     }
 
-    // Ambil match_schedule
     const { data: schedule, error: sErr } = await supabaseAdmin
       .from('match_schedules')
       .select(
@@ -41,7 +40,6 @@ export async function POST(
       )
     }
 
-    // Cek sudah ada pending request
     const existing = schedule.schedules_custom_request
     if (existing && (existing.status === 'pending' || !existing.status)) {
       return NextResponse.json(
@@ -50,7 +48,6 @@ export async function POST(
       )
     }
 
-    // Cek tanggal baru masih dalam kontrak
     const match = (schedule as any).matches
     const contractEnd = new Date(match?.contract_end_date)
     const targetDate = new Date(to.date)
@@ -123,7 +120,9 @@ export async function PATCH(
 
     const { data: schedule, error: sErr } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, schedules_custom, schedules_custom_request')
+      .select(
+        'id, schedules_custom, schedules_custom_request, schedules_summary_fix'
+      )
       .eq('match_id', matchId)
       .single()
 
@@ -145,13 +144,7 @@ export async function PATCH(
     const now = new Date().toISOString()
 
     if (action === 'approve') {
-      const currentCustom = Array.isArray(schedule.schedules_custom)
-        ? schedule.schedules_custom
-        : []
-
-      const fromDate = new Date(request.from.date)
-      const toDate = new Date(request.to.date)
-
+      // ===== 1. Siapkan nama hari & bulan =====
       const dayNames = [
         'Minggu',
         'Senin',
@@ -161,44 +154,116 @@ export async function PATCH(
         'Jumat',
         'Sabtu',
       ]
+      const monthNames = [
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
+      ]
 
+      // ===== 2. Parse tanggal (pakai timezone WIB) =====
+      const fromDate = new Date(`${request.from.date}T00:00:00+07:00`)
+      const toDate = new Date(`${request.to.date}T00:00:00+07:00`)
+
+      const fromDay = dayNames[fromDate.getDay()]
+      const toDay = dayNames[toDate.getDay()]
+
+      const fromDateLabel = `${fromDay}, ${fromDate.getDate()} ${
+        monthNames[fromDate.getMonth()]
+      } ${fromDate.getFullYear()}`
+      const toDateLabel = `${toDay}, ${toDate.getDate()} ${
+        monthNames[toDate.getMonth()]
+      } ${toDate.getFullYear()}`
+
+      // ===== 3. Custom entry lengkap =====
       const customEntry = {
         subject: request.to.subject || request.from.subject || 'Tanpa Mapel',
-        day: dayNames[toDate.getDay()],
+        day: toDay,
+        date: request.to.date,
+        dateLabel: toDateLabel,
         time: request.to.time,
         count: 1,
         moved_from: {
           date: request.from.date,
+          day: fromDay,
+          dayLabel: fromDateLabel,
           time: request.from.time,
-          day: dayNames[fromDate.getDay()],
+          subject: request.from.subject,
         },
         moved_at: now,
         request_id: request.request_id,
       }
 
+      // ===== 4. Kurangi count di schedules_summary_fix =====
+      const currentSummaryFix = Array.isArray(schedule.schedules_summary_fix)
+        ? schedule.schedules_summary_fix
+        : []
+
+      const updatedSummaryFix = currentSummaryFix
+        .map((item: any) => {
+          // Cocokkan berdasarkan day + time (day di summary = nama hari)
+          if (
+            item.day === fromDay &&
+            item.time === request.from.time
+          ) {
+            return {
+              ...item,
+              count: Math.max(0, (item.count || 0) - 1),
+            }
+          }
+          return item
+        })
+        .filter((item: any) => (item.count || 0) > 0) // hapus kalau 0
+
+      // ===== 5. Gabungkan ke schedules_custom =====
+      const currentCustom = Array.isArray(schedule.schedules_custom)
+        ? schedule.schedules_custom
+        : []
       const updatedCustom = [...currentCustom, customEntry]
 
+      // ===== 6. Update DB =====
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({
           schedules_custom: updatedCustom,
+          schedules_summary_fix: updatedSummaryFix,
           schedules_custom_request: null,
         })
         .eq('id', schedule.id)
 
       if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
+        return NextResponse.json(
+          { error: updateErr.message },
+          { status: 500 }
+        )
       }
 
-      return NextResponse.json({ success: true, action: 'approved' })
+      return NextResponse.json({
+        success: true,
+        action: 'approved',
+        updated_summary_fix: updatedSummaryFix,
+        custom_entry: customEntry,
+      })
     } else {
+      // ===== REJECT =====
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({ schedules_custom_request: null })
         .eq('id', schedule.id)
 
       if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
+        return NextResponse.json(
+          { error: updateErr.message },
+          { status: 500 }
+        )
       }
 
       return NextResponse.json({ success: true, action: 'rejected' })
