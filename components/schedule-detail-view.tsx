@@ -359,10 +359,15 @@ export default function ScheduleDetailView({
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target) return
+      // Skip kalau klik di dalam elemen "keep" (kalender & wizard)
       if (target.closest('[data-reschedule-keep="true"]')) return
+      // Skip kalau klik di dalam Radix Dialog (modal konfirmasi pakai Portal)
+      if (target.closest('[role="dialog"]')) return
+      // Skip kalau klik di dalam popper/dropdown
+      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      // Kalau sampai sini, cancel
       cancelReschedule()
     }
-    // Delay supaya klik yang membuka mode tidak langsung cancel
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handler)
     }, 200)
