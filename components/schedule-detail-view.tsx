@@ -315,6 +315,25 @@ export default function ScheduleDetailView({
     }
   }, [monthKeys, activeMonth])
 
+  // ===== CLICK OUTSIDE UNTUK CANCEL =====
+  useEffect(() => {
+    if (!isRescheduleMode) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target) return
+      if (target.closest('[data-reschedule-keep="true"]')) return
+      cancelReschedule()
+    }
+    // Delay supaya klik yang membuka mode tidak langsung cancel
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 200)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handler)
+    }
+  }, [isRescheduleMode])
+
   const visibleDates = monthGroups[activeMonth] || []
 
   const sessionMap = useMemo(() => {
@@ -645,8 +664,7 @@ export default function ScheduleDetailView({
       {/* ====== FIXED OVERLAY (klik untuk batal) ====== */}
       {isRescheduleMode && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
-          onClick={cancelReschedule}
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm pointer-events-none"
           aria-hidden="true"
         />
       )}
@@ -797,251 +815,247 @@ export default function ScheduleDetailView({
       </div>
 
       {/* ====== KALENDER (TERANG saat mode reschedule) ====== */}
-      <Card
-        className={`relative transition-all duration-300 ${
-          isRescheduleMode
-            ? 'z-40 ring-2 ring-primary shadow-2xl border-primary/50'
-            : 'z-10'
-        }`}
-      >
-        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Tombol Ajukan Pindah Jadwal (student only) */}
-            {role === 'student' && !isRescheduleMode && (
-              <Button
-                size="sm"
-                onClick={enterRescheduleMode}
-                disabled={hasPendingRequest}
-                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-                title={
-                  hasPendingRequest
-                    ? 'Masih ada permintaan perpindahan yang belum direspons'
-                    : 'Ajukan perpindahan jadwal'
-                }
-              >
-                <Send className="w-3.5 h-3.5" />
-                Ajukan Pindah Jadwal
-              </Button>
+      <div data-reschedule-keep="true" className="relative">
+        <Card
+          className={`transition-all duration-300 ${
+            isRescheduleMode
+              ? 'z-40 ring-2 ring-primary shadow-2xl border-primary/50'
+              : 'z-10'
+          }`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Tombol Ajukan Pindah Jadwal (student only) */}
+              {role === 'student' && !isRescheduleMode && (
+                <Button
+                  size="sm"
+                  onClick={enterRescheduleMode}
+                  disabled={hasPendingRequest}
+                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  title={
+                    hasPendingRequest
+                      ? 'Masih ada permintaan perpindahan yang belum direspons'
+                      : 'Ajukan perpindahan jadwal'
+                  }
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Ajukan Pindah Jadwal
+                </Button>
+              )}
+
+              {monthKeys.map((key) => {
+                const d = monthGroups[key][0]
+                const label = d.toLocaleDateString('id-ID', {
+                  month: 'short',
+                  year: 'numeric',
+                })
+                return (
+                  <Button
+                    key={key}
+                    size="sm"
+                    variant={activeMonth === key ? 'default' : 'outline'}
+                    onClick={() => setActiveMonth(key)}
+                    className="text-xs"
+                  >
+                    {label}
+                  </Button>
+                )
+              })}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* ===== Banner 1: instruksi saat mode reschedule & belum pilih slot ===== */}
+            {isRescheduleMode && !rescheduleSource && (
+              <div className="mb-4 p-3 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-primary">
+                    Pilih jadwal yang ingin dipindah
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Hanya slot{' '}
+                    <span className="text-blue-400 font-medium">biru</span> (akan
+                    datang) yang bisa dipilih. Klik area di luar kalender untuk
+                    membatalkan.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={cancelReschedule}
+                  className="shrink-0"
+                >
+                  <XCircle className="w-4 h-4" />
+                </Button>
+              </div>
             )}
 
-            {monthKeys.map((key) => {
-              const d = monthGroups[key][0]
-              const label = d.toLocaleDateString('id-ID', {
-                month: 'short',
-                year: 'numeric',
-              })
-              return (
+            {/* ===== Banner 2: slot sudah dipilih ===== */}
+            {isRescheduleMode && rescheduleSource && (
+              <div className="mb-4 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-amber-400">
+                    Slot terpilih: {formatLongDate(rescheduleSource.date)},{' '}
+                    {rescheduleSource.timeSlot} ({rescheduleSource.subject})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Klik slot{' '}
+                    <span className="text-blue-400 font-medium">biru</span> lain di
+                    kalender untuk mengganti, atau lengkapi form di bawah untuk
+                    melanjutkan.
+                  </p>
+                </div>
                 <Button
-                  key={key}
                   size="sm"
-                  variant={activeMonth === key ? 'default' : 'outline'}
-                  onClick={() => setActiveMonth(key)}
-                  className="text-xs"
+                  variant="ghost"
+                  onClick={cancelReschedule}
+                  className="shrink-0"
                 >
-                  {label}
+                  <XCircle className="w-4 h-4" />
                 </Button>
-              )
-            })}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Banner instruksi saat mode reschedule & belum pilih slot */}
-          {isRescheduleMode && !rescheduleSource && (
-            <div className="mb-4 p-3 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-primary">
-                  Pilih jadwal yang ingin dipindah
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Hanya slot <span className="text-blue-400 font-medium">biru</span>{' '}
-                  (akan datang) yang bisa dipilih. Klik area di luar kalender
-                  untuk membatalkan.
-                </p>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={cancelReschedule}
-                className="shrink-0"
-              >
-                <XCircle className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+            )}
 
-          {/* Banner saat sudah pilih source */}
-          {isRescheduleMode && rescheduleSource && (
-            <div className="mb-4 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-amber-400">
-                  Slot terpilih:{' '}
-                  {formatLongDate(rescheduleSource.date)},{' '}
-                  {rescheduleSource.timeSlot} ({rescheduleSource.subject})
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Lengkapi form di bawah untuk melanjutkan.
-                </p>
+            {/* LEGEND */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
+                <span className="text-muted-foreground">Akan Datang</span>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={cancelReschedule}
-                className="shrink-0"
-              >
-                <XCircle className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/60" />
+                <span className="text-muted-foreground">Sedang Berlangsung</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-gray-600/40 border border-gray-500/60" />
+                <span className="text-muted-foreground">Sudah Lewat</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-red-500/40 border border-red-400/60" />
+                <span className="text-muted-foreground">Hangus</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-amber-500/50 border border-amber-400/60" />
+                <span className="text-muted-foreground">Dipindah</span>
+              </div>
             </div>
-          )}
 
-          {/* LEGEND */}
-          <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
-              <span className="text-muted-foreground">Akan Datang</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/60" />
-              <span className="text-muted-foreground">
-                Sedang Berlangsung
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-gray-600/40 border border-gray-500/60" />
-              <span className="text-muted-foreground">Sudah Lewat</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-red-500/40 border border-red-400/60" />
-              <span className="text-muted-foreground">Hangus</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-amber-500/50 border border-amber-400/60" />
-              <span className="text-muted-foreground">Dipindah</span>
-            </div>
-          </div>
-
-          {visibleDates.length === 0 || timeSlots.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">
-              Belum ada jadwal yang ditentukan.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
-                      Jam
-                    </th>
-                    {visibleDates.map((date, idx) => {
-                      const isPast = date < new Date()
-                      return (
-                        <th
-                          key={idx}
-                          className={`border p-1 text-center min-w-[50px] ${
-                            isPast
-                              ? 'bg-gray-700 text-gray-400'
-                              : 'bg-gray-800 text-white'
-                          }`}
-                        >
-                          <div>{date.getDate()}</div>
-                          <div className="text-xs opacity-70">
-                            {date.toLocaleDateString('id-ID', {
-                              weekday: 'short',
-                            })}
-                          </div>
-                        </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeSlots.map((slot, rowIdx) => (
-                    <tr key={rowIdx}>
-                      <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
-                        {slot}
-                      </td>
-                      {visibleDates.map((date, colIdx) => {
-                        const key = `${formatDateKey(date)}|${slot}`
-                        const subject = sessionMap[key]
-                        const isScheduled = !!subject
-
-                        const status: SlotStatus = isScheduled
-                          ? getSlotStatus(
-                              date,
-                              slot,
-                              data.sessions || [],
-                              now
-                            )
-                          : 'past'
-
-                        const style = SLOT_STATUS_STYLE[status]
-
-                        // Bisa diklik saat mode reschedule & belum pilih source
-                        const canSelect =
-                          isRescheduleMode &&
-                          !rescheduleSource &&
-                          isScheduled &&
-                          isSlotSelectable(status)
-
-                        const selected = isSlotSelected(date, slot)
-
+            {visibleDates.length === 0 || timeSlots.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                Belum ada jadwal yang ditentukan.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
+                        Jam
+                      </th>
+                      {visibleDates.map((date, idx) => {
+                        const isPast = date < new Date()
                         return (
-                          <td
-                            key={colIdx}
-                            className={`border p-0.5 text-center ${
-                              !isScheduled ? 'opacity-30' : ''
+                          <th
+                            key={idx}
+                            className={`border p-1 text-center min-w-[50px] ${
+                              isPast
+                                ? 'bg-gray-700 text-gray-400'
+                                : 'bg-gray-800 text-white'
                             }`}
-                            onClick={(e) => {
-                              if (canSelect) {
-                                e.stopPropagation()
-                                setRescheduleSource({
-                                  date,
-                                  timeSlot: slot,
-                                  subject,
-                                })
-                              }
-                            }}
                           >
-                            <div
-                              className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
-                                isScheduled
-                                  ? `${style.bg} ${style.text} ${style.border}`
-                                  : 'bg-gray-100/5 text-gray-600 border-transparent'
-                              } ${
-                                canSelect
-                                  ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
-                                  : ''
-                              } ${
-                                selected
-                                  ? 'ring-2 ring-amber-400 scale-105 shadow-lg'
-                                  : ''
-                              }`}
-                              title={
-                                isScheduled
-                                  ? `${subject} - ${style.label} (${slot})`
-                                  : ''
-                              }
-                            >
-                              {isScheduled
-                                ? subject.charAt(0).toUpperCase()
-                                : ''}
+                            <div>{date.getDate()}</div>
+                            <div className="text-xs opacity-70">
+                              {date.toLocaleDateString('id-ID', {
+                                weekday: 'short',
+                              })}
                             </div>
-                          </td>
+                          </th>
                         )
                       })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {timeSlots.map((slot, rowIdx) => (
+                      <tr key={rowIdx}>
+                        <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
+                          {slot}
+                        </td>
+                        {visibleDates.map((date, colIdx) => {
+                          const key = `${formatDateKey(date)}|${slot}`
+                          const subject = sessionMap[key]
+                          const isScheduled = !!subject
+
+                          const status: SlotStatus = isScheduled
+                            ? getSlotStatus(date, slot, data.sessions || [], now)
+                            : 'past'
+
+                          const style = SLOT_STATUS_STYLE[status]
+
+                          // Bisa diklik TANPA cek rescheduleSource
+                          const canSelect =
+                            isRescheduleMode && isScheduled && isSlotSelectable(status)
+
+                          const selected = isSlotSelected(date, slot)
+
+                          return (
+                            <td
+                              key={colIdx}
+                              className={`border p-0.5 text-center ${
+                                !isScheduled ? 'opacity-30' : ''
+                              }`}
+                              onClick={(e) => {
+                                if (canSelect) {
+                                  e.stopPropagation()
+                                  setRescheduleSource({
+                                    date,
+                                    timeSlot: slot,
+                                    subject,
+                                  })
+                                }
+                              }}
+                            >
+                              <div
+                                className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
+                                  isScheduled
+                                    ? `${style.bg} ${style.text} ${style.border}`
+                                    : 'bg-gray-100/5 text-gray-600 border-transparent'
+                                } ${
+                                  canSelect
+                                    ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
+                                    : ''
+                                } ${
+                                  selected
+                                    ? 'ring-2 ring-amber-400 scale-105 shadow-lg'
+                                    : ''
+                                }`}
+                                title={
+                                  isScheduled
+                                    ? `${subject} - ${style.label} (${slot})`
+                                    : ''
+                                }
+                              >
+                                {isScheduled
+                                  ? subject.charAt(0).toUpperCase()
+                                  : ''}
+                              </div>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ====== WIZARD (jika sudah pilih source) ====== */}
       {isRescheduleMode && rescheduleSource && (
-        <div className="relative z-40">
+        <div data-reschedule-keep="true" className="relative z-40">
           <RescheduleWizard
+            key={`${formatDateKey(rescheduleSource.date)}-${rescheduleSource.timeSlot}`}
             source={rescheduleSource}
             contractEndDate={data.contractEndDate}
             matchedSubjects={data.student.matchedSubjects || []}
