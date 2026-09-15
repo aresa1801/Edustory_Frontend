@@ -120,46 +120,9 @@ export async function GET(
         .in('id', expiredIds)
     }
 
-    // ===== AUTO-REJECT REQUEST EXPIRED =====
+    // ===== AUTO-REJECT REQUEST EXPIRED (DISABLED - DEBUGGING) =====
     let finalRequest = schedule.schedules_custom_request
-    if (
-      finalRequest &&
-      (finalRequest.status === 'pending' || !finalRequest.status)
-    ) {
-      // Deadline 1: requested_at + 2 hari
-      const requestedAt = new Date(finalRequest.requested_at).getTime()
-      const deadline1 = requestedAt + 2 * 24 * 60 * 60 * 1000
-
-      // Deadline 2: waktu target (tanggal + jam mulai) — pakai konstruksi eksplisit
-      const m = (finalRequest.to?.time || '00.00').match(/(\d{1,2})\.(\d{2})/)
-      const startHour = m ? parseInt(m[1]) : 0
-      const startMin = m ? parseInt(m[2]) : 0
-      // Set jam WIB (UTC+7) eksplisit
-      const isoLocal = `${finalRequest.to?.date}T${String(startHour).padStart(
-        2,
-        '0'
-      )}:${String(startMin).padStart(2, '0')}:00+07:00`
-      const deadline2 = new Date(isoLocal).getTime()
-
-      const effectiveDeadline = Math.min(deadline1, deadline2)
-
-      console.log('[AUTO-REJECT CHECK]', {
-        now: now.toISOString(),
-        deadline1: new Date(deadline1).toISOString(),
-        deadline2: new Date(deadline2).toISOString(),
-        effectiveDeadline: new Date(effectiveDeadline).toISOString(),
-        willReject: now.getTime() > effectiveDeadline,
-      })
-
-      if (now.getTime() > effectiveDeadline) {
-        await supabaseAdmin
-          .from('match_schedules')
-          .update({ schedules_custom_request: null })
-          .eq('id', schedule.id)
-
-        finalRequest = null
-      }
-    }
+    // TODO: aktifkan kembali setelah timezone fix
 
     const response = {
       id: schedule.id,
