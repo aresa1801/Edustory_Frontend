@@ -38,9 +38,9 @@ const SCHEDULE_OPTIONS = [
   'Senin – Jumat (Pagi 07.00–12.00)',
   'Senin – Jumat (Siang 12.00–15.00)',
   'Senin – Jumat (Sore 15.00–19.00)',
-  'Sabtu – Minggu (Pagi)',
-  'Sabtu – Minggu (Siang)',
-  'Sabtu – Minggu (Sore)',
+  'Sabtu – Minggu (Pagi 07.00–12.00)',
+  'Sabtu – Minggu (Siang 12.00–15.00)',
+  'Sabtu – Minggu (Sore 15.00–19.00)',
   'Fleksibel',
 ]
 
@@ -814,7 +814,7 @@ export default function StudentOnboardingPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-base font-semibold">Jadwal Belajar yang Diinginkan <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Rentang Jadwal Belajar yang Diinginkan <span className="text-red-500">*</span></Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SCHEDULE_OPTIONS.map(opt => (
                     <button

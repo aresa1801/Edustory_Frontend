@@ -821,7 +821,7 @@ function SetScheduleContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
+          <CardTitle className="text-lg">"Ringkasan Jadwal(bersifat sementara, dapat diubah saat menemukan tutor)"</CardTitle>
         </CardHeader>
         <CardContent>{generateSummary()}</CardContent>
       </Card>
