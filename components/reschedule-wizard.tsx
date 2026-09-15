@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,17 +38,17 @@ interface RescheduleWizardProps {
 
 // ========== TIME SLOTS (08.00 - 19.00) ==========
 const TARGET_TIME_SLOTS = [
-  '08.00 - 09.00',
-  '09.00 - 10.00',
-  '10.00 - 11.00',
-  '11.00 - 12.00',
-  '12.00 - 13.00',
-  '13.00 - 14.00',
-  '14.00 - 15.00',
-  '15.00 - 16.00',
-  '16.00 - 17.00',
-  '17.00 - 18.00',
-  '18.00 - 19.00',
+  { label: '08.00 - 09.00', startHour: 8 },
+  { label: '09.00 - 10.00', startHour: 9 },
+  { label: '10.00 - 11.00', startHour: 10 },
+  { label: '11.00 - 12.00', startHour: 11 },
+  { label: '12.00 - 13.00', startHour: 12 },
+  { label: '13.00 - 14.00', startHour: 13 },
+  { label: '14.00 - 15.00', startHour: 14 },
+  { label: '15.00 - 16.00', startHour: 15 },
+  { label: '16.00 - 17.00', startHour: 16 },
+  { label: '17.00 - 18.00', startHour: 17 },
+  { label: '18.00 - 19.00', startHour: 18 },
 ]
 
 function formatDateKey(d: Date): string {
@@ -67,6 +67,10 @@ function formatLong(d: Date): string {
   })
 }
 
+function isSameDay(a: Date, b: Date): boolean {
+  return formatDateKey(a) === formatDateKey(b)
+}
+
 // ========== KOMPONEN ==========
 export default function RescheduleWizard({
   source,
@@ -83,7 +87,14 @@ export default function RescheduleWizard({
   )
   const [showConfirm, setShowConfirm] = useState(false)
 
-  // Generate tanggal dari hari ini s.d. akhir kontrak
+  // Ticker untuk real-time update slot
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ===== DAFTAR TANGGAL YANG TERSEDIA =====
   const availableDates = useMemo(() => {
     const dates: Date[] = []
     const today = new Date()
@@ -92,11 +103,53 @@ export default function RescheduleWizard({
     end.setHours(0, 0, 0, 0)
     const current = new Date(today)
     while (current <= end && dates.length < 90) {
+      // Skip tanggal yang sudah lewat semua slot jam-nya (hari ini & sudah malam)
+      if (isSameDay(current, now)) {
+        const lastSlot = TARGET_TIME_SLOTS[TARGET_TIME_SLOTS.length - 1]
+        if (now.getHours() >= lastSlot.startHour) continue // skip hari ini
+      }
       dates.push(new Date(current))
       current.setDate(current.getDate() + 1)
     }
     return dates
-  }, [contractEndDate])
+  }, [contractEndDate, now])
+
+  // ===== SLOT JAM YANG TERSEDIA UNTUK TANGGAL TERPILIH =====
+  const availableTimeSlots = useMemo(() => {
+    if (!selectedDate) return TARGET_TIME_SLOTS
+
+    const isToday = isSameDay(selectedDate, now)
+
+    // Kalau bukan hari ini, semua slot tersedia
+    if (!isToday) return TARGET_TIME_SLOTS
+
+    // Kalau hari ini: hanya tampilkan slot yang startHour-nya > jam saat ini
+    const currentHour = now.getHours()
+    return TARGET_TIME_SLOTS.filter((slot) => slot.startHour > currentHour)
+  }, [selectedDate, now])
+
+  // ===== AUTO-RESET JIKA SELECTED TIME HANGUS =====
+  useEffect(() => {
+    if (!selectedTime || !selectedDate) return
+    const stillAvailable = availableTimeSlots.some(
+      (s) => s.label === selectedTime
+    )
+    if (!stillAvailable) {
+      setSelectedTime(null)
+    }
+  }, [availableTimeSlots, selectedTime, selectedDate])
+
+  // ===== AUTO-RESET JIKA SELECTED DATE TIDAK ADA =====
+  useEffect(() => {
+    if (!selectedDate) return
+    const stillAvailable = availableDates.some((d) =>
+      isSameDay(d, selectedDate)
+    )
+    if (!stillAvailable) {
+      setSelectedDate(null)
+      setSelectedTime(null)
+    }
+  }, [availableDates, selectedDate])
 
   const isReady = !!selectedDate && !!selectedTime && !!selectedSubject
 
@@ -148,7 +201,9 @@ export default function RescheduleWizard({
 
           {/* SOURCE INFO */}
           <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
-            <p className="text-xs text-muted-foreground mb-1">Jadwal yang dipindah:</p>
+            <p className="text-xs text-muted-foreground mb-1">
+              Jadwal yang dipindah:
+            </p>
             <p className="font-medium">
               {formatLong(source.date)}, {source.timeSlot} ({source.subject})
             </p>
@@ -187,39 +242,51 @@ export default function RescheduleWizard({
               <Calendar className="w-3.5 h-3.5" />
               Pilih Tanggal
             </p>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {availableDates.map((date) => {
-                const isActive =
-                  selectedDate &&
-                  formatDateKey(selectedDate) === formatDateKey(date)
-                return (
-                  <button
-                    key={formatDateKey(date)}
-                    type="button"
-                    onClick={() => setSelectedDate(date)}
-                    className={`shrink-0 w-20 py-2 rounded-md border text-center text-xs transition-colors ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background border-border hover:bg-muted'
-                    }`}
-                  >
-                    <div className="font-semibold">
-                      {date.getDate()}
-                    </div>
-                    <div className="opacity-70">
-                      {date.toLocaleDateString('id-ID', {
-                        month: 'short',
-                      })}
-                    </div>
-                    <div className="opacity-60 text-[10px]">
-                      {date.toLocaleDateString('id-ID', {
-                        weekday: 'short',
-                      })}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+            {availableDates.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                Tidak ada tanggal tersedia (kontrak akan segera berakhir).
+              </p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {availableDates.map((date) => {
+                  const isActive =
+                    selectedDate && isSameDay(selectedDate, date)
+                  const isToday = isSameDay(date, now)
+                  return (
+                    <button
+                      key={formatDateKey(date)}
+                      type="button"
+                      onClick={() => setSelectedDate(date)}
+                      className={`shrink-0 w-20 py-2 rounded-md border text-center text-xs transition-colors relative ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background border-border hover:bg-muted'
+                      }`}
+                    >
+                      <div className="font-semibold">{date.getDate()}</div>
+                      <div className="opacity-70">
+                        {date.toLocaleDateString('id-ID', {
+                          month: 'short',
+                        })}
+                      </div>
+                      <div className="opacity-60 text-[10px]">
+                        {date.toLocaleDateString('id-ID', {
+                          weekday: 'short',
+                        })}
+                      </div>
+                      {isToday && (
+                        <span
+                          className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
+                            isActive ? 'bg-white' : 'bg-primary'
+                          }`}
+                          title="Hari ini"
+                        />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* JAM */}
@@ -228,23 +295,35 @@ export default function RescheduleWizard({
               <Clock className="w-3.5 h-3.5" />
               Pilih Jam
             </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {TARGET_TIME_SLOTS.map((slot) => {
-                const isActive = selectedTime === slot
-                return (
-                  <Button
-                    key={slot}
-                    type="button"
-                    size="sm"
-                    variant={isActive ? 'default' : 'outline'}
-                    onClick={() => setSelectedTime(slot)}
-                    className="text-xs"
-                  >
-                    {slot}
-                  </Button>
-                )
-              })}
-            </div>
+
+            {!selectedDate ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                Pilih tanggal terlebih dahulu.
+              </p>
+            ) : availableTimeSlots.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                Semua jam di tanggal ini sudah lewat. Silakan pilih tanggal
+                lain.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {availableTimeSlots.map((slot) => {
+                  const isActive = selectedTime === slot.label
+                  return (
+                    <Button
+                      key={slot.label}
+                      type="button"
+                      size="sm"
+                      variant={isActive ? 'default' : 'outline'}
+                      onClick={() => setSelectedTime(slot.label)}
+                      className="text-xs"
+                    >
+                      {slot.label}
+                    </Button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* LANJUT */}

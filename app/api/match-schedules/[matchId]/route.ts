@@ -129,7 +129,6 @@ export async function GET(
       schedulesCustomRequest: schedule.schedules_custom_request || null,
       ulasan: schedule.ulasan || [],
       videoCall: schedule.video_call,
-      
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
 
