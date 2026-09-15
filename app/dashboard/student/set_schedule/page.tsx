@@ -816,12 +816,17 @@ function SetScheduleContent() {
               </tbody>
             </table>
           </div>
+          {/* 👇 Tulisan kecil diletakkan di sini 👇 */}
+          <p className="text-xs text-muted-foreground mt-3 italic">
+            * Jadwal ini bersifat sementara, dapat diubah saat menemukan tutor.
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">"Ringkasan Jadwal(bersifat sementara, dapat diubah saat menemukan tutor)"</CardTitle>
+          {/* 👇 Judul diubah jadi lebih ringkas 👇 */}
+          <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
         </CardHeader>
         <CardContent>{generateSummary()}</CardContent>
       </Card>
