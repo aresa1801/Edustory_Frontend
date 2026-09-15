@@ -305,6 +305,7 @@ export default function ScheduleDetailView({
     null
   )
   const [submittingReschedule, setSubmittingReschedule] = useState(false)
+  const [processingRequest, setProcessingRequest] = useState(false)
 
   const fetchData = useCallback(
     async (isRefresh = false) => {
@@ -657,6 +658,35 @@ export default function ScheduleDetailView({
     alert('❌ ' + err.message)
   } finally {
     setSubmittingReschedule(false)
+  }
+}
+
+// ===== TUTOR: APPROVE / REJECT RESCHEDULE =====
+const handleRescheduleAction = async (action: 'approve' | 'reject') => {
+  if (!data || processingRequest) return
+  setProcessingRequest(true)
+  try {
+    const res = await fetch(
+      `/api/match-schedules/${data.matchId}/reschedule`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      }
+    )
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal')
+
+    alert(
+      action === 'approve'
+        ? '✅ Permintaan perpindahan disetujui!'
+        : '❌ Permintaan perpindahan ditolak.'
+    )
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingRequest(false)
   }
 }
 
@@ -1404,6 +1434,7 @@ export default function ScheduleDetailView({
                             : 'border-amber-500/40 bg-amber-500/5'
                         }`}
                       >
+                        {/* ===== BADGE HEADER ===== */}
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <Badge
                             className={`text-[10px] ${
@@ -1414,26 +1445,23 @@ export default function ScheduleDetailView({
                           >
                             {pendingTimeLeft !== null && pendingTimeLeft <= 0
                               ? 'HANGUS'
+                              : role === 'tutor'
+                              ? 'PERMINTAAN PERPINDAHAN JADWAL'
                               : 'MENUNGGU PERSETUJUAN TUTOR'}
                           </Badge>
                         </div>
 
-                        {/* From → To */}
+                        {/* ===== FROM → TO ===== */}
                         <div className="space-y-1 text-xs">
                           <div className="flex items-start gap-1.5">
-                            <span className="text-muted-foreground w-12 shrink-0">
-                              Dari:
-                            </span>
+                            <span className="text-muted-foreground w-12 shrink-0">Dari:</span>
                             <span className="text-muted-foreground line-through">
-                              {pendingReq.from?.subject} ·{' '}
-                              {pendingReq.from?.date},{' '}
+                              {pendingReq.from?.subject} · {pendingReq.from?.date},{' '}
                               {pendingReq.from?.time}
                             </span>
                           </div>
                           <div className="flex items-start gap-1.5">
-                            <span className="text-muted-foreground w-12 shrink-0">
-                              Ke:
-                            </span>
+                            <span className="text-muted-foreground w-12 shrink-0">Ke:</span>
                             <span className="font-medium text-foreground">
                               {pendingReq.to?.subject} · {pendingReq.to?.date},{' '}
                               {pendingReq.to?.time}
@@ -1441,23 +1469,58 @@ export default function ScheduleDetailView({
                           </div>
                         </div>
 
-                        {/* Timer */}
-                        {pendingTimeLeft !== null && pendingTimeLeft > 0 && (
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-500/20">
-                            <Clock className="w-3.5 h-3.5 text-amber-400" />
-                            <span className="text-xs text-muted-foreground">
-                              Sisa waktu:
-                            </span>
-                            <span className="font-mono font-bold text-amber-400 text-sm">
-                              {formatCountdown(pendingTimeLeft)}
-                            </span>
-                          </div>
-                        )}
+                        {/* ===== TIMER — HANYA STUDENT ===== */}
+                        {role === 'student' &&
+                          pendingTimeLeft !== null &&
+                          pendingTimeLeft > 0 && (
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-500/20">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="text-xs text-muted-foreground">Sisa waktu:</span>
+                              <span className="font-mono font-bold text-amber-400 text-sm">
+                                {formatCountdown(pendingTimeLeft)}
+                              </span>
+                            </div>
+                          )}
 
-                        {pendingTimeLeft !== null && pendingTimeLeft <= 0 && (
-                          <p className="text-xs text-red-400 mt-2">
-                            Waktu habis. Menunggu sistem menghapus permintaan...
-                          </p>
+                        {role === 'student' &&
+                          pendingTimeLeft !== null &&
+                          pendingTimeLeft <= 0 && (
+                            <p className="text-xs text-red-400 mt-2">
+                              Waktu habis. Menunggu sistem menghapus permintaan...
+                            </p>
+                          )}
+
+                        {/* ===== BUTTONS — HANYA TUTOR ===== */}
+                        {role === 'tutor' && (
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-amber-500/20">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                              onClick={() => handleRescheduleAction('approve')}
+                              disabled={processingRequest}
+                            >
+                              {processingRequest ? (
+                                <Spinner className="w-3.5 h-3.5" />
+                              ) : (
+                                <CheckCircle className="w-3.5 h-3.5" />
+                              )}
+                              Terima
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex-1 gap-1.5"
+                              onClick={() => handleRescheduleAction('reject')}
+                              disabled={processingRequest}
+                            >
+                              {processingRequest ? (
+                                <Spinner className="w-3.5 h-3.5" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5" />
+                              )}
+                              Tolak
+                            </Button>
+                          </div>
                         )}
                       </div>
                     )}
