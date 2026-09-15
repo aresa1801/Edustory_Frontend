@@ -308,6 +308,7 @@ export default function ScheduleDetailView({
   const [data, setData] = useState<ScheduleData | null>(null)
   const [now, setNow] = useState(new Date())
   const [readyLoading, setReadyLoading] = useState(false)
+  const [movedInfoItem, setMovedInfoItem] = useState<any | null>(null)
 
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
@@ -1167,6 +1168,11 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                             alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
                             return
                           }
+                          if (isMoved) {
+                            e.stopPropagation()
+                            setMovedInfoItem(movedInfo)
+                            return
+                          }
                           if (isCustomSlot) {
                             e.stopPropagation()
                             alert('Jadwal ini adalah hasil perpindahan dan tidak bisa dipindah lagi!')
@@ -1675,49 +1681,58 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
             </div>
           </CardContent>
         </Card>   
-        {/* ===== DIALOG INFO PERPINDAHAN ===== */}
-<Dialog open={!!infoItem} onOpenChange={() => setInfoItem(null)}>
-  <DialogContent className="sm:max-w-md">
-    <DialogHeader>
-      <DialogTitle>Informasi Perpindahan Jadwal</DialogTitle>
-      <DialogDescription>Detail jadwal yang dipindahkan</DialogDescription>
-    </DialogHeader>
-    {infoItem && (
-      <div className="space-y-3 py-2">
-        <div className="p-3 rounded-md border border-red-500/30 bg-red-500/5">
-          <p className="text-xs text-muted-foreground mb-1">Pindahan dari:</p>
-          <p className="font-semibold text-sm">
-            {infoItem.moved_from?.subject || infoItem.subject}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {infoItem.moved_from?.dayLabel
-              ? `${infoItem.moved_from.dayLabel}, ${infoItem.moved_from.time}`
-              : `${infoItem.moved_from?.day}, ${infoItem.moved_from?.time}`}
-          </p>
-        </div>
+        {/* ===== DIALOG INFO JADWAL DIPINDAH ===== */}
+        <Dialog
+          open={!!movedInfoItem}
+          onOpenChange={() => setMovedInfoItem(null)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Jadwal Sudah Dipindah</DialogTitle>
+              <DialogDescription>
+                Jadwal ini tidak bisa digunakan lagi karena sudah dipindah.
+              </DialogDescription>
+            </DialogHeader>
+            {movedInfoItem && (
+              <div className="space-y-3 py-2">
+                <div className="p-3 rounded-md border border-red-500/30 bg-red-500/5">
+                  <p className="text-xs text-muted-foreground mb-1">Jadwal ini:</p>
+                  <p className="font-semibold text-sm">
+                    {movedInfoItem.moved_from?.subject ||
+                      movedInfoItem.subject ||
+                      'Sejarah'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {movedInfoItem.moved_from?.dayLabel
+                      ? `${movedInfoItem.moved_from.dayLabel}, ${movedInfoItem.moved_from.time}`
+                      : `${movedInfoItem.moved_from?.day}, ${movedInfoItem.moved_from?.time}`}
+                  </p>
+                </div>
 
-        <div className="flex justify-center">
-          <ArrowRight className="w-5 h-5 text-primary rotate-90" />
-        </div>
+                <div className="flex justify-center">
+                  <ArrowRight className="w-5 h-5 text-primary rotate-90" />
+                </div>
 
-        <div className="p-3 rounded-md border border-green-500/30 bg-green-500/5">
-          <p className="text-xs text-muted-foreground mb-1">Dipindah ke:</p>
-          <p className="font-semibold text-sm">{infoItem.subject}</p>
-          <p className="text-sm text-muted-foreground">
-            {infoItem.dateLabel
-              ? `${infoItem.dateLabel}, ${infoItem.time}`
-              : `${infoItem.day}, ${infoItem.time}`}
-          </p>
-        </div>
-      </div>
-    )}
-    <DialogFooter>
-      <Button variant="outline" onClick={() => setInfoItem(null)}>
-        Tutup
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+                <div className="p-3 rounded-md border border-green-500/30 bg-green-500/5">
+                  <p className="text-xs text-muted-foreground mb-1">Dipindah ke:</p>
+                  <p className="font-semibold text-sm">
+                    {movedInfoItem.subject || 'Sejarah'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {movedInfoItem.dateLabel
+                      ? `${movedInfoItem.dateLabel}, ${movedInfoItem.time}`
+                      : `${movedInfoItem.day}, ${movedInfoItem.time}`}
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMovedInfoItem(null)}>
+                Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
