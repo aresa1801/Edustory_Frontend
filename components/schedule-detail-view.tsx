@@ -272,6 +272,20 @@ function getSlotStatus(
   return 'cancelled'
 }
 
+function isPendingSourceSlot(
+  date: Date,
+  slot: string,
+  pendingRequest: any
+): boolean {
+  if (!pendingRequest) return false
+  if (pendingRequest.status && pendingRequest.status !== 'pending') return false
+  if (!pendingRequest.from) return false
+  return (
+    formatDateKey(date) === pendingRequest.from.date &&
+    slot === pendingRequest.from.time
+  )
+}
+
 // ========== KOMPONEN ==========
 export default function ScheduleDetailView({
   matchId,
@@ -628,7 +642,16 @@ export default function ScheduleDetailView({
     alert(
       '✅ Permintaan perpindahan dikirim! Menunggu konfirmasi tutor (maks 2 hari).'
     )
+
+    // ✅ UPDATE STATE LANGSUNG — biar card langsung muncul
+    if (result.request) {
+      setData((prev) =>
+        prev ? { ...prev, schedulesCustomRequest: result.request } : prev
+      )
+    }
+
     cancelReschedule()
+    // Refresh untuk sinkron dengan server
     await fetchData(true)
   } catch (err: any) {
     alert('❌ ' + err.message)
@@ -1033,10 +1056,18 @@ export default function ScheduleDetailView({
 
                     const style = SLOT_STATUS_STYLE[status]
 
+                    // Cek apakah slot ini sumber pending request
+                    const isPendingSource = isPendingSourceSlot(
+                      date,
+                      slot,
+                      data.schedulesCustomRequest
+                    )
+
                     const canSelect =
                       isRescheduleMode &&
                       isScheduled &&
-                      isSlotSelectable(status)
+                      isSlotSelectable(status) &&
+                      !isPendingSource
 
                     const selected = isSlotSelected(date, slot)
 
@@ -1047,19 +1078,23 @@ export default function ScheduleDetailView({
                           !isScheduled ? 'opacity-30' : ''
                         }`}
                         onClick={(e) => {
+                          // Slot sumber → alert & block
+                          if (isPendingSource) {
+                            e.stopPropagation()
+                            alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
+                            return
+                          }
                           if (canSelect) {
                             e.stopPropagation()
-                            setRescheduleSource({
-                              date,
-                              timeSlot: slot,
-                              subject,
-                            })
+                            setRescheduleSource({ date, timeSlot: slot, subject })
                           }
                         }}
                       >
                         <div
                           className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
-                            isScheduled
+                            isPendingSource
+                              ? 'bg-cyan-300/30 text-cyan-100 border-cyan-400/60 cursor-not-allowed'
+                              : isScheduled
                               ? `${style.bg} ${style.text} ${style.border}`
                               : 'bg-gray-100/5 text-gray-600 border-transparent'
                           } ${
@@ -1067,19 +1102,17 @@ export default function ScheduleDetailView({
                               ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
                               : ''
                           } ${
-                            selected
-                              ? 'ring-2 ring-amber-400 scale-105 shadow-lg'
-                              : ''
+                            selected ? 'ring-2 ring-amber-400 scale-105 shadow-lg' : ''
                           }`}
                           title={
-                            isScheduled
+                            isPendingSource
+                              ? `${subject} - Sedang Diajukan (${slot})`
+                              : isScheduled
                               ? `${subject} - ${style.label} (${slot})`
                               : ''
                           }
                         >
-                          {isScheduled
-                            ? subject.charAt(0).toUpperCase()
-                            : ''}
+                          {isScheduled ? subject.charAt(0).toUpperCase() : ''}
                         </div>
                       </td>
                     )
