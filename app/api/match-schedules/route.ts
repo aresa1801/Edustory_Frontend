@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // ========== 1. Cari profile ==========
     const profileTable = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(profileTable)
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // ========== 2. Ambil match_schedules ==========
     let query = supabaseAdmin
       .from('match_schedules')
       .select(`
@@ -75,11 +77,50 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // ========== 3. Auto-reject request expired ==========
+    const now = new Date()
+    const expiredRequestIds: string[] = []
+
+    const processedSchedules = (schedules || []).map((s: any) => {
+      const req = s.schedules_custom_request
+      if (!req) return s
+      if (req.status !== 'pending' && req.status) return s
+
+      // Deadline 1: requested_at + 2 hari
+      const requestedAt = new Date(req.requested_at).getTime()
+      const deadline1 = requestedAt + 2 * 24 * 60 * 60 * 1000
+
+      // Deadline 2: waktu target (date + startHour)
+      const m = (req.to?.time || '00.00 - 01.00').match(/(\d{1,2})\.(\d{2})/)
+      const startHour = m ? parseInt(m[1]) : 0
+      const targetDate = new Date(req.to?.date || '')
+      targetDate.setHours(startHour, 0, 0, 0)
+      const deadline2 = targetDate.getTime()
+
+      // Ambil yang paling cepat
+      const effectiveDeadline = Math.min(deadline1, deadline2)
+
+      if (now.getTime() > effectiveDeadline) {
+        expiredRequestIds.push(s.id)
+        return { ...s, schedules_custom_request: null }
+      }
+      return s
+    })
+
+    // Update DB untuk yang expired
+    if (expiredRequestIds.length > 0) {
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({ schedules_custom_request: null })
+        .in('id', expiredRequestIds)
+    }
+
+    // ========== 4. Ambil data detail student & tutor ==========
     const studentIds = [
-      ...new Set((schedules || []).map((s: any) => s.student_id)),
+      ...new Set(processedSchedules.map((s: any) => s.student_id)),
     ]
     const tutorIds = [
-      ...new Set((schedules || []).map((s: any) => s.tutor_id)),
+      ...new Set(processedSchedules.map((s: any) => s.tutor_id)),
     ]
 
     const { data: students } = await supabaseAdmin
@@ -101,7 +142,8 @@ export async function GET(req: NextRequest) {
     )
     const tutorsMap = new Map((tutors || []).map((t: any) => [t.id, t]))
 
-    const transformed = (schedules || []).map((item: any) => {
+    // ========== 5. Transform response ==========
+    const transformed = processedSchedules.map((item: any) => {
       const studentDetail = studentsMap.get(item.student_id)
       const tutorDetail = tutorsMap.get(item.tutor_id)
       const match = item.matches

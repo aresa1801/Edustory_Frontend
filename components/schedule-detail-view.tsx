@@ -104,6 +104,44 @@ function getTotalSessions(summary: any): number {
   return summary.reduce((sum: number, item: any) => sum + (item.count || 0), 0)
 }
 
+// ===== REQUEST DEADLINE & COUNTDOWN =====
+function getRequestDeadline(request: any): number {
+  if (!request) return 0
+
+  // Deadline 1: requested_at + 2 hari
+  const requestedAt = new Date(request.requested_at).getTime()
+  const deadline1 = requestedAt + 2 * 24 * 60 * 60 * 1000
+
+  // Deadline 2: waktu target (date + startHour)
+  const { start } = parseTimeRange(request.to?.time || '00.00 - 01.00')
+  const targetDate = new Date(request.to?.date || '')
+  targetDate.setHours(start, 0, 0, 0)
+  const deadline2 = targetDate.getTime()
+
+  // Ambil yang paling cepat
+  return Math.min(deadline1, deadline2)
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'Waktu habis'
+  const totalSec = Math.floor(ms / 1000)
+  const days = Math.floor(totalSec / 86400)
+  const hours = Math.floor((totalSec % 86400) / 3600)
+  const minutes = Math.floor((totalSec % 3600) / 60)
+  const seconds = totalSec % 60
+
+  if (days > 0) {
+    return `${days} hari ${hours
+      .toString()
+      .padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds
+      .toString()
+      .padStart(2, '0')}`
+  }
+  return `${hours.toString().padStart(2, '0')}:${minutes
+    .toString()
+    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+}
+
 // ========== BUILD SESSION MAP ==========
 function buildSessionMap(
   acceptedAt: string,
@@ -568,31 +606,31 @@ export default function ScheduleDetailView({
   }
 
   const handleConfirmReschedule = async (payload: ReschedulePayload) => {
-    if (!data) return
-    setSubmittingReschedule(true)
-    try {
-      // TODO: Ganti dengan API call setelah endpoint siap
-      // const res = await fetch(
-      //   `/api/match-schedules/${data.matchId}/reschedule`,
-      //   {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify(payload),
-      //   }
-      // )
-      // if (!res.ok) throw new Error((await res.json()).error)
+  if (!data) return
+  setSubmittingReschedule(true)
+  try {
+    const res = await fetch(
+      `/api/match-schedules/${data.matchId}/reschedule`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    )
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal mengirim permintaan')
 
-      console.log('Reschedule payload:', payload)
-      alert(
-        '✅ Permintaan perpindahan dikirim! Menunggu konfirmasi tutor (maks 2 hari).'
-      )
-      cancelReschedule()
-    } catch (err: any) {
-      alert('❌ ' + err.message)
-    } finally {
-      setSubmittingReschedule(false)
-    }
+    alert(
+      '✅ Permintaan perpindahan dikirim! Menunggu konfirmasi tutor (maks 2 hari).'
+    )
+    cancelReschedule()
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setSubmittingReschedule(false)
   }
+}
 
   if (loading) {
     return (
@@ -1289,25 +1327,124 @@ export default function ScheduleDetailView({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {Array.isArray(data.schedulesCustom) &&
-              data.schedulesCustom.length > 0 ? (
-                <ul className="space-y-1">
-                  {data.schedulesCustom.map((item: any, idx: number) => (
-                    <li key={idx} className="text-sm flex items-start gap-2">
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {item.subject}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {item.day}, {item.time} ({item.count} sesi)
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Belum ada jadwal kustom.
-                </p>
-              )}
+              {(() => {
+                // Pending request
+                const pendingReq =
+                  data.schedulesCustomRequest &&
+                  (data.schedulesCustomRequest.status === 'pending' ||
+                    !data.schedulesCustomRequest.status)
+                    ? data.schedulesCustomRequest
+                    : null
+
+                // Time left untuk pending request
+                let pendingTimeLeft: number | null = null
+                if (pendingReq) {
+                  const deadline = getRequestDeadline(pendingReq)
+                  pendingTimeLeft = deadline - now.getTime()
+                }
+
+                const customList = Array.isArray(data.schedulesCustom)
+                  ? data.schedulesCustom
+                  : []
+
+                if (!pendingReq && customList.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground italic">
+                      Belum ada jadwal kustom.
+                    </p>
+                  )
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {/* ===== Pending Request Card ===== */}
+                    {pendingReq && (
+                      <div
+                        className={`p-3 rounded-md border ${
+                          pendingTimeLeft !== null && pendingTimeLeft <= 0
+                            ? 'border-red-500/40 bg-red-500/5'
+                            : 'border-amber-500/40 bg-amber-500/5'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <Badge
+                            className={`text-[10px] ${
+                              pendingTimeLeft !== null && pendingTimeLeft <= 0
+                                ? 'bg-red-500/20 text-red-200 border-red-500/40'
+                                : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+                            }`}
+                          >
+                            {pendingTimeLeft !== null && pendingTimeLeft <= 0
+                              ? 'HANGUS'
+                              : 'MENUNGGU PERSETUJUAN TUTOR'}
+                          </Badge>
+                        </div>
+
+                        {/* From → To */}
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-muted-foreground w-12 shrink-0">
+                              Dari:
+                            </span>
+                            <span className="text-muted-foreground line-through">
+                              {pendingReq.from?.subject} ·{' '}
+                              {pendingReq.from?.date},{' '}
+                              {pendingReq.from?.time}
+                            </span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-muted-foreground w-12 shrink-0">
+                              Ke:
+                            </span>
+                            <span className="font-medium text-foreground">
+                              {pendingReq.to?.subject} · {pendingReq.to?.date},{' '}
+                              {pendingReq.to?.time}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Timer */}
+                        {pendingTimeLeft !== null && pendingTimeLeft > 0 && (
+                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-500/20">
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-xs text-muted-foreground">
+                              Sisa waktu:
+                            </span>
+                            <span className="font-mono font-bold text-amber-400 text-sm">
+                              {formatCountdown(pendingTimeLeft)}
+                            </span>
+                          </div>
+                        )}
+
+                        {pendingTimeLeft !== null && pendingTimeLeft <= 0 && (
+                          <p className="text-xs text-red-400 mt-2">
+                            Waktu habis. Menunggu sistem menghapus permintaan...
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ===== Approved Custom Schedules ===== */}
+                    {customList.length > 0 && (
+                      <ul className="space-y-1">
+                        {customList.map((item: any, idx: number) => (
+                          <li
+                            key={idx}
+                            className="text-sm flex items-start gap-2"
+                          >
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {item.subject}
+                            </Badge>
+                            <span className="text-muted-foreground">
+                              {item.day}, {item.time} ({item.count} sesi)
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })()}
             </CardContent>
           </Card>
         </div>

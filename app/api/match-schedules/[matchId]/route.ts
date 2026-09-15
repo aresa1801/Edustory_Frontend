@@ -120,13 +120,46 @@ export async function GET(
         .in('id', expiredIds)
     }
 
+    // ===== AUTO-REJECT REQUEST EXPIRED =====
+    let finalRequest = schedule.schedules_custom_request
+    if (
+      finalRequest &&
+      (finalRequest.status === 'pending' || !finalRequest.status)
+    ) {
+      const requestedAt = new Date(finalRequest.requested_at).getTime()
+      const deadline1 = requestedAt + 2 * 24 * 60 * 60 * 1000
+
+      const { start: startHour } = (() => {
+        const m = (finalRequest.to?.time || '00.00 - 01.00').match(
+          /(\d{1,2})\.(\d{2})/
+        )
+        return { start: m ? parseInt(m[1]) : 0 }
+      })()
+
+      const targetDate = new Date(finalRequest.to?.date || '')
+      targetDate.setHours(startHour, 0, 0, 0)
+      const deadline2 = targetDate.getTime()
+
+      const effectiveDeadline = Math.min(deadline1, deadline2)
+
+      if (now.getTime() > effectiveDeadline) {
+        // Auto-reject: kosongkan request
+        await supabaseAdmin
+          .from('match_schedules')
+          .update({ schedules_custom_request: null })
+          .eq('id', schedule.id)
+
+        finalRequest = null
+      }
+    }
+
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
       status: schedule.status,
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
-      schedulesCustomRequest: schedule.schedules_custom_request || null,
+      schedulesCustomRequest: finalRequest,
       ulasan: schedule.ulasan || [],
       videoCall: schedule.video_call,
       acceptedAt: match?.accepted_at,
