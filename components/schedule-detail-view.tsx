@@ -412,40 +412,39 @@ export default function ScheduleDetailView({
   const visibleDates = monthGroups[activeMonth] || []
 
   const sessionMap = useMemo(() => {
-    if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
-    const base = buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
+  if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
+  const base = buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
 
-    // 1. Hapus session yang CANCELLED (hangus)
-    ;(data.sessions || []).forEach((s: any) => {
+  // 1. Hapus slot yang dipindah (moved_from) — nanti jadi kuning di render
+  ;(data.schedulesCustom || []).forEach((c: any) => {
+    if (c.moved_from?.date && c.moved_from?.time) {
+      delete base[`${c.moved_from.date}|${c.moved_from.time}`]
+    }
+  })
+
+  // 2. Tambahkan slot baru (hasil pindah)
+  ;(data.schedulesCustom || []).forEach((c: any) => {
+    if (c.date && c.time) {
+      base[`${c.date}|${c.time}`] = c.subject
+    }
+  })
+
+  // ⚠️ Cancelled TIDAK dihapus — biar merah muncul di kalender
+  return base
+}, [data?.acceptedAt, data?.schedulesSummaryFix, data?.schedulesCustom])
+
+  // ===== MAP AKTIF: exclude cancelled (untuk hitung & next session) =====
+  const activeSessionMap = useMemo(() => {
+    const filtered: Record<string, string> = { ...sessionMap }
+    ;(data?.sessions || []).forEach((s: any) => {
       if (s.cancelled_at) {
         const sd = new Date(s.scheduled_at)
-        const dateKey = formatDateKey(sd)
-        const timeSlot = getTimeSlotFromDate(sd)
-        delete base[`${dateKey}|${timeSlot}`]
+        const key = `${formatDateKey(sd)}|${getTimeSlotFromDate(sd)}`
+        delete filtered[key]
       }
     })
-
-    // 2. Hapus slot yang dipindah (moved_from)
-    ;(data.schedulesCustom || []).forEach((c: any) => {
-      if (c.moved_from?.date && c.moved_from?.time) {
-        delete base[`${c.moved_from.date}|${c.moved_from.time}`]
-      }
-    })
-
-    // 3. Tambahkan slot baru (hasil pindah)
-    ;(data.schedulesCustom || []).forEach((c: any) => {
-      if (c.date && c.time) {
-        base[`${c.date}|${c.time}`] = c.subject
-      }
-    })
-
-    return base
-  }, [
-    data?.acceptedAt,
-    data?.schedulesSummaryFix,
-    data?.schedulesCustom,
-    data?.sessions,
-  ])
+    return filtered
+  }, [sessionMap, data?.sessions])
 
   const timeSlots = useMemo(() => {
     if (!data?.schedulesSummaryFix) return []
@@ -468,7 +467,7 @@ export default function ScheduleDetailView({
       sessionRow: any | null
     } | null = null
 
-    for (const [key, subject] of Object.entries(sessionMap)) {
+    for (const [key, subject] of Object.entries(activeSessionMap)) {
       const [dateStr, timeSlot] = key.split('|')
       const { start } = parseTimeRange(timeSlot)
       const date = new Date(dateStr)
@@ -490,7 +489,7 @@ export default function ScheduleDetailView({
       }
     }
     return next
-  }, [sessionMap, now, data?.sessions])
+  }, [activeSessionMap, now, data?.sessions])
 
   // ===== TIMER STATE =====
   const timerState = useMemo(() => {
@@ -547,7 +546,7 @@ export default function ScheduleDetailView({
       { subject: string; day: string; time: string; count: number }
     > = {}
 
-    Object.entries(sessionMap).forEach(([key, subject]) => {
+    Object.entries(activeSessionMap).forEach(([key, subject]) => { 
       const [dateStr, time] = key.split('|')
       const date = new Date(dateStr)
       const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' })
