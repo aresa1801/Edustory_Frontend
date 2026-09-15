@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 const READY_WINDOW_MINUTES = 20
 
 export async function GET(
@@ -15,52 +19,47 @@ export async function GET(
 
     const { matchId } = params
 
+    // ===== 1. Ambil match_schedules (SELECT * — bypass PostgREST nested bug) =====
     const { data: schedule, error: schedError } = await supabaseAdmin
       .from('match_schedules')
-      .select(`
-        id,
-        match_id,
-        student_id,
-        tutor_id,
-        status,
-        schedules_summary_fix,
-        schedules_custom,
-        schedules_custom_request,
-        ulasan,
-        video_call,
-        created_at,
-        matches!inner(
-          id,
-          matched_subjects,
-          student_full_name,
-          student_grade,
-          student_avatar,
-          student_address,
-          student_latitude,
-          student_longitude,
-          student_is_online,
-          student_budget_per_month,
-          student_sessions_per_month,
-          accepted_at,
-          contract_end_date,
-          tutor_full_name,
-          tutor_avatar_url,
-          tutor_hourly_rate,
-          tutor_rating
-        )
-      `)
+      .select('*')
       .eq('match_id', matchId)
-      .single()
+      .maybeSingle()
 
-    if (schedError || !schedule) {
+    if (schedError) {
+      console.error('[API] schedError:', schedError)
+      return NextResponse.json(
+        { error: 'DB error: ' + schedError.message },
+        { status: 500 }
+      )
+    }
+
+    if (!schedule) {
       return NextResponse.json(
         { error: 'Schedule not found' },
         { status: 404 }
       )
     }
 
-    const match = (schedule as any).matches
+    // ===== DEBUG LOG =====
+    console.log('[API DEBUG] matchId:', matchId)
+    console.log('[API DEBUG] schedules_custom_request:', JSON.stringify(schedule.schedules_custom_request))
+    console.log('[API DEBUG] schedules_custom:', JSON.stringify(schedule.schedules_custom))
 
+    // ===== 2. Ambil matches secara terpisah =====
+    const { data: match, error: matchError } = await supabaseAdmin
+      .from('matches')
+      .select(
+        'id, matched_subjects, student_full_name, student_grade, student_avatar, student_address, student_latitude, student_longitude, student_is_online, student_budget_per_month, student_sessions_per_month, accepted_at, contract_end_date, tutor_full_name, tutor_avatar_url, tutor_hourly_rate, tutor_rating'
+      )
+      .eq('id', matchId)
+      .maybeSingle()
+
+    if (matchError) {
+      console.error('[API] matchError:', matchError)
+    }
+
+    // ===== 3. Ambil student & tutor =====
     const [studentRes, tutorRes] = await Promise.all([
       supabaseAdmin
         .from('students')
@@ -68,19 +67,20 @@ export async function GET(
           'id, name, gender, phone, bio, school_name, school_type, school_city, parent_name, parent_relation, parent_phone, parent_email, is_online, latitude, longitude'
         )
         .eq('id', schedule.student_id)
-        .single(),
+        .maybeSingle(),
       supabaseAdmin
         .from('tutors')
         .select(
           'id, full_name, phone, bio, experience_years, qualifications, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url'
         )
         .eq('id', schedule.tutor_id)
-        .single(),
+        .maybeSingle(),
     ])
 
     const studentDetail = studentRes.data
     const tutorDetail = tutorRes.data
 
+    // ===== 4. Ambil sessions =====
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
       .select(
@@ -96,16 +96,11 @@ export async function GET(
       if (s.started_at || s.cancelled_at) return s
 
       const scheduledAt = new Date(s.scheduled_at)
-      const diffMinutes =
-        (now.getTime() - scheduledAt.getTime()) / 1000 / 60
+      const diffMinutes = (now.getTime() - scheduledAt.getTime()) / 1000 / 60
 
       if (diffMinutes > READY_WINDOW_MINUTES) {
         expiredIds.push(s.id)
-        return {
-          ...s,
-          cancelled_at: now.toISOString(),
-          status: 'cancelled',
-        }
+        return { ...s, cancelled_at: now.toISOString(), status: 'cancelled' }
       }
       return s
     })
@@ -113,24 +108,18 @@ export async function GET(
     if (expiredIds.length > 0) {
       await supabaseAdmin
         .from('sessions')
-        .update({
-          cancelled_at: now.toISOString(),
-          status: 'cancelled',
-        })
+        .update({ cancelled_at: now.toISOString(), status: 'cancelled' })
         .in('id', expiredIds)
     }
 
-    // ===== AUTO-REJECT REQUEST EXPIRED (DISABLED - DEBUGGING) =====
-    let finalRequest = schedule.schedules_custom_request
-    // TODO: aktifkan kembali setelah timezone fix
-
+    // ===== 5. Compose response =====
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
       status: schedule.status,
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
-      schedulesCustomRequest: finalRequest,
+      schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       ulasan: schedule.ulasan || [],
       videoCall: schedule.video_call,
       acceptedAt: match?.accepted_at,
@@ -143,10 +132,8 @@ export async function GET(
         grade: match?.student_grade || '',
         address: match?.student_address || '',
         matchedSubjects: match?.matched_subjects || [],
-        latitude:
-          match?.student_latitude ?? studentDetail?.latitude ?? null,
-        longitude:
-          match?.student_longitude ?? studentDetail?.longitude ?? null,
+        latitude: match?.student_latitude ?? studentDetail?.latitude ?? null,
+        longitude: match?.student_longitude ?? studentDetail?.longitude ?? null,
         gender: studentDetail?.gender || '',
         phone: studentDetail?.phone || '',
         bio: studentDetail?.bio || '',
@@ -159,32 +146,32 @@ export async function GET(
         parentEmail: studentDetail?.parent_email || '',
         budgetPerMonth: match?.student_budget_per_month ?? 0,
         sessionsPerMonth: match?.student_sessions_per_month ?? 0,
-        isOnline:
-          match?.student_is_online ?? studentDetail?.is_online ?? true,
+        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: {
         id: schedule.tutor_id,
-        fullName:
-          tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
+        fullName: tutorDetail?.full_name || match?.tutor_full_name || 'Tutor',
         phone: tutorDetail?.phone || '',
         bio: tutorDetail?.bio || '',
         experienceYears: tutorDetail?.experience_years || 0,
         qualifications: tutorDetail?.qualifications || '',
-        hourlyRate:
-          tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
+        hourlyRate: tutorDetail?.hourly_rate ?? match?.tutor_hourly_rate ?? 0,
         rating: tutorDetail?.rating ?? match?.tutor_rating ?? 0,
         totalReviews: tutorDetail?.total_reviews || 0,
         verifiedGradeLevels: tutorDetail?.verified_grade_levels || [],
-        avatar:
-          tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
+        avatar: tutorDetail?.avatar_url || match?.tutor_avatar_url || null,
         matchedSubjects: match?.matched_subjects || [],
       },
 
       sessions: processedSessions,
     }
 
-    return NextResponse.json(response)
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    })
   } catch (err) {
     console.error('[API match-schedules/:id] Error:', err)
     return NextResponse.json(
