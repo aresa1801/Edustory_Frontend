@@ -664,7 +664,7 @@ export default function ScheduleDetailView({
       {/* ====== FIXED OVERLAY (klik untuk batal) ====== */}
       {isRescheduleMode && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm pointer-events-none"
+          className="fixed inset-0 z-30 bg-black/60 pointer-events-none"
           aria-hidden="true"
         />
       )}
@@ -815,7 +815,7 @@ export default function ScheduleDetailView({
       </div>
 
       {/* ====== KALENDER (TERANG saat mode reschedule) ====== */}
-<div data-reschedule-keep="true" className="relative">
+<div data-reschedule-keep="true" className="relative z-50">
   <Card
     className={`transition-all duration-300 ${
       isRescheduleMode
@@ -1053,7 +1053,7 @@ export default function ScheduleDetailView({
 
       {/* ====== WIZARD (jika sudah pilih source) ====== */}
       {isRescheduleMode && rescheduleSource && (
-        <div data-reschedule-keep="true" className="relative z-40">
+        <div data-reschedule-keep="true" className="relative z-50">
           <RescheduleWizard
             key={`${formatDateKey(rescheduleSource.date)}-${rescheduleSource.timeSlot}`}
             source={rescheduleSource}
