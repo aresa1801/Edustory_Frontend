@@ -1,6 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Helper: parse "YYYY-MM-DD" + "HH.MM - HH.MM" jadi Date UTC
+function parseTargetDate(dateStr: string, timeSlot: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const match = timeSlot.match(/(\d{1,2})\.(\d{2})/)
+  const startHour = match ? parseInt(match[1]) : 0
+  const startMin = match ? parseInt(match[2]) : 0
+  return Date.UTC(y, m - 1, d, startHour, startMin)
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabaseAdmin = createClient(
@@ -77,9 +86,47 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // ========== 3. Auto-reject (DISABLED - DEBUGGING) ==========
-    const processedSchedules = schedules || []
-    // TODO: aktifkan auto-reject setelah timezone fix
+    // ========== 3. Auto-reject request expired ==========
+    const nowMs = Date.now()
+    const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000
+    const expiredRequestIds: string[] = []
+
+    const processedSchedules = (schedules || []).map((s: any) => {
+      const req = s.schedules_custom_request
+      if (!req) return s
+      if (req.status && req.status !== 'pending') return s
+
+      // Deadline 1: requested_at + 2 hari
+      const requestedMs = new Date(req.requested_at).getTime()
+      const deadline1 = requestedMs + TWO_DAYS_MS
+
+      // Deadline 2: waktu target (date + jam mulai), parse UTC
+      let deadline2 = Infinity
+      if (req.to?.date && req.to?.time) {
+        deadline2 = parseTargetDate(req.to.date, req.to.time)
+      }
+
+      // Ambil yang paling cepat
+      const effectiveDeadline = Math.min(deadline1, deadline2)
+
+      if (nowMs > effectiveDeadline) {
+        expiredRequestIds.push(s.id)
+        return { ...s, schedules_custom_request: null }
+      }
+      return s
+    })
+
+    // Update DB untuk yang expired
+    if (expiredRequestIds.length > 0) {
+      console.log(
+        '[AUTO-REJECT] Expiring request(s):',
+        expiredRequestIds
+      )
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({ schedules_custom_request: null })
+        .in('id', expiredRequestIds)
+    }
 
     // ========== 4. Ambil data detail student & tutor ==========
     const studentIds = [
@@ -164,7 +211,11 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json(transformed)
+    return NextResponse.json(transformed, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    })
   } catch (err) {
     console.error('[API match-schedules] Error:', err)
     return NextResponse.json(

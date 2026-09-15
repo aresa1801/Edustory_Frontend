@@ -1120,15 +1120,21 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       ''
 
                     // Tentukan status
+                    // Tentukan status
                     let status: SlotStatus = 'past'
-                    if (isMoved) {
-                      status = 'moved'   // ← hanya slot asal kuning
-                    } else if (isScheduled) {
-                      status = getSlotStatus(date, slot, data.sessions || [], now)
-                      // Kalau ini slot tujuan pindah (custom) & belum lewat → tetap biru
-                      if (isCustomSlot && (status === 'past' || status === 'cancelled')) {
+                    if (isCustomSlot) {
+                      // Slot hasil pindahan → biarkan biru (upcoming) sesuai waktunya
+                      status = isScheduled
+                        ? getSlotStatus(date, slot, data.sessions || [], now)
+                        : 'upcoming'
+                      // Kalau waktunya belum lewat & belum hangus → paksa upcoming
+                      if (status !== 'cancelled' && status !== 'past' && status !== 'ongoing') {
                         status = 'upcoming'
                       }
+                    } else if (isMoved) {
+                      status = 'moved'   // ← hanya slot ASAL yang jadi kuning
+                    } else if (isScheduled) {
+                      status = getSlotStatus(date, slot, data.sessions || [], now)
                     }
 
                     const style = SLOT_STATUS_STYLE[status]
@@ -1144,7 +1150,8 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       isScheduled &&
                       isSlotSelectable(status) &&
                       !isPendingSource &&
-                      !isMoved
+                      !isMoved &&
+                      !isCustomSlot
 
                     const selected = isSlotSelected(date, slot)
 
@@ -1158,6 +1165,11 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                           if (isPendingSource) {
                             e.stopPropagation()
                             alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
+                            return
+                          }
+                          if (isCustomSlot) {
+                            e.stopPropagation()
+                            alert('Jadwal ini adalah hasil perpindahan dan tidak bisa dipindah lagi!')
                             return
                           }
                           if (canSelect && subject) {
