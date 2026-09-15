@@ -406,14 +406,38 @@ export default function ScheduleDetailView({
   const visibleDates = monthGroups[activeMonth] || []
 
   const sessionMap = useMemo(() => {
-    if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
-    return buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
-  }, [data?.acceptedAt, data?.schedulesSummaryFix])
+  if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
+  const base = buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
+
+  // 1. Hapus slot yang telah dipindah (moved_from)
+  ;(data.schedulesCustom || []).forEach((c: any) => {
+    if (c.moved_from?.date && c.moved_from?.time) {
+      const key = `${c.moved_from.date}|${c.moved_from.time}`
+      delete base[key]
+    }
+  })
+
+  // 2. Tambahkan slot baru (dipindah ke)
+  ;(data.schedulesCustom || []).forEach((c: any) => {
+    if (c.date && c.time) {
+      base[`${c.date}|${c.time}`] = c.subject
+    }
+  })
+
+  return base
+}, [data?.acceptedAt, data?.schedulesSummaryFix, data?.schedulesCustom])
 
   const timeSlots = useMemo(() => {
     if (!data?.schedulesSummaryFix) return []
-    return getTimeSlots(data.schedulesSummaryFix)
-  }, [data?.schedulesSummaryFix])
+    const set = new Set<string>()
+    ;(data.schedulesSummaryFix || []).forEach((item: any) => {
+      if (item.time) set.add(item.time)
+    })
+    ;(data.schedulesCustom || []).forEach((item: any) => {
+      if (item.time) set.add(item.time)
+    })
+    return Array.from(set).sort()
+  }, [data?.schedulesSummaryFix, data?.schedulesCustom])
 
   // ===== NEXT SESSION =====
   const nextSession = useMemo(() => {
@@ -498,55 +522,24 @@ export default function ScheduleDetailView({
 
   // ===== JADWAL TERKINI =====
   const adjustedScheduleSummary = useMemo(() => {
-    if (!Array.isArray(data?.schedulesSummaryFix)) return []
-    if (!data?.acceptedAt) return data?.schedulesSummaryFix || []
+    const grouped: Record<
+      string,
+      { subject: string; day: string; time: string; count: number }
+    > = {}
 
-    const startDate = new Date(data.acceptedAt)
-    startDate.setHours(0, 0, 0, 0)
-
-    const dayIndexMap: Record<string, number> = {
-      Minggu: 0,
-      Senin: 1,
-      Selasa: 2,
-      Rabu: 3,
-      Kamis: 4,
-      Jumat: 5,
-      Sabtu: 6,
-    }
-
-    return data.schedulesSummaryFix.map((item: any) => {
-      const targetDay = dayIndexMap[item.day]
-      if (targetDay === undefined) return item
-
-      const count = item.count || 0
-      const time = item.time
-
-      if (!time || count <= 0) return item
-
-      const current = new Date(startDate)
-      const diff = (targetDay - current.getDay() + 7) % 7
-      current.setDate(current.getDate() + diff)
-
-      let passedCount = 0
-      for (let i = 0; i < count; i++) {
-        const { end } = parseTimeRange(time)
-        const sessionEnd = new Date(current)
-        sessionEnd.setHours(end, 0, 0, 0)
-
-        if (sessionEnd <= now) {
-          passedCount++
-        }
-        current.setDate(current.getDate() + 7)
+    Object.entries(sessionMap).forEach(([key, subject]) => {
+      const [dateStr, time] = key.split('|')
+      const date = new Date(dateStr)
+      const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' })
+      const gk = `${subject}-${dayName}-${time}`
+      if (!grouped[gk]) {
+        grouped[gk] = { subject, day: dayName, time, count: 0 }
       }
-
-      return {
-        ...item,
-        count: Math.max(0, count - passedCount),
-        originalCount: count,
-        passedCount,
-      }
+      grouped[gk].count += 1
     })
-  }, [data?.schedulesSummaryFix, data?.acceptedAt, now])
+
+    return Object.values(grouped)
+  }, [sessionMap])
 
   const handleBack = () => router.back()
   const handleRefresh = () => fetchData(true)
@@ -1091,13 +1084,31 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                     const subject = sessionMap[key]
                     const isScheduled = !!subject
 
-                    const status: SlotStatus = isScheduled
-                      ? getSlotStatus(date, slot, data.sessions || [], now)
-                      : 'past'
+                    // Cek apakah slot ini sumber perpindahan (moved_from)
+                    const movedInfo = (data.schedulesCustom || []).find(
+                      (c: any) =>
+                        c.moved_from?.date === formatDateKey(date) &&
+                        c.moved_from?.time === slot
+                    )
+                    const isMoved = !!movedInfo
+
+                    // Cek apakah slot ini adalah hasil perpindahan (custom slot)
+                    const customInfo = (data.schedulesCustom || []).find(
+                      (c: any) => c.date === formatDateKey(date) && c.time === slot
+                    )
+                    const isCustomSlot = !!customInfo
+
+                    // Tentukan status
+                    let status: SlotStatus = 'past'
+                    if (isMoved) {
+                      status = 'moved'
+                    } else if (isScheduled) {
+                      status = getSlotStatus(date, slot, data.sessions || [], now)
+                      if (isCustomSlot) status = 'upcoming'
+                    }
 
                     const style = SLOT_STATUS_STYLE[status]
 
-                    // Cek apakah slot ini sumber pending request
                     const isPendingSource = isPendingSourceSlot(
                       date,
                       slot,
@@ -1108,7 +1119,8 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       isRescheduleMode &&
                       isScheduled &&
                       isSlotSelectable(status) &&
-                      !isPendingSource
+                      !isPendingSource &&
+                      !isMoved
 
                     const selected = isSlotSelected(date, slot)
 
@@ -1116,10 +1128,9 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       <td
                         key={colIdx}
                         className={`border p-0.5 text-center ${
-                          !isScheduled ? 'opacity-30' : ''
+                          !isScheduled && !isMoved ? 'opacity-30' : ''
                         }`}
                         onClick={(e) => {
-                          // Slot sumber → alert & block
                           if (isPendingSource) {
                             e.stopPropagation()
                             alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
@@ -1133,9 +1144,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       >
                         <div
                           className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
-                            isPendingSource
-                              ? 'bg-cyan-300/30 text-cyan-100 border-cyan-400/60 cursor-not-allowed'
-                              : isScheduled
+                            isScheduled || isMoved
                               ? `${style.bg} ${style.text} ${style.border}`
                               : 'bg-gray-100/5 text-gray-600 border-transparent'
                           } ${
@@ -1146,14 +1155,16 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                             selected ? 'ring-2 ring-amber-400 scale-105 shadow-lg' : ''
                           }`}
                           title={
-                            isPendingSource
-                              ? `${subject} - Sedang Diajukan (${slot})`
+                            isMoved
+                              ? `${subject} — Dipindah ke ${movedInfo.dateLabel}, ${movedInfo.time}`
+                              : isCustomSlot
+                              ? `${subject} — Jadwal hasil perpindahan`
                               : isScheduled
                               ? `${subject} - ${style.label} (${slot})`
                               : ''
                           }
                         >
-                          {isScheduled ? subject.charAt(0).toUpperCase() : ''}
+                          {isScheduled || isMoved ? subject.charAt(0).toUpperCase() : ''}
                         </div>
                       </td>
                     )

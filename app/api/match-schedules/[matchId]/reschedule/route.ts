@@ -120,9 +120,7 @@ export async function PATCH(
 
     const { data: schedule, error: sErr } = await supabaseAdmin
       .from('match_schedules')
-      .select(
-        'id, schedules_custom, schedules_custom_request, schedules_summary_fix'
-      )
+      .select('id, schedules_custom, schedules_custom_request')
       .eq('match_id', matchId)
       .single()
 
@@ -144,46 +142,28 @@ export async function PATCH(
     const now = new Date().toISOString()
 
     if (action === 'approve') {
-      // ===== 1. Siapkan nama hari & bulan =====
       const dayNames = [
-        'Minggu',
-        'Senin',
-        'Selasa',
-        'Rabu',
-        'Kamis',
-        'Jumat',
-        'Sabtu',
+        'Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu',
       ]
       const monthNames = [
-        'Januari',
-        'Februari',
-        'Maret',
-        'April',
-        'Mei',
-        'Juni',
-        'Juli',
-        'Agustus',
-        'September',
-        'Oktober',
-        'November',
-        'Desember',
+        'Januari','Februari','Maret','April','Mei','Juni',
+        'Juli','Agustus','September','Oktober','November','Desember',
       ]
 
-      // ===== 2. Parse tanggal (pakai timezone WIB) =====
-      const fromDate = new Date(`${request.from.date}T00:00:00+07:00`)
-      const toDate = new Date(`${request.to.date}T00:00:00+07:00`)
+      // Parse pakai UTC supaya getUTCDay() konsisten
+      const fromDate = new Date(`${request.from.date}T00:00:00Z`)
+      const toDate = new Date(`${request.to.date}T00:00:00Z`)
 
-      const fromDay = dayNames[fromDate.getDay()]
-      const toDay = dayNames[toDate.getDay()]
+      const fromDay = dayNames[fromDate.getUTCDay()]
+      const toDay = dayNames[toDate.getUTCDay()]
 
-      const fromDateLabel = `${fromDay}, ${fromDate.getDate()} ${
-        monthNames[fromDate.getMonth()]
-      } ${fromDate.getFullYear()}`
-      const toDateLabel = `${toDay}, ${toDate.getDate()} ${
-        monthNames[toDate.getMonth()]
-      } ${toDate.getFullYear()}`
+      const fromDateLabel = `${fromDay}, ${fromDate.getUTCDate()} ${
+        monthNames[fromDate.getUTCMonth()]
+      } ${fromDate.getUTCFullYear()}`
+      const toDateLabel = `${toDay}, ${toDate.getUTCDate()} ${
+        monthNames[toDate.getUTCMonth()]
+      } ${toDate.getUTCFullYear()}`
 
-      // ===== 3. Custom entry lengkap =====
       const customEntry = {
         subject: request.to.subject || request.from.subject || 'Tanpa Mapel',
         day: toDay,
@@ -202,39 +182,15 @@ export async function PATCH(
         request_id: request.request_id,
       }
 
-      // ===== 4. Kurangi count di schedules_summary_fix =====
-      const currentSummaryFix = Array.isArray(schedule.schedules_summary_fix)
-        ? schedule.schedules_summary_fix
-        : []
-
-      const updatedSummaryFix = currentSummaryFix
-        .map((item: any) => {
-          // Cocokkan berdasarkan day + time (day di summary = nama hari)
-          if (
-            item.day === fromDay &&
-            item.time === request.from.time
-          ) {
-            return {
-              ...item,
-              count: Math.max(0, (item.count || 0) - 1),
-            }
-          }
-          return item
-        })
-        .filter((item: any) => (item.count || 0) > 0) // hapus kalau 0
-
-      // ===== 5. Gabungkan ke schedules_custom =====
       const currentCustom = Array.isArray(schedule.schedules_custom)
         ? schedule.schedules_custom
         : []
       const updatedCustom = [...currentCustom, customEntry]
 
-      // ===== 6. Update DB =====
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({
           schedules_custom: updatedCustom,
-          schedules_summary_fix: updatedSummaryFix,
           schedules_custom_request: null,
         })
         .eq('id', schedule.id)
@@ -249,11 +205,9 @@ export async function PATCH(
       return NextResponse.json({
         success: true,
         action: 'approved',
-        updated_summary_fix: updatedSummaryFix,
         custom_entry: customEntry,
       })
     } else {
-      // ===== REJECT =====
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({ schedules_custom_request: null })
