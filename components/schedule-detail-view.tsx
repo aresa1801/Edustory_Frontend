@@ -141,15 +141,9 @@ function formatCountdown(ms: number): string {
   const seconds = totalSec % 60
 
   if (days > 0) {
-    return `${days} hari ${hours
-      .toString()
-      .padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`
+    return `${days} hari ${hours} jam ${minutes} menit`
   }
-  return `${hours.toString().padStart(2, '0')}:${minutes
-    .toString()
-    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  return `${hours} jam ${minutes} menit ${seconds} detik`
 }
 
 // ========== BUILD SESSION MAP ==========
@@ -452,11 +446,8 @@ export default function ScheduleDetailView({
     ;(data.schedulesSummaryFix || []).forEach((item: any) => {
       if (item.time) set.add(item.time)
     })
-    ;(data.schedulesCustom || []).forEach((item: any) => {
-      if (item.time) set.add(item.time)
-    })
     return Array.from(set).sort()
-  }, [data?.schedulesSummaryFix, data?.schedulesCustom])
+  }, [data?.schedulesSummaryFix])
 
   // ===== NEXT SESSION =====
   const nextSession = useMemo(() => {
@@ -517,8 +508,12 @@ export default function ScheduleDetailView({
     }
 
     if (nowMs < startMs) {
-      const diffMin = Math.ceil((startMs - nowMs) / 60000)
-      return { state: 'before' as const, minutesUntil: diffMin }
+      const diffMs = startMs - nowMs
+      return {
+        state: 'before' as const,
+        minutesUntil: Math.ceil(diffMs / 60000),
+        remainingMs: diffMs,
+      }
     }
 
     if (nowMs >= deadlineMs) {
@@ -1125,12 +1120,15 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       ''
 
                     // Tentukan status
-                    // Tentukan status
                     let status: SlotStatus = 'past'
-                    if (isMoved || isCustomSlot) {
-                      status = 'moved'   // Kedua-duanya kuning
+                    if (isMoved) {
+                      status = 'moved'   // ← hanya slot asal kuning
                     } else if (isScheduled) {
                       status = getSlotStatus(date, slot, data.sessions || [], now)
+                      // Kalau ini slot tujuan pindah (custom) & belum lewat → tetap biru
+                      if (isCustomSlot && (status === 'past' || status === 'cancelled')) {
+                        status = 'upcoming'
+                      }
                     }
 
                     const style = SLOT_STATUS_STYLE[status]
@@ -1184,7 +1182,9 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                             isMoved
                               ? `${displaySubject} — Dipindah ke ${movedInfo?.dateLabel || movedInfo?.date}, ${movedInfo?.time}`
                               : isCustomSlot
-                              ? `${displaySubject} — Jadwal hasil perpindahan`
+                              ? `${displaySubject} — Jadwal pindah dari ${
+                                  customInfo?.moved_from?.dayLabel || customInfo?.moved_from?.date
+                                }, ${customInfo?.moved_from?.time}`
                               : isScheduled
                               ? `${displaySubject} - ${style.label} (${slot})`
                               : ''
@@ -1309,7 +1309,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
 
                   {timerState.state === 'before' && (
                     <p className="text-xs text-primary mt-1">
-                      Dimulai dalam {timerState.minutesUntil} menit. Tombol
+                      Dimulai dalam {formatCountdown(timerState.remainingMs)}. Tombol
                       "Siap Belajar/Mengajar" akan aktif saat jam belajar
                       dimulai.
                     </p>
