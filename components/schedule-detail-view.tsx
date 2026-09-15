@@ -206,6 +206,12 @@ function getTimeSlots(summary: any): string[] {
   return Array.from(set).sort()
 }
 
+function getTimeSlotFromDate(d: Date): string {
+  const h = d.getHours()
+  const nextH = h + 1
+  return `${String(h).padStart(2, '0')}.00 - ${String(nextH).padStart(2, '0')}.00`
+}
+
 // ========== STATUS SLOT ==========
 type SlotStatus = 'upcoming' | 'ongoing' | 'past' | 'cancelled' | 'moved'
 
@@ -406,26 +412,40 @@ export default function ScheduleDetailView({
   const visibleDates = monthGroups[activeMonth] || []
 
   const sessionMap = useMemo(() => {
-  if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
-  const base = buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
+    if (!data?.acceptedAt || !data?.schedulesSummaryFix) return {}
+    const base = buildSessionMap(data.acceptedAt, data.schedulesSummaryFix)
 
-  // 1. Hapus slot yang telah dipindah (moved_from)
-  ;(data.schedulesCustom || []).forEach((c: any) => {
-    if (c.moved_from?.date && c.moved_from?.time) {
-      const key = `${c.moved_from.date}|${c.moved_from.time}`
-      delete base[key]
-    }
-  })
+    // 1. Hapus session yang CANCELLED (hangus)
+    ;(data.sessions || []).forEach((s: any) => {
+      if (s.cancelled_at) {
+        const sd = new Date(s.scheduled_at)
+        const dateKey = formatDateKey(sd)
+        const timeSlot = getTimeSlotFromDate(sd)
+        delete base[`${dateKey}|${timeSlot}`]
+      }
+    })
 
-  // 2. Tambahkan slot baru (dipindah ke)
-  ;(data.schedulesCustom || []).forEach((c: any) => {
-    if (c.date && c.time) {
-      base[`${c.date}|${c.time}`] = c.subject
-    }
-  })
+    // 2. Hapus slot yang dipindah (moved_from)
+    ;(data.schedulesCustom || []).forEach((c: any) => {
+      if (c.moved_from?.date && c.moved_from?.time) {
+        delete base[`${c.moved_from.date}|${c.moved_from.time}`]
+      }
+    })
 
-  return base
-}, [data?.acceptedAt, data?.schedulesSummaryFix, data?.schedulesCustom])
+    // 3. Tambahkan slot baru (hasil pindah)
+    ;(data.schedulesCustom || []).forEach((c: any) => {
+      if (c.date && c.time) {
+        base[`${c.date}|${c.time}`] = c.subject
+      }
+    })
+
+    return base
+  }, [
+    data?.acceptedAt,
+    data?.schedulesSummaryFix,
+    data?.schedulesCustom,
+    data?.sessions,
+  ])
 
   const timeSlots = useMemo(() => {
     if (!data?.schedulesSummaryFix) return []
@@ -1106,12 +1126,12 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
                       ''
 
                     // Tentukan status
+                    // Tentukan status
                     let status: SlotStatus = 'past'
-                    if (isMoved) {
-                      status = 'moved'
+                    if (isMoved || isCustomSlot) {
+                      status = 'moved'   // Kedua-duanya kuning
                     } else if (isScheduled) {
                       status = getSlotStatus(date, slot, data.sessions || [], now)
-                      if (isCustomSlot) status = 'upcoming'
                     }
 
                     const style = SLOT_STATUS_STYLE[status]
