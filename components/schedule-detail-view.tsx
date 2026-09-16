@@ -33,6 +33,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Send,
+  ExternalLink,
 } from 'lucide-react'
 
 import RescheduleWizard, {
@@ -314,6 +315,9 @@ export default function ScheduleDetailView({
   const [readyLoading, setReadyLoading] = useState(false)
   const [movedInfoItem, setMovedInfoItem] = useState<any | null>(null)
   const { user: authUser } = useAuth()
+
+  // ===== VIDEO CALL STATE =====
+  const [showVideoCallDialog, setShowVideoCallDialog] = useState(false)
 
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
@@ -712,6 +716,32 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
   } finally {
     setProcessingRequest(false)
   }
+}
+
+// ===== VIDEO CALL HANDLER =====
+const handleStartVideoCall = () => {
+  if (!data) return
+
+  // Generate room name yang unik per match
+  // Format: edustory-{8 karakter pertama matchId}
+  const roomName = `edustory-${data.matchId.slice(0, 8)}`
+
+  // Nama user yang akan tampil di Jitsi
+  const userName =
+    role === 'tutor'
+      ? data.tutor?.fullName || 'Tutor'
+      : data.student?.name || 'Siswa'
+
+  // Build URL dengan displayName
+  const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${encodeURIComponent(
+    userName
+  )}"`
+
+  // Buka di tab baru
+  window.open(jitsiUrl, '_blank', 'noopener,noreferrer')
+
+  // Tutup modal
+  setShowVideoCallDialog(false)
 }
 
   if (loading) {
@@ -1688,7 +1718,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => alert('🎥 Video call akan segera hadir.')}
+                onClick={() => setShowVideoCallDialog(true)}
               >
                 <Video className="w-4 h-4 mr-1.5" />
                 Mulai Video Call
@@ -1712,7 +1742,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
         <Dialog
           open={!!movedInfoItem}
           onOpenChange={() => setMovedInfoItem(null)}
-        >
+         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Jadwal Sudah Dipindah</DialogTitle>
@@ -1756,6 +1786,68 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setMovedInfoItem(null)}>
                 Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG KONFIRMASI VIDEO CALL ===== */}
+        <Dialog open={showVideoCallDialog} onOpenChange={setShowVideoCallDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Video className="w-5 h-5 text-blue-500" />
+                Mulai Video Call?
+              </DialogTitle>
+              <DialogDescription>
+                Anda akan masuk ke ruang video call dengan{' '}
+                <strong>
+                  {role === 'tutor'
+                    ? data?.student?.name || 'Siswa'
+                    : data?.tutor?.fullName || 'Tutor'}
+                </strong>
+                .
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 space-y-2 text-sm">
+                <div className="flex items-start gap-2">
+                  <ExternalLink className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                  <p className="text-muted-foreground">
+                    Video call akan terbuka di <strong>tab baru</strong>. Pastikan
+                    Anda mengizinkan akses kamera & mikrofon saat diminta browser.
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-blue-500/20">
+                  <p className="text-xs text-muted-foreground">
+                    Room:{' '}
+                    <span className="font-mono text-foreground">
+                      edustory-{data?.matchId?.slice(0, 8)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground italic">
+                💡 Tips: Buka tab ini di dua perangkat yang berbeda (HP + laptop,
+                atau dua browser) untuk memulai sesi belajar.
+              </p>
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowVideoCallDialog(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleStartVideoCall}
+                className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Video className="w-4 h-4" />
+                Mulai Sekarang
               </Button>
             </DialogFooter>
           </DialogContent>
