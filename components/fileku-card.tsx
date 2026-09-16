@@ -383,133 +383,169 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
             <div className="overflow-x-auto pb-2">
               <div className="flex gap-3 min-w-min">
                 {allFolders.map((folder) => {
-                  const count = getCount(folder.folder_key)
-                  const isPrivate =
-                    folder.folder_key === 'tutor_private' ||
-                    folder.folder_key === 'student_private'
-                  const isRenaming = renamingFolder === folder.id
+                    const count = getCount(folder.folder_key)
+                    const isPrivate =
+                        folder.folder_key === 'tutor_private' ||
+                        folder.folder_key === 'student_private'
+                    const isRenaming = renamingFolder === folder.id
 
-                  return (
-                    <div
-                      key={folder.id}
-                      className="group relative shrink-0 w-[170px] rounded-lg border border-border bg-muted/20 hover:bg-muted/40 hover:border-primary/40 transition-colors"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setActiveFolder(folder)}
-                        className="w-full flex flex-col items-start gap-2 p-3 text-left"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="w-8 h-8 rounded-md bg-indigo-500/15 flex items-center justify-center">
-                            {isPrivate ? (
-                              <Lock className="w-4 h-4 text-amber-400" />
+                    return (
+                        <div
+                        key={folder.id}
+                        className="group relative shrink-0 w-[170px] rounded-lg border border-border bg-muted/20 hover:bg-muted/40 hover:border-primary/40 transition-colors"
+                        >
+                        {/* ==== KONTEN: BUTTON (normal) ATAU DIV (saat rename) ==== */}
+                        {isRenaming ? (
+                            // Saat rename: pakai div, bukan button
+                            <div className="w-full flex flex-col items-start gap-2 p-3 text-left">
+                            <div className="flex items-center justify-between w-full">
+                                <div className="w-8 h-8 rounded-md bg-indigo-500/15 flex items-center justify-center">
+                                {isPrivate ? (
+                                    <Lock className="w-4 h-4 text-amber-400" />
+                                ) : (
+                                    <Folder className="w-4 h-4 text-indigo-400" />
+                                )}
+                                </div>
+                                <Badge variant="outline" className="text-[10px] font-mono">
+                                {count}
+                                </Badge>
+                            </div>
+                            <div className="min-w-0 w-full">
+                                <input
+                                autoFocus
+                                type="text"
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    // Enter = submit
+                                    if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    submitRename(folder)
+                                    }
+                                    // Esc = cancel
+                                    if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    cancelRename()
+                                    }
+                                    // Space tidak trigger apapun (default: memicu button click)
+                                    // Karena kita pakai div bukan button, space aman. Tapi kita tetap
+                                    // stopPropagation untuk jaga-jaga.
+                                    e.stopPropagation()
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full text-sm font-medium bg-background border border-primary/40 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                maxLength={50}
+                                placeholder="Nama folder..."
+                                />
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                Enter untuk simpan · Esc untuk batal
+                                </p>
+                            </div>
+                            </div>
+                        ) : (
+                            // Normal: pakai button
+                            <button
+                            type="button"
+                            onClick={() => setActiveFolder(folder)}
+                            className="w-full flex flex-col items-start gap-2 p-3 text-left"
+                            >
+                            <div className="flex items-center justify-between w-full">
+                                <div className="w-8 h-8 rounded-md bg-indigo-500/15 flex items-center justify-center">
+                                {isPrivate ? (
+                                    <Lock className="w-4 h-4 text-amber-400" />
+                                ) : (
+                                    <Folder className="w-4 h-4 text-indigo-400" />
+                                )}
+                                </div>
+                                <Badge variant="outline" className="text-[10px] font-mono">
+                                {count}
+                                </Badge>
+                            </div>
+                            <div className="min-w-0 w-full">
+                                <p className="text-sm font-medium truncate">{folder.label}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                {isPrivate
+                                    ? 'Private'
+                                    : folder.is_default
+                                    ? 'Shared'
+                                    : 'Custom'}
+                                </p>
+                            </div>
+                            </button>
+                        )}
+
+                        {/* Action buttons — tutor only */}
+                        {role === 'tutor' && (
+                            <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {isRenaming ? (
+                                <>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 text-green-400 hover:text-green-500 hover:bg-green-500/10"
+                                    onClick={(e) => {
+                                    e.stopPropagation()
+                                    submitRename(folder)
+                                    }}
+                                    disabled={processingRename}
+                                    title="Simpan (Enter)"
+                                >
+                                    <Check className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                                    onClick={(e) => {
+                                    e.stopPropagation()
+                                    cancelRename()
+                                    }}
+                                    title="Batal (Esc)"
+                                >
+                                    <X className="w-3 h-3" />
+                                </Button>
+                                </>
                             ) : (
-                              <Folder className="w-4 h-4 text-indigo-400" />
+                                <>
+                                {!isPrivate && (
+                                    <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 text-blue-400 hover:text-blue-500 hover:bg-blue-500/10"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        startRename(folder)
+                                    }}
+                                    title="Rename folder"
+                                    >
+                                    <Pencil className="w-3 h-3" />
+                                    </Button>
+                                )}
+                                {!folder.is_default && !isPrivate && (
+                                    <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setFolderToDelete(folder)
+                                        setShowDeleteFolder(true)
+                                    }}
+                                    title="Hapus folder"
+                                    >
+                                    <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                )}
+                                </>
                             )}
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-mono"
-                          >
-                            {count}
-                          </Badge>
+                            </div>
+                        )}
                         </div>
-                        <div className="min-w-0 w-full">
-                          {isRenaming ? (
-                            <input
-                              autoFocus
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') submitRename(folder)
-                                if (e.key === 'Escape') cancelRename()
-                              }}
-                              className="w-full text-sm font-medium bg-background border border-primary/40 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                              maxLength={50}
-                            />
-                          ) : (
-                            <p className="text-sm font-medium truncate">
-                              {folder.label}
-                            </p>
-                          )}
-                          <p className="text-[10px] text-muted-foreground">
-                            {isPrivate
-                              ? 'Private'
-                              : folder.is_default
-                              ? 'Shared'
-                              : 'Custom'}
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* Action buttons — tutor only */}
-                      {role === 'tutor' && (
-                        <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {isRenaming ? (
-                            <>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 text-green-400 hover:text-green-500 hover:bg-green-500/10"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  submitRename(folder)
-                                }}
-                                disabled={processingRename}
-                              >
-                                <Check className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  cancelRename()
-                                }}
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              {!isPrivate && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-blue-400 hover:text-blue-500 hover:bg-blue-500/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    startRename(folder)
-                                  }}
-                                  title="Rename folder"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                              )}
-                              {!folder.is_default && !isPrivate && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setFolderToDelete(folder)
-                                    setShowDeleteFolder(true)
-                                  }}
-                                  title="Hapus folder"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                    })}
               </div>
             </div>
           )}
