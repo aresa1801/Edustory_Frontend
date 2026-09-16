@@ -25,7 +25,7 @@ export async function DELETE(
       )
     }
 
-    // 1. Ambil file row
+    // ===== 1. Ambil file row =====
     const { data: fileRow, error: fetchError } = await supabaseAdmin
       .from('match_files')
       .select('*')
@@ -39,7 +39,7 @@ export async function DELETE(
       )
     }
 
-    // 2. Resolve user_id → profile id
+    // ===== 2. Resolve user_id → profile id =====
     const table = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(table)
@@ -54,30 +54,15 @@ export async function DELETE(
       )
     }
 
-    const isOwner = fileRow.uploader_id === profile.id
-
-    // 3. Cek permission delete
-    let canDelete = false
-
-    if (role === 'tutor') {
-      // Tutor: bisa hapus miliknya sendiri + semua file di tutor_private & tugas_*
-      canDelete =
-        isOwner ||
-        fileRow.folder === 'tutor_private' ||
-        fileRow.folder.startsWith('tugas_')
-    } else {
-      // Student: bisa hapus miliknya sendiri + semua file di student_private
-      canDelete = isOwner || fileRow.folder === 'student_private'
-    }
-
-    if (!canDelete) {
+    // ===== 3. Hanya uploader sendiri yang bisa hapus =====
+    if (fileRow.uploader_id !== profile.id) {
       return NextResponse.json(
-        { error: 'Kamu tidak punya akses menghapus file ini' },
+        { error: 'Kamu hanya bisa menghapus file yang kamu upload sendiri' },
         { status: 403 }
       )
     }
 
-    // 4. Hapus dari storage
+    // ===== 4. Hapus dari storage =====
     const { error: storageError } = await supabaseAdmin.storage
       .from('match-files')
       .remove([fileRow.storage_path])
@@ -87,7 +72,7 @@ export async function DELETE(
       // Lanjut hapus metadata meskipun storage error
     }
 
-    // 5. Hapus dari DB
+    // ===== 5. Hapus dari DB =====
     const { error: deleteError } = await supabaseAdmin
       .from('match_files')
       .delete()

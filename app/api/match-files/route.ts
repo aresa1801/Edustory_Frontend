@@ -23,7 +23,24 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // 1. Ambil semua file untuk match tersebut
+    // ===== 1. Resolve user_id → profile id =====
+    const profileTable = role === 'tutor' ? 'tutors' : 'students'
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from(profileTable)
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    if (profileErr || !profile) {
+      return NextResponse.json(
+        { error: `${role} tidak ditemukan` },
+        { status: 404 }
+      )
+    }
+
+    const myProfileId = profile.id
+
+    // ===== 2. Ambil semua file untuk match tersebut =====
     const { data: files, error } = await supabaseAdmin
       .from('match_files')
       .select('*')
@@ -34,18 +51,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // 2. Filter akses berdasarkan role
+    // ===== 3. Filter akses berdasarkan role =====
     const visibleFiles = (files || []).filter((f: any) => {
       if (role === 'tutor') {
-        // Tutor bisa lihat: tutor_private + tugas_* (tidak lihat student_private)
+        // Tutor: lihat tutor_private + semua folder lain (kecuali student_private)
         return f.folder !== 'student_private'
       } else {
-        // Student bisa lihat: student_private + tugas_* (tidak lihat tutor_private)
+        // Student: lihat student_private + semua folder lain (kecuali tutor_private)
         return f.folder !== 'tutor_private'
       }
     })
 
-    // 3. Generate signed URL (berlaku 1 jam)
+    // ===== 4. Generate signed URL + flag ownership =====
     const filesWithUrls = await Promise.all(
       visibleFiles.map(async (f: any) => {
         const { data: signedData } = await supabaseAdmin.storage
@@ -55,22 +72,21 @@ export async function GET(req: NextRequest) {
         return {
           ...f,
           signed_url: signedData?.signedUrl || null,
+          uploaded_by_me: f.uploader_id === myProfileId,
         }
       })
     )
 
-    // 4. Hitung jumlah file per folder
+    // ===== 5. Hitung jumlah file per folder (dinamis) =====
     const counts: Record<string, number> = {
       tutor_private: 0,
       student_private: 0,
-      tugas_1: 0,
-      tugas_2: 0,
-      tugas_3: 0,
     }
     filesWithUrls.forEach((f: any) => {
-      if (counts[f.folder] !== undefined) {
-        counts[f.folder]++
+      if (counts[f.folder] === undefined) {
+        counts[f.folder] = 0
       }
+      counts[f.folder]++
     })
 
     return NextResponse.json(
