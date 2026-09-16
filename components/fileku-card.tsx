@@ -35,6 +35,8 @@ interface FilekuCardProps {
   matchId: string
   role: 'tutor' | 'student'
   userId: string
+  privateFolderLabel?: string
+  onPrivateFolderRenamed?: () => void
 }
 
 interface FolderItem {
@@ -59,7 +61,7 @@ interface FileItem {
   mime_type: string
   created_at: string
   signed_url: string | null
-  uploaded_by_me: boolean // <-- BARU
+  uploaded_by_me: boolean
 }
 
 function formatFileSize(bytes: number) {
@@ -96,7 +98,13 @@ function getFileIcon(mimeType: string) {
   return <FileText className="w-4 h-4 text-slate-400" />
 }
 
-export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
+export default function FilekuCard({
+  matchId,
+  role,
+  userId,
+  privateFolderLabel = 'Pribadi Saya',
+  onPrivateFolderRenamed,
+}: FilekuCardProps) {
   const [loading, setLoading] = useState(true)
   const [folders, setFolders] = useState<FolderItem[]>([])
   const [files, setFiles] = useState<FileItem[]>([])
@@ -106,24 +114,20 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Rename state
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [processingRename, setProcessingRename] = useState(false)
 
-  // Create folder state
   const [showCreateFolder, setShowCreateFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
 
-  // Delete folder state
   const [showDeleteFolder, setShowDeleteFolder] = useState(false)
   const [folderToDelete, setFolderToDelete] = useState<FolderItem | null>(null)
   const [deletingFolder, setDeletingFolder] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ===== FETCH =====
   const fetchAll = async (silent = false) => {
     try {
       if (!silent) setLoading(true)
@@ -153,16 +157,12 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== INITIAL FETCH + POLLING + FOCUS REFRESH (cuma 1 useEffect) =====
   useEffect(() => {
     if (!matchId || !userId) return
 
     fetchAll(false)
 
-    const interval = setInterval(() => {
-      fetchAll(true)
-    }, 8000)
-
+    const interval = setInterval(() => fetchAll(true), 8000)
     const onFocus = () => fetchAll(true)
     window.addEventListener('focus', onFocus)
 
@@ -173,7 +173,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, userId, role])
 
-  // ===== UPLOAD =====
   const handleUploadClick = () => fileInputRef.current?.click()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,7 +204,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== DELETE FILE =====
   const handleDeleteFile = async (fileId: string) => {
     if (!confirm('Hapus file ini?')) return
     try {
@@ -224,7 +222,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== RENAME FOLDER =====
   const startRename = (folder: FolderItem) => {
     setRenamingFolder(folder.id)
     setRenameValue(folder.label)
@@ -242,6 +239,31 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
     try {
       setProcessingRename(true)
+
+      // ===== KASUS KHUSUS: PRIVATE FOLDER =====
+      if (folder.id === 'private') {
+        const res = await fetch(
+          `/api/match-schedules/${matchId}/private-folder-label`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              label: renameValue.trim(),
+              user_id: userId,
+              role,
+            }),
+          }
+        )
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.error || 'Gagal rename')
+
+        cancelRename()
+        // Notif parent untuk refetch data schedule (update label)
+        if (onPrivateFolderRenamed) onPrivateFolderRenamed()
+        return
+      }
+
+      // ===== KASUS NORMAL: FOLDER DINAMIS =====
       const res = await fetch(`/api/match-folders/${folder.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +284,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== CREATE FOLDER =====
   const submitCreateFolder = async () => {
     if (!newFolderName.trim()) return
     try {
@@ -289,7 +310,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== DELETE FOLDER =====
   const submitDeleteFolder = async () => {
     if (!folderToDelete) return
     try {
@@ -316,7 +336,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
   // ===== VISIBLE FOLDERS =====
   const privateFolderKey =
     role === 'tutor' ? 'tutor_private' : 'student_private'
-  const privateFolderLabel = 'Pribadi Saya'
 
   const privateFolder: FolderItem = {
     id: 'private',
@@ -378,6 +397,13 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                     folder.folder_key === 'tutor_private' ||
                     folder.folder_key === 'student_private'
                   const isRenaming = renamingFolder === folder.id
+
+                  // Private: semua role bisa rename (folder sendiri)
+                  // Dynamic: hanya tutor yang bisa rename
+                  const canRename = isPrivate || role === 'tutor'
+                  // Hanya tutor + non-default + non-private yang bisa hapus
+                  const canDelete =
+                    role === 'tutor' && !folder.is_default && !isPrivate
 
                   return (
                     <div
@@ -467,7 +493,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                         </button>
                       )}
 
-                      {role === 'tutor' && (
+                      {(canRename || canDelete) && (
                         <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           {isRenaming ? (
                             <>
@@ -499,7 +525,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                             </>
                           ) : (
                             <>
-                              {!isPrivate && (
+                              {canRename && (
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -513,7 +539,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                                   <Pencil className="w-3 h-3" />
                                 </Button>
                               )}
-                              {!folder.is_default && !isPrivate && (
+                              {canDelete && (
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -652,7 +678,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                         </Button>
                       </a>
                     )}
-                    {/* ===== HANYA MUNCUL KALAU FILE MILIK SENDIRI ===== */}
                     {file.uploaded_by_me && (
                       <Button
                         size="icon"
@@ -782,5 +807,4 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
       </Dialog>
     </>
   )
-  
 }

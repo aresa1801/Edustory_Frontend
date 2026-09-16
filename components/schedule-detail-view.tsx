@@ -52,6 +52,8 @@ interface ScheduleData {
   schedulesSummaryFix: any
   schedulesCustom: any
   schedulesCustomRequest: any
+  tutorPrivateFolderLabel?: string
+  studentPrivateFolderLabel?: string 
   acceptedAt: string
   contractEndDate: string
   student: any
@@ -942,6 +944,12 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
               matchId={data.matchId}
               role={role}
               userId={authUser.id}
+              privateFolderLabel={
+                role === 'tutor'
+                  ? data.tutorPrivateFolderLabel || 'Pribadi Saya'
+                  : data.studentPrivateFolderLabel || 'Pribadi Saya'
+              }
+              onPrivateFolderRenamed={() => fetchData(true)}
             />
           </div>
         )}

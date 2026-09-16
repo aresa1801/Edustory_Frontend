@@ -124,6 +124,8 @@ export async function GET(
       videoCall: schedule.video_call,
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
+      tutorPrivateFolderLabel: schedule.tutor_private_folder_label || 'Pribadi Saya',
+      studentPrivateFolderLabel: schedule.student_private_folder_label || 'Pribadi Saya',
 
       student: {
         id: schedule.student_id,
