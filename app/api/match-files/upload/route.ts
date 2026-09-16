@@ -22,22 +22,8 @@ const ALLOWED_MIME_TYPES = [
   'video/mp4',
 ]
 
-const VALID_FOLDERS = [
-  'tutor_private',
-  'student_private',
-  'tugas_1',
-  'tugas_2',
-  'tugas_3',
-]
-
-// ========== HELPER ==========
-function isValidFolderForRole(folder: string, role: 'tutor' | 'student'): boolean {
-  if (!VALID_FOLDERS.includes(folder)) return false
-  if (folder === 'tutor_private') return role === 'tutor'
-  if (folder === 'student_private') return role === 'student'
-  // tugas_* bisa diakses kedua role
-  return true
-}
+// Folder pribadi (hardcoded, satu per role)
+const PRIVATE_FOLDERS = ['tutor_private', 'student_private']
 
 // ========== POST: Upload File ==========
 export async function POST(req: NextRequest) {
@@ -62,18 +48,45 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 2. Validasi role & folder
+    // 2. Validasi role
     if (!['tutor', 'student'].includes(role)) {
       return NextResponse.json({ error: 'role tidak valid' }, { status: 400 })
     }
-    if (!isValidFolderForRole(folder, role)) {
-      return NextResponse.json(
-        { error: 'Kamu tidak punya akses upload ke folder ini' },
-        { status: 403 }
-      )
+
+    // 3. Validasi folder (private atau dari match_folders)
+    const isPrivate = PRIVATE_FOLDERS.includes(folder)
+
+    if (isPrivate) {
+      if (folder === 'tutor_private' && role !== 'tutor') {
+        return NextResponse.json(
+          { error: 'Akses ditolak ke folder ini' },
+          { status: 403 }
+        )
+      }
+      if (folder === 'student_private' && role !== 'student') {
+        return NextResponse.json(
+          { error: 'Akses ditolak ke folder ini' },
+          { status: 403 }
+        )
+      }
+    } else {
+      // Cek apakah folder ada di match_folders untuk match ini
+      const { data: folderRow, error: folderErr } = await supabaseAdmin
+        .from('match_folders')
+        .select('id')
+        .eq('match_id', matchId)
+        .eq('folder_key', folder)
+        .single()
+
+      if (folderErr || !folderRow) {
+        return NextResponse.json(
+          { error: 'Folder tidak ditemukan' },
+          { status: 404 }
+        )
+      }
     }
 
-    // 3. Validasi ukuran
+    // 4. Validasi ukuran
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: `Ukuran file maksimal 25MB` },
@@ -81,7 +94,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 4. Validasi MIME type
+    // 5. Validasi MIME type
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       return NextResponse.json(
         { error: `Tipe file tidak diizinkan: ${file.type}` },
@@ -89,7 +102,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 5. Resolve user_id → uploader_id (tutors.id atau students.id)
+    // 6. Resolve user_id → uploader_id (tutors.id atau students.id)
     const table = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(table)
@@ -106,13 +119,12 @@ export async function POST(req: NextRequest) {
 
     const uploaderId = profile.id
 
-    // 6. Generate storage path
-    const fileExt = file.name.split('.').pop() || 'bin'
+    // 7. Generate storage path
     const uniqueId = crypto.randomUUID()
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const storagePath = `${matchId}/${folder}/${uniqueId}-${safeName}`
 
-    // 7. Upload ke Supabase Storage
+    // 8. Upload ke Supabase Storage
     const arrayBuffer = await file.arrayBuffer()
     const { error: uploadError } = await supabaseAdmin.storage
       .from('match-files')
@@ -129,7 +141,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 8. Insert metadata ke DB
+    // 9. Insert metadata ke DB
     const { data: fileRow, error: insertError } = await supabaseAdmin
       .from('match_files')
       .insert({

@@ -24,14 +24,27 @@ import {
   FileVideo,
   FileArchive,
   File as FileIcon,
-  X,
   Lock,
+  FolderPlus,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 
 interface FilekuCardProps {
   matchId: string
   role: 'tutor' | 'student'
-  userId: string // auth user id
+  userId: string
+}
+
+interface FolderItem {
+  id: string
+  match_id: string
+  folder_key: string
+  label: string
+  is_default: boolean
+  created_by: string | null
+  created_at: string
 }
 
 interface FileItem {
@@ -46,24 +59,6 @@ interface FileItem {
   mime_type: string
   created_at: string
   signed_url: string | null
-}
-
-// ===== FOLDER CONFIG PER ROLE =====
-function getFoldersForRole(role: 'tutor' | 'student') {
-  if (role === 'tutor') {
-    return [
-      { key: 'tutor_private', label: 'Pribadi Saya', private: true },
-      { key: 'tugas_1', label: 'Tugas 1', private: false },
-      { key: 'tugas_2', label: 'Tugas 2', private: false },
-      { key: 'tugas_3', label: 'Tugas 3', private: false },
-    ]
-  }
-  return [
-    { key: 'student_private', label: 'Pribadi Saya', private: true },
-    { key: 'tugas_1', label: 'Tugas 1', private: false },
-    { key: 'tugas_2', label: 'Tugas 2', private: false },
-    { key: 'tugas_3', label: 'Tugas 3', private: false },
-  ]
 }
 
 function formatFileSize(bytes: number) {
@@ -100,36 +95,58 @@ function getFileIcon(mimeType: string) {
   return <FileText className="w-4 h-4 text-slate-400" />
 }
 
-// ========== KOMPONEN ==========
 export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
   const [loading, setLoading] = useState(true)
+  const [folders, setFolders] = useState<FolderItem[]>([])
   const [files, setFiles] = useState<FileItem[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [activeFolder, setActiveFolder] = useState<string | null>(null)
+  const [activeFolder, setActiveFolder] = useState<FolderItem | null>(null)
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Rename state
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [processingRename, setProcessingRename] = useState(false)
+
+  // Create folder state
+  const [showCreateFolder, setShowCreateFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
+
+  // Delete folder state
+  const [showDeleteFolder, setShowDeleteFolder] = useState(false)
+  const [folderToDelete, setFolderToDelete] = useState<FolderItem | null>(null)
+  const [deletingFolder, setDeletingFolder] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const folders = getFoldersForRole(role)
-
-  // ===== FETCH FILES =====
-  const fetchFiles = async () => {
+  // ===== FETCH =====
+  const fetchAll = async () => {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(
+
+      // Fetch folders
+      const foldersRes = await fetch(
+        `/api/match-folders?match_id=${matchId}`,
+        { cache: 'no-store' }
+      )
+      if (!foldersRes.ok) throw new Error('Gagal memuat folder')
+      const foldersData = await foldersRes.json()
+
+      // Fetch files
+      const filesRes = await fetch(
         `/api/match-files?match_id=${matchId}&user_id=${userId}&role=${role}`,
         { cache: 'no-store' }
       )
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Gagal memuat file')
-      }
-      const data = await res.json()
-      setFiles(data.files || [])
-      setCounts(data.counts || {})
+      if (!filesRes.ok) throw new Error('Gagal memuat file')
+      const filesData = await filesRes.json()
+
+      setFolders(foldersData.folders || [])
+      setFiles(filesData.files || [])
+      setCounts(filesData.counts || {})
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -138,14 +155,12 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
   }
 
   useEffect(() => {
-    if (matchId && userId) fetchFiles()
+    if (matchId && userId) fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, userId, role])
 
   // ===== UPLOAD =====
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
+  const handleUploadClick = () => fileInputRef.current?.click()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -156,7 +171,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('match_id', matchId)
-      fd.append('folder', activeFolder)
+      fd.append('folder', activeFolder.folder_key)
       fd.append('user_id', userId)
       fd.append('role', role)
 
@@ -167,7 +182,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal upload')
 
-      await fetchFiles()
+      await fetchAll()
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
@@ -176,8 +191,8 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== DELETE =====
-  const handleDelete = async (fileId: string) => {
+  // ===== DELETE FILE =====
+  const handleDeleteFile = async (fileId: string) => {
     if (!confirm('Hapus file ini?')) return
     try {
       setDeletingId(fileId)
@@ -187,7 +202,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
       )
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal hapus')
-      await fetchFiles()
+      await fetchAll()
     } catch (err: any) {
       alert('❌ ' + err.message)
     } finally {
@@ -195,21 +210,139 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
     }
   }
 
-  // ===== FILES UNTUK FOLDER AKTIF =====
-  const activeFolderInfo = folders.find((f) => f.key === activeFolder)
+  // ===== RENAME FOLDER =====
+  const startRename = (folder: FolderItem) => {
+    setRenamingFolder(folder.id)
+    setRenameValue(folder.label)
+  }
+
+  const cancelRename = () => {
+    setRenamingFolder(null)
+    setRenameValue('')
+  }
+
+  const submitRename = async (folder: FolderItem) => {
+    if (!renameValue.trim() || renameValue.trim() === folder.label) {
+      cancelRename()
+      return
+    }
+    try {
+      setProcessingRename(true)
+      const res = await fetch(`/api/match-folders/${folder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: renameValue.trim(),
+          user_id: userId,
+          role,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal rename')
+      cancelRename()
+      await fetchAll()
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setProcessingRename(false)
+    }
+  }
+
+  // ===== CREATE FOLDER =====
+  const submitCreateFolder = async () => {
+    if (!newFolderName.trim()) return
+    try {
+      setCreatingFolder(true)
+      const res = await fetch('/api/match-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          match_id: matchId,
+          label: newFolderName.trim(),
+          user_id: userId,
+          role,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal buat folder')
+      setShowCreateFolder(false)
+      setNewFolderName('')
+      await fetchAll()
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
+  // ===== DELETE FOLDER =====
+  const submitDeleteFolder = async () => {
+    if (!folderToDelete) return
+    try {
+      setDeletingFolder(true)
+      const res = await fetch(
+        `/api/match-folders/${folderToDelete.id}?user_id=${userId}&role=${role}`,
+        { method: 'DELETE' }
+      )
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal hapus folder')
+      setShowDeleteFolder(false)
+      setFolderToDelete(null)
+      if (activeFolder?.id === folderToDelete.id) {
+        setActiveFolder(null)
+      }
+      await fetchAll()
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setDeletingFolder(false)
+    }
+  }
+
+  // ===== VISIBLE FOLDERS =====
+  // Pribadi selalu di depan, lalu folder dinamis (tugas + custom)
+  const privateFolderKey = role === 'tutor' ? 'tutor_private' : 'student_private'
+  const privateFolderLabel = 'Pribadi Saya'
+
+  const privateFolder: FolderItem = {
+    id: 'private',
+    match_id: matchId,
+    folder_key: privateFolderKey,
+    label: privateFolderLabel,
+    is_default: true,
+    created_by: null,
+    created_at: '',
+  }
+
+  const allFolders = [privateFolder, ...folders]
+
   const activeFiles = activeFolder
-    ? files.filter((f) => f.folder === activeFolder)
+    ? files.filter((f) => f.folder === activeFolder.folder_key)
     : []
 
-  // ========== RENDER ==========
+  const getCount = (folderKey: string) => counts[folderKey] || 0
+
   return (
     <>
       <Card data-reschedule-keep="true" className="relative z-10">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-indigo-500" />
             Fileku
           </CardTitle>
+
+          {/* Tombol Folder Baru — tutor only */}
+          {role === 'tutor' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-7 text-xs"
+              onClick={() => setShowCreateFolder(true)}
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+              Folder Baru
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -224,42 +357,137 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
               ❌ {error}
             </p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {folders.map((folder) => {
-                const count = counts[folder.key] || 0
-                return (
-                  <button
-                    key={folder.key}
-                    type="button"
-                    onClick={() => setActiveFolder(folder.key)}
-                    className="group flex flex-col items-start gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 hover:border-primary/40 transition-colors text-left"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="w-8 h-8 rounded-md bg-indigo-500/15 flex items-center justify-center">
-                        {folder.private ? (
-                          <Lock className="w-4 h-4 text-amber-400" />
-                        ) : (
-                          <Folder className="w-4 h-4 text-indigo-400" />
-                        )}
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-mono"
+            <div className="overflow-x-auto pb-2">
+              <div className="flex gap-3 min-w-min">
+                {allFolders.map((folder) => {
+                  const count = getCount(folder.folder_key)
+                  const isPrivate =
+                    folder.folder_key === 'tutor_private' ||
+                    folder.folder_key === 'student_private'
+                  const isRenaming = renamingFolder === folder.id
+
+                  return (
+                    <div
+                      key={folder.id}
+                      className="group relative shrink-0 w-[170px] rounded-lg border border-border bg-muted/20 hover:bg-muted/40 hover:border-primary/40 transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setActiveFolder(folder)}
+                        className="w-full flex flex-col items-start gap-2 p-3 text-left"
                       >
-                        {count}
-                      </Badge>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="w-8 h-8 rounded-md bg-indigo-500/15 flex items-center justify-center">
+                            {isPrivate ? (
+                              <Lock className="w-4 h-4 text-amber-400" />
+                            ) : (
+                              <Folder className="w-4 h-4 text-indigo-400" />
+                            )}
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-mono"
+                          >
+                            {count}
+                          </Badge>
+                        </div>
+                        <div className="min-w-0 w-full">
+                          {isRenaming ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') submitRename(folder)
+                                if (e.key === 'Escape') cancelRename()
+                              }}
+                              className="w-full text-sm font-medium bg-background border border-primary/40 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                              maxLength={50}
+                            />
+                          ) : (
+                            <p className="text-sm font-medium truncate">
+                              {folder.label}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground">
+                            {isPrivate
+                              ? 'Private'
+                              : folder.is_default
+                              ? 'Shared'
+                              : 'Custom'}
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Action buttons — tutor only */}
+                      {role === 'tutor' && (
+                        <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {isRenaming ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-green-400 hover:text-green-500 hover:bg-green-500/10"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  submitRename(folder)
+                                }}
+                                disabled={processingRename}
+                              >
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  cancelRename()
+                                }}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              {!isPrivate && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-blue-400 hover:text-blue-500 hover:bg-blue-500/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    startRename(folder)
+                                  }}
+                                  title="Rename folder"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                              )}
+                              {!folder.is_default && !isPrivate && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setFolderToDelete(folder)
+                                    setShowDeleteFolder(true)
+                                  }}
+                                  title="Hapus folder"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="min-w-0 w-full">
-                      <p className="text-sm font-medium truncate">
-                        {folder.label}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {folder.private ? 'Private' : 'Shared'}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </CardContent>
@@ -273,24 +501,25 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {activeFolderInfo?.private ? (
+              {activeFolder?.folder_key === 'tutor_private' ||
+              activeFolder?.folder_key === 'student_private' ? (
                 <Lock className="w-4 h-4 text-amber-400" />
               ) : (
                 <Folder className="w-4 h-4 text-indigo-400" />
               )}
-              {activeFolderInfo?.label}
+              {activeFolder?.label}
               <Badge variant="outline" className="text-xs ml-1">
                 {activeFiles.length} file
               </Badge>
             </DialogTitle>
             <DialogDescription>
-              {activeFolderInfo?.private
-                ? 'Folder pribadi — hanya kamu yang bisa melihat'
+              {activeFolder?.folder_key === 'tutor_private' ||
+              activeFolder?.folder_key === 'student_private'
+                ? 'Folder pribadi'
                 : 'Folder tugas — bisa dilihat oleh guru & murid'}
             </DialogDescription>
           </DialogHeader>
 
-          {/* UPLOAD */}
           <div className="flex items-center gap-2 py-2 border-b">
             <input
               type="file"
@@ -317,7 +546,6 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
             </p>
           </div>
 
-          {/* FILE LIST */}
           <div className="flex-1 overflow-y-auto space-y-2 py-2">
             {activeFiles.length === 0 ? (
               <div className="text-center py-12">
@@ -380,7 +608,7 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-400 hover:text-red-500"
-                      onClick={() => handleDelete(file.id)}
+                      onClick={() => handleDeleteFile(file.id)}
                       disabled={deletingId === file.id}
                       title="Hapus"
                     >
@@ -399,6 +627,104 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setActiveFolder(null)}>
               Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== DIALOG BUAT FOLDER BARU ===== */}
+      <Dialog open={showCreateFolder} onOpenChange={setShowCreateFolder}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="w-4 h-4 text-indigo-400" />
+              Folder Baru
+            </DialogTitle>
+            <DialogDescription>
+              Beri nama folder baru. Bisa di-rename atau dihapus nanti.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <input
+              autoFocus
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitCreateFolder()
+              }}
+              placeholder="Contoh: PR Aljabar, UTS, Latihan Soal..."
+              maxLength={50}
+              className="w-full p-2 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateFolder(false)
+                setNewFolderName('')
+              }}
+              disabled={creatingFolder}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={submitCreateFolder}
+              disabled={creatingFolder || !newFolderName.trim()}
+              className="gap-1.5"
+            >
+              {creatingFolder ? (
+                <Spinner className="w-3.5 h-3.5" />
+              ) : (
+                <FolderPlus className="w-3.5 h-3.5" />
+              )}
+              Buat Folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== DIALOG KONFIRMASI HAPUS FOLDER ===== */}
+      <Dialog open={showDeleteFolder} onOpenChange={setShowDeleteFolder}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <Trash2 className="w-4 h-4" />
+              Hapus Folder?
+            </DialogTitle>
+            <DialogDescription>
+              Folder <strong>{folderToDelete?.label}</strong> beserta semua
+              file di dalamnya akan dihapus permanen. Tindakan ini tidak bisa
+              dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteFolder(false)
+                setFolderToDelete(null)
+              }}
+              disabled={deletingFolder}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={submitDeleteFolder}
+              disabled={deletingFolder}
+              className="gap-1.5"
+            >
+              {deletingFolder ? (
+                <Spinner className="w-3.5 h-3.5" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              Hapus
             </Button>
           </DialogFooter>
         </DialogContent>
