@@ -123,36 +123,59 @@ export default function FilekuCard({ matchId, role, userId }: FilekuCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ===== FETCH =====
-  const fetchAll = async () => {
+    const fetchAll = async (silent = false) => {
     try {
-      setLoading(true)
-      setError(null)
+        if (!silent) setLoading(true)
+        setError(null)
 
-      // Fetch folders
-      const foldersRes = await fetch(
+        // Fetch folders
+        const foldersRes = await fetch(
         `/api/match-folders?match_id=${matchId}`,
         { cache: 'no-store' }
-      )
-      if (!foldersRes.ok) throw new Error('Gagal memuat folder')
-      const foldersData = await foldersRes.json()
+        )
+        if (!foldersRes.ok) throw new Error('Gagal memuat folder')
+        const foldersData = await foldersRes.json()
 
-      // Fetch files
-      const filesRes = await fetch(
+        // Fetch files
+        const filesRes = await fetch(
         `/api/match-files?match_id=${matchId}&user_id=${userId}&role=${role}`,
         { cache: 'no-store' }
-      )
-      if (!filesRes.ok) throw new Error('Gagal memuat file')
-      const filesData = await filesRes.json()
+        )
+        if (!filesRes.ok) throw new Error('Gagal memuat file')
+        const filesData = await filesRes.json()
 
-      setFolders(foldersData.folders || [])
-      setFiles(filesData.files || [])
-      setCounts(filesData.counts || {})
+        setFolders(foldersData.folders || [])
+        setFiles(filesData.files || [])
+        setCounts(filesData.counts || {})
     } catch (err: any) {
-      setError(err.message)
+        if (!silent) setError(err.message)
     } finally {
-      setLoading(false)
+        if (!silent) setLoading(false)
     }
-  }
+    }
+
+    // ===== INITIAL FETCH + POLLING + FOCUS REFRESH =====
+    useEffect(() => {
+    if (!matchId || !userId) return
+
+    // 1. Fetch awal
+    fetchAll(false)
+
+    // 2. Polling setiap 8 detik (silent)
+    const interval = setInterval(() => {
+        fetchAll(true)
+    }, 8000)
+
+    // 3. Refetch saat window focus
+    const onFocus = () => fetchAll(true)
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+        clearInterval(interval)
+        window.removeEventListener('focus', onFocus)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [matchId, userId, role])
 
   useEffect(() => {
     if (matchId && userId) fetchAll()
