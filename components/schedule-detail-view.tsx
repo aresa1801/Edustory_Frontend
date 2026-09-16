@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import FilekuCard from '@/components/fileku-card'
+import { useAuth } from '@/lib/auth-context'
 import {
   Dialog,
   DialogContent,
@@ -309,6 +311,7 @@ export default function ScheduleDetailView({
   const [now, setNow] = useState(new Date())
   const [readyLoading, setReadyLoading] = useState(false)
   const [movedInfoItem, setMovedInfoItem] = useState<any | null>(null)
+  const { user: authUser } = useAuth()
 
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
@@ -927,302 +930,317 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
             </CardContent>
           </Card>
         </div>
+
+        {/* ===== FILEKU ===== */}
+        {authUser && (
+          <div
+            className={`relative transition-opacity duration-300 ${
+              isRescheduleMode ? 'opacity-30 pointer-events-none select-none' : 'z-10'
+            }`}
+          >
+            <FilekuCard
+              matchId={data.matchId}
+              role={role}
+              userId={authUser.id}
+            />
+          </div>
+        )}
       </div>
 
       {/* ====== KALENDER (TERANG saat mode reschedule) ====== */}
-<div data-reschedule-keep="true" className="relative z-50">
-  <Card
-    className={`transition-all duration-300 ${
-      isRescheduleMode
-        ? 'z-40 ring-2 ring-primary shadow-2xl border-primary/50'
-        : 'z-10'
-    }`}
-  >
-    <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-      <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Tombol Ajukan Pindah Jadwal (student only) */}
-        {role === 'student' && !isRescheduleMode && (
-          <Button
-            size="sm"
-            onClick={enterRescheduleMode}
-            disabled={hasPendingRequest}
-            className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-            title={
-              hasPendingRequest
-                ? 'Masih ada permintaan perpindahan yang belum direspons'
-                : 'Ajukan perpindahan jadwal'
-            }
+        <div data-reschedule-keep="true" className="relative z-50">
+          <Card
+            className={`transition-all duration-300 ${
+              isRescheduleMode
+                ? 'z-40 ring-2 ring-primary shadow-2xl border-primary/50'
+                : 'z-10'
+            }`}
           >
-            <Send className="w-3.5 h-3.5" />
-            Ajukan Pindah Jadwal
-          </Button>
-        )}
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-lg">Kalender Jadwal</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Tombol Ajukan Pindah Jadwal (student only) */}
+                {role === 'student' && !isRescheduleMode && (
+                  <Button
+                    size="sm"
+                    onClick={enterRescheduleMode}
+                    disabled={hasPendingRequest}
+                    className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                    title={
+                      hasPendingRequest
+                        ? 'Masih ada permintaan perpindahan yang belum direspons'
+                        : 'Ajukan perpindahan jadwal'
+                    }
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Ajukan Pindah Jadwal
+                  </Button>
+                )}
 
-        {monthKeys.map((key) => {
-          const d = monthGroups[key][0]
-          const label = d.toLocaleDateString('id-ID', {
-            month: 'short',
-            year: 'numeric',
-          })
-          return (
-            <Button
-              key={key}
-              size="sm"
-              variant={activeMonth === key ? 'default' : 'outline'}
-              onClick={() => setActiveMonth(key)}
-              className="text-xs"
-            >
-              {label}
-            </Button>
-          )
-        })}
-      </div>
-    </CardHeader>
-    <CardContent>
-      {/* Banner 1: pilih slot */}
-      {isRescheduleMode && !rescheduleSource && (
-        <div className="mb-4 p-3 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-primary">
-              Pilih jadwal yang ingin dipindah
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Hanya slot <span className="text-blue-400 font-medium">biru</span>{' '}
-              (akan datang) yang bisa dipilih. Klik area di luar kalender
-              untuk membatalkan.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={cancelReschedule}
-            className="shrink-0"
-          >
-            <XCircle className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Banner 2: slot sudah terpilih */}
-      {isRescheduleMode && rescheduleSource && (
-        <div className="mb-4 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-amber-400">
-              Slot terpilih: {formatLongDate(rescheduleSource.date)},{' '}
-              {rescheduleSource.timeSlot} ({rescheduleSource.subject})
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Klik slot{' '}
-              <span className="text-blue-400 font-medium">biru</span> lain di
-              kalender untuk mengganti, atau lengkapi form di bawah untuk
-              melanjutkan.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={cancelReschedule}
-            className="shrink-0"
-          >
-            <XCircle className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* LEGEND */}
-      <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
-          <span className="text-muted-foreground">Akan Datang</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/60" />
-          <span className="text-muted-foreground">Sedang Berlangsung</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-gray-600/40 border border-gray-500/60" />
-          <span className="text-muted-foreground">Sudah Lewat</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-red-500/40 border border-red-400/60" />
-          <span className="text-muted-foreground">Hangus</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-amber-500/50 border border-amber-400/60" />
-          <span className="text-muted-foreground">Dipindah</span>
-        </div>
-      </div>
-
-      {visibleDates.length === 0 || timeSlots.length === 0 ? (
-        <p className="text-center py-8 text-muted-foreground">
-          Belum ada jadwal yang ditentukan.
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr>
-                <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
-                  Jam
-                </th>
-                {visibleDates.map((date, idx) => {
-                  const isPast = date < new Date()
+                {monthKeys.map((key) => {
+                  const d = monthGroups[key][0]
+                  const label = d.toLocaleDateString('id-ID', {
+                    month: 'short',
+                    year: 'numeric',
+                  })
                   return (
-                    <th
-                      key={idx}
-                      className={`border p-1 text-center min-w-[50px] ${
-                        isPast
-                          ? 'bg-gray-700 text-gray-400'
-                          : 'bg-gray-800 text-white'
-                      }`}
+                    <Button
+                      key={key}
+                      size="sm"
+                      variant={activeMonth === key ? 'default' : 'outline'}
+                      onClick={() => setActiveMonth(key)}
+                      className="text-xs"
                     >
-                      <div>{date.getDate()}</div>
-                      <div className="text-xs opacity-70">
-                        {date.toLocaleDateString('id-ID', {
-                          weekday: 'short',
-                        })}
-                      </div>
-                    </th>
+                      {label}
+                    </Button>
                   )
                 })}
-              </tr>
-            </thead>
-            <tbody>
-              {timeSlots.map((slot, rowIdx) => (
-                <tr key={rowIdx}>
-                  <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
-                    {slot}
-                  </td>
-                  {visibleDates.map((date, colIdx) => {
-                    const key = `${formatDateKey(date)}|${slot}`
-                    const subject = sessionMap[key]
-                    const isScheduled = !!subject
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Banner 1: pilih slot */}
+              {isRescheduleMode && !rescheduleSource && (
+                <div className="mb-4 p-3 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-primary">
+                      Pilih jadwal yang ingin dipindah
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Hanya slot <span className="text-blue-400 font-medium">biru</span>{' '}
+                      (akan datang) yang bisa dipilih. Klik area di luar kalender
+                      untuk membatalkan.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cancelReschedule}
+                    className="shrink-0"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
-                    // Cek apakah slot ini sumber perpindahan (moved_from)
-                    const movedInfo = (data.schedulesCustom || []).find(
-                      (c: any) =>
-                        c.moved_from?.date === formatDateKey(date) &&
-                        c.moved_from?.time === slot
-                    )
-                    const isMoved = !!movedInfo
+              {/* Banner 2: slot sudah terpilih */}
+              {isRescheduleMode && rescheduleSource && (
+                <div className="mb-4 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-400">
+                      Slot terpilih: {formatLongDate(rescheduleSource.date)},{' '}
+                      {rescheduleSource.timeSlot} ({rescheduleSource.subject})
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Klik slot{' '}
+                      <span className="text-blue-400 font-medium">biru</span> lain di
+                      kalender untuk mengganti, atau lengkapi form di bawah untuk
+                      melanjutkan.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cancelReschedule}
+                    className="shrink-0"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
-                    // Cek apakah slot ini adalah hasil perpindahan (custom slot)
-                    const customInfo = (data.schedulesCustom || []).find(
-                      (c: any) => c.date === formatDateKey(date) && c.time === slot
-                    )
-                    const isCustomSlot = !!customInfo
+              {/* LEGEND */}
+              <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-blue-500/50 border border-blue-400/60" />
+                  <span className="text-muted-foreground">Akan Datang</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/60" />
+                  <span className="text-muted-foreground">Sedang Berlangsung</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-gray-600/40 border border-gray-500/60" />
+                  <span className="text-muted-foreground">Sudah Lewat</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-red-500/40 border border-red-400/60" />
+                  <span className="text-muted-foreground">Hangus</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-amber-500/50 border border-amber-400/60" />
+                  <span className="text-muted-foreground">Dipindah</span>
+                </div>
+              </div>
 
-                    // ✅ FIX: displaySubject dengan fallback
-                    const displaySubject =
-                      subject ||
-                      movedInfo?.moved_from?.subject ||
-                      customInfo?.subject ||
-                      ''
+              {visibleDates.length === 0 || timeSlots.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">
+                  Belum ada jadwal yang ditentukan.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
+                          Jam
+                        </th>
+                        {visibleDates.map((date, idx) => {
+                          const isPast = date < new Date()
+                          return (
+                            <th
+                              key={idx}
+                              className={`border p-1 text-center min-w-[50px] ${
+                                isPast
+                                  ? 'bg-gray-700 text-gray-400'
+                                  : 'bg-gray-800 text-white'
+                              }`}
+                            >
+                              <div>{date.getDate()}</div>
+                              <div className="text-xs opacity-70">
+                                {date.toLocaleDateString('id-ID', {
+                                  weekday: 'short',
+                                })}
+                              </div>
+                            </th>
+                          )
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {timeSlots.map((slot, rowIdx) => (
+                        <tr key={rowIdx}>
+                          <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
+                            {slot}
+                          </td>
+                          {visibleDates.map((date, colIdx) => {
+                            const key = `${formatDateKey(date)}|${slot}`
+                            const subject = sessionMap[key]
+                            const isScheduled = !!subject
 
-                    // Tentukan status
-                    // Tentukan status
-                    let status: SlotStatus = 'past'
-                    if (isCustomSlot) {
-                      // Slot hasil pindahan → biarkan biru (upcoming) sesuai waktunya
-                      status = isScheduled
-                        ? getSlotStatus(date, slot, data.sessions || [], now)
-                        : 'upcoming'
-                      // Kalau waktunya belum lewat & belum hangus → paksa upcoming
-                      if (status !== 'cancelled' && status !== 'past' && status !== 'ongoing') {
-                        status = 'upcoming'
-                      }
-                    } else if (isMoved) {
-                      status = 'moved'   // ← hanya slot ASAL yang jadi kuning
-                    } else if (isScheduled) {
-                      status = getSlotStatus(date, slot, data.sessions || [], now)
-                    }
+                            // Cek apakah slot ini sumber perpindahan (moved_from)
+                            const movedInfo = (data.schedulesCustom || []).find(
+                              (c: any) =>
+                                c.moved_from?.date === formatDateKey(date) &&
+                                c.moved_from?.time === slot
+                            )
+                            const isMoved = !!movedInfo
 
-                    const style = SLOT_STATUS_STYLE[status]
+                            // Cek apakah slot ini adalah hasil perpindahan (custom slot)
+                            const customInfo = (data.schedulesCustom || []).find(
+                              (c: any) => c.date === formatDateKey(date) && c.time === slot
+                            )
+                            const isCustomSlot = !!customInfo
 
-                    const isPendingSource = isPendingSourceSlot(
-                      date,
-                      slot,
-                      data.schedulesCustomRequest
-                    )
+                            // ✅ FIX: displaySubject dengan fallback
+                            const displaySubject =
+                              subject ||
+                              movedInfo?.moved_from?.subject ||
+                              customInfo?.subject ||
+                              ''
 
-                    const canSelect =
-                      isRescheduleMode &&
-                      isScheduled &&
-                      isSlotSelectable(status) &&
-                      !isPendingSource &&
-                      !isMoved &&
-                      !isCustomSlot
+                            // Tentukan status
+                            // Tentukan status
+                            let status: SlotStatus = 'past'
+                            if (isCustomSlot) {
+                              // Slot hasil pindahan → biarkan biru (upcoming) sesuai waktunya
+                              status = isScheduled
+                                ? getSlotStatus(date, slot, data.sessions || [], now)
+                                : 'upcoming'
+                              // Kalau waktunya belum lewat & belum hangus → paksa upcoming
+                              if (status !== 'cancelled' && status !== 'past' && status !== 'ongoing') {
+                                status = 'upcoming'
+                              }
+                            } else if (isMoved) {
+                              status = 'moved'   // ← hanya slot ASAL yang jadi kuning
+                            } else if (isScheduled) {
+                              status = getSlotStatus(date, slot, data.sessions || [], now)
+                            }
 
-                    const selected = isSlotSelected(date, slot)
+                            const style = SLOT_STATUS_STYLE[status]
 
-                    return (
-                      <td
-                        key={colIdx}
-                        className={`border p-0.5 text-center ${
-                          !isScheduled && !isMoved ? 'opacity-30' : ''
-                        }`}
-                        onClick={(e) => {
-                          if (isPendingSource) {
-                            e.stopPropagation()
-                            alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
-                            return
-                          }
-                          if (isMoved) {
-                            e.stopPropagation()
-                            setMovedInfoItem(movedInfo)
-                            return
-                          }
-                          if (isCustomSlot) {
-                            e.stopPropagation()
-                            alert('Jadwal ini adalah hasil perpindahan dan tidak bisa dipindah lagi!')
-                            return
-                          }
-                          if (canSelect && subject) {
-                            e.stopPropagation()
-                            setRescheduleSource({ date, timeSlot: slot, subject })
-                          }
-                        }}
-                      >
-                        <div
-                          className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
-                            isScheduled || isMoved
-                              ? `${style.bg} ${style.text} ${style.border}`
-                              : 'bg-gray-100/5 text-gray-600 border-transparent'
-                          } ${
-                            canSelect
-                              ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
-                              : ''
-                          } ${
-                            selected ? 'ring-2 ring-amber-400 scale-105 shadow-lg' : ''
-                          }`}
-                          title={
-                            isMoved
-                              ? `${displaySubject} — Dipindah ke ${movedInfo?.dateLabel || movedInfo?.date}, ${movedInfo?.time}`
-                              : isCustomSlot
-                              ? `${displaySubject} — Jadwal pindah dari ${
-                                  customInfo?.moved_from?.dayLabel || customInfo?.moved_from?.date
-                                }, ${customInfo?.moved_from?.time}`
-                              : isScheduled
-                              ? `${displaySubject} - ${style.label} (${slot})`
-                              : ''
-                          }
-                        >
-                          {/* ✅ FIX: charAt dengan guard */}
-                          {displaySubject ? displaySubject.charAt(0).toUpperCase() : ''}
-                        </div>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                            const isPendingSource = isPendingSourceSlot(
+                              date,
+                              slot,
+                              data.schedulesCustomRequest
+                            )
+
+                            const canSelect =
+                              isRescheduleMode &&
+                              isScheduled &&
+                              isSlotSelectable(status) &&
+                              !isPendingSource &&
+                              !isMoved &&
+                              !isCustomSlot
+
+                            const selected = isSlotSelected(date, slot)
+
+                            return (
+                              <td
+                                key={colIdx}
+                                className={`border p-0.5 text-center ${
+                                  !isScheduled && !isMoved ? 'opacity-30' : ''
+                                }`}
+                                onClick={(e) => {
+                                  if (isPendingSource) {
+                                    e.stopPropagation()
+                                    alert('Jadwal ini sedang dalam proses pengajuan perpindahan!')
+                                    return
+                                  }
+                                  if (isMoved) {
+                                    e.stopPropagation()
+                                    setMovedInfoItem(movedInfo)
+                                    return
+                                  }
+                                  if (isCustomSlot) {
+                                    e.stopPropagation()
+                                    alert('Jadwal ini adalah hasil perpindahan dan tidak bisa dipindah lagi!')
+                                    return
+                                  }
+                                  if (canSelect && subject) {
+                                    e.stopPropagation()
+                                    setRescheduleSource({ date, timeSlot: slot, subject })
+                                  }
+                                }}
+                              >
+                                <div
+                                  className={`w-full h-10 flex items-center justify-center rounded text-xs font-semibold border transition-all ${
+                                    isScheduled || isMoved
+                                      ? `${style.bg} ${style.text} ${style.border}`
+                                      : 'bg-gray-100/5 text-gray-600 border-transparent'
+                                  } ${
+                                    canSelect
+                                      ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105'
+                                      : ''
+                                  } ${
+                                    selected ? 'ring-2 ring-amber-400 scale-105 shadow-lg' : ''
+                                  }`}
+                                  title={
+                                    isMoved
+                                      ? `${displaySubject} — Dipindah ke ${movedInfo?.dateLabel || movedInfo?.date}, ${movedInfo?.time}`
+                                      : isCustomSlot
+                                      ? `${displaySubject} — Jadwal pindah dari ${
+                                          customInfo?.moved_from?.dayLabel || customInfo?.moved_from?.date
+                                        }, ${customInfo?.moved_from?.time}`
+                                      : isScheduled
+                                      ? `${displaySubject} - ${style.label} (${slot})`
+                                      : ''
+                                  }
+                                >
+                                  {/* ✅ FIX: charAt dengan guard */}
+                                  {displaySubject ? displaySubject.charAt(0).toUpperCase() : ''}
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
-    </CardContent>
-  </Card>
-</div>
 
       {/* ====== WIZARD (jika sudah pilih source) ====== */}
       {isRescheduleMode && rescheduleSource && (
@@ -1681,6 +1699,7 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
             </div>
           </CardContent>
         </Card>   
+
         {/* ===== DIALOG INFO JADWAL DIPINDAH ===== */}
         <Dialog
           open={!!movedInfoItem}
