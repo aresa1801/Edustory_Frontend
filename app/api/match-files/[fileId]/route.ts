@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { isValidUUID } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,18 +15,28 @@ export async function DELETE(
     )
 
     const { fileId } = params
-    const { searchParams } = new URL(req.url)
-    const userId = searchParams.get('user_id')
-    const role = searchParams.get('role') as 'tutor' | 'student' | null
 
-    if (!userId || !role) {
+    // ✅ Validasi UUID
+    if (!isValidUUID(fileId)) {
       return NextResponse.json(
-        { error: 'user_id dan role wajib diisi' },
+        { error: 'fileId tidak valid' },
         { status: 400 }
       )
     }
 
-    // ===== 1. Ambil file row =====
+    const { searchParams } = new URL(req.url)
+    const userId = searchParams.get('user_id')
+    const role = searchParams.get('role') as 'tutor' | 'student' | null
+
+    // ✅ Validasi UUID user_id
+    if (!isValidUUID(userId) || !role || !['tutor', 'student'].includes(role)) {
+      return NextResponse.json(
+        { error: 'user_id dan role tidak valid' },
+        { status: 400 }
+      )
+    }
+
+    // ... sisanya sama seperti sebelumnya
     const { data: fileRow, error: fetchError } = await supabaseAdmin
       .from('match_files')
       .select('*')
@@ -39,7 +50,6 @@ export async function DELETE(
       )
     }
 
-    // ===== 2. Resolve user_id → profile id =====
     const table = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile, error: profileError } = await supabaseAdmin
       .from(table)
@@ -54,7 +64,6 @@ export async function DELETE(
       )
     }
 
-    // ===== 3. Hanya uploader sendiri yang bisa hapus =====
     if (fileRow.uploader_id !== profile.id) {
       return NextResponse.json(
         { error: 'Kamu hanya bisa menghapus file yang kamu upload sendiri' },
@@ -62,17 +71,14 @@ export async function DELETE(
       )
     }
 
-    // ===== 4. Hapus dari storage =====
     const { error: storageError } = await supabaseAdmin.storage
       .from('match-files')
       .remove([fileRow.storage_path])
 
     if (storageError) {
       console.error('[API delete] Storage error:', storageError)
-      // Lanjut hapus metadata meskipun storage error
     }
 
-    // ===== 5. Hapus dari DB =====
     const { error: deleteError } = await supabaseAdmin
       .from('match_files')
       .delete()

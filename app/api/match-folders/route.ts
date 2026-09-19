@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { isValidUUID, sanitizeText } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
 
 // ============================================================
-// GET — List folders per match
+// GET — List folders per match (tidak berubah)
 // ============================================================
 export async function GET(req: NextRequest) {
   try {
@@ -16,11 +17,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const matchId = searchParams.get('match_id')
 
-    if (!matchId) {
-      return NextResponse.json({ error: 'match_id required' }, { status: 400 })
+    if (!isValidUUID(matchId)) {
+      return NextResponse.json(
+        { error: 'match_id tidak valid' },
+        { status: 400 }
+      )
     }
 
-    // 1. Fetch dynamic folders
     let { data: folders, error } = await supabaseAdmin
       .from('match_folders')
       .select('*')
@@ -32,7 +35,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // 2. Auto-seed default folders kalau belum ada
     if (!folders || folders.length === 0) {
       const defaults = [
         { match_id: matchId, folder_key: 'tugas_1', label: 'Tugas 1', is_default: true },
@@ -70,25 +72,49 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const body = await req.json()
+    // Parse body dengan guard
+    let body: any
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Body tidak valid' }, { status: 400 })
+    }
+
     const { match_id, label, user_id, role } = body
 
-    if (!match_id || !label || !user_id || role !== 'tutor') {
+    // 1. Validasi role
+    if (role !== 'tutor') {
       return NextResponse.json(
-        { error: 'Hanya tutor yang bisa membuat folder baru' },
+        { error: 'Hanya tutor yang bisa membuat folder' },
         { status: 403 }
       )
     }
 
-    const trimmed = label.trim()
-    if (!trimmed || trimmed.length > 50) {
+    // 2. Validasi UUID
+    if (!isValidUUID(match_id)) {
       return NextResponse.json(
-        { error: 'Nama folder wajib diisi (maks 50 karakter)' },
+        { error: 'match_id tidak valid' },
+        { status: 400 }
+      )
+    }
+    if (!isValidUUID(user_id)) {
+      return NextResponse.json(
+        { error: 'user_id tidak valid' },
         { status: 400 }
       )
     }
 
-    // Resolve tutor_id
+    // 3. Sanitize label
+    const sanitizeResult = sanitizeText(label, 50)
+    if (!sanitizeResult.ok) {
+      return NextResponse.json(
+        { error: sanitizeResult.error },
+        { status: 400 }
+      )
+    }
+    const safeLabel = sanitizeResult.sanitized
+
+    // 4. Resolve tutor
     const { data: tutor, error: tErr } = await supabaseAdmin
       .from('tutors')
       .select('id')
@@ -99,15 +125,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tutor tidak ditemukan' }, { status: 404 })
     }
 
-    // Generate unique folder_key
-    const folderKey = `custom_${crypto.randomUUID().slice(0, 8)}`
+    // 5. ✅ VALIDASI OWNERSHIP: match harus milik tutor ini
+    const { data: schedule, error: sErr } = await supabaseAdmin
+      .from('match_schedules')
+      .select('id, tutor_id')
+      .eq('match_id', match_id)
+      .single()
 
+    if (sErr || !schedule) {
+      return NextResponse.json(
+        { error: 'Match tidak ditemukan' },
+        { status: 404 }
+      )
+    }
+
+    if (schedule.tutor_id !== tutor.id) {
+      return NextResponse.json(
+        { error: 'Kamu tidak punya akses ke match ini' },
+        { status: 403 }
+      )
+    }
+
+    // 6. Generate unique folder_key (length lebih panjang biar ga collision)
+    const folderKey = `custom_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+
+    // 7. Insert
     const { data: folder, error: insertErr } = await supabaseAdmin
       .from('match_folders')
       .insert({
         match_id,
         folder_key: folderKey,
-        label: trimmed,
+        label: safeLabel,
         is_default: false,
         created_by: tutor.id,
       })

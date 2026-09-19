@@ -1,7 +1,73 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { isValidUUID, sanitizeText } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
+
+// ============================================================
+// Helper: Validate folder ownership
+// ============================================================
+async function validateFolderOwnership(
+  supabaseAdmin: any,
+  folderId: string,
+  userId: string
+): Promise<
+  | { ok: true; folder: any; tutor: any }
+  | { ok: false; status: number; error: string }
+> {
+  // 1. Validasi folder ID
+  if (!isValidUUID(folderId)) {
+    return { ok: false, status: 400, error: 'folderId tidak valid' }
+  }
+
+  // 2. Validasi user ID
+  if (!isValidUUID(userId)) {
+    return { ok: false, status: 400, error: 'user_id tidak valid' }
+  }
+
+  // 3. Resolve tutor
+  const { data: tutor, error: tErr } = await supabaseAdmin
+    .from('tutors')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (tErr || !tutor) {
+    return { ok: false, status: 404, error: 'Tutor tidak ditemukan' }
+  }
+
+  // 4. Ambil folder
+  const { data: folder, error: fErr } = await supabaseAdmin
+    .from('match_folders')
+    .select('*')
+    .eq('id', folderId)
+    .single()
+
+  if (fErr || !folder) {
+    return { ok: false, status: 404, error: 'Folder tidak ditemukan' }
+  }
+
+  // 5. Cek ownership: folder ini harus milik match tutor ini
+  const { data: schedule, error: sErr } = await supabaseAdmin
+    .from('match_schedules')
+    .select('id, tutor_id')
+    .eq('match_id', folder.match_id)
+    .single()
+
+  if (sErr || !schedule) {
+    return { ok: false, status: 404, error: 'Match tidak ditemukan' }
+  }
+
+  if (schedule.tutor_id !== tutor.id) {
+    return {
+      ok: false,
+      status: 403,
+      error: 'Kamu tidak punya akses ke folder ini',
+    }
+  }
+
+  return { ok: true, folder, tutor }
+}
 
 // ============================================================
 // PATCH — Rename folder (tutor only)
@@ -17,7 +83,15 @@ export async function PATCH(
     )
 
     const { folderId } = params
-    const body = await req.json()
+
+    // Parse body
+    let body: any
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Body tidak valid' }, { status: 400 })
+    }
+
     const { label, user_id, role } = body
 
     if (role !== 'tutor') {
@@ -27,32 +101,46 @@ export async function PATCH(
       )
     }
 
-    const trimmed = (label || '').trim()
-    if (!trimmed || trimmed.length > 50) {
+    // Sanitize label
+    const sanitizeResult = sanitizeText(label, 50)
+    if (!sanitizeResult.ok) {
       return NextResponse.json(
-        { error: 'Nama folder wajib diisi (maks 50 karakter)' },
+        { error: sanitizeResult.error },
         { status: 400 }
       )
     }
+    const safeLabel = sanitizeResult.sanitized
 
-    // Validasi tutor
-    const { data: tutor, error: tErr } = await supabaseAdmin
-      .from('tutors')
-      .select('id')
-      .eq('user_id', user_id)
-      .single()
-
-    if (tErr || !tutor) {
-      return NextResponse.json({ error: 'Tutor tidak ditemukan' }, { status: 404 })
+    // Validasi ownership
+    const validation = await validateFolderOwnership(
+      supabaseAdmin,
+      folderId,
+      user_id
+    )
+    if (!validation.ok) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: validation.status }
+      )
     }
 
-    const { error } = await supabaseAdmin
+    // Cek folder default tidak bisa di-rename? (opsional)
+    // Kalau mau default folder bisa rename juga, skip ini
+    // if (validation.folder.is_default) {
+    //   return NextResponse.json(
+    //     { error: 'Folder default tidak bisa di-rename' },
+    //     { status: 400 }
+    //   )
+    // }
+
+    // Update
+    const { error: updateErr } = await supabaseAdmin
       .from('match_folders')
-      .update({ label: trimmed })
+      .update({ label: safeLabel })
       .eq('id', folderId)
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
@@ -89,17 +177,22 @@ export async function DELETE(
       )
     }
 
-    // Cek folder
-    const { data: folder, error: fetchErr } = await supabaseAdmin
-      .from('match_folders')
-      .select('*')
-      .eq('id', folderId)
-      .single()
-
-    if (fetchErr || !folder) {
-      return NextResponse.json({ error: 'Folder tidak ditemukan' }, { status: 404 })
+    // Validasi ownership
+    const validation = await validateFolderOwnership(
+      supabaseAdmin,
+      folderId,
+      userId
+    )
+    if (!validation.ok) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: validation.status }
+      )
     }
 
+    const folder = validation.folder
+
+    // Cek folder default tidak bisa dihapus
     if (folder.is_default) {
       return NextResponse.json(
         { error: 'Folder default tidak bisa dihapus' },
@@ -119,11 +212,9 @@ export async function DELETE(
     }
 
     if (files && files.length > 0) {
-      // Hapus semua file dari storage
       const paths = files.map((f: any) => f.storage_path)
       await supabaseAdmin.storage.from('match-files').remove(paths)
 
-      // Hapus metadata
       await supabaseAdmin
         .from('match_files')
         .delete()
