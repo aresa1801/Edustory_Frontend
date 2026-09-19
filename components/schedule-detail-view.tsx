@@ -33,7 +33,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Send,
-  ExternalLink,
+  Settings,
 } from 'lucide-react'
 
 import RescheduleWizard, {
@@ -54,12 +54,48 @@ interface ScheduleData {
   schedulesCustom: any
   schedulesCustomRequest: any
   tutorPrivateFolderLabel?: string
-  studentPrivateFolderLabel?: string 
+  studentPrivateFolderLabel?: string
+  gmeetLink?: string | null
   acceptedAt: string
   contractEndDate: string
   student: any
   tutor: any
   sessions: any[]
+}
+
+// ============================================================
+// SECURITY: GMeet Link Validator
+// ============================================================
+const ALLOWED_GMEET_DOMAINS = ['meet.google.com', 'hangouts.google.com']
+
+function isSafeGmeetLink(link: string | null | undefined): boolean {
+  if (!link || typeof link !== 'string') return false
+  if (link.length > 500) return false
+
+  const lower = link.toLowerCase()
+
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('file:') ||
+    lower.startsWith('blob:') ||
+    lower.startsWith('about:')
+  ) {
+    return false
+  }
+
+  if (!lower.startsWith('https://')) return false
+
+  try {
+    const url = new URL(link)
+    const hostname = url.hostname.toLowerCase()
+    return ALLOWED_GMEET_DOMAINS.some(
+      (d) => hostname === d || hostname.endsWith('.' + d)
+    )
+  } catch {
+    return false
+  }
 }
 
 const READY_WINDOW_MINUTES = 20
@@ -316,8 +352,11 @@ export default function ScheduleDetailView({
   const [movedInfoItem, setMovedInfoItem] = useState<any | null>(null)
   const { user: authUser } = useAuth()
 
-  // ===== VIDEO CALL STATE =====
-  const [showVideoCallDialog, setShowVideoCallDialog] = useState(false)
+  // ===== GMEET STATE =====
+  const [showGmeetDialog, setShowGmeetDialog] = useState(false)
+  const [gmeetInput, setGmeetInput] = useState('')
+  const [savingGmeet, setSavingGmeet] = useState(false)
+  const [showNoLinkDialog, setShowNoLinkDialog] = useState(false)
 
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
@@ -718,30 +757,67 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
   }
 }
 
-// ===== VIDEO CALL HANDLER =====
+// ===== GMEET HANDLERS =====
 const handleStartVideoCall = () => {
   if (!data) return
 
-  // Generate room name yang unik per match
-  // Format: edustory-{8 karakter pertama matchId}
-  const roomName = `edustory-${data.matchId.slice(0, 8)}`
+  const gmeetLink = data.gmeetLink
 
-  // Nama user yang akan tampil di Jitsi
-  const userName =
-    role === 'tutor'
-      ? data.tutor?.fullName || 'Tutor'
-      : data.student?.name || 'Siswa'
+  // Kalau link ada & valid → buka
+  if (gmeetLink && isSafeGmeetLink(gmeetLink)) {
+    window.open(gmeetLink, '_blank', 'noopener,noreferrer')
+    return
+  }
 
-  // Build URL dengan displayName
-  const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${encodeURIComponent(
-    userName
-  )}"`
+  // Link ada tapi tidak valid
+  if (gmeetLink && !isSafeGmeetLink(gmeetLink)) {
+    alert('⚠️ Link video call tidak valid. Hubungi tutor untuk memperbarui.')
+    return
+  }
 
-  // Buka di tab baru
-  window.open(jitsiUrl, '_blank', 'noopener,noreferrer')
+  // Link belum ada
+  if (role === 'tutor') {
+    setShowNoLinkDialog(true)
+  } else {
+    alert('Link GMeet belum dibuat oleh tutor. Harap tunggu ya!')
+  }
+}
 
-  // Tutup modal
-  setShowVideoCallDialog(false)
+const openGmeetSettings = () => {
+  if (!data) return
+  setGmeetInput(data.gmeetLink || '')
+  setShowGmeetDialog(true)
+}
+
+const handleSaveGmeet = async () => {
+  if (!data || !authUser) return
+  setSavingGmeet(true)
+  try {
+    const res = await fetch(
+      `/api/match-schedules/${data.matchId}/gmeet`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: gmeetInput.trim(),
+          user_id: authUser.id,
+          role,
+        }),
+      }
+    )
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal menyimpan link')
+
+    setData((prev) =>
+      prev ? { ...prev, gmeetLink: result.gmeet_link || null } : prev
+    )
+    setShowGmeetDialog(false)
+    setGmeetInput('')
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setSavingGmeet(false)
+  }
 }
 
   if (loading) {
@@ -1715,14 +1791,50 @@ const handleStartVideoCall = () => {
                   : 'Siap Belajar'}
               </Button>
 
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowVideoCallDialog(true)}
-              >
-                <Video className="w-4 h-4 mr-1.5" />
-                Mulai Video Call
-              </Button>
+              {role === 'student' ? (
+                // ===== STUDENT =====
+                isSafeGmeetLink(data.gmeetLink) ? (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleStartVideoCall}
+                  >
+                    <Video className="w-4 h-4 mr-1.5" />
+                    Mulai Video Call
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-muted-foreground italic text-xs"
+                    disabled
+                    title="Tutor belum membuat link GMeet"
+                  >
+                    <Video className="w-4 h-4 mr-1.5 shrink-0" />
+                    Link GMeet belum dibuat oleh tutor, harap tunggu ya!
+                  </Button>
+                )
+              ) : (
+                // ===== TUTOR =====
+                <div className="flex-1 flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleStartVideoCall}
+                  >
+                    <Video className="w-4 h-4 mr-1.5" />
+                    Mulai Video Call
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={openGmeetSettings}
+                    title="Atur Link GMeet"
+                    className="shrink-0"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
               <Button
                 variant="destructive"
@@ -1791,63 +1903,118 @@ const handleStartVideoCall = () => {
           </DialogContent>
         </Dialog>
 
-        {/* ===== DIALOG KONFIRMASI VIDEO CALL ===== */}
-        <Dialog open={showVideoCallDialog} onOpenChange={setShowVideoCallDialog}>
+        {/* ===== DIALOG ATUR LINK GMEET (TUTOR) ===== */}
+        <Dialog open={showGmeetDialog} onOpenChange={setShowGmeetDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Video className="w-5 h-5 text-blue-500" />
-                Mulai Video Call?
+                <Settings className="w-5 h-5 text-blue-500" />
+                Atur Link Google Meet
               </DialogTitle>
               <DialogDescription>
-                Anda akan masuk ke ruang video call dengan{' '}
-                <strong>
-                  {role === 'tutor'
-                    ? data?.student?.name || 'Siswa'
-                    : data?.tutor?.fullName || 'Tutor'}
-                </strong>
-                .
+                Tempel link Google Meet kamu di sini. Link ini akan muncul otomatis
+                di tombol video call siswa.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 space-y-2 text-sm">
-                <div className="flex items-start gap-2">
-                  <ExternalLink className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <p className="text-muted-foreground">
-                    Video call akan terbuka di <strong>tab baru</strong>. Pastikan
-                    Anda mengizinkan akses kamera & mikrofon saat diminta browser.
-                  </p>
-                </div>
-                <div className="pt-2 border-t border-blue-500/20">
-                  <p className="text-xs text-muted-foreground">
-                    Room:{' '}
-                    <span className="font-mono text-foreground">
-                      edustory-{data?.matchId?.slice(0, 8)}
-                    </span>
-                  </p>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                  Link Google Meet
+                </label>
+                <input
+                  autoFocus
+                  type="url"
+                  value={gmeetInput}
+                  onChange={(e) => setGmeetInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveGmeet()
+                  }}
+                  placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                  className="w-full p-2.5 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  💡 Buka Google Meet → buat room → Copy link → Tempel di sini.
+                </p>
               </div>
 
-              <p className="text-xs text-muted-foreground italic">
-                💡 Tips: Buka tab ini di dua perangkat yang berbeda (HP + laptop,
-                atau dua browser) untuk memulai sesi belajar.
+              {data?.gmeetLink && (
+                <div className="p-2.5 rounded-md bg-muted/30 border border-border">
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Link saat ini:
+                  </p>
+                  <p className="text-xs font-mono break-all text-foreground">
+                    {data.gmeetLink}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowGmeetDialog(false)
+                  setGmeetInput('')
+                }}
+                disabled={savingGmeet}
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleSaveGmeet}
+                disabled={savingGmeet}
+                className="gap-1.5"
+              >
+                {savingGmeet ? (
+                  <Spinner className="w-3.5 h-3.5" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                )}
+                Simpan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG "LINK BELUM DIBUAT" (TUTOR) ===== */}
+        <Dialog open={showNoLinkDialog} onOpenChange={setShowNoLinkDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Video className="w-5 h-5 text-amber-500" />
+                Link GMeet Belum Dibuat
+              </DialogTitle>
+              <DialogDescription>
+                Kamu belum membuat link Google Meet untuk sesi belajar ini. Siswa
+                tidak bisa klik tombol video call sampai link dibuat.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-3 px-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+              <p className="text-sm text-muted-foreground">
+                Buat room baru di Google Meet, lalu tempel link-nya di sini. Siswa
+                akan otomatis dapat link tersebut.
               </p>
             </div>
 
             <DialogFooter className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => setShowVideoCallDialog(false)}
+                onClick={() => setShowNoLinkDialog(false)}
               >
                 Batal
               </Button>
               <Button
-                onClick={handleStartVideoCall}
+                onClick={() => {
+                  setShowNoLinkDialog(false)
+                  setGmeetInput('')
+                  setShowGmeetDialog(true)
+                }}
                 className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <Video className="w-4 h-4" />
-                Mulai Sekarang
+                <Settings className="w-3.5 h-3.5" />
+                Atur Sekarang
               </Button>
             </DialogFooter>
           </DialogContent>
