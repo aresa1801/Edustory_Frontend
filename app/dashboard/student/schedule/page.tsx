@@ -202,15 +202,17 @@ export default function StudentSchedulePage() {
   }
 
   const handleViewProfile = (schedule: TutorSchedule) => {
-    setSelectedSchedule(schedule)
+    // ✅ Ambil versi terbaru dari array schedules
+    //    (kalau array sudah ke-update hasReviewed, kita pakai yang update)
+    const freshSchedule = schedules.find((s) => s.matchId === schedule.matchId) || schedule
+    setSelectedSchedule(freshSchedule)
     setShowProfileDialog(true)
-    // Reset form
     setMyRating(0)
     setMyComment('')
     setShowReviewForm(false)
-    // Fetch reviews
-    if (schedule.tutor?.id) {
-      fetchTutorReviews(schedule.tutor.id)
+
+    if (freshSchedule.tutor?.id) {
+      fetchTutorReviews(freshSchedule.tutor.id)
     }
   }
 
@@ -221,46 +223,54 @@ export default function StudentSchedulePage() {
   }
 
   const handleSubmitReview = async () => {
-    if (!selectedSchedule || myRating === 0 || !authUser) return
-    setSubmittingReview(true)
-    try {
-      const res = await fetch(
-        `/api/match-schedules/${selectedSchedule.matchId}/review`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: authUser.id,
-            rating: myRating,
-            comment: myComment,
-          }),
-        }
-      )
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Gagal mengirim ulasan')
-
-      alert('✅ Ulasan berhasil dikirim!')
-
-      // ✅ TANDAI SUDAH REVIEW DI STATE LOKAL — form langsung hilang
-      setSelectedSchedule((prev) =>
-        prev ? ({ ...prev, hasReviewed: true } as any) : prev
-      )
-
-      setShowReviewForm(false)
-      setMyRating(0)
-      setMyComment('')
-
-      // Refresh reviews + schedules
-      if (selectedSchedule.tutor?.id) {
-        await fetchTutorReviews(selectedSchedule.tutor.id)
+  if (!selectedSchedule || myRating === 0 || !authUser) return
+  setSubmittingReview(true)
+  try {
+    const res = await fetch(
+      `/api/match-schedules/${selectedSchedule.matchId}/review`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: authUser.id,
+          rating: myRating,
+          comment: myComment,
+        }),
       }
-      await fetchData(true)
-    } catch (err: any) {
-      alert('❌ ' + err.message)
-    } finally {
-      setSubmittingReview(false)
+    )
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal mengirim ulasan')
+
+    alert('✅ Ulasan berhasil dikirim!')
+
+    // ✅ 1. Tandai di selectedSchedule (form langsung hilang)
+    setSelectedSchedule((prev) =>
+      prev ? ({ ...prev, hasReviewed: true } as any) : prev
+    )
+
+    // ✅ 2. Tandai di array schedules (biar handleViewProfile ambil data yg benar)
+    setSchedules((prev) =>
+      prev.map((s) =>
+        s.matchId === selectedSchedule.matchId
+          ? ({ ...s, hasReviewed: true } as any)
+          : s
+      )
+    )
+
+    setShowReviewForm(false)
+    setMyRating(0)
+    setMyComment('')
+
+    if (selectedSchedule.tutor?.id) {
+      await fetchTutorReviews(selectedSchedule.tutor.id)
     }
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setSubmittingReview(false)
   }
+}
 
   // ========== LOADING / ERROR ==========
   if (authLoading || loading) {
@@ -828,19 +838,18 @@ export default function StudentSchedulePage() {
                   selectedSchedule.status === 'completed' ||
                   isExpired(selectedSchedule.contractEndDate)
 
-                // ✅ Cek dari 2 sumber:
-                // 1. State lokal (baru submit) → langsung true
-                // 2. tutorReviews yang sudah di-fetch → cek match_id-nya ada di list review
+                // ✅ 3 SUMBER PENGECEKAN (OR — kalau salah satu true, form hide)
                 const reviewedFromState = !!(selectedSchedule as any).hasReviewed
                 const reviewedFromList = (tutorReviews || []).some(
-                  (r: any) => r.match_schedule_id === selectedSchedule.matchId
+                  (r: any) =>
+                    r.match_schedule_id === selectedSchedule.matchId ||
+                    r.match_id === selectedSchedule.matchId
                 )
+
                 const alreadyReviewed = reviewedFromState || reviewedFromList
 
-                // ✅ HIDE TOTAL kalau sudah review
                 if (alreadyReviewed) return null
 
-                // Belum selesai kontrak → tampilkan badge "Terkunci"
                 if (!isCompleted) {
                   return (
                     <Card className="border shadow-sm bg-slate-500/5 border-slate-500/20">
@@ -865,7 +874,6 @@ export default function StudentSchedulePage() {
                   )
                 }
 
-                // Kontrak selesai & belum review → tampilkan form
                 return (
                   <Card className="border shadow-sm bg-yellow-500/5 border-yellow-500/20">
                     <CardContent className="p-4 space-y-3">
