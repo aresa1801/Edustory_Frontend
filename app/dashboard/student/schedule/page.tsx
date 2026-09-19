@@ -240,6 +240,12 @@ export default function StudentSchedulePage() {
       if (!res.ok) throw new Error(result.error || 'Gagal mengirim ulasan')
 
       alert('✅ Ulasan berhasil dikirim!')
+
+      // ✅ TANDAI SUDAH REVIEW DI STATE LOKAL — form langsung hilang
+      setSelectedSchedule((prev) =>
+        prev ? ({ ...prev, hasReviewed: true } as any) : prev
+      )
+
       setShowReviewForm(false)
       setMyRating(0)
       setMyComment('')
@@ -822,133 +828,111 @@ export default function StudentSchedulePage() {
                   selectedSchedule.status === 'completed' ||
                   isExpired(selectedSchedule.contractEndDate)
 
-                // Cek dari server (bukan dari ulasan JSONB)
-                const alreadyReviewed = !!selectedSchedule.hasReviewed
+                // ✅ Cek dari 2 sumber:
+                // 1. State lokal (baru submit) → langsung true
+                // 2. tutorReviews yang sudah di-fetch → cek match_id-nya ada di list review
+                const reviewedFromState = !!(selectedSchedule as any).hasReviewed
+                const reviewedFromList = (tutorReviews || []).some(
+                  (r: any) => r.match_schedule_id === selectedSchedule.matchId
+                )
+                const alreadyReviewed = reviewedFromState || reviewedFromList
 
-                return (
-                  <Card
-                    className={`border shadow-sm ${
-                      isCompleted
-                        ? 'bg-yellow-500/5 border-yellow-500/20'
-                        : 'bg-slate-500/5 border-slate-500/20'
-                    }`}
-                  >
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        {isCompleted ? (
-                          <Star className="w-4 h-4 text-yellow-500" />
-                        ) : (
+                // ✅ HIDE TOTAL kalau sudah review
+                if (alreadyReviewed) return null
+
+                // Belum selesai kontrak → tampilkan badge "Terkunci"
+                if (!isCompleted) {
+                  return (
+                    <Card className="border shadow-sm bg-slate-500/5 border-slate-500/20">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
                           <Lock className="w-4 h-4 text-slate-500" />
-                        )}
-                        <h4
-                          className={`font-semibold text-sm ${
-                            isCompleted ? 'text-foreground' : 'text-muted-foreground'
-                          }`}
-                        >
-                          Berikan Rating
-                        </h4>
-                        {!isCompleted && (
+                          <h4 className="font-semibold text-sm text-muted-foreground">
+                            Berikan Rating
+                          </h4>
                           <Badge
                             variant="outline"
                             className="text-[10px] bg-slate-500/20 text-slate-300 border-slate-500/30"
                           >
                             🔒 Terkunci
                           </Badge>
-                        )}
-                        {isCompleted && alreadyReviewed && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-green-500/20 text-green-200 border-green-500/30"
+                        </div>
+                        <p className="text-sm text-muted-foreground italic">
+                          Rating akan terbuka setelah kontrak belajar selesai.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )
+                }
+
+                // Kontrak selesai & belum review → tampilkan form
+                return (
+                  <Card className="border shadow-sm bg-yellow-500/5 border-yellow-500/20">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-500" />
+                        <h4 className="font-semibold text-sm">Berikan Rating</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Bagaimana pengalaman belajarmu dengan tutor ini? Klik bintang untuk memberi nilai.
+                      </p>
+
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => {
+                              setMyRating(i)
+                              setShowReviewForm(true)
+                            }}
+                            className="transition-transform hover:scale-110"
                           >
-                            ✓ Sudah Diulas
-                          </Badge>
+                            <Star
+                              className={`w-8 h-8 ${
+                                i <= myRating
+                                  ? 'text-yellow-500 fill-yellow-500'
+                                  : 'text-gray-500'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                        {myRating > 0 && (
+                          <span className="ml-2 text-sm text-muted-foreground">{myRating} / 5</span>
                         )}
                       </div>
 
-                      {!isCompleted ? (
-                        <p className="text-sm text-muted-foreground italic">
-                          Rating akan terbuka setelah kontrak belajar selesai.
-                          Kamu bisa menilai kualitas mengajar tutor ini kapan
-                          saja setelahnya.
-                        </p>
-                      ) : alreadyReviewed ? (
-                        <p className="text-sm text-muted-foreground italic">
-                          Kamu sudah memberikan ulasan untuk sesi belajar ini.
-                          Terima kasih! 🎉
-                        </p>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-sm text-muted-foreground">
-                            Bagaimana pengalaman belajarmu dengan tutor ini?
-                            Klik bintang untuk memberi nilai.
-                          </p>
-
-                          {/* Bintang yang bisa diklik */}
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => {
-                                  setMyRating(i)
-                                  setShowReviewForm(true)
-                                }}
-                                className="transition-transform hover:scale-110"
-                              >
-                                <Star
-                                  className={`w-8 h-8 ${
-                                    i <= myRating
-                                      ? 'text-yellow-500 fill-yellow-500'
-                                      : 'text-gray-500'
-                                  }`}
-                                />
-                              </button>
-                            ))}
-                            {myRating > 0 && (
-                              <span className="ml-2 text-sm text-muted-foreground">
-                                {myRating} / 5
-                              </span>
-                            )}
+                      {showReviewForm && myRating > 0 && (
+                        <div className="space-y-3 pt-2 border-t">
+                          <textarea
+                            placeholder="Tulis pengalamanmu belajar dengan tutor ini (opsional)..."
+                            value={myComment}
+                            onChange={(e) => setMyComment(e.target.value)}
+                            rows={3}
+                            className="w-full p-3 text-sm rounded-md bg-background border border-input resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowReviewForm(false)
+                                setMyRating(0)
+                                setMyComment('')
+                              }}
+                              disabled={submittingReview}
+                            >
+                              Batal
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                              onClick={handleSubmitReview}
+                              disabled={submittingReview || myRating === 0}
+                            >
+                              {submittingReview ? <Spinner className="w-3.5 h-3.5" /> : 'Kirim Ulasan'}
+                            </Button>
                           </div>
-
-                          {/* Form komentar */}
-                          {showReviewForm && myRating > 0 && (
-                            <div className="space-y-3 pt-2 border-t">
-                              <textarea
-                                placeholder="Tulis pengalamanmu belajar dengan tutor ini (opsional)..."
-                                value={myComment}
-                                onChange={(e) => setMyComment(e.target.value)}
-                                rows={3}
-                                className="w-full p-3 text-sm rounded-md bg-background border border-input resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowReviewForm(false)
-                                    setMyRating(0)
-                                    setMyComment('')
-                                  }}
-                                  disabled={submittingReview}
-                                >
-                                  Batal
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                                  onClick={handleSubmitReview}
-                                  disabled={submittingReview || myRating === 0}
-                                >
-                                  {submittingReview ? (
-                                    <Spinner className="w-3.5 h-3.5" />
-                                  ) : (
-                                    'Kirim Ulasan'
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </CardContent>
