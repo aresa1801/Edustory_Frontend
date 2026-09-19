@@ -4,6 +4,20 @@ import { isValidUUID } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
 
+// ============================================================
+// HELPER — Anonimkan nama: "Haikal Wardana" → "H***"
+// ============================================================
+function anonymizeName(name: string | null | undefined): string {
+  if (!name || typeof name !== 'string') return 'Anonim'
+  const trimmed = name.trim()
+  if (trimmed.length === 0) return 'Anonim'
+  const first = trimmed.charAt(0).toUpperCase()
+  return `${first}***`
+}
+
+// ============================================================
+// GET — List reviews untuk tutor tertentu
+// ============================================================
 export async function GET(
   req: NextRequest,
   { params }: { params: { tutorId: string } }
@@ -11,6 +25,7 @@ export async function GET(
   try {
     const { tutorId } = params
 
+    // 1. Validasi UUID
     if (!isValidUUID(tutorId)) {
       return NextResponse.json({ error: 'tutorId tidak valid' }, { status: 400 })
     }
@@ -20,7 +35,7 @@ export async function GET(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Query reviews + join matches (filter tutor) + students (nama)
+    // 2. Query reviews + join matches (filter tutor) + students (nama)
     const { data: reviews, error } = await supabaseAdmin
       .from('reviews')
       .select(`
@@ -30,22 +45,25 @@ export async function GET(
         comment,
         created_at,
         matches!inner(tutor_id),
-        students!inner(full_name)
+        students!inner(name)
       `)
       .eq('matches.tutor_id', tutorId)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(100)
 
     if (error) {
       console.error('[tutor reviews GET] error:', error)
-      return NextResponse.json({ error: 'Gagal memuat reviews' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Gagal memuat ulasan' },
+        { status: 500 }
+      )
     }
 
-    // Map ke format yang dipakai frontend
+    // 3. Map ke format yang dipakai frontend + anonimkan nama
     const mapped = (reviews || []).map((r: any) => ({
       id: r.id,
-      match_schedule_id: r.match_id,   // supaya cocok dengan key di frontend
-      student_name: r.students?.full_name || 'Siswa',
+      match_schedule_id: r.match_id,   // biar cocok dgn key yg dipakai frontend
+      student_name: anonymizeName(r.students?.name),   // ← "H***"
       rating: r.rating,
       comment: r.comment,
       created_at: r.created_at,

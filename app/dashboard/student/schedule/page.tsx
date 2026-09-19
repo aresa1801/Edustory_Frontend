@@ -806,31 +806,37 @@ export default function StudentSchedulePage() {
 
                     {/* Ulasan — scrollable */}
                     <div className="flex-1 min-h-0 flex flex-col pt-3 border-t mt-3">
-                      <p className="text-xs font-medium text-muted-foreground shrink-0 mb-2">
-                        Ulasan Terbaru
-                      </p>
-                      <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                      <div className="flex items-center justify-between shrink-0 mb-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Ulasan Terbaru
+                        </p>
+                        {tutorReviews.length > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-muted/50 border-border"
+                          >
+                            {tutorReviews.length} ulasan
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* ✅ SCROLLABLE — max-h + overflow-y-auto */}
+                      <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 space-y-2">
                         {reviewsLoading ? (
-                          <p className="text-xs text-muted-foreground italic">
-                            Memuat ulasan...
-                          </p>
+                          <p className="text-xs text-muted-foreground italic">Memuat ulasan...</p>
                         ) : tutorReviews.length === 0 ? (
-                          <p className="text-xs text-muted-foreground italic">
-                            Belum ada ulasan.
-                          </p>
+                          <p className="text-xs text-muted-foreground italic">Belum ada ulasan.</p>
                         ) : (
                           tutorReviews.map((review: any, idx: number) => (
                             <div
-                              key={
-                                (review.match_schedule_id || 'r') + '-' + idx
-                              }
-                              className="text-xs space-y-1 pb-2 border-b last:border-0"
+                              key={(review.id || review.match_schedule_id || 'r') + '-' + idx}
+                              className="text-xs space-y-1.5 pb-3 mb-1 border-b last:border-0 last:pb-0"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium">
-                                  {review.student_name || 'Siswa'}
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold text-foreground truncate">
+                                  {review.student_name || 'Anonim'}
                                 </span>
-                                <div className="flex items-center gap-0.5">
+                                <div className="flex items-center gap-0.5 shrink-0">
                                   {[1, 2, 3, 4, 5].map((i) => (
                                     <Star
                                       key={i}
@@ -843,9 +849,24 @@ export default function StudentSchedulePage() {
                                   ))}
                                 </div>
                               </div>
-                              {review.comment && (
-                                <p className="text-muted-foreground italic">
+
+                              {review.comment ? (
+                                <p className="text-muted-foreground italic leading-relaxed break-words">
                                   "{review.comment}"
+                                </p>
+                              ) : (
+                                <p className="text-muted-foreground/60 italic text-[11px]">
+                                  (tanpa komentar)
+                                </p>
+                              )}
+
+                              {review.created_at && (
+                                <p className="text-[10px] text-muted-foreground/60">
+                                  {new Date(review.created_at).toLocaleDateString('id-ID', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })}
                                 </p>
                               )}
                             </div>
