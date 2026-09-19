@@ -56,6 +56,8 @@ interface ScheduleData {
   tutorPrivateFolderLabel?: string
   studentPrivateFolderLabel?: string
   gmeetLink?: string | null
+  terminationRequest?: any | null
+  contractEndedAt?: string | null
   acceptedAt: string
   contractEndDate: string
   student: any
@@ -358,13 +360,20 @@ export default function ScheduleDetailView({
   const [savingGmeet, setSavingGmeet] = useState(false)
   const [showNoLinkDialog, setShowNoLinkDialog] = useState(false)
 
+  // ===== TERMINATE CONTRACT STATE =====
+  const [showTerminateDialog, setShowTerminateDialog] = useState(false)
+  const [terminateStep, setTerminateStep] = useState<
+    'initial' | 'select' | 'confirm-unilateral' | 'confirm-mutual'
+  >('initial')
+  const [processingTerminate, setProcessingTerminate] = useState(false)
+  const [processingRequest, setProcessingRequest] = useState(false)
+
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
   const [rescheduleSource, setRescheduleSource] = useState<SourceSlot | null>(
     null
   )
   const [submittingReschedule, setSubmittingReschedule] = useState(false)
-  const [processingRequest, setProcessingRequest] = useState(false)
   const [infoItem, setInfoItem] = useState<any | null>(null)
 
   const fetchData = useCallback(
@@ -817,6 +826,73 @@ const handleSaveGmeet = async () => {
     alert('❌ ' + err.message)
   } finally {
     setSavingGmeet(false)
+  }
+}
+
+// ===== TERMINATE CONTRACT HANDLERS =====
+const openTerminateDialog = () => {
+  setTerminateStep('initial')
+  setShowTerminateDialog(true)
+}
+
+const closeTerminateDialog = () => {
+  setShowTerminateDialog(false)
+  setTerminateStep('initial')
+}
+
+const submitTermination = async (type: 'unilateral' | 'mutual') => {
+  if (!data || !authUser) return
+  setProcessingTerminate(true)
+  try {
+    const res = await fetch(`/api/match-schedules/${data.matchId}/terminate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, role, user_id: authUser.id }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal')
+
+    if (type === 'unilateral') {
+      alert('✅ Kontrak telah diakhiri.')
+      closeTerminateDialog()
+      await fetchData(true)
+    } else {
+      alert('✅ Pengajuan pengakhiran dikirim. Menunggu respons pihak lain (maks 2 hari).')
+      closeTerminateDialog()
+      await fetchData(true)
+    }
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingTerminate(false)
+  }
+}
+
+const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') => {
+  if (!data || !authUser) return
+  setProcessingRequest(true)
+  try {
+    const res = await fetch(`/api/match-schedules/${data.matchId}/terminate`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, role, user_id: authUser.id }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal')
+
+    const msg =
+      action === 'approve'
+        ? '✅ Pengajuan disetujui. Kontrak diakhiri.'
+        : action === 'reject'
+        ? '❌ Pengajuan ditolak.'
+        : 'Pengajuan dibatalkan.'
+
+    alert(msg)
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingRequest(false)
   }
 }
 
@@ -1762,6 +1838,74 @@ const handleSaveGmeet = async () => {
           </Card>
         </div>
 
+        {/* ===== BANNER PENGKHIRAN KONTRAK ===== */}
+        {data.terminationRequest && data.terminationRequest.status === 'pending' && (
+          <Card className="border-amber-500/60 bg-amber-500/5">
+            <CardContent className="p-4">
+              {data.terminationRequest.requested_by === role ? (
+                // SISI PENGAJU
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
+                      MENUNGGU RESPONS {role === 'tutor' ? 'SISWA' : 'GURU'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Pengajuan pengakhiran kontrak sudah dikirim. Pihak lain punya
+                    waktu 2 hari untuk merespons.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTerminationAction('cancel')}
+                    disabled={processingRequest}
+                    className="gap-1.5"
+                  >
+                    {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                    Batalkan Pengajuan
+                  </Button>
+                </div>
+              ) : (
+                // SISI PENERIMA
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
+                      PERMINTAAN PENGKHIRAN KONTRAK
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {role === 'tutor' ? 'Siswa' : 'Guru'} mengajukan pengakhiran
+                    kontrak. Kamu punya waktu 2 hari untuk merespons.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                      onClick={() => handleTerminationAction('approve')}
+                      disabled={processingRequest}
+                    >
+                      {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                      Setujui
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="flex-1 gap-1.5"
+                      onClick={() => handleTerminationAction('reject')}
+                      disabled={processingRequest}
+                    >
+                      {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                      Tolak
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* ACTION BUTTONS */}
         <Card>
           <CardContent className="p-4">
@@ -1839,12 +1983,18 @@ const handleSaveGmeet = async () => {
               <Button
                 variant="destructive"
                 className="flex-1"
-                onClick={() =>
-                  alert('Fitur selesaikan kontrak akan segera hadir.')
+                onClick={openTerminateDialog}
+                disabled={
+                  data.status === 'completed' ||
+                  data.terminationRequest?.status === 'pending'
                 }
               >
                 <XCircle className="w-4 h-4 mr-1.5" />
-                Selesaikan Kontrak
+                {data.status === 'completed'
+                  ? 'Kontrak Selesai'
+                  : data.terminationRequest?.status === 'pending'
+                  ? 'Pengakhiran Diproses'
+                  : 'Selesaikan Kontrak'}
               </Button>
             </div>
           </CardContent>
@@ -2015,6 +2165,149 @@ const handleSaveGmeet = async () => {
               >
                 <Settings className="w-3.5 h-3.5" />
                 Atur Sekarang
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 1: KONFIRMASI AWAL ===== */}
+        <Dialog open={showTerminateDialog && terminateStep === 'initial'} onOpenChange={closeTerminateDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                Selesaikan Kontrak dengan {role === 'tutor' ? 'Siswa' : 'Guru'}?
+              </DialogTitle>
+              <DialogDescription>
+                Kontrak ini akan diakhiri. Kamu akan memilih metode pengakhiran
+                di langkah berikutnya.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={closeTerminateDialog}>
+                Batalkan
+              </Button>
+              <Button variant="destructive" onClick={() => setTerminateStep('select')}>
+                Selesaikan Kontrak
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 2: PILIH METODE ===== */}
+        <Dialog open={showTerminateDialog && terminateStep === 'select'} onOpenChange={closeTerminateDialog}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Pilih Metode Pengakhiran</DialogTitle>
+              <DialogDescription>
+                Ada 2 cara untuk mengakhiri kontrak ini.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <button
+                onClick={() => setTerminateStep('confirm-unilateral')}
+                className="w-full text-left p-4 rounded-md border border-red-500/40 bg-red-500/5 hover:bg-red-500/10 transition"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Hentikan Sekarang</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Akhiri kontrak langsung tanpa persetujuan pihak lain.
+                      Tindakan ini akan dicatat dalam sistem.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setTerminateStep('confirm-mutual')}
+                className="w-full text-left p-4 rounded-md border border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 transition"
+              >
+                <div className="flex items-start gap-3">
+                  <Send className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Ajukan Pengakhiran</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Kirim pengajuan ke pihak lain untuk disetujui. Waktu
+                      respons maksimal 2 hari.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setTerminateStep('initial')}>
+                Kembali
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 3A: KONFIRMASI UNILATERAL ===== */}
+        <Dialog open={showTerminateDialog && terminateStep === 'confirm-unilateral'} onOpenChange={closeTerminateDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-500">
+                <AlertTriangle className="w-5 h-5" />
+                Yakin ingin menghentikan sekarang?
+              </DialogTitle>
+              <DialogDescription>
+                Tindakan ini akan dicatat sebagai pengakhiran sepihak. Pihak
+                lain akan menerima notifikasi bahwa kontrak diakhiri.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setTerminateStep('select')}
+                disabled={processingTerminate}
+              >
+                Pikirkan Lagi
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => submitTermination('unilateral')}
+                disabled={processingTerminate}
+                className="gap-1.5"
+              >
+                {processingTerminate ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                Ya, Konfirmasi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 3B: KONFIRMASI MUTUAL ===== */}
+        <Dialog open={showTerminateDialog && terminateStep === 'confirm-mutual'} onOpenChange={closeTerminateDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="w-5 h-5 text-amber-500" />
+                Ajukan pengakhiran kontrak?
+              </DialogTitle>
+              <DialogDescription>
+                Pengajuan akan dikirim ke {role === 'tutor' ? 'Siswa' : 'Guru'}. Mereka
+                punya waktu 2 hari untuk merespons. Jika tidak direspons,
+                pengajuan otomatis dibatalkan.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setTerminateStep('select')}
+                disabled={processingTerminate}
+              >
+                Batalkan
+              </Button>
+              <Button
+                onClick={() => submitTermination('mutual')}
+                disabled={processingTerminate}
+                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {processingTerminate ? <Spinner className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                Kirim Pengajuan
               </Button>
             </DialogFooter>
           </DialogContent>

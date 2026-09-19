@@ -122,6 +122,16 @@ export async function GET(
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       ulasan: schedule.ulasan || [],
       gmeetLink: schedule.gmeet_link ?? null,
+      terminationRequest: (() => {
+        const tr = schedule.termination_request
+        if (!tr) return null
+        // Auto-expire kalau deadline lewat & masih pending
+        if (tr.status === 'pending' && new Date(tr.deadline) < now) {
+          return { ...tr, status: 'expired' }
+        }
+        return tr
+      })(),
+      contractEndedAt: schedule.termination_request?.ended_at ?? null,
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
       tutorPrivateFolderLabel: schedule.tutor_private_folder_label || 'Pribadi Saya',
