@@ -35,6 +35,7 @@ interface TutorSchedule {
   id: string
   matchId: string
   status: 'active' | 'completed' | 'cancelled'
+  hasReviewed?: boolean
   schedulesSummaryFix: any
   schedulesCustom: any
   ulasan: any[]
@@ -220,7 +221,7 @@ export default function StudentSchedulePage() {
   }
 
   const handleSubmitReview = async () => {
-    if (!selectedSchedule || myRating === 0) return
+    if (!selectedSchedule || myRating === 0 || !authUser) return
     setSubmittingReview(true)
     try {
       const res = await fetch(
@@ -229,20 +230,21 @@ export default function StudentSchedulePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            user_id: authUser.id,
             rating: myRating,
             comment: myComment,
           }),
         }
       )
       const result = await res.json()
-      if (!res.ok) throw new Error(result.error)
+      if (!res.ok) throw new Error(result.error || 'Gagal mengirim ulasan')
 
       alert('✅ Ulasan berhasil dikirim!')
       setShowReviewForm(false)
       setMyRating(0)
       setMyComment('')
 
-      // Refresh reviews + data schedules
+      // Refresh reviews + schedules
       if (selectedSchedule.tutor?.id) {
         await fetchTutorReviews(selectedSchedule.tutor.id)
       }
@@ -820,14 +822,8 @@ export default function StudentSchedulePage() {
                   selectedSchedule.status === 'completed' ||
                   isExpired(selectedSchedule.contractEndDate)
 
-                // Cek apakah sudah pernah review match ini
-                const alreadyReviewed = (
-                  selectedSchedule.ulasan || []
-                ).some(
-                  (r: any) =>
-                    r.match_id === selectedSchedule.matchId ||
-                    r.student_id === selectedSchedule.student?.id
-                )
+                // Cek dari server (bukan dari ulasan JSONB)
+                const alreadyReviewed = !!selectedSchedule.hasReviewed
 
                 return (
                   <Card

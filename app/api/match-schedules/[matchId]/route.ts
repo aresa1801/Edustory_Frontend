@@ -122,6 +122,7 @@ export async function GET(
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       ulasan: schedule.ulasan || [],
       gmeetLink: schedule.gmeet_link ?? null,
+      hasReviewed: false,
       terminationRequest: (() => {
         const tr = schedule.termination_request
         if (!tr) return null
@@ -178,6 +179,15 @@ export async function GET(
 
       sessions: processedSessions,
     }
+
+    // ===== Cek apakah student sudah review match ini =====
+    const { data: existingReview } = await supabaseAdmin
+      .from('reviews')
+      .select('id')
+      .eq('match_id', matchId)
+      .maybeSingle()
+
+    response.hasReviewed = !!existingReview
 
     return NextResponse.json(response, {
       headers: {
