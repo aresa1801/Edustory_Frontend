@@ -10,7 +10,7 @@ export function isValidUUID(value: unknown): value is string {
 }
 
 // Karakter berbahaya: HTML special chars + kontrol + null
-const FORBIDDEN_CHARS_REGEX = /[<>"'`\\\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\ufeff]/g
+const FORBIDDEN_CHARS_REGEX = /[<>"'`\\\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\ufeff]/
 
 /**
  * Sanitize text input (untuk label, nama folder, dsb)
