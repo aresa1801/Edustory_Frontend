@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { isValidUUID } from '@/lib/security/sanitize'
+import { isValidUUID, sanitizeText } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
 
-const TERMINATION_WINDOW_HOURS = 48 // 2 hari
+const TERMINATION_WINDOW_HOURS = 48
+const REASON_MAX_LENGTH = 500
 
 // ============================================================
-// POST — Ajukan pengakhiran (unilateral / mutual)
+// POST — Ajukan pengakhiran
 // ============================================================
 export async function POST(
   req: NextRequest,
@@ -20,7 +21,6 @@ export async function POST(
     )
 
     const { matchId } = params
-
     if (!isValidUUID(matchId)) {
       return NextResponse.json({ error: 'matchId tidak valid' }, { status: 400 })
     }
@@ -32,19 +32,35 @@ export async function POST(
       return NextResponse.json({ error: 'Body JSON tidak valid' }, { status: 400 })
     }
 
-    const { type, role, user_id } = body ?? {}
+    const { type, role, user_id, reason } = body ?? {}
 
     if (!['unilateral', 'mutual'].includes(type)) {
-      return NextResponse.json(
-        { error: 'type harus unilateral atau mutual' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'type tidak valid' }, { status: 400 })
     }
     if (!['tutor', 'student'].includes(role)) {
       return NextResponse.json({ error: 'role tidak valid' }, { status: 400 })
     }
     if (!isValidUUID(user_id)) {
       return NextResponse.json({ error: 'user_id tidak valid' }, { status: 400 })
+    }
+
+    // ✅ WAJIB: reason untuk mutual, sanitize
+    let cleanReason: string | null = null
+    if (type === 'mutual') {
+      if (typeof reason !== 'string' || reason.trim().length === 0) {
+        return NextResponse.json(
+          { error: 'Alasan pengakhiran wajib diisi' },
+          { status: 400 }
+        )
+      }
+      const sanitizeResult = sanitizeText(reason, REASON_MAX_LENGTH)
+      if (!sanitizeResult.ok) {
+        return NextResponse.json(
+          { error: sanitizeResult.error || 'Alasan tidak valid' },
+          { status: 400 }
+        )
+      }
+      cleanReason = sanitizeResult.sanitized
     }
 
     const table = role === 'tutor' ? 'tutors' : 'students'
@@ -75,21 +91,19 @@ export async function POST(
     if (!isOwner) {
       return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
     }
-
     if (schedule.status === 'completed') {
       return NextResponse.json({ error: 'Kontrak sudah selesai' }, { status: 400 })
     }
-
     if (schedule.termination_request?.status === 'pending') {
       return NextResponse.json(
-        { error: 'Sudah ada pengajuan pengakhiran yang menunggu' },
+        { error: 'Sudah ada pengajuan yang menunggu' },
         { status: 400 }
       )
     }
 
     const now = new Date()
 
-    // ===== UNILATERAL: langsung akhiri =====
+    // ===== UNILATERAL =====
     if (type === 'unilateral') {
       const { error: updSchedErr } = await supabaseAdmin
         .from('match_schedules')
@@ -106,19 +120,13 @@ export async function POST(
         .eq('id', schedule.id)
 
       if (updSchedErr) {
-        console.error('[terminate] unilateral update schedule:', updSchedErr)
-        return NextResponse.json(
-          { error: 'Gagal menyelesaikan kontrak' },
-          { status: 500 }
-        )
+        console.error('[terminate] unilateral:', updSchedErr)
+        return NextResponse.json({ error: 'Gagal menyelesaikan' }, { status: 500 })
       }
 
       await supabaseAdmin
         .from('matches')
-        .update({
-          status: 'completed',
-          ended_at: now.toISOString(),
-        })
+        .update({ status: 'completed', ended_at: now.toISOString() })
         .eq('id', matchId)
 
       await supabaseAdmin
@@ -128,11 +136,10 @@ export async function POST(
         .is('started_at', null)
         .is('cancelled_at', null)
 
-      // ⚠️ SKIP dulu: credit score -40 & suspend 3 hari (mode uji coba)
       return NextResponse.json({ success: true, type: 'unilateral' })
     }
 
-    // ===== MUTUAL: kirim pengajuan =====
+    // ===== MUTUAL =====
     const deadline = new Date(
       now.getTime() + TERMINATION_WINDOW_HOURS * 60 * 60 * 1000
     )
@@ -143,6 +150,8 @@ export async function POST(
       deadline: deadline.toISOString(),
       type: 'mutual',
       status: 'pending',
+      reason: cleanReason,
+      requester_notified_at: null,
     }
 
     const { error: updErr } = await supabaseAdmin
@@ -151,22 +160,19 @@ export async function POST(
       .eq('id', schedule.id)
 
     if (updErr) {
-      console.error('[terminate] mutual update:', updErr)
-      return NextResponse.json(
-        { error: 'Gagal mengirim pengajuan' },
-        { status: 500 }
-      )
+      console.error('[terminate] mutual:', updErr)
+      return NextResponse.json({ error: 'Gagal mengirim pengajuan' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, request: terminationRequest })
   } catch (err) {
-    console.error('[terminate POST] error:', err)
+    console.error('[terminate POST]', err)
     return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 })
   }
 }
 
 // ============================================================
-// PATCH — Approve / Reject / Cancel pengajuan
+// PATCH — Approve / Reject / Cancel / Acknowledge
 // ============================================================
 export async function PATCH(
   req: NextRequest,
@@ -179,7 +185,6 @@ export async function PATCH(
     )
 
     const { matchId } = params
-
     if (!isValidUUID(matchId)) {
       return NextResponse.json({ error: 'matchId tidak valid' }, { status: 400 })
     }
@@ -193,7 +198,7 @@ export async function PATCH(
 
     const { action, role, user_id } = body ?? {}
 
-    if (!['approve', 'reject', 'cancel'].includes(action)) {
+    if (!['approve', 'reject', 'cancel', 'acknowledge'].includes(action)) {
       return NextResponse.json({ error: 'action tidak valid' }, { status: 400 })
     }
     if (!['tutor', 'student'].includes(role)) {
@@ -233,22 +238,43 @@ export async function PATCH(
     }
 
     const currentReq = schedule.termination_request
-    if (!currentReq || currentReq.status !== 'pending') {
-      return NextResponse.json(
-        { error: 'Tidak ada pengajuan aktif' },
-        { status: 400 }
-      )
+    if (!currentReq) {
+      return NextResponse.json({ error: 'Tidak ada pengajuan' }, { status: 400 })
     }
 
     const now = new Date()
 
+    // ===== ACKNOWLEDGE: requester tandai sudah lihat penolakan =====
+    if (action === 'acknowledge') {
+      if (currentReq.requested_by !== role) {
+        return NextResponse.json({ error: 'Hanya pengaju' }, { status: 403 })
+      }
+      if (currentReq.status !== 'rejected') {
+        return NextResponse.json({ error: 'Bukan status rejected' }, { status: 400 })
+      }
+      const { error } = await supabaseAdmin
+        .from('match_schedules')
+        .update({
+          termination_request: {
+            ...currentReq,
+            requester_notified_at: now.toISOString(),
+          },
+        })
+        .eq('id', schedule.id)
+
+      if (error) {
+        return NextResponse.json({ error: 'Gagal' }, { status: 500 })
+      }
+      return NextResponse.json({ success: true })
+    }
+
     // ===== CANCEL: hanya pengaju =====
     if (action === 'cancel') {
       if (currentReq.requested_by !== role) {
-        return NextResponse.json(
-          { error: 'Hanya pengaju yang bisa membatalkan' },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: 'Hanya pengaju' }, { status: 403 })
+      }
+      if (currentReq.status !== 'pending') {
+        return NextResponse.json({ error: 'Tidak dalam status pending' }, { status: 400 })
       }
       const { error } = await supabaseAdmin
         .from('match_schedules')
@@ -261,12 +287,12 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== APPROVE/REJECT: hanya penerima =====
+    // ===== APPROVE / REJECT: hanya penerima =====
     if (currentReq.requested_by === role) {
-      return NextResponse.json(
-        { error: 'Hanya penerima yang bisa merespons' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Hanya penerima' }, { status: 403 })
+    }
+    if (currentReq.status !== 'pending') {
+      return NextResponse.json({ error: 'Sudah direspons' }, { status: 400 })
     }
 
     if (action === 'reject') {
@@ -277,6 +303,7 @@ export async function PATCH(
             ...currentReq,
             status: 'rejected',
             responded_at: now.toISOString(),
+            responded_by: role,
           },
         })
         .eq('id', schedule.id)
@@ -287,7 +314,7 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== APPROVE: akhiri kontrak =====
+    // ===== APPROVE =====
     const { error: updSchedErr } = await supabaseAdmin
       .from('match_schedules')
       .update({
@@ -296,6 +323,7 @@ export async function PATCH(
           ...currentReq,
           status: 'approved',
           responded_at: now.toISOString(),
+          responded_by: role,
           ended_at: now.toISOString(),
         },
       })
@@ -320,7 +348,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[terminate PATCH] error:', err)
+    console.error('[terminate PATCH]', err)
     return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 })
   }
 }

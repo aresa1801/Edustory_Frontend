@@ -365,8 +365,11 @@ export default function ScheduleDetailView({
   const [terminateStep, setTerminateStep] = useState<
     'initial' | 'select' | 'confirm-unilateral' | 'confirm-mutual'
   >('initial')
+  const [terminateReason, setTerminateReason] = useState('')
   const [processingTerminate, setProcessingTerminate] = useState(false)
-  const [processingRequest, setProcessingRequest] = useState(false)
+  const [showTerminatedPopup, setShowTerminatedPopup] = useState(false)
+  const [showResponseDialog, setShowResponseDialog] = useState(false)
+  const [showRejectionNotice, setShowRejectionNotice] = useState(false)
 
   // ===== RESCHEDULE STATE =====
   const [isRescheduleMode, setIsRescheduleMode] = useState(false)
@@ -374,6 +377,7 @@ export default function ScheduleDetailView({
     null
   )
   const [submittingReschedule, setSubmittingReschedule] = useState(false)
+  const [processingRequest, setProcessingRequest] = useState(false)
   const [infoItem, setInfoItem] = useState<any | null>(null)
 
   const fetchData = useCallback(
@@ -412,6 +416,18 @@ export default function ScheduleDetailView({
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Auto-show popup penolakan ke pengaju
+  useEffect(() => {
+    const tr = data?.terminationRequest
+    if (
+      tr?.status === 'rejected' &&
+      tr?.requested_by === role &&
+      !tr?.requester_notified_at
+    ) {
+      setShowRejectionNotice(true)
+    }
+  }, [data?.terminationRequest, role])
 
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
@@ -842,25 +858,42 @@ const closeTerminateDialog = () => {
 
 const submitTermination = async (type: 'unilateral' | 'mutual') => {
   if (!data || !authUser) return
+
+  if (type === 'mutual') {
+    const trimmed = terminateReason.trim()
+    if (!trimmed) {
+      alert('⚠️ Alasan pengakhiran wajib diisi.')
+      return
+    }
+    if (trimmed.length > 500) {
+      alert('⚠️ Alasan maksimal 500 karakter.')
+      return
+    }
+  }
+
   setProcessingTerminate(true)
   try {
     const res = await fetch(`/api/match-schedules/${data.matchId}/terminate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, role, user_id: authUser.id }),
+      body: JSON.stringify({
+        type,
+        role,
+        user_id: authUser.id,
+        reason: type === 'mutual' ? terminateReason.trim() : undefined,
+      }),
     })
     const result = await res.json()
     if (!res.ok) throw new Error(result.error || 'Gagal')
 
     if (type === 'unilateral') {
       alert('✅ Kontrak telah diakhiri.')
-      closeTerminateDialog()
-      await fetchData(true)
     } else {
-      alert('✅ Pengajuan pengakhiran dikirim. Menunggu respons pihak lain (maks 2 hari).')
-      closeTerminateDialog()
-      await fetchData(true)
+      alert('✅ Pengajuan dikirim. Menunggu respons pihak lain (maks 2 hari).')
     }
+    setTerminateReason('')
+    closeTerminateDialog()
+    await fetchData(true)
   } catch (err: any) {
     alert('❌ ' + err.message)
   } finally {
@@ -893,6 +926,25 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
     alert('❌ ' + err.message)
   } finally {
     setProcessingRequest(false)
+  }
+}
+
+  const acknowledgeRejection = async () => {
+  if (!data || !authUser) return
+  setShowRejectionNotice(false)
+  try {
+    await fetch(`/api/match-schedules/${data.matchId}/terminate`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'acknowledge',
+        role,
+        user_id: authUser.id,
+      }),
+    })
+    await fetchData(true)
+  } catch (err) {
+    console.error('acknowledge error', err)
   }
 }
 
@@ -939,6 +991,30 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
     data.student.latitude != null && data.student.longitude != null
   const showCoordinates = role === 'tutor' && isStudentOffline && hasCoords
 
+    // ===== TERMINATION STATE HELPERS =====
+  const terminationReq = data.terminationRequest
+  const isCompleted = data.status === 'completed'
+  const isTerminationPending = terminationReq?.status === 'pending'
+  const isTerminationRejected = terminationReq?.status === 'rejected'
+  const iAmRequester = terminationReq?.requested_by === role
+  const iAmReceiver = isTerminationPending && !iAmRequester
+  const showRejectionToMe =
+    isTerminationRejected &&
+    iAmRequester &&
+    !terminationReq?.requester_notified_at
+
+  const completedMessage = (() => {
+    if (!isCompleted) return ''
+    if (terminationReq?.type === 'unilateral') {
+      const pihak = terminationReq.requested_by === 'tutor' ? 'tutor' : 'siswa'
+      return `Sesi belajar-mengajar telah dihentikan oleh ${pihak}.`
+    }
+    if (terminationReq?.type === 'mutual' && terminationReq?.status === 'approved') {
+      return 'Sesi belajar-mengajar telah sepakat dihentikan.'
+    }
+    return 'Kontrak belajar telah selesai.'
+  })()
+
   const openMapsToStudent = () => {
     if (!hasCoords) return
     const url = `https://www.google.com/maps/dir/?api=1&destination=${data.student.latitude},${data.student.longitude}&travelmode=driving`
@@ -961,8 +1037,19 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
     (data.schedulesCustomRequest.status === 'pending' ||
       !data.schedulesCustomRequest.status)
 
-  return (
-    <div className="max-w-7xl mx-auto p-4 space-y-6">
+    return (
+        <div
+          className="max-w-7xl mx-auto p-4 space-y-6"
+          onClickCapture={
+            isCompleted
+              ? (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setShowTerminatedPopup(true)
+                }
+              : undefined
+          }
+        >
       {/* ====== FIXED OVERLAY (klik untuk batal) ====== */}
       {isRescheduleMode && (
         <div
@@ -1838,70 +1925,36 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
           </Card>
         </div>
 
-        {/* ===== BANNER PENGKHIRAN KONTRAK ===== */}
-        {data.terminationRequest && data.terminationRequest.status === 'pending' && (
+                {/* ===== BANNER PENGKHIRAN KONTRAK ===== */}
+        {isTerminationPending && iAmRequester && (
           <Card className="border-amber-500/60 bg-amber-500/5">
-            <CardContent className="p-4">
-              {data.terminationRequest.requested_by === role ? (
-                // SISI PENGAJU
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
-                      MENUNGGU RESPONS {role === 'tutor' ? 'SISWA' : 'GURU'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Pengajuan pengakhiran kontrak sudah dikirim. Pihak lain punya
-                    waktu 2 hari untuk merespons.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleTerminationAction('cancel')}
-                    disabled={processingRequest}
-                    className="gap-1.5"
-                  >
-                    {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                    Batalkan Pengajuan
-                  </Button>
-                </div>
-              ) : (
-                // SISI PENERIMA
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
-                      PERMINTAAN PENGKHIRAN KONTRAK
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {role === 'tutor' ? 'Siswa' : 'Guru'} mengajukan pengakhiran
-                    kontrak. Kamu punya waktu 2 hari untuk merespons.
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                      onClick={() => handleTerminationAction('approve')}
-                      disabled={processingRequest}
-                    >
-                      {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                      Setujui
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="flex-1 gap-1.5"
-                      onClick={() => handleTerminationAction('reject')}
-                      disabled={processingRequest}
-                    >
-                      {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                      Tolak
-                    </Button>
-                  </div>
-                </div>
-              )}
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
+                  MENUNGGU RESPONS {role === 'tutor' ? 'SISWA' : 'GURU'}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Pengajuan pengakhiran sudah dikirim. Pihak lain punya waktu{' '}
+                <span className="font-mono font-bold text-amber-400">
+                  {formatCountdown(new Date(terminationReq.deadline).getTime() - now.getTime())}
+                </span>{' '}
+                untuk merespons.
+              </p>
+              <p className="text-xs text-muted-foreground italic">
+                Alasan kamu: {terminationReq.reason}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleTerminationAction('cancel')}
+                disabled={processingRequest}
+                className="gap-1.5"
+              >
+                {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                Batalkan Pengajuan
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -1980,22 +2033,48 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                 </div>
               )}
 
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={openTerminateDialog}
-                disabled={
-                  data.status === 'completed' ||
-                  data.terminationRequest?.status === 'pending'
-                }
-              >
-                <XCircle className="w-4 h-4 mr-1.5" />
-                {data.status === 'completed'
-                  ? 'Kontrak Selesai'
-                  : data.terminationRequest?.status === 'pending'
-                  ? 'Pengakhiran Diproses'
-                  : 'Selesaikan Kontrak'}
-              </Button>
+              {isCompleted ? (
+                <Button
+                  variant="destructive"
+                  className="flex-1 opacity-60"
+                  disabled
+                >
+                  <XCircle className="w-4 h-4 mr-1.5" />
+                  Kontrak Selesai
+                </Button>
+              ) : iAmReceiver ? (
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => setShowResponseDialog(true)}
+                  style={{
+                    animation: 'pulseRedWhite 2s ease-in-out infinite',
+                  }}
+                >
+                  <AlertTriangle className="w-4 h-4 mr-1.5" />
+                  Respons Pengakhiran ({formatCountdown(
+                    new Date(terminationReq.deadline).getTime() - now.getTime()
+                  )})
+                </Button>
+              ) : iAmRequester && isTerminationPending ? (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled
+                >
+                  <Clock className="w-4 h-4 mr-1.5" />
+                  Pengakhiran Diproses
+                </Button>
+              ) : (
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={openTerminateDialog}
+                >
+                  <XCircle className="w-4 h-4 mr-1.5" />
+                  Selesaikan Kontrak
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>   
@@ -2279,36 +2358,135 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
           </DialogContent>
         </Dialog>
 
-        {/* ===== DIALOG 3B: KONFIRMASI MUTUAL ===== */}
+        {/* ===== DIALOG 3B: KONFIRMASI MUTUAL + ALASAN WAJIB ===== */}
         <Dialog open={showTerminateDialog && terminateStep === 'confirm-mutual'} onOpenChange={closeTerminateDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Send className="w-5 h-5 text-amber-500" />
-                Ajukan pengakhiran kontrak?
+                Ajukan Pengakhiran Kontrak
               </DialogTitle>
               <DialogDescription>
-                Pengajuan akan dikirim ke {role === 'tutor' ? 'Siswa' : 'Guru'}. Mereka
-                punya waktu 2 hari untuk merespons. Jika tidak direspons,
-                pengajuan otomatis dibatalkan.
+                Tuliskan alasan kenapa kamu ingin mengakhiri kontrak. Alasan akan
+                dikirim ke {role === 'tutor' ? 'Siswa' : 'Guru'}.
               </DialogDescription>
             </DialogHeader>
+            <div className="space-y-2 py-2">
+              <label className="text-xs font-medium text-muted-foreground block">
+                Alasan <span className="text-red-500">*wajib</span>
+              </label>
+              <textarea
+                value={terminateReason}
+                onChange={(e) => setTerminateReason(e.target.value.slice(0, 500))}
+                rows={4}
+                placeholder="Contoh: Jadwal bentrok dengan kegiatan sekolah, kesulitan koordinasi waktu..."
+                className="w-full p-2.5 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              />
+              <p className="text-[11px] text-muted-foreground text-right">
+                {terminateReason.length}/500
+              </p>
+            </div>
             <DialogFooter className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setTerminateStep('select')}
-                disabled={processingTerminate}
-              >
+              <Button variant="outline" onClick={() => setTerminateStep('select')} disabled={processingTerminate}>
                 Batalkan
               </Button>
               <Button
                 onClick={() => submitTermination('mutual')}
-                disabled={processingTerminate}
+                disabled={processingTerminate || !terminateReason.trim()}
                 className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
               >
                 {processingTerminate ? <Spinner className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
                 Kirim Pengajuan
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 4: PENERIMA — SETUJU / TOLAK ===== */}
+        <Dialog open={showResponseDialog} onOpenChange={setShowResponseDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                {terminationReq?.requested_by === 'tutor' ? 'Tutor' : 'Siswa'} meminta pengakhiran kontrak
+              </DialogTitle>
+              <DialogDescription>
+                Baca alasan mereka, lalu tentukan apakah kamu setuju.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+                <p className="text-xs text-muted-foreground mb-1">Alasan:</p>
+                <p className="text-sm whitespace-pre-wrap">{terminationReq?.reason}</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="w-3.5 h-3.5" />
+                Sisa waktu:{' '}
+                <span className="font-mono font-bold text-amber-400">
+                  {formatCountdown(new Date(terminationReq?.deadline).getTime() - now.getTime())}
+                </span>
+              </div>
+            </div>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1 gap-1.5"
+                onClick={() => {
+                  setShowResponseDialog(false)
+                  handleTerminationAction('reject')
+                }}
+                disabled={processingRequest}
+              >
+                {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                Tidak Setuju
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                onClick={() => {
+                  setShowResponseDialog(false)
+                  handleTerminationAction('approve')
+                }}
+                disabled={processingRequest}
+              >
+                {processingRequest ? <Spinner className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                Setuju
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 5: TERMINATED POPUP ===== */}
+        <Dialog open={showTerminatedPopup} onOpenChange={setShowTerminatedPopup}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-500" />
+                Kontrak Telah Diakhiri
+              </DialogTitle>
+              <DialogDescription>{completedMessage}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={() => setShowTerminatedPopup(false)}>Tutup</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 6: REJECTION NOTICE (pengaju) ===== */}
+        <Dialog open={showRejectionNotice} onOpenChange={(o) => { if (!o) acknowledgeRejection() }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-500">
+                <XCircle className="w-5 h-5" />
+                Permintaan Pengakhiran Ditolak
+              </DialogTitle>
+              <DialogDescription>
+                {terminationReq?.requested_by === role
+                  ? `${role === 'tutor' ? 'Siswa' : 'Tutor'} menolak permintaan pengakhiran anda.`
+                  : 'Permintaan pengakhiran ditolak.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={acknowledgeRejection}>Mengerti</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
