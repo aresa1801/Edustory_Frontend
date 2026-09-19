@@ -96,6 +96,7 @@ export default function StudentSchedulePage() {
   const [myComment, setMyComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
   const [showReviewForm, setShowReviewForm] = useState(false)
+  const [checkingReview, setCheckingReview] = useState(false)
 
   // ========== FETCH DATA ==========
   const fetchData = async (isRefresh = false) => {
@@ -201,18 +202,42 @@ export default function StudentSchedulePage() {
     router.push(`/dashboard/student/schedule/${schedule.matchId}`)
   }
 
-  const handleViewProfile = (schedule: TutorSchedule) => {
-    // ✅ Ambil versi terbaru dari array schedules
-    //    (kalau array sudah ke-update hasReviewed, kita pakai yang update)
+  const handleViewProfile = async (schedule: TutorSchedule) => {
     const freshSchedule = schedules.find((s) => s.matchId === schedule.matchId) || schedule
     setSelectedSchedule(freshSchedule)
     setShowProfileDialog(true)
     setMyRating(0)
     setMyComment('')
     setShowReviewForm(false)
+    setCheckingReview(true)   // ← tambah ini
 
     if (freshSchedule.tutor?.id) {
       fetchTutorReviews(freshSchedule.tutor.id)
+    }
+
+    try {
+      const res = await fetch(`/api/match-schedules/${schedule.matchId}`, {
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const detail = await res.json()
+        if (detail.hasReviewed) {
+          setSelectedSchedule((prev) =>
+            prev ? ({ ...prev, hasReviewed: true } as any) : prev
+          )
+          setSchedules((prev) =>
+            prev.map((s) =>
+              s.matchId === schedule.matchId
+                ? ({ ...s, hasReviewed: true } as any)
+                : s
+            )
+          )
+        }
+      }
+    } catch (err) {
+      console.error('[handleViewProfile] cek hasReviewed gagal:', err)
+    } finally {
+      setCheckingReview(false)   // ← tambah ini
     }
   }
 
@@ -834,6 +859,16 @@ export default function StudentSchedulePage() {
 
               {/* ===== BERIKAN RATING ===== */}
               {(() => {
+                if (checkingReview) {
+                  return (
+                    <Card className="border shadow-sm">
+                      <CardContent className="p-4 flex items-center justify-center">
+                        <Spinner className="w-4 h-4 mr-2" />
+                        <span className="text-sm text-muted-foreground">Memeriksa status ulasan...</span>
+                      </CardContent>
+                    </Card>
+                  )
+                }
                 const isCompleted =
                   selectedSchedule.status === 'completed' ||
                   isExpired(selectedSchedule.contractEndDate)
