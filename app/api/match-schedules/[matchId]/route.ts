@@ -120,6 +120,7 @@ export async function GET(
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
+      rescheduleNotification: schedule.reschedule_notification ?? null,
       ulasan: schedule.ulasan || [],
       gmeetLink: schedule.gmeet_link ?? null,
       hasReviewed: false,

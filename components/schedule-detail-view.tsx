@@ -53,6 +53,7 @@ interface ScheduleData {
   schedulesSummaryFix: any
   schedulesCustom: any
   schedulesCustomRequest: any
+  rescheduleNotification?: any | null
   tutorPrivateFolderLabel?: string
   studentPrivateFolderLabel?: string
   gmeetLink?: string | null
@@ -380,6 +381,10 @@ export default function ScheduleDetailView({
   const [processingRequest, setProcessingRequest] = useState(false)
   const [infoItem, setInfoItem] = useState<any | null>(null)
 
+  // ===== RESCHEDULE NOTIFICATION STATE =====
+  const [showRescheduleNotification, setShowRescheduleNotification] = useState(false)
+  const [acknowledgingNotif, setAcknowledgingNotif] = useState(false)
+
   const fetchData = useCallback(
     async (isRefresh = false) => {
       try {
@@ -428,6 +433,13 @@ export default function ScheduleDetailView({
       setShowRejectionNotice(true)
     }
   }, [data?.terminationRequest, role])
+
+  // Auto-show popup notifikasi reschedule (approved/rejected)
+  useEffect(() => {
+    if (data?.rescheduleNotification) {
+      setShowRescheduleNotification(true)
+    }
+  }, [data?.rescheduleNotification])
 
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
@@ -779,6 +791,52 @@ const handleRescheduleAction = async (action: 'approve' | 'reject') => {
     alert('❌ ' + err.message)
   } finally {
     setProcessingRequest(false)
+  }
+}
+
+// ===== STUDENT: BATALKAN PENGAJUAN RESCHEDULE =====
+const handleCancelRescheduleRequest = async () => {
+  if (!data || processingRequest) return
+  if (!confirm('Batalkan pengajuan perpindahan jadwal ini?')) return
+
+  setProcessingRequest(true)
+  try {
+    const res = await fetch(
+      `/api/match-schedules/${data.matchId}/reschedule`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      }
+    )
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal membatalkan')
+
+    alert('✅ Pengajuan perpindahan dibatalkan.')
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingRequest(false)
+  }
+}
+
+// ===== ACKNOWLEDGE RESCHEDULE NOTIFICATION =====
+const acknowledgeRescheduleNotification = async () => {
+  if (!data) return
+  setShowRescheduleNotification(false)
+  setAcknowledgingNotif(true)
+  try {
+    await fetch(`/api/match-schedules/${data.matchId}/reschedule`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'acknowledge-notification' }),
+    })
+    await fetchData(true)
+  } catch (err) {
+    console.error('acknowledge reschedule notification error:', err)
+  } finally {
+    setAcknowledgingNotif(false)
   }
 }
 
@@ -1831,16 +1889,32 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                           </div>
                         </div>
 
-                        {/* ===== TIMER — HANYA STUDENT ===== */}
+                        {/* ===== TIMER + BATALKAN — HANYA STUDENT ===== */}
                         {role === 'student' &&
                           pendingTimeLeft !== null &&
                           pendingTimeLeft > 0 && (
-                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-500/20">
-                              <Clock className="w-3.5 h-3.5 text-amber-400" />
-                              <span className="text-xs text-muted-foreground">Sisa waktu:</span>
-                              <span className="font-mono font-bold text-amber-400 text-sm">
-                                {formatCountdown(pendingTimeLeft)}
-                              </span>
+                            <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-amber-500/20">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <span className="text-xs text-muted-foreground">Sisa waktu:</span>
+                                <span className="font-mono font-bold text-amber-400 text-sm">
+                                  {formatCountdown(pendingTimeLeft)}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelRescheduleRequest}
+                                disabled={processingRequest}
+                                className="gap-1 border-red-500/40 text-red-400 hover:bg-red-500/10 text-xs h-7 px-2 shrink-0"
+                              >
+                                {processingRequest ? (
+                                  <Spinner className="w-3 h-3" />
+                                ) : (
+                                  <XCircle className="w-3 h-3" />
+                                )}
+                                Batalkan
+                              </Button>
                             </div>
                           )}
 
@@ -2488,6 +2562,109 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
             <DialogFooter>
               <Button onClick={acknowledgeRejection}>Mengerti</Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+                {/* ===== DIALOG 7: RESCHEDULE NOTIFICATION ===== */}
+        <Dialog
+          open={showRescheduleNotification}
+          onOpenChange={(o) => {
+            if (!o) acknowledgeRescheduleNotification()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            {data?.rescheduleNotification?.type === 'approved' ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-green-500">
+                    <CheckCircle className="w-5 h-5" />
+                    Jadwal Disetujui Tutor
+                  </DialogTitle>
+                  <DialogDescription>
+                    Permintaan perpindahan jadwal kamu telah disetujui.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-3">
+                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">Jadwal lama:</p>
+                    <p className="font-semibold text-sm">
+                      {data.rescheduleNotification.from?.subject}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {data.rescheduleNotification.from?.date},{' '}
+                      {data.rescheduleNotification.from?.time}
+                    </p>
+                  </div>
+                  <div className="flex justify-center">
+                    <ArrowRight className="w-5 h-5 text-primary rotate-90" />
+                  </div>
+                  <div className="p-3 rounded-md border border-green-500/30 bg-green-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">Dipindah ke:</p>
+                    <p className="font-semibold text-sm">
+                      {data.rescheduleNotification.to?.subject}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {data.rescheduleNotification.to?.date},{' '}
+                      {data.rescheduleNotification.to?.time}
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={acknowledgeRescheduleNotification}
+                    disabled={acknowledgingNotif}
+                    className="gap-1.5"
+                  >
+                    {acknowledgingNotif && <Spinner className="w-3.5 h-3.5" />}
+                    Mengerti
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-red-500">
+                    <XCircle className="w-5 h-5" />
+                    Jadwal Ditolak Tutor
+                  </DialogTitle>
+                  <DialogDescription>
+                    Permintaan perpindahan jadwal kamu ditolak oleh tutor.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-3">
+                  <div className="p-3 rounded-md border border-amber-500/30 bg-amber-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Pengajuan yang ditolak:
+                    </p>
+                    <p className="font-semibold text-sm">
+                      {data.rescheduleNotification?.from?.subject}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {data.rescheduleNotification?.from?.date},{' '}
+                      {data.rescheduleNotification?.from?.time}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      → Ke: {data.rescheduleNotification?.to?.date},{' '}
+                      {data.rescheduleNotification?.to?.time}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground italic">
+                    Jadwal asli tetap berlaku. Kamu bisa mengajukan perpindahan
+                    lagi.
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={acknowledgeRescheduleNotification}
+                    disabled={acknowledgingNotif}
+                    className="gap-1.5"
+                  >
+                    {acknowledgingNotif && <Spinner className="w-3.5 h-3.5" />}
+                    Mengerti
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       </div>

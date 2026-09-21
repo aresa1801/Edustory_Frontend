@@ -34,10 +34,7 @@ export async function POST(
       .single()
 
     if (sErr || !schedule) {
-      return NextResponse.json(
-        { error: 'Schedule not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
     const existing = schedule.schedules_custom_request
@@ -95,7 +92,7 @@ export async function POST(
 }
 
 // ============================================================
-// PATCH — Tutor approve / reject permintaan perpindahan
+// PATCH — Tutor approve/reject, Student cancel, Acknowledge notif
 // ============================================================
 export async function PATCH(
   req: NextRequest,
@@ -111,11 +108,27 @@ export async function PATCH(
     const body = await req.json()
     const { action } = body
 
-    if (!action || !['approve', 'reject'].includes(action)) {
+    if (
+      !action ||
+      !['approve', 'reject', 'cancel', 'acknowledge-notification'].includes(action)
+    ) {
       return NextResponse.json(
-        { error: 'Action harus "approve" atau "reject"' },
+        { error: 'Action tidak valid' },
         { status: 400 }
       )
+    }
+
+    // ===== Acknowledge notification — clear reschedule_notification =====
+    if (action === 'acknowledge-notification') {
+      const { error } = await supabaseAdmin
+        .from('match_schedules')
+        .update({ reschedule_notification: null })
+        .eq('match_id', matchId)
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ success: true })
     }
 
     const { data: schedule, error: sErr } = await supabaseAdmin
@@ -125,10 +138,7 @@ export async function PATCH(
       .single()
 
     if (sErr || !schedule) {
-      return NextResponse.json(
-        { error: 'Schedule not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
     const request = schedule.schedules_custom_request
@@ -141,6 +151,20 @@ export async function PATCH(
 
     const now = new Date().toISOString()
 
+    // ===== CANCEL — student batalkan pengajuan =====
+    if (action === 'cancel') {
+      const { error: updateErr } = await supabaseAdmin
+        .from('match_schedules')
+        .update({ schedules_custom_request: null })
+        .eq('id', schedule.id)
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 })
+      }
+      return NextResponse.json({ success: true, action: 'cancelled' })
+    }
+
+    // ===== APPROVE =====
     if (action === 'approve') {
       const dayNames = [
         'Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu',
@@ -150,7 +174,6 @@ export async function PATCH(
         'Juli','Agustus','September','Oktober','November','Desember',
       ]
 
-      // Parse pakai UTC supaya getUTCDay() konsisten
       const fromDate = new Date(`${request.from.date}T00:00:00Z`)
       const toDate = new Date(`${request.to.date}T00:00:00Z`)
 
@@ -187,19 +210,25 @@ export async function PATCH(
         : []
       const updatedCustom = [...currentCustom, customEntry]
 
+      // ✅ Set notifikasi approved
+      const notification = {
+        type: 'approved',
+        from: request.from,
+        to: request.to,
+        at: now,
+      }
+
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({
           schedules_custom: updatedCustom,
           schedules_custom_request: null,
+          reschedule_notification: notification,
         })
         .eq('id', schedule.id)
 
       if (updateErr) {
-        return NextResponse.json(
-          { error: updateErr.message },
-          { status: 500 }
-        )
+        return NextResponse.json({ error: updateErr.message }, { status: 500 })
       }
 
       return NextResponse.json({
@@ -207,21 +236,29 @@ export async function PATCH(
         action: 'approved',
         custom_entry: customEntry,
       })
-    } else {
-      const { error: updateErr } = await supabaseAdmin
-        .from('match_schedules')
-        .update({ schedules_custom_request: null })
-        .eq('id', schedule.id)
-
-      if (updateErr) {
-        return NextResponse.json(
-          { error: updateErr.message },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json({ success: true, action: 'rejected' })
     }
+
+    // ===== REJECT =====
+    const notification = {
+      type: 'rejected',
+      from: request.from,
+      to: request.to,
+      at: now,
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('match_schedules')
+      .update({
+        schedules_custom_request: null,
+        reschedule_notification: notification,
+      })
+      .eq('id', schedule.id)
+
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, action: 'rejected' })
   } catch (err) {
     console.error('[API reschedule PATCH] Error:', err)
     return NextResponse.json(
