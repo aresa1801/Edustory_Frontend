@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +29,7 @@ import {
   Pencil,
   Check,
   X,
+  Search,
 } from 'lucide-react'
 
 interface FilekuCardProps {
@@ -126,6 +127,11 @@ export default function FilekuCard({
   const [folderToDelete, setFolderToDelete] = useState<FolderItem | null>(null)
   const [deletingFolder, setDeletingFolder] = useState(false)
 
+  // ===== NEW: Search & Drag-Drop State =====
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const dragCounter = useRef(0)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchAll = async (silent = false) => {
@@ -173,35 +179,98 @@ export default function FilekuCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, userId, role])
 
+  // ===== NEW: Reset search + drag state saat folder berubah =====
+  useEffect(() => {
+    setSearchQuery('')
+    setIsDragging(false)
+    dragCounter.current = 0
+  }, [activeFolder?.id])
+
   const handleUploadClick = () => fileInputRef.current?.click()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeFolder) return
+  // ===== NEW: Extracted upload logic (bisa multi-file) =====
+  const uploadFiles = async (filesToUpload: File[]) => {
+    if (!activeFolder || filesToUpload.length === 0) return
 
-    try {
-      setUploading(true)
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('match_id', matchId)
-      fd.append('folder', activeFolder.folder_key)
-      fd.append('user_id', userId)
-      fd.append('role', role)
+    setUploading(true)
+    let success = 0
+    let failed = 0
+    const errors: string[] = []
 
-      const res = await fetch('/api/match-files/upload', {
-        method: 'POST',
-        body: fd,
-      })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Gagal upload')
+    for (const file of filesToUpload) {
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('match_id', matchId)
+        fd.append('folder', activeFolder.folder_key)
+        fd.append('user_id', userId)
+        fd.append('role', role)
 
-      await fetchAll(true)
-    } catch (err: any) {
-      alert('❌ ' + err.message)
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+        const res = await fetch('/api/match-files/upload', {
+          method: 'POST',
+          body: fd,
+        })
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.error || 'Gagal upload')
+        success++
+      } catch (err: any) {
+        failed++
+        errors.push(`${file.name}: ${err.message}`)
+      }
     }
+
+    setUploading(false)
+
+    if (failed > 0 && success === 0) {
+      alert('❌ Gagal upload:\n' + errors.join('\n'))
+    } else if (failed > 0) {
+      alert(`⚠️ ${success} file berhasil, ${failed} gagal:\n` + errors.join('\n'))
+    }
+
+    await fetchAll(true)
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || [])
+    if (selected.length === 0) return
+    await uploadFiles(selected)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // ===== NEW: Drag & Drop Handlers =====
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!activeFolder || uploading) return
+    dragCounter.current++
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current--
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0
+      setIsDragging(false)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current = 0
+    setIsDragging(false)
+    if (!activeFolder || uploading) return
+
+    const dropped = Array.from(e.dataTransfer.files || [])
+    if (dropped.length === 0) return
+    await uploadFiles(dropped)
   }
 
   const handleDeleteFile = async (fileId: string) => {
@@ -240,7 +309,6 @@ export default function FilekuCard({
     try {
       setProcessingRename(true)
 
-      // ===== KASUS KHUSUS: PRIVATE FOLDER =====
       if (folder.id === 'private') {
         const res = await fetch(
           `/api/match-schedules/${matchId}/private-folder-label`,
@@ -258,12 +326,10 @@ export default function FilekuCard({
         if (!res.ok) throw new Error(result.error || 'Gagal rename')
 
         cancelRename()
-        // Notif parent untuk refetch data schedule (update label)
         if (onPrivateFolderRenamed) onPrivateFolderRenamed()
         return
       }
 
-      // ===== KASUS NORMAL: FOLDER DINAMIS =====
       const res = await fetch(`/api/match-folders/${folder.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -353,6 +419,15 @@ export default function FilekuCard({
     ? files.filter((f) => f.folder === activeFolder.folder_key)
     : []
 
+  // ===== NEW: Filtered files by search query =====
+  const displayedFiles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return activeFiles
+    return activeFiles.filter((f) =>
+      f.filename.toLowerCase().includes(q)
+    )
+  }, [activeFiles, searchQuery])
+
   const getCount = (folderKey: string) => counts[folderKey] || 0
 
   return (
@@ -398,10 +473,7 @@ export default function FilekuCard({
                     folder.folder_key === 'student_private'
                   const isRenaming = renamingFolder === folder.id
 
-                  // Private: semua role bisa rename (folder sendiri)
-                  // Dynamic: hanya tutor yang bisa rename
                   const canRename = isPrivate || role === 'tutor'
-                  // Hanya tutor + non-default + non-private yang bisa hapus
                   const canDelete =
                     role === 'tutor' && !folder.is_default && !isPrivate
 
@@ -594,19 +666,21 @@ export default function FilekuCard({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center gap-2 py-2 border-b">
+          {/* ===== UPLOAD + SEARCH ROW ===== */}
+          <div className="flex items-center gap-2 py-2 border-b flex-wrap">
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               className="hidden"
+              multiple
               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.zip,.mp4"
             />
             <Button
               size="sm"
               onClick={handleUploadClick}
               disabled={uploading}
-              className="gap-1.5"
+              className="gap-1.5 shrink-0"
             >
               {uploading ? (
                 <Spinner className="w-3.5 h-3.5" />
@@ -615,21 +689,83 @@ export default function FilekuCard({
               )}
               {uploading ? 'Mengupload...' : 'Upload File'}
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Max 25MB · PDF, DOC, XLS, PPT, JPG, PNG, ZIP, MP4
-            </p>
+
+            {/* SEARCH INPUT */}
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari file..."
+                className="w-full pl-7 pr-7 py-1.5 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted transition-colors"
+                  title="Bersihkan pencarian"
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 py-2">
+          <p className="text-[11px] text-muted-foreground -mt-1 mb-1">
+            Max 25MB per file · PDF, DOC, XLS, PPT, JPG, PNG, ZIP, MP4 · Bisa drag &amp; drop
+          </p>
+
+          {/* ===== DROP ZONE + FILE LIST ===== */}
+          <div
+            className="flex-1 overflow-y-auto space-y-2 py-2 relative min-h-[200px]"
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* DRAG OVERLAY */}
+            {isDragging && (
+              <div className="absolute inset-0 z-10 rounded-md bg-primary/10 border-2 border-dashed border-primary flex flex-col items-center justify-center pointer-events-none">
+                <Upload className="w-8 h-8 text-primary mb-2" />
+                <p className="text-sm font-semibold text-primary">
+                  Lepaskan file di sini untuk upload
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Bisa multiple file sekaligus
+                </p>
+              </div>
+            )}
+
             {activeFiles.length === 0 ? (
               <div className="text-center py-12">
                 <FolderOpen className="w-12 h-12 mx-auto text-muted-foreground/40 mb-2" />
                 <p className="text-sm text-muted-foreground italic">
                   Belum ada file di folder ini.
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Drag &amp; drop file ke sini, atau klik Upload.
+                </p>
+              </div>
+            ) : displayedFiles.length === 0 ? (
+              <div className="text-center py-12">
+                <Search className="w-12 h-12 mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground italic">
+                  Tidak ada file yang cocok dengan &ldquo;{searchQuery}&rdquo;
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-1.5"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Bersihkan pencarian
+                </Button>
               </div>
             ) : (
-              activeFiles.map((file) => (
+              displayedFiles.map((file) => (
                 <div
                   key={file.id}
                   className="flex items-center gap-3 p-2 rounded-md border border-border bg-muted/10"
