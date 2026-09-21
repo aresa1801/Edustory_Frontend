@@ -493,10 +493,10 @@ export default function TutorSchedulePage() {
                           variant="default"
                           size="sm"
                           className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                          disabled
+                          onClick={() => handleViewSchedule(schedule)}
                         >
                           <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-                          Menunggu Perpanjangan
+                          Konfirmasi Perpanjangan
                         </Button>
                       </div>
                     </div>

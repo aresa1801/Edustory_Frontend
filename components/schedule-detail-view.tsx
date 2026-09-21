@@ -2239,8 +2239,8 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                     disabled={processingExtension}
                     className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    Lihat Detail & Respons
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Konfirmasi Perpanjangan
                   </Button>
                 </CardContent>
               </Card>
@@ -2883,7 +2883,7 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
           </DialogContent>
         </Dialog>
 
-                {/* ===== DIALOG 8: CANCEL EXTENSION (student) ===== */}
+        {/* ===== DIALOG 8: CANCEL EXTENSION (student) ===== */}
         <Dialog
           open={showExtensionCancelDialog}
           onOpenChange={setShowExtensionCancelDialog}
@@ -2892,11 +2892,10 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-red-500">
                 <AlertTriangle className="w-5 h-5" />
-                Batalkan Pengajuan Perpanjangan?
+                Apakah ingin membatalkan perpanjangan yang sudah diatur?
               </DialogTitle>
               <DialogDescription>
-                Pengajuan perpanjangan akan dihapus. Kamu bisa mengajukan lagi
-                nanti, tapi waktu tunggu akan di-reset dari awal.
+                Pengajuan perpanjangan akan dihapus dan tidak bisa dikembalikan.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex gap-2">
@@ -2905,7 +2904,7 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                 onClick={() => setShowExtensionCancelDialog(false)}
                 disabled={processingExtension}
               >
-                Kembali
+                Pikir Lagi
               </Button>
               <Button
                 variant="destructive"
@@ -2918,7 +2917,7 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                 ) : (
                   <XCircle className="w-3.5 h-3.5" />
                 )}
-                Ya, Batalkan
+                Batalkan
               </Button>
             </DialogFooter>
           </DialogContent>

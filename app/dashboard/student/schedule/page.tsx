@@ -21,6 +21,8 @@ import {
   Briefcase,
   Lock,
   GraduationCap,
+  XCircle,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -28,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 
 // ========== TIPE DATA ==========
@@ -36,6 +39,8 @@ interface TutorSchedule {
   matchId: string
   status: 'active' | 'completed' | 'cancelled'
   hasReviewed?: boolean
+  extensionRequest?: any | null
+  extensionNotification?: any | null
   schedulesSummaryFix: any
   schedulesCustom: any
   ulasan: any[]
@@ -97,6 +102,17 @@ export default function StudentSchedulePage() {
   const [submittingReview, setSubmittingReview] = useState(false)
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [checkingReview, setCheckingReview] = useState(false)
+
+  // ========== STATE EXTENSION ==========
+  const [extCancelSchedule, setExtCancelSchedule] = useState<TutorSchedule | null>(null)
+  const [extProcessing, setExtProcessing] = useState(false)
+  const [, setTick] = useState(0)
+
+  // Timer 1 detik untuk countdown
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // ========== FETCH DATA ==========
   const fetchData = async (isRefresh = false) => {
@@ -294,6 +310,35 @@ export default function StudentSchedulePage() {
     setSubmittingReview(false)
   }
 }
+
+  const handleCancelExtension = async () => {
+    if (!extCancelSchedule || !authUser || extProcessing) return
+    setExtProcessing(true)
+    try {
+      const res = await fetch(
+        `/api/match-schedules/${extCancelSchedule.matchId}/extend`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'cancel',
+            role: 'student',
+            user_id: authUser.id,
+          }),
+        }
+      )
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal')
+
+      alert('✅ Pengajuan perpanjangan dibatalkan.')
+      setExtCancelSchedule(null)
+      await fetchData(true)
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setExtProcessing(false)
+    }
+  }
 
   // ========== LOADING / ERROR ==========
   if (authLoading || loading) {
@@ -597,15 +642,45 @@ export default function StudentSchedulePage() {
                           <User className="w-3.5 h-3.5 mr-1.5" />
                           Profil
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={() => handleRequestExtension(schedule)}
-                        >
-                          <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-                          Ajukan Perpanjangan
-                        </Button>
+                                                {schedule.extensionRequest?.status === 'pending' ? (
+                          <div className="flex flex-col gap-2 items-end">
+                            <div className="text-xs text-amber-400 font-mono font-bold">
+                              Sisa waktu:{' '}
+                              {(() => {
+                                const deadline = new Date(
+                                  schedule.extensionRequest.deadline
+                                ).getTime()
+                                const diff = deadline - Date.now()
+                                if (diff <= 0) return 'Waktu habis'
+                                const d = Math.floor(diff / 86400000)
+                                const h = Math.floor((diff % 86400000) / 3600000)
+                                const m = Math.floor((diff % 3600000) / 60000)
+                                const s = Math.floor((diff % 60000) / 1000)
+                                if (d > 0) return `${d} hari ${h} jam ${m} menit`
+                                return `${h} jam ${m} menit ${s} detik`
+                              })()}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
+                              onClick={() => setExtCancelSchedule(schedule)}
+                            >
+                              <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                              Batalkan Pengajuan
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => handleRequestExtension(schedule)}
+                          >
+                            <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                            Ajukan Perpanjangan
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1109,6 +1184,47 @@ export default function StudentSchedulePage() {
               Tutup
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+            {/* ===== DIALOG KONFIRMASI CANCEL EXTENSION ===== */}
+      <Dialog
+        open={!!extCancelSchedule}
+        onOpenChange={(o) => {
+          if (!o) setExtCancelSchedule(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertTriangle className="w-5 h-5" />
+              Apakah ingin membatalkan perpanjangan yang sudah diatur?
+            </DialogTitle>
+            <DialogDescription>
+              Pengajuan akan dihapus dan tidak bisa dikembalikan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setExtCancelSchedule(null)}
+              disabled={extProcessing}
+            >
+              Pikir Lagi
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelExtension}
+              disabled={extProcessing}
+              className="gap-1.5"
+            >
+              {extProcessing ? (
+                <Spinner className="w-3.5 h-3.5" />
+              ) : (
+                <XCircle className="w-3.5 h-3.5" />
+              )}
+              Batalkan
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

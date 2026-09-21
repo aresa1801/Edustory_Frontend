@@ -4,14 +4,15 @@ import { isValidUUID } from '@/lib/security/sanitize'
 
 export const dynamic = 'force-dynamic'
 
-const EXTENSION_WINDOW_HOURS = 72 // 3 hari
+const EXTENSION_WINDOW_HOURS = 72
 const EXTENSION_DURATION_DAYS = 75
 
 // ============================================================
-// HELPER — Group proposed_slots menjadi schedules_summary_fix
-// Format: [{ subject, day, time, count }]
+// HELPER — Group slots jadi summary recurring
 // ============================================================
-function groupSlotsToSummary(slots: Array<{ date: string; timeSlot: string; subject: string }>) {
+function groupSlotsToSummary(
+  slots: Array<{ date: string; timeSlot: string; subject: string }>
+) {
   const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
   const grouped: Record<string, { subject: string; day: string; time: string; count: number }> = {}
 
@@ -29,6 +30,17 @@ function groupSlotsToSummary(slots: Array<{ date: string; timeSlot: string; subj
 }
 
 // ============================================================
+// HELPER — Deteksi tipe berakhirnya kontrak
+// ============================================================
+function determineCompletionType(schedule: any): 'natural' | 'unilateral' | 'mutual' {
+  const tr = schedule.termination_request
+  if (!tr) return 'natural'
+  if (tr.type === 'unilateral') return 'unilateral'
+  if (tr.type === 'mutual' && tr.status === 'approved') return 'mutual'
+  return 'natural'
+}
+
+// ============================================================
 // POST — Student ajukan perpanjangan
 // ============================================================
 export async function POST(
@@ -42,7 +54,6 @@ export async function POST(
     )
 
     const { matchId } = params
-
     if (!isValidUUID(matchId)) {
       return NextResponse.json({ error: 'matchId tidak valid' }, { status: 400 })
     }
@@ -56,7 +67,6 @@ export async function POST(
 
     const { user_id, budget_per_month, sessions_per_month, proposed_slots } = body ?? {}
 
-    // ===== Validasi dasar =====
     if (!isValidUUID(user_id)) {
       return NextResponse.json({ error: 'user_id tidak valid' }, { status: 400 })
     }
@@ -65,47 +75,30 @@ export async function POST(
     const sessions = Number(sessions_per_month)
 
     if (!Number.isFinite(budget) || budget < 50000) {
-      return NextResponse.json(
-        { error: 'Budget minimal Rp 50.000' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Budget minimal Rp 50.000' }, { status: 400 })
     }
     if (!Number.isInteger(sessions) || sessions < 2 || sessions > 100) {
-      return NextResponse.json(
-        { error: 'Jumlah sesi per bulan tidak valid (2-100)' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Jumlah sesi/bulan tidak valid' }, { status: 400 })
     }
     if (!Array.isArray(proposed_slots) || proposed_slots.length === 0) {
-      return NextResponse.json(
-        { error: 'Jadwal wajib dipilih minimal 1 sesi' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Jadwal wajib dipilih minimal 1 sesi' }, { status: 400 })
     }
 
-    // ===== Validasi setiap slot =====
     for (const slot of proposed_slots) {
       if (
-        !slot?.date ||
-        !slot?.timeSlot ||
-        !slot?.subject ||
+        !slot?.date || !slot?.timeSlot || !slot?.subject ||
         typeof slot.date !== 'string' ||
         typeof slot.timeSlot !== 'string' ||
         typeof slot.subject !== 'string'
       ) {
-        return NextResponse.json(
-          { error: 'Format slot tidak valid' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Format slot tidak valid' }, { status: 400 })
       }
-      // Cek tanggal minimal besok
       const d = new Date(`${slot.date}T00:00:00Z`)
       if (isNaN(d.getTime())) {
         return NextResponse.json({ error: 'Tanggal slot tidak valid' }, { status: 400 })
       }
     }
 
-    // ===== Resolve user → student =====
     const { data: student } = await supabaseAdmin
       .from('students')
       .select('id')
@@ -116,7 +109,6 @@ export async function POST(
       return NextResponse.json({ error: 'Student tidak ditemukan' }, { status: 404 })
     }
 
-    // ===== Ambil match_schedules + matches =====
     const { data: schedule } = await supabaseAdmin
       .from('match_schedules')
       .select('id, match_id, tutor_id, student_id, status, extension_request')
@@ -131,15 +123,13 @@ export async function POST(
       return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
     }
 
-    // ===== Cek status: harus completed =====
     if (schedule.status !== 'completed') {
       return NextResponse.json(
-        { error: 'Kontrak belum selesai. Perpanjangan hanya bisa dilakukan setelah kontrak berakhir.' },
+        { error: 'Kontrak belum selesai. Perpanjangan hanya bisa setelah kontrak berakhir.' },
         { status: 400 }
       )
     }
 
-    // ===== Cek belum ada extension pending =====
     const existing = schedule.extension_request
     if (existing && existing.status === 'pending') {
       return NextResponse.json(
@@ -148,14 +138,15 @@ export async function POST(
       )
     }
 
-    // ===== Cek subject hanya dari matched_subjects =====
     const { data: match } = await supabaseAdmin
       .from('matches')
       .select('matched_subjects')
       .eq('id', matchId)
       .single()
 
-    const allowedSubjects = new Set((match?.matched_subjects || []).map((s: string) => s.toLowerCase()))
+    const allowedSubjects = new Set(
+      (match?.matched_subjects || []).map((s: string) => s.toLowerCase())
+    )
     for (const slot of proposed_slots) {
       if (!allowedSubjects.has(slot.subject.toLowerCase())) {
         return NextResponse.json(
@@ -165,7 +156,10 @@ export async function POST(
       }
     }
 
-    // ===== Bangun payload =====
+    const sortedDates = proposed_slots.map((s: any) => s.date).sort()
+    const startDate = sortedDates[0]
+    const proposedSummary = groupSlotsToSummary(proposed_slots)
+
     const now = new Date()
     const deadline = new Date(now.getTime() + EXTENSION_WINDOW_HOURS * 60 * 60 * 1000)
 
@@ -180,11 +174,13 @@ export async function POST(
       duration_days: EXTENSION_DURATION_DAYS,
       new_budget_per_month: budget,
       new_sessions_per_month: sessions,
+      start_date: startDate,
       proposed_slots: proposed_slots.map((s: any) => ({
         date: s.date,
         timeSlot: s.timeSlot,
         subject: s.subject,
       })),
+      proposed_summary: proposedSummary,
     }
 
     const { error: updErr } = await supabaseAdmin
@@ -193,7 +189,7 @@ export async function POST(
       .eq('id', schedule.id)
 
     if (updErr) {
-      console.error('[extend POST] update:', updErr)
+      console.error('[extend POST]', updErr)
       return NextResponse.json({ error: 'Gagal menyimpan pengajuan' }, { status: 500 })
     }
 
@@ -205,7 +201,7 @@ export async function POST(
 }
 
 // ============================================================
-// PATCH — Tutor approve/reject, Student cancel, Acknowledge
+// PATCH — Approve / Reject / Cancel / Acknowledge
 // ============================================================
 export async function PATCH(
   req: NextRequest,
@@ -218,7 +214,6 @@ export async function PATCH(
     )
 
     const { matchId } = params
-
     if (!isValidUUID(matchId)) {
       return NextResponse.json({ error: 'matchId tidak valid' }, { status: 400 })
     }
@@ -255,7 +250,6 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== Resolve profile =====
     const table = role === 'tutor' ? 'tutors' : 'students'
     const { data: profile } = await supabaseAdmin
       .from(table)
@@ -267,10 +261,9 @@ export async function PATCH(
       return NextResponse.json({ error: `${role} tidak ditemukan` }, { status: 404 })
     }
 
-    // ===== Ambil schedule =====
     const { data: schedule } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, match_id, tutor_id, student_id, status, extension_request')
+      .select('id, match_id, tutor_id, student_id, status, extension_request, schedules_summary_fix, schedules_custom, schedules_custom_request, termination_request, ulasan')
       .eq('match_id', matchId)
       .maybeSingle()
 
@@ -293,7 +286,7 @@ export async function PATCH(
 
     const now = new Date()
 
-    // ===== CANCEL (student only, pending only) =====
+    // ===== CANCEL =====
     if (action === 'cancel') {
       if (role !== 'student') {
         return NextResponse.json({ error: 'Hanya student yang bisa cancel' }, { status: 403 })
@@ -309,10 +302,10 @@ export async function PATCH(
       if (error) {
         return NextResponse.json({ error: 'Gagal membatalkan' }, { status: 500 })
       }
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, action: 'cancelled' })
     }
 
-    // ===== APPROVE / REJECT (tutor only) =====
+    // ===== APPROVE / REJECT =====
     if (role !== 'tutor') {
       return NextResponse.json({ error: 'Hanya tutor yang bisa approve/reject' }, { status: 403 })
     }
@@ -322,20 +315,14 @@ export async function PATCH(
 
     // ===== REJECT =====
     if (action === 'reject') {
-      const notif = {
-        type: 'rejected',
-        at: now.toISOString(),
-      }
       const { error } = await supabaseAdmin
         .from('match_schedules')
         .update({
-          extension_request: {
-            ...currentReq,
-            status: 'rejected',
-            responded_at: now.toISOString(),
-            responded_by: 'tutor',
+          extension_request: null,
+          extension_notification: {
+            type: 'rejected',
+            at: now.toISOString(),
           },
-          extension_notification: notif,
         })
         .eq('id', schedule.id)
 
@@ -351,15 +338,64 @@ export async function PATCH(
       return NextResponse.json({ error: 'Data slot tidak valid' }, { status: 400 })
     }
 
-    // Tanggal slot pertama (paling awal)
     const sortedDates = slots.map((s) => s.date).sort()
     const firstSlotDate = new Date(`${sortedDates[0]}T00:00:00Z`)
 
-    // 75 hari dari firstSlotDate
     const contractEnd = new Date(firstSlotDate)
     contractEnd.setDate(contractEnd.getDate() + (currentReq.duration_days || EXTENSION_DURATION_DAYS))
 
-    // ===== 1. Hapus sessions lama =====
+    // ===== 0. SAVE SNAPSHOT KE contract_history =====
+    const { data: lastHistory } = await supabaseAdmin
+      .from('contract_history')
+      .select('version')
+      .eq('match_id', matchId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const nextVersion = (lastHistory?.version || 0) + 1
+
+    const { data: matchSnapshot } = await supabaseAdmin
+      .from('matches')
+      .select('accepted_at, contract_end_date, ended_at, student_budget_per_month, student_sessions_per_month')
+      .eq('id', matchId)
+      .single()
+
+    const { data: sessionsOld } = await supabaseAdmin
+      .from('sessions')
+      .select('*')
+      .eq('match_id', matchId)
+
+    const { error: historyErr } = await supabaseAdmin
+      .from('contract_history')
+      .insert({
+        match_id: matchId,
+        version: nextVersion,
+        completion_type: determineCompletionType(schedule),
+        accepted_at: matchSnapshot?.accepted_at,
+        contract_end_date: matchSnapshot?.contract_end_date,
+        ended_at: matchSnapshot?.ended_at,
+        budget_per_month: matchSnapshot?.student_budget_per_month,
+        sessions_per_month: matchSnapshot?.student_sessions_per_month,
+        schedules_summary_fix: schedule.schedules_summary_fix,
+        schedules_custom: schedule.schedules_custom,
+        schedules_custom_request: schedule.schedules_custom_request,
+        termination_request: schedule.termination_request,
+        ulasan: schedule.ulasan,
+        sessions_snapshot: sessionsOld || [],
+      })
+
+    if (historyErr) {
+      console.error('[extend approve] save history:', historyErr)
+      return NextResponse.json(
+        { error: 'Gagal menyimpan riwayat kontrak. Perpanjangan dibatalkan.' },
+        { status: 500 }
+      )
+    }
+
+    console.log(`[extend approve] Snapshot v${nextVersion} tersimpan`)
+
+    // ===== 1. Delete sessions lama =====
     const { error: delSessionsErr } = await supabaseAdmin
       .from('sessions')
       .delete()
@@ -372,7 +408,6 @@ export async function PATCH(
 
     // ===== 2. Insert sessions baru =====
     const newSessions = slots.map((slot) => {
-      // Parse "12.00 - 13.00" → 12:00
       const timeMatch = slot.timeSlot.match(/(\d{1,2})\.(\d{2})/)
       const hour = timeMatch ? parseInt(timeMatch[1]) : 12
       const minute = timeMatch ? parseInt(timeMatch[2]) : 0
@@ -400,7 +435,8 @@ export async function PATCH(
     }
 
     // ===== 3. Regen schedules_summary_fix =====
-    const newSummaryFix = groupSlotsToSummary(slots)
+    const newSummaryFix =
+      currentReq.proposed_summary || groupSlotsToSummary(slots)
 
     // ===== 4. Update match_schedules =====
     const { error: updSchedErr } = await supabaseAdmin
@@ -413,17 +449,13 @@ export async function PATCH(
         termination_request: null,
         reschedule_notification: null,
         ulasan: [],
-        extension_request: {
-          ...currentReq,
-          status: 'approved',
-          responded_at: now.toISOString(),
-          responded_by: 'tutor',
-          new_contract_start: firstSlotDate.toISOString(),
-          new_contract_end: contractEnd.toISOString(),
-        },
+        extension_request: null,
         extension_notification: {
           type: 'approved',
           at: now.toISOString(),
+          new_contract_start: firstSlotDate.toISOString(),
+          new_contract_end: contractEnd.toISOString(),
+          duration_days: currentReq.duration_days || EXTENSION_DURATION_DAYS,
         },
       })
       .eq('id', schedule.id)
@@ -448,7 +480,6 @@ export async function PATCH(
 
     if (updMatchErr) {
       console.error('[extend approve] update match:', updMatchErr)
-      // Rollback tidak dilakukan karena sudah banyak step
       return NextResponse.json(
         { error: 'Jadwal sudah di-extend tapi gagal update metadata. Hubungi admin.' },
         { status: 500 }
