@@ -19,6 +19,8 @@ import {
   BookOpen,
   Wallet,
   AlertTriangle,
+  Copy,
+  Sparkles,
 } from 'lucide-react'
 
 // ============================================================
@@ -89,15 +91,12 @@ function parseScheduleRange(scheduleStr: string): {
   let allowedDays: number[] = [0, 1, 2, 3, 4, 5, 6]
   let timeSlots: { label: string }[] = []
 
-  // Hari
   if (lower.includes('senin') && lower.includes('jumat')) {
     allowedDays = [1, 2, 3, 4, 5]
   } else if (lower.includes('sabtu') && lower.includes('minggu')) {
     allowedDays = [0, 6]
   }
-  // 'fleksibel' → tetap semua hari
 
-  // Jam
   const timeMatch = scheduleStr.match(/(\d{1,2})\.(\d{2})\s*[-–]\s*(\d{1,2})\.(\d{2})/)
   if (timeMatch && !lower.includes('fleksibel')) {
     const start = parseInt(timeMatch[1])
@@ -109,7 +108,6 @@ function parseScheduleRange(scheduleStr: string): {
       })
     }
   } else {
-    // Fleksibel: 07.00 sampai 19.00
     for (let h = 7; h < 19; h++) {
       const next = h + 1
       timeSlots.push({
@@ -142,6 +140,42 @@ function getAllocationStep(totalSessions: number): number {
 }
 
 // ============================================================
+// HELPER — Generate slots dari jadwal lama (recurring)
+// ============================================================
+function generateSlotsFromOldSchedule(
+  summary: any[],
+  startDate: string
+): Array<{ date: string; timeSlot: string; subject: string }> {
+  const dayNames: Record<string, number> = {
+    Minggu: 0, Senin: 1, Selasa: 2, Rabu: 3, Kamis: 4, Jumat: 5, Sabtu: 6,
+  }
+  const slots: Array<{ date: string; timeSlot: string; subject: string }> = []
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const startDay = start.getUTCDay()
+
+  summary.forEach((item: any) => {
+    const targetDay = dayNames[item.day]
+    if (targetDay === undefined) return
+    const offset = (targetDay - startDay + 7) % 7
+    const current = new Date(start)
+    current.setUTCDate(current.getUTCDate() + offset)
+    for (let i = 0; i < (item.count || 0); i++) {
+      const y = current.getUTCFullYear()
+      const m = String(current.getUTCMonth() + 1).padStart(2, '0')
+      const d = String(current.getUTCDate()).padStart(2, '0')
+      slots.push({
+        date: `${y}-${m}-${d}`,
+        timeSlot: item.time,
+        subject: item.subject,
+      })
+      current.setUTCDate(current.getUTCDate() + 7)
+    }
+  })
+
+  return slots.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// ============================================================
 // KOMPONEN UTAMA
 // ============================================================
 function ExtendContractContent() {
@@ -160,6 +194,7 @@ function ExtendContractContent() {
   const [scheduleRange, setScheduleRange] = useState('')
   const [budgetPerMonth, setBudgetPerMonth] = useState('')
   const [sessionsPerMonth, setSessionsPerMonth] = useState('')
+  const [useOldSchedule, setUseOldSchedule] = useState(false)
 
   // ===== STEP 2: Grid Jadwal =====
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
@@ -192,10 +227,8 @@ function ExtendContractContent() {
         const data = await res.json()
         if (mounted) {
           setScheduleData(data)
-          // Prefill matched subjects
           const subs = data.student?.matchedSubjects || []
           setSelectedSubjects(subs.slice(0, 2))
-          // Prefill dari kontrak lama
           setBudgetPerMonth(String(data.student?.budgetPerMonth || ''))
           setSessionsPerMonth(String(data.student?.sessionsPerMonth || ''))
         }
@@ -213,6 +246,7 @@ function ExtendContractContent() {
 
   // ===== Alokasi mapel (kalau >1 mapel) =====
   useEffect(() => {
+    if (useOldSchedule) return
     if (maxSessions === 0 || selectedSubjects.length === 0) {
       setAllocation({})
       setActiveSubject(null)
@@ -251,10 +285,11 @@ function ExtendContractContent() {
     if (!activeSubject || !selectedSubjects.includes(activeSubject)) {
       setActiveSubject(selectedSubjects[0])
     }
-  }, [selectedSubjects, maxSessions, step2AllocStep])
+  }, [selectedSubjects, maxSessions, step2AllocStep, useOldSchedule])
 
   // ===== Auto-pilih subject berikutnya =====
   useEffect(() => {
+    if (useOldSchedule) return
     if (!activeSubject || selectedSubjects.length === 0) return
     const used = Object.values(schedule).filter((s) => s === activeSubject).length
     const allocated = allocation[activeSubject] || 0
@@ -266,10 +301,11 @@ function ExtendContractContent() {
       })
       if (next) setActiveSubject(next)
     }
-  }, [schedule, allocation, selectedSubjects, activeSubject])
+  }, [schedule, allocation, selectedSubjects, activeSubject, useOldSchedule])
 
   // ===== Hapus slot yang mapelnya sudah tidak aktif =====
   useEffect(() => {
+    if (useOldSchedule) return
     const activeSet = new Set(selectedSubjects)
     const ns = { ...schedule }
     let changed = false
@@ -280,11 +316,11 @@ function ExtendContractContent() {
       }
     }
     if (changed) setSchedule(ns)
-  }, [selectedSubjects])
+  }, [selectedSubjects, useOldSchedule])
 
   // ===== Reset schedule kalau range berubah =====
   useEffect(() => {
-    if (step === 2) {
+    if (step === 2 && !useOldSchedule) {
       setSchedule({})
       setActiveSubject(selectedSubjects[0] || null)
     }
@@ -445,6 +481,7 @@ function ExtendContractContent() {
   }
 
   const validateStep2 = () => {
+    if (useOldSchedule) return true
     if (totalSelected === 0) { setError('Pilih minimal 1 slot jadwal'); return false }
     if (totalSelected !== maxSessions) {
       setError(`Pilih tepat ${maxSessions} slot. Sekarang: ${totalSelected}`)
@@ -457,6 +494,30 @@ function ExtendContractContent() {
     setError(null)
     if (step === 1) {
       if (!validateStep1()) return
+      // Kalau pakai jadwal lama → generate slots + langsung step 3
+      if (useOldSchedule) {
+        const summary = scheduleData?.schedulesSummaryFix || []
+        if (!Array.isArray(summary) || summary.length === 0) {
+          setError('Jadwal lama tidak ditemukan. Silakan pilih "Atur Jadwal Baru".')
+          return
+        }
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        const startDate = tomorrow.toISOString().split('T')[0]
+        const slots = generateSlotsFromOldSchedule(summary, startDate)
+        if (slots.length === 0) {
+          setError('Jadwal lama tidak valid. Silakan pilih "Atur Jadwal Baru".')
+          return
+        }
+        setSchedule(
+          slots.reduce((acc: Record<string, string>, s) => {
+            acc[`${s.date}|${s.timeSlot}`] = s.subject
+            return acc
+          }, {})
+        )
+        setStep(3)
+        return
+      }
       setStep(2)
     } else if (step === 2) {
       if (!validateStep2()) return
@@ -466,8 +527,13 @@ function ExtendContractContent() {
 
   const handleBack = () => {
     setError(null)
-    if (step === 1) router.back()
-    else setStep(step - 1)
+    if (step === 1) {
+      router.back()
+    } else if (step === 3 && useOldSchedule) {
+      setStep(1)
+    } else {
+      setStep(step - 1)
+    }
   }
 
   // ===== Submit =====
@@ -481,6 +547,12 @@ function ExtendContractContent() {
         const [date, timeSlot] = key.split('|')
         return { date, timeSlot, subject }
       })
+
+      if (slots.length === 0) {
+        setError('Tidak ada slot jadwal. Silakan ulangi pengaturan.')
+        setSubmitting(false)
+        return
+      }
 
       const res = await fetch(
         `/api/match-schedules/${matchId}/extend`,
@@ -538,6 +610,10 @@ function ExtendContractContent() {
     ? timeSlots
     : [{ label: '12.00 - 13.00' }, { label: '13.00 - 14.00' }, { label: '14.00 - 15.00' }]
 
+  const oldSummary = Array.isArray(scheduleData?.schedulesSummaryFix)
+    ? scheduleData.schedulesSummaryFix
+    : []
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -563,38 +639,40 @@ function ExtendContractContent() {
           { n: 1, label: 'Rencana Belajar', icon: BookOpen },
           { n: 2, label: 'Pilih Jadwal', icon: Calendar },
           { n: 3, label: 'Konfirmasi', icon: CheckCircle },
-        ].map((s, idx) => {
-          const Icon = s.icon
-          const active = step === s.n
-          const done = step > s.n
-          return (
-            <div key={s.n} className="flex items-center flex-1 min-w-0">
-              <div
-                className={`flex items-center gap-2 px-3 py-2 rounded-md ${
-                  active
-                    ? 'bg-primary text-white'
-                    : done
-                    ? 'bg-green-500/20 text-green-300'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {done ? (
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                ) : (
-                  <Icon className="w-4 h-4 shrink-0" />
-                )}
-                <span className="text-xs font-medium hidden sm:inline">{s.label}</span>
-              </div>
-              {idx < 2 && (
+        ]
+          .filter((s) => !(useOldSchedule && s.n === 2))
+          .map((s, idx, arr) => {
+            const Icon = s.icon
+            const active = step === s.n
+            const done = step > s.n
+            return (
+              <div key={s.n} className="flex items-center flex-1 min-w-0">
                 <div
-                  className={`flex-1 h-0.5 mx-2 ${
-                    done ? 'bg-green-400' : 'bg-border'
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md ${
+                    active
+                      ? 'bg-primary text-white'
+                      : done
+                      ? 'bg-green-500/20 text-green-300'
+                      : 'bg-muted text-muted-foreground'
                   }`}
-                />
-              )}
-            </div>
-          )
-        })}
+                >
+                  {done ? (
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <Icon className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="text-xs font-medium hidden sm:inline">{s.label}</span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <div
+                    className={`flex-1 h-0.5 mx-2 ${
+                      done ? 'bg-green-400' : 'bg-border'
+                    }`}
+                  />
+                )}
+              </div>
+            )
+          })}
       </div>
 
       {error && (
@@ -635,29 +713,99 @@ function ExtendContractContent() {
 
             <Separator />
 
-            {/* Rentang jadwal */}
+            {/* Metode jadwal */}
             <div className="space-y-2">
               <Label className="text-base font-semibold">
-                Rentang Jadwal Belajar <span className="text-red-500">*</span>
+                Metode Jadwal <span className="text-red-500">*</span>
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {SCHEDULE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setScheduleRange(opt)}
-                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all text-left ${
-                      scheduleRange === opt
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-card border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
+                <button
+                  onClick={() => setUseOldSchedule(false)}
+                  className={`px-4 py-3 rounded-lg border text-left transition-all ${
+                    !useOldSchedule
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-card border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-sm">Atur Jadwal Baru</p>
+                      <p className="text-xs opacity-80 mt-1">
+                        Pilih hari & jam dari awal (bisa berbeda dari sebelumnya)
+                      </p>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setUseOldSchedule(true)}
+                  disabled={oldSummary.length === 0}
+                  className={`px-4 py-3 rounded-lg border text-left transition-all ${
+                    useOldSchedule
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-card border-border hover:border-primary/50'
+                  } ${oldSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <Copy className="w-4 h-4 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-sm">Pakai Jadwal Lama</p>
+                      <p className="text-xs opacity-80 mt-1">
+                        Sama seperti kontrak sebelumnya, langsung ke konfirmasi
+                      </p>
+                    </div>
+                  </div>
+                </button>
               </div>
+
+              {useOldSchedule && oldSummary.length > 0 && (
+                <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 mt-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Jadwal lama yang akan dipakai:
+                  </p>
+                  <ul className="space-y-1">
+                    {oldSummary.map((item: any, idx: number) => (
+                      <li key={idx} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {item.subject}:
+                        </span>{' '}
+                        {item.day}, {item.time} ({item.count} sesi)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <Separator />
+
+            {/* Rentang jadwal */}
+            {!useOldSchedule && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-base font-semibold">
+                    Rentang Jadwal Belajar <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {SCHEDULE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setScheduleRange(opt)}
+                        className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                          scheduleRange === opt
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-card border-border hover:border-primary/50'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+              </>
+            )}
 
             {/* Budget & Sessions */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -723,7 +871,7 @@ function ExtendContractContent() {
       )}
 
       {/* ============ STEP 2: PILIH JADWAL ============ */}
-      {step === 2 && (
+      {step === 2 && !useOldSchedule && (
         <>
           {/* Subject picker */}
           {matchedSubjects.length > 0 && (
@@ -892,8 +1040,14 @@ function ExtendContractContent() {
                 <p className="font-medium">{EXTENSION_DURATION_DAYS} hari</p>
               </div>
               <div>
+                <p className="text-xs text-muted-foreground">Metode</p>
+                <p className="font-medium">
+                  {useOldSchedule ? 'Pakai Jadwal Lama' : 'Atur Jadwal Baru'}
+                </p>
+              </div>
+              <div>
                 <p className="text-xs text-muted-foreground">Rentang Jadwal</p>
-                <p className="font-medium">{scheduleRange}</p>
+                <p className="font-medium">{scheduleRange || '-'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Budget per Bulan</p>
@@ -905,7 +1059,7 @@ function ExtendContractContent() {
                 <p className="text-xs text-muted-foreground">Sesi per Bulan</p>
                 <p className="font-medium">{sessionsPerMonth}×</p>
               </div>
-              <div>
+              <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">Total Slot Dipilih</p>
                 <p className="font-medium">{totalSelected} sesi</p>
               </div>
@@ -915,18 +1069,20 @@ function ExtendContractContent() {
 
             <div>
               <p className="text-sm font-medium mb-2">Jadwal yang Dipilih</p>
-              <ul className="space-y-1">
-                {(generateSummary() || []).map((item: any, idx: number) => (
-                  <li key={idx} className="text-sm flex items-start gap-2">
-                    <Badge variant="outline" className="shrink-0">
-                      {item.subject}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {item.day}, {item.time} ({item.count} sesi)
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div className="max-h-60 overflow-y-auto">
+                <ul className="space-y-1">
+                  {(generateSummary() || []).map((item: any, idx: number) => (
+                    <li key={idx} className="text-sm flex items-start gap-2">
+                      <Badge variant="outline" className="shrink-0">
+                        {item.subject}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        {item.day}, {item.time} ({item.count} sesi)
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20 flex gap-2">
@@ -955,7 +1111,7 @@ function ExtendContractContent() {
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || totalSelected === 0}
             className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
           >
             {submitting ? (

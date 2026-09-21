@@ -1,5 +1,7 @@
 'use client'
 
+import { AlertTriangle, XCircle } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 
 // ========== TIPE DATA ==========
@@ -58,6 +61,8 @@ interface ScheduleItem {
   schedulesCustom: any
   acceptedAt: string
   contractEndDate: string
+  extensionRequest?: any | null
+  extensionNotification?: any | null
   student: StudentProfile
 }
 
@@ -124,6 +129,45 @@ export default function TutorSchedulePage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentProfile | null>(null)
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
+
+    // ===== EXTENSION STATE =====
+  const [extActionSchedule, setExtActionSchedule] = useState<ScheduleItem | null>(null)
+  const [processingExt, setProcessingExt] = useState(false)
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const handleExtAction = async (action: 'approve' | 'reject') => {
+    if (!extActionSchedule || !authUser || processingExt) return
+    setProcessingExt(true)
+    try {
+      const res = await fetch(
+        `/api/match-schedules/${extActionSchedule.matchId}/extend`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, role: 'tutor', user_id: authUser.id }),
+        }
+      )
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal')
+
+      alert(
+        action === 'approve'
+          ? '✅ Perpanjangan disetujui! Kontrak kembali aktif.'
+          : '❌ Perpanjangan ditolak.'
+      )
+      setExtActionSchedule(null)
+      await fetchData()
+    } catch (err: any) {
+      alert('❌ ' + err.message)
+    } finally {
+      setProcessingExt(false)
+    }
+  }
 
   // ========== FETCH DATA ==========
   const fetchData = async () => {
@@ -489,15 +533,42 @@ export default function TutorSchedulePage() {
                           <User className="w-3.5 h-3.5 mr-1.5" />
                           Profil Siswa
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={() => handleViewSchedule(schedule)}
-                        >
-                          <RotateCw className="w-3.5 h-3.5 mr-1.5" />
-                          Konfirmasi Perpanjangan
-                        </Button>
+                                                {schedule.extensionRequest?.status === 'pending' ? (
+                          <div className="flex flex-col gap-2 items-end">
+                            <div className="text-xs text-amber-400 font-mono font-bold">
+                              {(() => {
+                                const diff =
+                                  new Date(schedule.extensionRequest.deadline).getTime() -
+                                  Date.now()
+                                if (diff <= 0) return 'Waktu habis'
+                                const d = Math.floor(diff / 86400000)
+                                const h = Math.floor((diff % 86400000) / 3600000)
+                                const m = Math.floor((diff % 3600000) / 60000)
+                                if (d > 0) return `Sisa ${d}h ${h}j`
+                                return `Sisa ${h}j ${m}m`
+                              })()}
+                            </div>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                              onClick={() => setExtActionSchedule(schedule)}
+                            >
+                              <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                              Konfirmasi Perpanjangan
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled
+                          >
+                            <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+                            Menunggu Perpanjangan
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -727,6 +798,93 @@ export default function TutorSchedulePage() {
               Tutup
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+            {/* ===== DIALOG: EXTENSION ACTION (tutor) ===== */}
+      <Dialog open={!!extActionSchedule} onOpenChange={(o) => { if (!o) setExtActionSchedule(null) }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Konfirmasi Perpanjangan Kontrak
+            </DialogTitle>
+            <DialogDescription>
+              Siswa mengajukan perpanjangan. Periksa detail, lalu tentukan setuju atau tolak.
+            </DialogDescription>
+          </DialogHeader>
+
+          {extActionSchedule?.extensionRequest && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Durasi</p>
+                  <p className="font-semibold">{extActionSchedule.extensionRequest.duration_days} hari</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Sesi/bulan</p>
+                  <p className="font-semibold">{extActionSchedule.extensionRequest.new_sessions_per_month}×</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Budget/bulan</p>
+                  <p className="font-semibold">
+                    Rp {Number(extActionSchedule.extensionRequest.new_budget_per_month || 0).toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="text-sm font-medium mb-2">
+                  Jadwal yang Diajukan ({extActionSchedule.extensionRequest.proposed_slots?.length || 0} sesi)
+                </p>
+                <div className="max-h-60 overflow-y-auto border rounded-md">
+                  <ul className="divide-y">
+                    {(extActionSchedule.extensionRequest.proposed_slots || [])
+                      .slice()
+                      .sort((a: any, b: any) => a.date.localeCompare(b.date))
+                      .map((slot: any, idx: number) => (
+                        <li key={idx} className="p-2 text-xs flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] shrink-0">{slot.subject}</Badge>
+                          <span className="text-muted-foreground">
+                            {new Date(`${slot.date}T00:00:00Z`).toLocaleDateString('id-ID', {
+                              weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                            })}, {slot.timeSlot}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+                <p className="text-xs text-muted-foreground">
+                  Kalau disetujui: kontrak diperpanjang <strong>75 hari</strong>, semua sesi lama diganti dengan jadwal baru, dan status kontrak kembali <strong>aktif</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="destructive"
+              className="flex-1 gap-1.5"
+              onClick={() => handleExtAction('reject')}
+              disabled={processingExt}
+            >
+              {processingExt ? <Spinner className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+              Tolak
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+              onClick={() => handleExtAction('approve')}
+              disabled={processingExt}
+            >
+              {processingExt ? <Spinner className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              Setujui Perpanjangan
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

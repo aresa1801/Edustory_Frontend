@@ -2184,67 +2184,6 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                 </CardContent>
               </Card>
             )}
-
-            {/* Sisi tutor (penerima) */}
-            {role === 'tutor' && (
-              <Card className="border-amber-500/60 bg-amber-500/5">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
-                      PERMINTAAN PERPANJANGAN KONTRAK
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Siswa mengajukan perpanjangan kontrak{' '}
-                    <strong className="text-foreground">
-                      {data.extensionRequest.duration_days} hari
-                    </strong>
-                    . Kamu punya waktu{' '}
-                    <span className="font-mono font-bold text-amber-400">
-                      {formatCountdown(
-                        new Date(data.extensionRequest.deadline).getTime() -
-                          now.getTime()
-                      )}
-                    </span>{' '}
-                    untuk merespons.
-                  </p>
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    <span>
-                      • Budget baru:{' '}
-                      <strong className="text-foreground">
-                        Rp{' '}
-                        {Number(
-                          data.extensionRequest.new_budget_per_month || 0
-                        ).toLocaleString('id-ID')}
-                      </strong>
-                    </span>
-                    <span>
-                      • Sesi/bulan:{' '}
-                      <strong className="text-foreground">
-                        {data.extensionRequest.new_sessions_per_month}×
-                      </strong>
-                    </span>
-                    <span>
-                      • Total slot:{' '}
-                      <strong className="text-foreground">
-                        {data.extensionRequest.proposed_slots?.length || 0} sesi
-                      </strong>
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowExtensionActionDialog(true)}
-                    disabled={processingExtension}
-                    className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Konfirmasi Perpanjangan
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </>
         )}
 

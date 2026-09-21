@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // ========== 3. Auto-reject request expired ==========
+    // ========== 3. Auto-reject reschedule request expired ==========
     const nowMs = Date.now()
     const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000
     const expiredRequestIds: string[] = []
@@ -116,16 +116,44 @@ export async function GET(req: NextRequest) {
       return s
     })
 
-    // Update DB untuk yang expired
+    // Update DB untuk reschedule yang expired
     if (expiredRequestIds.length > 0) {
       console.log(
-        '[AUTO-REJECT] Expiring request(s):',
+        '[AUTO-REJECT] Expiring reschedule request(s):',
         expiredRequestIds
       )
       await supabaseAdmin
         .from('match_schedules')
         .update({ schedules_custom_request: null })
         .in('id', expiredRequestIds)
+    }
+
+    // ========== 3b. Auto-expire extension_request ==========
+    const expiredExtIds: string[] = []
+    processedSchedules.forEach((s: any) => {
+      const er = s.extension_request
+      if (er?.status === 'pending' && new Date(er.deadline).getTime() < nowMs) {
+        expiredExtIds.push(s.id)
+        s.extension_request = null
+        s.extension_notification = {
+          type: 'expired',
+          at: new Date().toISOString(),
+        }
+      }
+    })
+
+    if (expiredExtIds.length > 0) {
+      console.log('[AUTO-EXPIRE] Expiring extension request(s):', expiredExtIds)
+      for (const id of expiredExtIds) {
+        const sch = processedSchedules.find((s: any) => s.id === id)
+        await supabaseAdmin
+          .from('match_schedules')
+          .update({
+            extension_request: null,
+            extension_notification: sch?.extension_notification ?? null,
+          })
+          .eq('id', id)
+      }
     }
 
     // ========== 4. Ambil data detail student & tutor ==========
@@ -168,6 +196,8 @@ export async function GET(req: NextRequest) {
         schedulesSummaryFix: item.schedules_summary_fix,
         schedulesCustom: item.schedules_custom,
         schedulesCustomRequest: item.schedules_custom_request || null,
+        extensionRequest: item.extension_request || null,
+        extensionNotification: item.extension_notification || null,
         ulasan: item.ulasan || [],
         acceptedAt: match?.accepted_at,
         contractEndDate: match?.contract_end_date,
