@@ -242,9 +242,7 @@ export default function StudentSchedulePage() {
   }
 
   const handleRequestExtension = (schedule: TutorSchedule) => {
-    alert(
-      `✅ Permintaan perpanjangan untuk ${schedule.tutor.fullName} telah dikirim! Silakan tunggu konfirmasi dari tutor.`
-    )
+    router.push(`/dashboard/student/schedule/${schedule.matchId}/extend`)
   }
 
   const handleSubmitReview = async () => {

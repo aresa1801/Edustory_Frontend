@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Separator } from '@/components/ui/separator'
 import { Info } from 'lucide-react'
 import {
   ArrowLeft,
@@ -54,6 +55,8 @@ interface ScheduleData {
   schedulesCustom: any
   schedulesCustomRequest: any
   rescheduleNotification?: any | null
+  extensionRequest?: any | null
+  extensionNotification?: any | null
   tutorPrivateFolderLabel?: string
   studentPrivateFolderLabel?: string
   gmeetLink?: string | null
@@ -385,6 +388,13 @@ export default function ScheduleDetailView({
   const [showRescheduleNotification, setShowRescheduleNotification] = useState(false)
   const [acknowledgingNotif, setAcknowledgingNotif] = useState(false)
 
+  // ===== EXTEND CONTRACT STATE =====
+  const [showExtensionCancelDialog, setShowExtensionCancelDialog] = useState(false)
+  const [showExtensionActionDialog, setShowExtensionActionDialog] = useState(false)
+  const [showExtensionNotification, setShowExtensionNotification] = useState(false)
+  const [processingExtension, setProcessingExtension] = useState(false)
+  const [acknowledgingExtNotif, setAcknowledgingExtNotif] = useState(false)
+
   const fetchData = useCallback(
     async (isRefresh = false) => {
       try {
@@ -440,6 +450,13 @@ export default function ScheduleDetailView({
       setShowRescheduleNotification(true)
     }
   }, [data?.rescheduleNotification])
+
+  // Auto-show popup notifikasi perpanjangan
+  useEffect(() => {
+    if (data?.extensionNotification) {
+      setShowExtensionNotification(true)
+    }
+  }, [data?.extensionNotification])
 
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
@@ -837,6 +854,77 @@ const acknowledgeRescheduleNotification = async () => {
     console.error('acknowledge reschedule notification error:', err)
   } finally {
     setAcknowledgingNotif(false)
+  }
+}
+
+// ===== EXTEND CONTRACT HANDLERS =====
+const handleExtensionAction = async (action: 'approve' | 'reject') => {
+  if (!data || !authUser || processingExtension) return
+  setProcessingExtension(true)
+  try {
+    const res = await fetch(`/api/match-schedules/${data.matchId}/extend`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, role, user_id: authUser.id }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal')
+
+    alert(
+      action === 'approve'
+        ? '✅ Perpanjangan disetujui! Kontrak diperpanjang 75 hari.'
+        : '❌ Perpanjangan ditolak.'
+    )
+    setShowExtensionActionDialog(false)
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingExtension(false)
+  }
+}
+
+const handleCancelExtension = async () => {
+  if (!data || !authUser || processingExtension) return
+  setProcessingExtension(true)
+  try {
+    const res = await fetch(`/api/match-schedules/${data.matchId}/extend`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', role, user_id: authUser.id }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal')
+
+    alert('✅ Pengajuan perpanjangan dibatalkan.')
+    setShowExtensionCancelDialog(false)
+    await fetchData(true)
+  } catch (err: any) {
+    alert('❌ ' + err.message)
+  } finally {
+    setProcessingExtension(false)
+  }
+}
+
+const acknowledgeExtensionNotification = async () => {
+  if (!data) return
+  setShowExtensionNotification(false)
+  setAcknowledgingExtNotif(true)
+  try {
+    await fetch(`/api/match-schedules/${data.matchId}/extend`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'acknowledge-notification',
+        role,
+        user_id: authUser?.id,
+      }),
+    })
+    await fetchData(true)
+  } catch (err) {
+    console.error('acknowledge extension notification error:', err)
+  } finally {
+    setAcknowledgingExtNotif(false)
   }
 }
 
@@ -1999,7 +2087,7 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
           </Card>
         </div>
 
-                {/* ===== BANNER PENGKHIRAN KONTRAK ===== */}
+        {/* ===== BANNER PENGKHIRAN KONTRAK ===== */}
         {isTerminationPending && iAmRequester && (
           <Card className="border-amber-500/60 bg-amber-500/5">
             <CardContent className="p-4 space-y-2">
@@ -2031,6 +2119,133 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
               </Button>
             </CardContent>
           </Card>
+        )}
+
+                {/* ===== BANNER PERPANJANGAN KONTRAK ===== */}
+        {data.extensionRequest?.status === 'pending' && (
+          <>
+            {/* Sisi student (pengaju) */}
+            {role === 'student' && (
+              <Card className="border-amber-500/60 bg-amber-500/5">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
+                      MENUNGGU RESPONS TUTOR
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Pengajuan perpanjangan sudah dikirim. Tutor punya waktu{' '}
+                    <span className="font-mono font-bold text-amber-400">
+                      {formatCountdown(
+                        new Date(data.extensionRequest.deadline).getTime() -
+                          now.getTime()
+                      )}
+                    </span>{' '}
+                    untuk merespons.
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>
+                      • Durasi:{' '}
+                      <strong className="text-foreground">
+                        {data.extensionRequest.duration_days} hari
+                      </strong>
+                    </span>
+                    <span>
+                      • Budget:{' '}
+                      <strong className="text-foreground">
+                        Rp{' '}
+                        {Number(
+                          data.extensionRequest.new_budget_per_month || 0
+                        ).toLocaleString('id-ID')}
+                      </strong>
+                    </span>
+                    <span>
+                      • Sesi/bulan:{' '}
+                      <strong className="text-foreground">
+                        {data.extensionRequest.new_sessions_per_month}×
+                      </strong>
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowExtensionCancelDialog(true)}
+                    disabled={processingExtension}
+                    className="gap-1.5 border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  >
+                    {processingExtension ? (
+                      <Spinner className="w-3.5 h-3.5" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5" />
+                    )}
+                    Batalkan Pengajuan
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sisi tutor (penerima) */}
+            {role === 'tutor' && (
+              <Card className="border-amber-500/60 bg-amber-500/5">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/40">
+                      PERMINTAAN PERPANJANGAN KONTRAK
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Siswa mengajukan perpanjangan kontrak{' '}
+                    <strong className="text-foreground">
+                      {data.extensionRequest.duration_days} hari
+                    </strong>
+                    . Kamu punya waktu{' '}
+                    <span className="font-mono font-bold text-amber-400">
+                      {formatCountdown(
+                        new Date(data.extensionRequest.deadline).getTime() -
+                          now.getTime()
+                      )}
+                    </span>{' '}
+                    untuk merespons.
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>
+                      • Budget baru:{' '}
+                      <strong className="text-foreground">
+                        Rp{' '}
+                        {Number(
+                          data.extensionRequest.new_budget_per_month || 0
+                        ).toLocaleString('id-ID')}
+                      </strong>
+                    </span>
+                    <span>
+                      • Sesi/bulan:{' '}
+                      <strong className="text-foreground">
+                        {data.extensionRequest.new_sessions_per_month}×
+                      </strong>
+                    </span>
+                    <span>
+                      • Total slot:{' '}
+                      <strong className="text-foreground">
+                        {data.extensionRequest.proposed_slots?.length || 0} sesi
+                      </strong>
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowExtensionActionDialog(true)}
+                    disabled={processingExtension}
+                    className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Lihat Detail & Respons
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
 
         {/* ACTION BUTTONS */}
@@ -2660,6 +2875,279 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                     className="gap-1.5"
                   >
                     {acknowledgingNotif && <Spinner className="w-3.5 h-3.5" />}
+                    Mengerti
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+                {/* ===== DIALOG 8: CANCEL EXTENSION (student) ===== */}
+        <Dialog
+          open={showExtensionCancelDialog}
+          onOpenChange={setShowExtensionCancelDialog}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-500">
+                <AlertTriangle className="w-5 h-5" />
+                Batalkan Pengajuan Perpanjangan?
+              </DialogTitle>
+              <DialogDescription>
+                Pengajuan perpanjangan akan dihapus. Kamu bisa mengajukan lagi
+                nanti, tapi waktu tunggu akan di-reset dari awal.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowExtensionCancelDialog(false)}
+                disabled={processingExtension}
+              >
+                Kembali
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelExtension}
+                disabled={processingExtension}
+                className="gap-1.5"
+              >
+                {processingExtension ? (
+                  <Spinner className="w-3.5 h-3.5" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5" />
+                )}
+                Ya, Batalkan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 9: EXTENSION ACTION (tutor) ===== */}
+        <Dialog
+          open={showExtensionActionDialog}
+          onOpenChange={setShowExtensionActionDialog}
+        >
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Detail Permintaan Perpanjangan
+              </DialogTitle>
+              <DialogDescription>
+                Periksa detail di bawah, lalu tentukan apakah kamu setuju.
+              </DialogDescription>
+            </DialogHeader>
+
+            {data.extensionRequest && (
+              <div className="space-y-4 py-2">
+                {/* Info utama */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Durasi</p>
+                    <p className="font-semibold">
+                      {data.extensionRequest.duration_days} hari
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sesi/bulan</p>
+                    <p className="font-semibold">
+                      {data.extensionRequest.new_sessions_per_month}×
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Budget/bulan</p>
+                    <p className="font-semibold">
+                      Rp{' '}
+                      {Number(
+                        data.extensionRequest.new_budget_per_month || 0
+                      ).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                </div>
+
+                <Separator/>
+
+                {/* List slot */}
+                <div>
+                  <p className="text-sm font-medium mb-2">
+                    Jadwal yang Diajukan (
+                    {data.extensionRequest.proposed_slots?.length || 0} sesi)
+                  </p>
+                  <div className="max-h-60 overflow-y-auto border rounded-md">
+                    <ul className="divide-y">
+                      {(data.extensionRequest.proposed_slots || [])
+                        .slice()
+                        .sort((a: any, b: any) =>
+                          a.date.localeCompare(b.date) ||
+                          a.timeSlot.localeCompare(b.timeSlot)
+                        )
+                        .map((slot: any, idx: number) => (
+                          <li
+                            key={idx}
+                            className="p-2 text-xs flex items-center justify-between gap-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] shrink-0"
+                              >
+                                {slot.subject}
+                              </Badge>
+                              <span className="text-muted-foreground truncate">
+                                {new Date(
+                                  `${slot.date}T00:00:00Z`
+                                ).toLocaleDateString('id-ID', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                                , {slot.timeSlot}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+                  <p className="text-xs text-muted-foreground">
+                    Kalau kamu setujui, kontrak akan diperpanjang 75 hari sejak
+                    tanggal slot pertama, dan <strong>semua sesi lama akan diganti</strong>{' '}
+                    dengan jadwal baru ini.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1 gap-1.5"
+                onClick={() => handleExtensionAction('reject')}
+                disabled={processingExtension}
+              >
+                {processingExtension ? (
+                  <Spinner className="w-3.5 h-3.5" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5" />
+                )}
+                Tolak
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                onClick={() => handleExtensionAction('approve')}
+                disabled={processingExtension}
+              >
+                {processingExtension ? (
+                  <Spinner className="w-3.5 h-3.5" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                )}
+                Setujui Perpanjangan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 10: EXTENSION NOTIFICATION ===== */}
+        <Dialog
+          open={showExtensionNotification}
+          onOpenChange={(o) => {
+            if (!o) acknowledgeExtensionNotification()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            {data.extensionNotification?.type === 'approved' ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-green-500">
+                    <CheckCircle className="w-5 h-5" />
+                    Perpanjangan Disetujui
+                  </DialogTitle>
+                  <DialogDescription>
+                    Tutor menyetujui perpanjangan kontrak belajar kamu.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-3">
+                  {data.extensionRequest?.new_contract_start && (
+                    <div className="p-3 rounded-md border border-green-500/30 bg-green-500/5">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Kontrak baru berlaku:
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {new Date(
+                          data.extensionRequest.new_contract_start
+                        ).toLocaleDateString('id-ID', {
+                          weekday: 'long',
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        s/d{' '}
+                        {new Date(
+                          data.extensionRequest.new_contract_end
+                        ).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Jadwal lama sudah diganti dengan jadwal baru. Cek kalender
+                    di halaman ini ya!
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={acknowledgeExtensionNotification}
+                    disabled={acknowledgingExtNotif}
+                    className="gap-1.5"
+                  >
+                    {acknowledgingExtNotif && (
+                      <Spinner className="w-3.5 h-3.5" />
+                    )}
+                    Mengerti
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-red-500">
+                    <XCircle className="w-5 h-5" />
+                    {data.extensionNotification?.type === 'expired'
+                      ? 'Pengajuan Perpanjangan Hangus'
+                      : 'Perpanjangan Ditolak'}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {data.extensionNotification?.type === 'expired'
+                      ? 'Tutor tidak merespons dalam 3 hari, pengajuan otomatis dibatalkan.'
+                      : 'Tutor menolak permintaan perpanjangan kontrak kamu.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Kontrak lama tetap berlaku. Kamu bisa mengajukan perpanjangan
+                    lagi kapan saja.
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={acknowledgeExtensionNotification}
+                    disabled={acknowledgingExtNotif}
+                    className="gap-1.5"
+                  >
+                    {acknowledgingExtNotif && (
+                      <Spinner className="w-3.5 h-3.5" />
+                    )}
                     Mengerti
                   </Button>
                 </DialogFooter>

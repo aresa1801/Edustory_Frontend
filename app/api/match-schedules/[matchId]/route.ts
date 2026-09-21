@@ -43,8 +43,14 @@ export async function GET(
 
     // ===== DEBUG LOG =====
     console.log('[API DEBUG] matchId:', matchId)
-    console.log('[API DEBUG] schedules_custom_request:', JSON.stringify(schedule.schedules_custom_request))
-    console.log('[API DEBUG] schedules_custom:', JSON.stringify(schedule.schedules_custom))
+    console.log(
+      '[API DEBUG] schedules_custom_request:',
+      JSON.stringify(schedule.schedules_custom_request)
+    )
+    console.log(
+      '[API DEBUG] schedules_custom:',
+      JSON.stringify(schedule.schedules_custom)
+    )
 
     // ===== 2. Ambil matches secara terpisah =====
     const { data: match, error: matchError } = await supabaseAdmin
@@ -112,7 +118,39 @@ export async function GET(
         .in('id', expiredIds)
     }
 
-    // ===== 5. Compose response =====
+    // ===== 5. Auto-expire termination_request kalau deadline lewat =====
+    if (
+      schedule.termination_request?.status === 'pending' &&
+      new Date(schedule.termination_request.deadline) < now
+    ) {
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({
+          termination_request: {
+            ...schedule.termination_request,
+            status: 'expired',
+          },
+        })
+        .eq('id', schedule.id)
+    }
+
+    // ===== 6. Auto-expire extension_request kalau deadline lewat =====
+    if (
+      schedule.extension_request?.status === 'pending' &&
+      new Date(schedule.extension_request.deadline) < now
+    ) {
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({
+          extension_request: {
+            ...schedule.extension_request,
+            status: 'expired',
+          },
+        })
+        .eq('id', schedule.id)
+    }
+
+    // ===== 7. Compose response =====
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
@@ -121,9 +159,22 @@ export async function GET(
       schedulesCustom: schedule.schedules_custom,
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       rescheduleNotification: schedule.reschedule_notification ?? null,
+
+      extensionRequest: (() => {
+        const er = schedule.extension_request
+        if (!er) return null
+        // Auto-expire kalau deadline lewat & masih pending
+        if (er.status === 'pending' && new Date(er.deadline) < now) {
+          return { ...er, status: 'expired' }
+        }
+        return er
+      })(),
+      extensionNotification: schedule.extension_notification ?? null,
+
       ulasan: schedule.ulasan || [],
       gmeetLink: schedule.gmeet_link ?? null,
       hasReviewed: false,
+
       terminationRequest: (() => {
         const tr = schedule.termination_request
         if (!tr) return null
@@ -134,10 +185,13 @@ export async function GET(
         return tr
       })(),
       contractEndedAt: schedule.termination_request?.ended_at ?? null,
+
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
-      tutorPrivateFolderLabel: schedule.tutor_private_folder_label || 'Pribadi Saya',
-      studentPrivateFolderLabel: schedule.student_private_folder_label || 'Pribadi Saya',
+      tutorPrivateFolderLabel:
+        schedule.tutor_private_folder_label || 'Pribadi Saya',
+      studentPrivateFolderLabel:
+        schedule.student_private_folder_label || 'Pribadi Saya',
 
       student: {
         id: schedule.student_id,
@@ -147,7 +201,8 @@ export async function GET(
         address: match?.student_address || '',
         matchedSubjects: match?.matched_subjects || [],
         latitude: match?.student_latitude ?? studentDetail?.latitude ?? null,
-        longitude: match?.student_longitude ?? studentDetail?.longitude ?? null,
+        longitude:
+          match?.student_longitude ?? studentDetail?.longitude ?? null,
         gender: studentDetail?.gender || '',
         phone: studentDetail?.phone || '',
         bio: studentDetail?.bio || '',
@@ -160,7 +215,8 @@ export async function GET(
         parentEmail: studentDetail?.parent_email || '',
         budgetPerMonth: match?.student_budget_per_month ?? 0,
         sessionsPerMonth: match?.student_sessions_per_month ?? 0,
-        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
+        isOnline:
+          match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: {
@@ -181,7 +237,7 @@ export async function GET(
       sessions: processedSessions,
     }
 
-    // ===== Cek apakah student sudah review match ini =====
+    // ===== 8. Cek apakah student sudah review match ini =====
     const { data: existingReview } = await supabaseAdmin
       .from('reviews')
       .select('id')
