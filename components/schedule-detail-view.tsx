@@ -444,19 +444,19 @@ export default function ScheduleDetailView({
     }
   }, [data?.terminationRequest, role])
 
-  // Auto-show popup notifikasi reschedule (approved/rejected)
+  // Auto-show popup notifikasi reschedule (HANYA untuk student — pengaju)
   useEffect(() => {
-    if (data?.rescheduleNotification) {
+    if (role === 'student' && data?.rescheduleNotification) {
       setShowRescheduleNotification(true)
     }
-  }, [data?.rescheduleNotification])
+  }, [data?.rescheduleNotification, role])
 
-  // Auto-show popup notifikasi perpanjangan
+  // Auto-show popup notifikasi perpanjangan (HANYA untuk student — pengaju)
   useEffect(() => {
-    if (data?.extensionNotification) {
+    if (role === 'student' && data?.extensionNotification) {
       setShowExtensionNotification(true)
     }
-  }, [data?.extensionNotification])
+  }, [data?.extensionNotification, role])
 
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
@@ -838,16 +838,19 @@ const handleCancelRescheduleRequest = async () => {
   }
 }
 
-// ===== ACKNOWLEDGE RESCHEDULE NOTIFICATION =====
 const acknowledgeRescheduleNotification = async () => {
-  if (!data) return
+  if (!data || role !== 'student' || !authUser) return
   setShowRescheduleNotification(false)
   setAcknowledgingNotif(true)
   try {
     await fetch(`/api/match-schedules/${data.matchId}/reschedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'acknowledge-notification' }),
+      body: JSON.stringify({
+        action: 'acknowledge-notification',
+        role,
+        user_id: authUser.id,
+      }),
     })
     await fetchData(true)
   } catch (err) {
@@ -906,8 +909,9 @@ const handleCancelExtension = async () => {
   }
 }
 
+
 const acknowledgeExtensionNotification = async () => {
-  if (!data) return
+  if (!data || role !== 'student') return
   setShowExtensionNotification(false)
   setAcknowledgingExtNotif(true)
   try {
