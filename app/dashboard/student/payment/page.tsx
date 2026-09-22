@@ -22,7 +22,7 @@ export default async function PaymentPage() {
     redirect('/auth/login')
   }
 
-  // Ambil wallet balance dan QRIS config di server
+  // Ambil wallet balance
   const { data: student } = await supabase
     .from('students')
     .select('id')
@@ -39,19 +39,12 @@ export default async function PaymentPage() {
     balance = wallet?.balance || 0
   }
 
-  const { data: config } = await supabase
-    .from('payment_config')
-    .select('config_value')
-    .eq('config_key', 'qris_static_string')
-    .single()
-
-  const hasQris = !!config?.config_value
-
   return (
     <WalletClient
       initialToken={session.access_token}
       initialBalance={balance}
-      hasQrisConfig={hasQris}
+      customerName={session.user.email?.split('@')[0] || 'Student'}
+      customerEmail={session.user.email || ''}
     />
   )
 }
