@@ -111,7 +111,7 @@ export async function POST(
 
     const { data: schedule } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, match_id, tutor_id, student_id, status, extension_request')
+      .select('id, match_id, tutor_id, student_id, status, extension_request, termination_request')
       .eq('match_id', matchId)
       .maybeSingle()
 
@@ -126,6 +126,29 @@ export async function POST(
     if (schedule.status !== 'completed') {
       return NextResponse.json(
         { error: 'Kontrak belum selesai. Perpanjangan hanya bisa setelah kontrak berakhir.' },
+        { status: 400 }
+      )
+    }
+
+        // ===== Cek tipe berakhirnya kontrak =====
+    const { data: matchCheck } = await supabaseAdmin
+      .from('matches')
+      .select('termination_request')
+      .eq('id', matchId)
+      .single()
+
+    // Ambil termination dari match_schedules (yang utama)
+    const tr = schedule.termination_request || matchCheck?.termination_request
+
+    if (tr?.type === 'unilateral') {
+      return NextResponse.json(
+        { error: 'Kontrak yang dihentikan sepihak tidak bisa diperpanjang' },
+        { status: 400 }
+      )
+    }
+    if (tr?.type === 'mutual' && tr.status === 'approved') {
+      return NextResponse.json(
+        { error: 'Kontrak yang diakhiri dengan kesepakatan tidak bisa diperpanjang' },
         { status: 400 }
       )
     }

@@ -38,6 +38,7 @@ interface TutorSchedule {
   id: string
   matchId: string
   status: 'active' | 'completed' | 'cancelled'
+  completionType?: 'natural' | 'unilateral' | 'mutual'
   hasReviewed?: boolean
   extensionRequest?: any | null
   extensionNotification?: any | null
@@ -670,7 +671,7 @@ export default function StudentSchedulePage() {
                               Batalkan Pengajuan
                             </Button>
                           </div>
-                        ) : (
+                                                ) : schedule.completionType === 'natural' ? (
                           <Button
                             variant="default"
                             size="sm"
@@ -679,6 +680,17 @@ export default function StudentSchedulePage() {
                           >
                             <RotateCw className="w-3.5 h-3.5 mr-1.5" />
                             Ajukan Perpanjangan
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            disabled
+                            title="Kontrak dihentikan lebih awal, tidak bisa diperpanjang"
+                          >
+                            <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                            Tidak Bisa Diperpanjang
                           </Button>
                         )}
                       </div>

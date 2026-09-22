@@ -197,6 +197,13 @@ export async function GET(req: NextRequest) {
         schedulesCustom: item.schedules_custom,
         schedulesCustomRequest: item.schedules_custom_request || null,
         extensionRequest: item.extension_request || null,
+        completionType: (() => {
+          const tr = item.termination_request
+          if (!tr) return 'natural'
+          if (tr.type === 'unilateral') return 'unilateral'
+          if (tr.type === 'mutual' && tr.status === 'approved') return 'mutual'
+          return 'natural'
+        })(),
         extensionNotification: item.extension_notification || null,
         ulasan: item.ulasan || [],
         acceptedAt: match?.accepted_at,
