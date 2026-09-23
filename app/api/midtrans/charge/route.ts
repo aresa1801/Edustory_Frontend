@@ -5,61 +5,109 @@ import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: NextRequest) {
   try {
-    // 1. Auth
+    // ===== 0. Cek env vars dulu =====
+    const requiredEnvs = {
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      MIDTRANS_SERVER_KEY: process.env.MIDTRANS_SERVER_KEY,
+      NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY,
+    };
+
+    const missingEnvs = Object.entries(requiredEnvs)
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
+
+    if (missingEnvs.length > 0) {
+      console.error('[charge] MISSING ENV VARS:', missingEnvs);
+      return NextResponse.json(
+        { error: `Env vars missing: ${missingEnvs.join(', ')}`, stage: 'env_check' },
+        { status: 500 }
+      );
+    }
+
+    // ===== 1. Init Supabase =====
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // ===== 2. Auth =====
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized: no bearer token', stage: 'auth' },
+        { status: 401 }
+      );
     }
     const token = authHeader.slice(7);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error('[charge] auth error:', authError);
+      return NextResponse.json(
+        { error: 'Unauthorized: ' + (authError?.message || 'invalid token'), stage: 'auth' },
+        { status: 401 }
+      );
     }
 
-    // 2. Body
+    // ===== 3. Body =====
     const body = await req.json();
     const { amount, customerName, customerEmail } = body;
     const parsedAmount = Math.round(Number(amount));
 
     if (!parsedAmount || parsedAmount < 1000) {
-      return NextResponse.json({ error: 'Minimal top-up Rp 1.000' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Minimal top-up Rp 1.000', stage: 'validation' },
+        { status: 400 }
+      );
     }
     if (parsedAmount > 10_000_000) {
-      return NextResponse.json({ error: 'Maksimal top-up Rp 10.000.000' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Maksimal top-up Rp 10.000.000', stage: 'validation' },
+        { status: 400 }
+      );
     }
 
-    // 3. Order ID unik (max 50 char)
+    // ===== 4. Order ID =====
     const orderId = `TOPUP-${Date.now()}-${user.id.slice(0, 8)}`;
 
-    // 4. Simpan payment_deposits (status pending)
-    //    ⚠️ Kalau nama kolom user-mu bukan `user_id`, ubah di sini.
+    // ===== 5. Insert ke payment_deposits =====
+    const insertPayload = {
+      user_id: user.id,
+      amount: parsedAmount,
+      payment_method: 'midtrans',
+      payment_status: 'pending',
+      payment_type: 'topup',
+      transaction_ref: orderId,
+    };
+
+    console.log('[charge] insert payload:', JSON.stringify(insertPayload));
+
     const { data: deposit, error: insertError } = await supabase
       .from('payment_deposits')
-      .insert({
-        user_id: user.id,
-        amount: parsedAmount,
-        payment_method: 'midtrans',
-        payment_status: 'pending',
-        payment_type: 'topup',
-        transaction_ref: orderId,
-      })
+      .insert(insertPayload)
       .select('id')
       .single();
 
     if (insertError || !deposit) {
-      console.error('[charge] insert deposit error:', insertError);
-      return NextResponse.json({ error: 'Gagal membuat transaksi' }, { status: 500 });
+      console.error('[charge] INSERT ERROR:', JSON.stringify(insertError, null, 2));
+      return NextResponse.json(
+        {
+          error: 'Gagal membuat transaksi (DB insert)',
+          stage: 'db_insert',
+          detail: insertError?.message || 'No deposit returned',
+          hint: insertError?.hint || null,
+          code: insertError?.code || null,
+        },
+        { status: 500 }
+      );
     }
 
-    // 5. Minta Snap Token ke Midtrans
+    console.log('[charge] deposit created:', deposit.id);
+
+    // ===== 6. Midtrans Snap =====
     const snap = new midtransClient.Snap({
       isProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
       serverKey: process.env.MIDTRANS_SERVER_KEY!,
@@ -92,7 +140,27 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const transaction = await snap.createTransaction(parameter);
+    console.log('[charge] requesting snap token for order:', orderId);
+
+    let transaction;
+    try {
+      transaction = await snap.createTransaction(parameter);
+    } catch (midtransError: any) {
+      console.error('[charge] MIDTRANS ERROR:', JSON.stringify(midtransError, null, 2));
+      // Rollback: hapus deposit yang baru dibuat
+      await supabase.from('payment_deposits').delete().eq('id', deposit.id);
+      return NextResponse.json(
+        {
+          error: 'Gagal membuat transaksi (Midtrans)',
+          stage: 'midtrans',
+          detail: midtransError?.message || String(midtransError),
+          apiResponse: midtransError?.ApiResponse || null,
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('[charge] success:', orderId);
 
     return NextResponse.json({
       snapToken: transaction.token,
@@ -101,9 +169,13 @@ export async function POST(req: NextRequest) {
       depositId: deposit.id,
     });
   } catch (error: any) {
-    console.error('[charge] error:', error);
+    console.error('[charge] UNCAUGHT ERROR:', error);
     return NextResponse.json(
-      { error: error?.message || 'Internal Server Error' },
+      {
+        error: 'Internal Server Error',
+        stage: 'uncaught',
+        detail: error?.message || String(error),
+      },
       { status: 500 }
     );
   }
