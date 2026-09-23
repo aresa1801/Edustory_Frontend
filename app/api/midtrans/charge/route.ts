@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    // ===== 0. Cek env vars dulu =====
+    // ===== 0. Cek env vars =====
     const requiredEnvs = {
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -27,13 +27,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ===== 1. Init Supabase =====
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // ===== 2. Auth =====
+    // ===== 1. Auth =====
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ===== 3. Body =====
+    // ===== 2. Body =====
     const body = await req.json();
     const { amount, customerName, customerEmail } = body;
     const parsedAmount = Math.round(Number(amount));
@@ -70,14 +69,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ===== 3. Ambil student_id dari students table =====
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (studentError || !student) {
+      console.error('[charge] student lookup error:', studentError);
+      return NextResponse.json(
+        {
+          error: 'Student profile tidak ditemukan',
+          stage: 'student_lookup',
+          detail: studentError?.message || 'No student row found for this user',
+        },
+        { status: 404 }
+      );
+    }
+
     // ===== 4. Order ID =====
-    const orderId = `TOPUP-${Date.now()}-${user.id.slice(0, 8)}`;
+    const orderId = `TOPUP-${Date.now()}-${student.id.slice(0, 8)}`;
 
     // ===== 5. Insert ke payment_deposits =====
     const insertPayload = {
-      user_id: user.id,
+      student_id: student.id,
       amount: parsedAmount,
-      payment_method: 'midtrans',
+      payment_method: 'qris',
       payment_status: 'pending',
       payment_type: 'topup',
       transaction_ref: orderId,
@@ -147,7 +165,6 @@ export async function POST(req: NextRequest) {
       transaction = await snap.createTransaction(parameter);
     } catch (midtransError: any) {
       console.error('[charge] MIDTRANS ERROR:', JSON.stringify(midtransError, null, 2));
-      // Rollback: hapus deposit yang baru dibuat
       await supabase.from('payment_deposits').delete().eq('id', deposit.id);
       return NextResponse.json(
         {
