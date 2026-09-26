@@ -132,7 +132,7 @@ const CREDIT_TIERS = [
     description:
       'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.',
   },
-  {
+    {
     range: '6-25',
     label: 'Bahaya',
     color: 'bg-red-500',
@@ -140,7 +140,7 @@ const CREDIT_TIERS = [
     borderColor: 'border-red-500/40',
     bgColor: 'bg-red-500/10',
     description:
-      'Akun akan otomatis ditahan oleh admin, semua kontrak dengan siswa dibatalkan otomatis, dan tidak bisa mengganti profil.',
+      'Akun akan otomatis ditahan oleh admin. Tidak bisa menerima siswa baru sama sekali, tidak bisa mengganti profil. Kontrak yang sedang berjalan tetap dilanjutkan sampai selesai.',
   },
   {
     range: '0-5',
