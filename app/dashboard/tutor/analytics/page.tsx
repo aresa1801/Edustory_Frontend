@@ -6,6 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Shield,
   Star,
   Users,
@@ -15,6 +22,7 @@ import {
   AlertTriangle,
   ThumbsUp,
   Sparkles,
+  Info,
 } from 'lucide-react'
 
 // ============================================================
@@ -82,11 +90,76 @@ const DUMMY_REVIEWS = [
 ]
 
 // ============================================================
+// CREDIT TIERS
+// ============================================================
+const CREDIT_TIERS = [
+  {
+    range: '81-100',
+    label: 'Aman',
+    color: 'bg-green-500',
+    textColor: 'text-green-400',
+    borderColor: 'border-green-500/40',
+    bgColor: 'bg-green-500/10',
+    description: 'Bisa mengakses segala fitur tanpa hambatan.',
+  },
+  {
+    range: '66-80',
+    label: 'Pembatasan',
+    color: 'bg-lime-500',
+    textColor: 'text-lime-400',
+    borderColor: 'border-lime-500/40',
+    bgColor: 'bg-lime-500/10',
+    description:
+      'Menerima siswa maksimal 5× kemudian refresh katalog siswa dibatasi setiap 10 detik sekali.',
+  },
+  {
+    range: '51-65',
+    label: 'Waspada',
+    color: 'bg-yellow-500',
+    textColor: 'text-yellow-400',
+    borderColor: 'border-yellow-500/40',
+    bgColor: 'bg-yellow-500/10',
+    description:
+      'Mengubah profil akan mengalami jeda 2 hari sekali dan maksimal memasang pendapatan hanya Rp 150.000 per sesi.',
+  },
+  {
+    range: '26-50',
+    label: 'Hati-hati',
+    color: 'bg-orange-500',
+    textColor: 'text-orange-400',
+    borderColor: 'border-orange-500/40',
+    bgColor: 'bg-orange-500/10',
+    description:
+      'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.',
+  },
+  {
+    range: '6-25',
+    label: 'Bahaya',
+    color: 'bg-red-500',
+    textColor: 'text-red-400',
+    borderColor: 'border-red-500/40',
+    bgColor: 'bg-red-500/10',
+    description:
+      'Akun akan otomatis ditahan oleh admin, semua kontrak dengan siswa dibatalkan otomatis, dan tidak bisa mengganti profil.',
+  },
+  {
+    range: '0-5',
+    label: 'Blacklist',
+    color: 'bg-black',
+    textColor: 'text-gray-300',
+    borderColor: 'border-gray-500/40',
+    bgColor: 'bg-gray-900/60',
+    description: 'Akun akan di-banned.',
+  },
+]
+
+// ============================================================
 // KOMPONEN
 // ============================================================
 export default function TutorAnalyticsPage() {
   // Dummy: pakai state biar bisa toggle preview suspend
   const [showSuspendPreview, setShowSuspendPreview] = useState(false)
+  const [showCreditInfo, setShowCreditInfo] = useState(false)
 
   const stats = {
     ...DUMMY_STATS,
@@ -165,12 +238,22 @@ export default function TutorAnalyticsPage() {
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div
-              className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center`}
+              className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}
             >
               <Shield className={`w-5 h-5 ${creditColor}`} />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Credit Score</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm text-muted-foreground">Credit Score</p>
+                <button
+                  type="button"
+                  onClick={() => setShowCreditInfo(true)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Info tingkatan credit score"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <p className={`text-2xl font-bold ${creditColor}`}>
                 {stats.creditScore}
                 <span className="text-sm text-muted-foreground font-normal">
@@ -407,6 +490,53 @@ export default function TutorAnalyticsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ===== DIALOG INFO CREDIT SCORE ===== */}
+      <Dialog open={showCreditInfo} onOpenChange={setShowCreditInfo}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-green-500" />
+              Tingkatan Credit Score
+            </DialogTitle>
+            <DialogDescription>
+              Setiap tingkatan memiliki konsekuensi berbeda. Jaga credit score
+              Anda untuk tetap mengakses semua fitur.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2.5 py-2">
+            {CREDIT_TIERS.map((tier) => (
+              <div
+                key={tier.range}
+                className={`p-3 rounded-md border ${tier.borderColor} ${tier.bgColor}`}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className={`w-3 h-3 rounded-full ${tier.color}`} />
+                  <span className={`font-bold text-sm ${tier.textColor}`}>
+                    {tier.range}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold uppercase tracking-wide ${tier.textColor}`}
+                  >
+                    — {tier.label}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed pl-5">
+                  {tier.description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 rounded-md bg-muted/20 border border-border mt-2">
+            <p className="text-xs text-muted-foreground">
+              💡 <strong>Cara menaikkan credit:</strong> Login harian (+1),
+              menyelesaikan sesi belajar (+2).
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
