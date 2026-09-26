@@ -1,422 +1,412 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/auth'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
+  Shield,
+  Star,
   Users,
   CheckCircle,
-  Clock,
-  Star,
   TrendingUp,
-  BookOpen,
-  Award,
-  BarChart3,
-  Smile,
-  Meh,
-  Frown,
+  Wallet,
+  AlertTriangle,
+  ThumbsUp,
+  Sparkles,
 } from 'lucide-react'
 
-interface AnalyticsData {
-  totalStudents: number
-  activeStudents: number
-  completedSessions: number
-  pendingRequests: number
-  rating: number
-  totalReviews: number
-  subjects: Record<string, number>
-  approvalStatus: string
-  verified: boolean
-  experienceYears: number
-  satisfactionScore: number
+// ============================================================
+// DUMMY DATA — untuk preview layout
+// ============================================================
+const DUMMY_STATS = {
+  creditScore: 88,
+  isSuspended: false,
+  suspendedUntil: null as string | null,
+  rating: 4.6,
+  totalReviews: 24,
+  totalStudents: 12,
+  activeStudents: 3,
+  completedContracts: 9,
+  sessionsCompleted: 47,
+  sessionsMissed: 3,
+  totalEarnings: 18400000,
+  monthlyEarnings: 2400000,
+  avgPerContract: 2044444,
 }
 
-function StarRating({ value, max = 5 }: { value: number; max?: number }) {
+const DUMMY_REVIEWS = [
+  {
+    id: '1',
+    student_name: 'Anaxa',
+    rating: 5,
+    comment: 'Gurunya sabar dan cara mengajarnya mudah dipahami!',
+    created_at: '2026-09-20T10:00:00Z',
+  },
+  {
+    id: '2',
+    student_name: 'Rahma',
+    rating: 5,
+    comment: 'Materi dijelaskan runtut dan latihan soalnya banyak.',
+    created_at: '2026-09-15T10:00:00Z',
+  },
+  {
+    id: '3',
+    student_name: 'Bagas',
+    rating: 4,
+    comment: 'Cukup bagus, tapi kadang agak terlalu cepat.',
+    created_at: '2026-09-10T10:00:00Z',
+  },
+  {
+    id: '4',
+    student_name: 'Sinta',
+    rating: 5,
+    comment: 'Very recommended! Saya jadi lebih paham Sejarah.',
+    created_at: '2026-09-05T10:00:00Z',
+  },
+  {
+    id: '5',
+    student_name: 'Dimas',
+    rating: 4,
+    comment: null,
+    created_at: '2026-08-28T10:00:00Z',
+  },
+  {
+    id: '6',
+    student_name: 'Laras',
+    rating: 5,
+    comment: 'Penjelasan detail, sering kasih tips ngerjain soal cepat.',
+    created_at: '2026-08-20T10:00:00Z',
+  },
+]
+
+// ============================================================
+// KOMPONEN
+// ============================================================
+export default function TutorAnalyticsPage() {
+  // Dummy: pakai state biar bisa toggle preview suspend
+  const [showSuspendPreview, setShowSuspendPreview] = useState(false)
+
+  const stats = {
+    ...DUMMY_STATS,
+    isSuspended: showSuspendPreview,
+    suspendedUntil: showSuspendPreview
+      ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      : null,
+  }
+
+  const reviews = DUMMY_REVIEWS
+
+  // ===== Credit color =====
+  const creditColor =
+    stats.creditScore >= 80
+      ? 'text-green-400'
+      : stats.creditScore >= 50
+      ? 'text-yellow-400'
+      : 'text-red-400'
+  const creditBg =
+    stats.creditScore >= 80
+      ? 'bg-green-500/20'
+      : stats.creditScore >= 50
+      ? 'bg-yellow-500/20'
+      : 'bg-red-500/20'
+
   return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: max }).map((_, i) => (
-        <Star
-          key={i}
-          className={`w-4 h-4 ${
-            i < Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'
-          }`}
-        />
-      ))}
-    </div>
-  )
-}
-
-function SatisfactionIcon({ score }: { score: number }) {
-  if (score >= 4) return <Smile className="w-8 h-8 text-green-500" />
-  if (score >= 2.5) return <Meh className="w-8 h-8 text-amber-500" />
-  return <Frown className="w-8 h-8 text-red-400" />
-}
-
-export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<AnalyticsData | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const isMounted = useRef(true)
-  const timeoutId = useRef<NodeJS.Timeout | null>(null)
-  const fetchDone = useRef(false)
-
-  useEffect(() => {
-    isMounted.current = true
-    fetchDone.current = false
-
-    // Timeout 3 detik untuk memaksa loading selesai
-    timeoutId.current = setTimeout(() => {
-      if (isMounted.current && loading) {
-        console.warn('[Analytics] ⏱️ Timeout, force loading=false')
-        setLoading(false)
-        setError('Waktu pengambilan data habis, tampilkan data kosong.')
-      }
-    }, 3000)
-
-    const fetchData = async () => {
-      if (fetchDone.current) return
-      fetchDone.current = true
-
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setError('User tidak ditemukan')
-          return
-        }
-
-        const { data: tutorData, error: tutorError } = await supabase
-          .from('tutors')
-          .select(`
-            id,
-            rating,
-            total_reviews,
-            approval_status,
-            verified,
-            experience_years,
-            specializations
-          `)
-          .eq('user_id', user.id)
-          .maybeSingle() // ✅ pakai maybeSingle
-
-        if (tutorError || !tutorData) {
-          // Data kosong, tetap set data default agar tampilan muncul
-          setData({
-            totalStudents: 0,
-            activeStudents: 0,
-            completedSessions: 0,
-            pendingRequests: 0,
-            rating: 0,
-            totalReviews: 0,
-            subjects: {},
-            approvalStatus: 'pending',
-            verified: false,
-            experienceYears: 0,
-            satisfactionScore: 0,
-          })
-          return
-        }
-
-        const { data: matches } = await supabase
-          .from('matches')
-          .select('id, status, subject')
-          .eq('tutor_id', tutorData.id)
-
-        const subjectCounts: Record<string, number> = {}
-        ;(matches || []).forEach((m: any) => {
-          if (m.subject) {
-            subjectCounts[m.subject] = (subjectCounts[m.subject] || 0) + 1
-          }
-        })
-
-        const satisfactionScore = tutorData.rating || 0
-
-        setData({
-          totalStudents: (matches || []).length,
-          activeStudents: (matches || []).filter((m: any) => ['matched', 'active'].includes(m.status)).length,
-          completedSessions: (matches || []).filter((m: any) => m.status === 'completed').length,
-          pendingRequests: (matches || []).filter((m: any) => m.status === 'pending').length,
-          rating: tutorData.rating || 0,
-          totalReviews: tutorData.total_reviews || 0,
-          subjects: subjectCounts,
-          approvalStatus: tutorData.approval_status || 'pending',
-          verified: tutorData.verified || false,
-          experienceYears: tutorData.experience_years || 0,
-          satisfactionScore,
-        })
-        setError(null)
-      } catch (err) {
-        console.error('[Analytics] ❌ Error:', err)
-        setError('Gagal memuat data analitik')
-      } finally {
-        if (isMounted.current) {
-          setLoading(false)
-          if (timeoutId.current) clearTimeout(timeoutId.current)
-        }
-      }
-    }
-
-    fetchData()
-
-    return () => {
-      isMounted.current = false
-      if (timeoutId.current) clearTimeout(timeoutId.current)
-    }
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Spinner className="h-8 w-8" />
-        <p className="mt-4 text-sm text-muted-foreground">Memuat data analitik...</p>
+    <div className="space-y-6">
+      {/* ===== BANNER DUMMY ===== */}
+      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-blue-400" />
+          <p className="text-sm text-muted-foreground">
+            <strong>Preview Mode</strong> — data dummy, tabel belum ada.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowSuspendPreview(!showSuspendPreview)}
+          className="h-7 text-xs"
+        >
+          {showSuspendPreview ? 'Sembunyikan' : 'Tampilkan'} Preview Suspend
+        </Button>
       </div>
-    )
-  }
 
-  if (error && !data) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (!data) {
-    return (
-      <Alert>
-        <AlertDescription>Data analitik belum tersedia. Silakan lengkapi profil Anda terlebih dahulu.</AlertDescription>
-      </Alert>
-    )
-  }
-
-  // === RENDER (sama seperti sebelumnya, hanya statCards dan konten) ===
-  const statCards = [
-    { label: 'Total Siswa', value: data.totalStudents, icon: Users, color: 'text-blue-300', bg: 'bg-blue-500/20' },
-    { label: 'Siswa Aktif', value: data.activeStudents, icon: TrendingUp, color: 'text-green-300', bg: 'bg-green-500/20' },
-    { label: 'Sesi Selesai', value: data.completedSessions, icon: CheckCircle, color: 'text-purple-300', bg: 'bg-purple-500/20' },
-    { label: 'Menunggu Konfirmasi', value: data.pendingRequests, icon: Clock, color: 'text-amber-300', bg: 'bg-amber-500/10' },
-  ]
-
-  const topSubjects = Object.entries(data.subjects)
-    .sort(([, a], [, b]) => (b as number) - (a as number))
-    .slice(0, 6)
-
-  const completionRate =
-    data.totalStudents > 0
-      ? Math.round((data.completedSessions / data.totalStudents) * 100)
-      : 0
-
-  const satisfactionLabel =
-    data.satisfactionScore >= 4.5
-      ? 'Sangat Baik'
-      : data.satisfactionScore >= 3.5
-      ? 'Baik'
-      : data.satisfactionScore >= 2.5
-      ? 'Cukup'
-      : data.satisfactionScore > 0
-      ? 'Perlu Ditingkatkan'
-      : 'Belum Ada Data'
-
-  const satisfactionColor =
-    data.satisfactionScore >= 4.5
-      ? 'text-green-300'
-      : data.satisfactionScore >= 3.5
-      ? 'text-green-500'
-      : data.satisfactionScore >= 2.5
-      ? 'text-amber-500'
-      : data.satisfactionScore > 0
-      ? 'text-red-500'
-      : 'text-slate-400'
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-6">
+      {/* ===== HEADER ===== */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Analitik Performa</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Pantau statistik dan skor kepuasan siswa terhadap pengajaran Anda
+        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
+        <p className="text-muted-foreground">
+          Ringkasan performa mengajar Anda di EduStory.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} className="border shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* ===== BANNER SUSPEND ===== */}
+      {stats.isSuspended && stats.suspendedUntil && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Akun Anda sedang <strong>tersuspend</strong> sampai{' '}
+            <strong>
+              {new Date(stats.suspendedUntil).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </strong>
+            . Anda tidak bisa menerima siswa baru selama periode ini, tapi
+            kontrak yang sedang berjalan tetap bisa dijalankan.
+          </AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Award className="w-4 h-4" />
-              Skor Kepuasan Siswa
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.rating > 0 ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <SatisfactionIcon score={data.satisfactionScore} />
-                  <div>
-                    <p className={`text-4xl font-bold ${satisfactionColor}`}>
-                      {data.satisfactionScore.toFixed(1)}
-                      <span className="text-lg text-slate-400">/5</span>
-                    </p>
-                    <p className={`text-sm font-semibold ${satisfactionColor}`}>{satisfactionLabel}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StarRating value={data.rating} />
-                  <span className="text-sm text-slate-500">
-                    dari {data.totalReviews} ulasan siswa
-                  </span>
-                </div>
-                {[5, 4, 3, 2, 1].map(star => (
-                  <div key={star} className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-xs text-slate-500 w-12">
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      {star}
-                    </div>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-amber-400 rounded-full"
-                        style={{
-                          width: `${Math.max(0, 100 - Math.abs(star - data.rating) * 35)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-                <p className="text-xs text-slate-400">
-                  * Skor ini merupakan rata-rata penilaian kepuasan dari seluruh siswa yang pernah Anda ajar.
-                </p>
-              </div>
-            ) : (
-              <div className="py-8 text-center">
-                <Star className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm font-medium text-slate-700">Belum Ada Penilaian</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Skor kepuasan akan muncul setelah siswa memberikan ulasan kepada Anda.
-                </p>
-              </div>
-            )}
-          </CardContent>
+      {/* ===== STAT CARDS ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Credit Score */}
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center`}
+            >
+              <Shield className={`w-5 h-5 ${creditColor}`} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Credit Score</p>
+              <p className={`text-2xl font-bold ${creditColor}`}>
+                {stats.creditScore}
+                <span className="text-sm text-muted-foreground font-normal">
+                  /100
+                </span>
+              </p>
+            </div>
+          </div>
         </Card>
 
-        <Card className="border shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Ringkasan Performa
+        {/* Rating */}
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Rating</p>
+              <p className="text-2xl font-bold text-foreground">
+                {stats.rating.toFixed(1)}
+                <span className="text-sm text-muted-foreground font-normal">
+                  {' '}
+                  / 5
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.totalReviews} ulasan
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Total Murid */}
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Murid</p>
+              <p className="text-2xl font-bold text-foreground">
+                {stats.totalStudents}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.activeStudents} aktif
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Sesi Selesai */}
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-300" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
+              <p className="text-2xl font-bold text-foreground">
+                {stats.sessionsCompleted}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.sessionsMissed} hangus
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* ===== PENDAPATAN + AKTIVITAS ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pendapatan */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-500" />
+              Pendapatan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Status Aplikasi</span>
-              <Badge
-                variant="outline"
-                className={
-                  data.approvalStatus === 'approved'
-                    ? 'bg-green-500/20 text-green-300 border-green-200 text-xs'
-                    : data.approvalStatus === 'rejected'
-                    ? 'bg-red-500/20 text-red-300 border-red-500/30 text-xs'
-                    : 'bg-amber-500/10 text-amber-700 border-amber-200 text-xs'
-                }
-              >
-                {data.approvalStatus === 'approved'
-                  ? '✓ Disetujui'
-                  : data.approvalStatus === 'rejected'
-                  ? '✗ Ditolak'
-                  : '⏳ Menunggu'}
-              </Badge>
+            <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
+              <p className="text-sm text-muted-foreground mb-1">
+                Total Pendapatan
+              </p>
+              <p className="text-3xl font-bold text-emerald-300">
+                Rp {stats.totalEarnings.toLocaleString('id-ID')}
+              </p>
             </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Verifikasi</span>
-              {data.verified ? (
-                <Badge className="bg-blue-500/20 text-blue-700 border-blue-200 text-xs">✓ Terverifikasi</Badge>
-              ) : (
-                <Badge variant="outline" className="text-slate-400 text-xs">Belum</Badge>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-slate-100">
-              <span className="text-sm text-slate-600">Pengalaman Mengajar</span>
-              <span className="text-sm font-semibold text-slate-800">{data.experienceYears} tahun</span>
-            </div>
-
-            {data.totalStudents > 0 && (
-              <div className="py-2 border-b border-slate-100">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-slate-600">Tingkat Penyelesaian Sesi</span>
-                  <span className="text-sm font-semibold text-slate-800">{completionRate}%</span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500/200 rounded-full transition-all"
-                    style={{ width: `${completionRate}%` }}
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-md bg-muted/20 border border-border">
+                <p className="text-xs text-muted-foreground mb-1">Bulan Ini</p>
+                <p className="text-lg font-semibold text-foreground">
+                  Rp {stats.monthlyEarnings.toLocaleString('id-ID')}
+                </p>
               </div>
-            )}
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-slate-600">Skor Kurasi</span>
-              <span className="text-sm font-semibold text-blue-300">Lihat di halaman Kurasi</span>
+              <div className="p-3 rounded-md bg-muted/20 border border-border">
+                <p className="text-xs text-muted-foreground mb-1">
+                  Rata-rata/Kontrak
+                </p>
+                <p className="text-lg font-semibold text-foreground">
+                  Rp {stats.avgPerContract.toLocaleString('id-ID')}
+                </p>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground italic">
+              *Data dummy — angka real akan muncul setelah wallet selesai
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Distribusi Mata Pelajaran yang Diajarkan
+        {/* Aktivitas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" />
+              Aktivitas
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {topSubjects.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">
-                Belum ada data mata pelajaran. Data akan muncul setelah ada sesi mengajar.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {topSubjects.map(([subject, count]) => {
-                  const maxCount = Math.max(...Object.values(data.subjects))
-                  const percent = Math.round((count / maxCount) * 100)
-                  return (
-                    <div key={subject} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">{subject}</span>
-                        <span className="text-slate-500">{count} sesi</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500/200 rounded-full"
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-border/30">
+              <span className="text-sm text-muted-foreground">
+                Kontrak Selesai
+              </span>
+              <span className="text-sm font-bold text-green-300">
+                {stats.completedContracts}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-border/30">
+              <span className="text-sm text-muted-foreground">
+                Kontrak Aktif
+              </span>
+              <span className="text-sm font-bold text-blue-300">
+                {stats.activeStudents}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-border/30">
+              <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
+              <span className="text-sm font-bold text-green-300">
+                {stats.sessionsCompleted}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Sesi Hangus</span>
+              <span className="text-sm font-bold text-red-300">
+                {stats.sessionsMissed}
+              </span>
+            </div>
+
+            {/* Progress bar sesi */}
+            <div className="pt-3">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-muted-foreground">Success Rate</span>
+                <span className="font-semibold">
+                  {Math.round(
+                    (stats.sessionsCompleted /
+                      (stats.sessionsCompleted + stats.sessionsMissed)) *
+                      100
+                  )}
+                  %
+                </span>
               </div>
-            )}
+              <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+                  style={{
+                    width: `${Math.round(
+                      (stats.sessionsCompleted /
+                        (stats.sessionsCompleted + stats.sessionsMissed)) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* ===== ULASAN ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ThumbsUp className="w-5 h-5 text-yellow-500" />
+            Ulasan dari Murid
+            {reviews.length > 0 && (
+              <Badge variant="outline" className="ml-2">
+                {reviews.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
+            {reviews.map((r) => (
+              <div
+                key={r.id}
+                className="p-3 rounded-md border border-border bg-muted/10"
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-semibold text-sm truncate">
+                    {r.student_name}
+                  </span>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star
+                        key={i}
+                        className={`w-3.5 h-3.5 ${
+                          i <= r.rating
+                            ? 'text-yellow-500 fill-yellow-500'
+                            : 'text-gray-500'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {r.comment ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    &ldquo;{r.comment}&rdquo;
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60 italic">
+                    (tanpa komentar)
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground/60 mt-2">
+                  {new Date(r.created_at).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
