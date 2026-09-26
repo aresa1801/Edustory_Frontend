@@ -1,12 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
+import { Button } from '@/components/ui/button'
 import {
   Shield,
   Star,
@@ -16,204 +14,89 @@ import {
   Wallet,
   AlertTriangle,
   ThumbsUp,
-  Calendar,
+  Sparkles,
 } from 'lucide-react'
 
 // ============================================================
-// TYPES
+// DUMMY DATA — untuk preview layout
 // ============================================================
-interface TutorStats {
-  creditScore: number
-  isSuspended: boolean
-  suspendedUntil: string | null
-  rating: number
-  totalReviews: number
-  totalStudents: number
-  activeStudents: number
-  completedContracts: number
-  sessionsCompleted: number
-  sessionsMissed: number
-  totalEarnings: number
-  monthlyEarnings: number
-  avgPerContract: number
+const DUMMY_STATS = {
+  creditScore: 88,
+  isSuspended: false,
+  suspendedUntil: null as string | null,
+  rating: 4.6,
+  totalReviews: 24,
+  totalStudents: 12,
+  activeStudents: 3,
+  completedContracts: 9,
+  sessionsCompleted: 47,
+  sessionsMissed: 3,
+  totalEarnings: 18400000,
+  monthlyEarnings: 2400000,
+  avgPerContract: 2044444,
 }
 
-interface ReviewItem {
-  id: string
-  student_name: string
-  rating: number
-  comment: string | null
-  created_at: string
-}
+const DUMMY_REVIEWS = [
+  {
+    id: '1',
+    student_name: 'Anaxa',
+    rating: 5,
+    comment: 'Gurunya sabar dan cara mengajarnya mudah dipahami!',
+    created_at: '2026-09-20T10:00:00Z',
+  },
+  {
+    id: '2',
+    student_name: 'Rahma',
+    rating: 5,
+    comment: 'Materi dijelaskan runtut dan latihan soalnya banyak.',
+    created_at: '2026-09-15T10:00:00Z',
+  },
+  {
+    id: '3',
+    student_name: 'Bagas',
+    rating: 4,
+    comment: 'Cukup bagus, tapi kadang agak terlalu cepat.',
+    created_at: '2026-09-10T10:00:00Z',
+  },
+  {
+    id: '4',
+    student_name: 'Sinta',
+    rating: 5,
+    comment: 'Very recommended! Saya jadi lebih paham Sejarah.',
+    created_at: '2026-09-05T10:00:00Z',
+  },
+  {
+    id: '5',
+    student_name: 'Dimas',
+    rating: 4,
+    comment: null,
+    created_at: '2026-08-28T10:00:00Z',
+  },
+  {
+    id: '6',
+    student_name: 'Laras',
+    rating: 5,
+    comment: 'Penjelasan detail, sering kasih tips ngerjain soal cepat.',
+    created_at: '2026-08-20T10:00:00Z',
+  },
+]
 
 // ============================================================
 // KOMPONEN
 // ============================================================
 export default function TutorAnalyticsPage() {
-  const { user: authUser, loading: authLoading } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<TutorStats | null>(null)
-  const [reviews, setReviews] = useState<ReviewItem[]>([])
+  // Dummy: pakai state biar bisa toggle preview suspend
+  const [showSuspendPreview, setShowSuspendPreview] = useState(false)
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      if (!authUser) return
-      try {
-        const supabase = createClient()
-
-        // ===== 1. Profil tutor =====
-        const { data: tutor, error: tutorErr } = await supabase
-          .from('tutors')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .single()
-
-        if (tutorErr || !tutor) {
-          throw new Error('Profil tutor tidak ditemukan')
-        }
-
-        // ===== 2. Semua match tutor =====
-        const { data: matches } = await supabase
-          .from('matches')
-          .select(
-            'id, status, student_budget_per_month, accepted_at, contract_end_date, ended_at, student_id'
-          )
-          .eq('tutor_id', tutor.id)
-
-        const allMatches = matches || []
-        const completed = allMatches.filter((m) => m.status === 'completed')
-        const active = allMatches.filter(
-          (m) => m.status === 'active' || m.status === 'matched'
-        )
-
-        const matchIds = allMatches.map((m) => m.id)
-        const studentIds = new Set(allMatches.map((m) => m.student_id))
-
-        // ===== 3. Sessions =====
-        const { data: sessions } = matchIds.length > 0
-          ? await supabase
-              .from('sessions')
-              .select('id, match_id, started_at, cancelled_at, scheduled_at')
-              .in('match_id', matchIds)
-          : { data: [] as any[] }
-
-        const allSessions = sessions || []
-        const sessionsCompleted = allSessions.filter((s: any) => s.started_at).length
-        const sessionsMissed = allSessions.filter(
-          (s: any) => s.cancelled_at && !s.started_at
-        ).length
-
-        // ===== 4. Reviews =====
-        const { data: reviewData } = matchIds.length > 0
-          ? await supabase
-              .from('reviews')
-              .select(
-                `
-                id,
-                rating,
-                comment,
-                created_at,
-                students!inner(name)
-              `
-              )
-              .in('match_id', matchIds)
-              .order('created_at', { ascending: false })
-              .limit(30)
-          : { data: [] as any[] }
-
-        const mappedReviews: ReviewItem[] = (reviewData || []).map((r: any) => ({
-          id: r.id,
-          student_name: r.students?.name || 'Siswa',
-          rating: r.rating,
-          comment: r.comment,
-          created_at: r.created_at,
-        }))
-
-        // ===== 5. Pendapatan =====
-        // Estimasi kasar: nilai kontrak per bulan × kontrak selesai
-        const totalEarnings = completed.reduce(
-          (sum, m) => sum + (m.student_budget_per_month || 0),
-          0
-        )
-
-        const now = new Date()
-        const monthlyEarnings = completed
-          .filter((m) => {
-            const end = m.ended_at
-              ? new Date(m.ended_at)
-              : m.contract_end_date
-              ? new Date(m.contract_end_date)
-              : null
-            return (
-              end &&
-              end.getMonth() === now.getMonth() &&
-              end.getFullYear() === now.getFullYear()
-            )
-          })
-          .reduce((sum, m) => sum + (m.student_budget_per_month || 0), 0)
-
-        const avgPerContract =
-          completed.length > 0 ? Math.round(totalEarnings / completed.length) : 0
-
-        // ===== 6. Credit + Suspend =====
-        const creditScore = tutor.credit_score ?? 100
-        const suspendedUntil = tutor.suspended_until || null
-        const isSuspended = suspendedUntil
-          ? new Date(suspendedUntil) > new Date()
-          : false
-
-        setStats({
-          creditScore,
-          isSuspended,
-          suspendedUntil,
-          rating: tutor.rating || 0,
-          totalReviews: tutor.total_reviews || 0,
-          totalStudents: studentIds.size,
-          activeStudents: active.length,
-          completedContracts: completed.length,
-          sessionsCompleted,
-          sessionsMissed,
-          totalEarnings,
-          monthlyEarnings,
-          avgPerContract,
-        })
-
-        setReviews(mappedReviews)
-      } catch (err: any) {
-        console.error('[TutorAnalytics] Error:', err)
-        setError(err.message || 'Gagal memuat analitik')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (authLoading) return
-    if (!authUser) {
-      setLoading(false)
-      return
-    }
-    fetchAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id, authLoading])
-
-  // ===== Loading =====
-  if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
-        <span className="ml-3 text-muted-foreground">Memuat analitik...</span>
-      </div>
-    )
+  const stats = {
+    ...DUMMY_STATS,
+    isSuspended: showSuspendPreview,
+    suspendedUntil: showSuspendPreview
+      ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      : null,
   }
 
-  if (error || !stats) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error || 'Data tidak ditemukan'}</AlertDescription>
-      </Alert>
-    )
-  }
+  const reviews = DUMMY_REVIEWS
 
   // ===== Credit color =====
   const creditColor =
@@ -231,7 +114,25 @@ export default function TutorAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ===== BANNER DUMMY ===== */}
+      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-blue-400" />
+          <p className="text-sm text-muted-foreground">
+            <strong>Preview Mode</strong> — data dummy, tabel belum ada.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowSuspendPreview(!showSuspendPreview)}
+          className="h-7 text-xs"
+        >
+          {showSuspendPreview ? 'Sembunyikan' : 'Tampilkan'} Preview Suspend
+        </Button>
+      </div>
+
+      {/* ===== HEADER ===== */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
         <p className="text-muted-foreground">
@@ -239,7 +140,7 @@ export default function TutorAnalyticsPage() {
         </p>
       </div>
 
-      {/* Banner Suspend */}
+      {/* ===== BANNER SUSPEND ===== */}
       {stats.isSuspended && stats.suspendedUntil && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -258,7 +159,7 @@ export default function TutorAnalyticsPage() {
         </Alert>
       )}
 
-      {/* Stat Cards */}
+      {/* ===== STAT CARDS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Credit Score */}
         <Card className="p-5">
@@ -339,7 +240,7 @@ export default function TutorAnalyticsPage() {
         </Card>
       </div>
 
-      {/* Row: Pendapatan + Aktivitas */}
+      {/* ===== PENDAPATAN + AKTIVITAS ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pendapatan */}
         <Card>
@@ -375,7 +276,7 @@ export default function TutorAnalyticsPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground italic">
-              *Estimasi dari nilai kontrak yang sudah selesai
+              *Data dummy — angka real akan muncul setelah wallet selesai
             </p>
           </CardContent>
         </Card>
@@ -417,11 +318,38 @@ export default function TutorAnalyticsPage() {
                 {stats.sessionsMissed}
               </span>
             </div>
+
+            {/* Progress bar sesi */}
+            <div className="pt-3">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-muted-foreground">Success Rate</span>
+                <span className="font-semibold">
+                  {Math.round(
+                    (stats.sessionsCompleted /
+                      (stats.sessionsCompleted + stats.sessionsMissed)) *
+                      100
+                  )}
+                  %
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+                  style={{
+                    width: `${Math.round(
+                      (stats.sessionsCompleted /
+                        (stats.sessionsCompleted + stats.sessionsMissed)) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ulasan */}
+      {/* ===== ULASAN ===== */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -435,57 +363,48 @@ export default function TutorAnalyticsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {reviews.length === 0 ? (
-            <div className="text-center py-8">
-              <ThumbsUp className="w-12 h-12 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground italic">
-                Belum ada ulasan dari murid.
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
-              {reviews.map((r) => (
-                <div
-                  key={r.id}
-                  className="p-3 rounded-md border border-border bg-muted/10"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="font-semibold text-sm truncate">
-                      {r.student_name}
-                    </span>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <Star
-                          key={i}
-                          className={`w-3.5 h-3.5 ${
-                            i <= r.rating
-                              ? 'text-yellow-500 fill-yellow-500'
-                              : 'text-gray-500'
-                          }`}
-                        />
-                      ))}
-                    </div>
+          <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
+            {reviews.map((r) => (
+              <div
+                key={r.id}
+                className="p-3 rounded-md border border-border bg-muted/10"
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-semibold text-sm truncate">
+                    {r.student_name}
+                  </span>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star
+                        key={i}
+                        className={`w-3.5 h-3.5 ${
+                          i <= r.rating
+                            ? 'text-yellow-500 fill-yellow-500'
+                            : 'text-gray-500'
+                        }`}
+                      />
+                    ))}
                   </div>
-                  {r.comment ? (
-                    <p className="text-sm text-muted-foreground italic">
-                      &ldquo;{r.comment}&rdquo;
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground/60 italic">
-                      (tanpa komentar)
-                    </p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground/60 mt-2">
-                    {new Date(r.created_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
                 </div>
-              ))}
-            </div>
-          )}
+                {r.comment ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    &ldquo;{r.comment}&rdquo;
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60 italic">
+                    (tanpa komentar)
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground/60 mt-2">
+                  {new Date(r.created_at).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
