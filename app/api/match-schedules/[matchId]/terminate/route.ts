@@ -116,6 +116,10 @@ export async function POST(
             type: 'unilateral',
             status: 'approved',
           },
+          completion_notification: {
+            type: 'terminated',
+            at: now.toISOString(),
+          },
         })
         .eq('id', schedule.id)
 
@@ -325,6 +329,10 @@ export async function PATCH(
           responded_at: now.toISOString(),
           responded_by: role,
           ended_at: now.toISOString(),
+        },
+        completion_notification: {
+          type: 'terminated',
+          at: now.toISOString(),
         },
       })
       .eq('id', schedule.id)

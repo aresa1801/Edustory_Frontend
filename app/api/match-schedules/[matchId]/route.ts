@@ -7,6 +7,41 @@ export const fetchCache = 'force-no-store'
 
 const READY_WINDOW_MINUTES = 20
 
+// ============================================================
+// PATCH — Acknowledge completion notification
+// ============================================================
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { matchId: string } }
+) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { matchId } = params
+
+    const { error } = await supabaseAdmin
+      .from('match_schedules')
+      .update({ completion_notification: null })
+      .eq('match_id', matchId)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[API match-schedules PATCH] Error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal error' },
+      { status: 500 }
+    )
+  }
+}
+
+// ============================================================
+// GET — Detail jadwal
+// ============================================================
 export async function GET(
   req: NextRequest,
   { params }: { params: { matchId: string } }
@@ -19,7 +54,7 @@ export async function GET(
 
     const { matchId } = params
 
-    // ===== 1. Ambil match_schedules (SELECT * — bypass PostgREST nested bug) =====
+    // ===== 1. Ambil match_schedules =====
     const { data: schedule, error: schedError } = await supabaseAdmin
       .from('match_schedules')
       .select('*')
@@ -28,31 +63,14 @@ export async function GET(
 
     if (schedError) {
       console.error('[API] schedError:', schedError)
-      return NextResponse.json(
-        { error: 'DB error: ' + schedError.message },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'DB error: ' + schedError.message }, { status: 500 })
     }
 
     if (!schedule) {
-      return NextResponse.json(
-        { error: 'Schedule not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
-    // ===== DEBUG LOG =====
-    console.log('[API DEBUG] matchId:', matchId)
-    console.log(
-      '[API DEBUG] schedules_custom_request:',
-      JSON.stringify(schedule.schedules_custom_request)
-    )
-    console.log(
-      '[API DEBUG] schedules_custom:',
-      JSON.stringify(schedule.schedules_custom)
-    )
-
-    // ===== 2. Ambil matches secara terpisah =====
+    // ===== 2. Ambil matches =====
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select(
@@ -90,7 +108,7 @@ export async function GET(
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
       .select(
-        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at'
+        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at, moved_at'
       )
       .eq('match_id', matchId)
       .order('scheduled_at', { ascending: true })
@@ -118,7 +136,7 @@ export async function GET(
         .in('id', expiredIds)
     }
 
-    // ===== 5. Auto-expire termination_request kalau deadline lewat =====
+    // ===== 5. Auto-expire termination_request =====
     if (
       schedule.termination_request?.status === 'pending' &&
       new Date(schedule.termination_request.deadline) < now
@@ -134,23 +152,65 @@ export async function GET(
         .eq('id', schedule.id)
     }
 
-    // ===== 6. Auto-expire extension_request kalau deadline lewat =====
+    // ===== 6. Auto-expire extension_request =====
     if (
       schedule.extension_request?.status === 'pending' &&
       new Date(schedule.extension_request.deadline) < now
     ) {
+      schedule.extension_request = null
+      schedule.extension_notification = {
+        type: 'expired',
+        at: now.toISOString(),
+      }
       await supabaseAdmin
         .from('match_schedules')
         .update({
-          extension_request: {
-            ...schedule.extension_request,
-            status: 'expired',
-          },
+          extension_request: null,
+          extension_notification: schedule.extension_notification,
         })
         .eq('id', schedule.id)
     }
 
-    // ===== 7. Compose response =====
+    // ===== 7. AUTO-NATURAL COMPLETE =====
+    // Cek semua session sudah selesai (started_at ATAU cancelled_at)
+    const allSessionsDone =
+      processedSessions.length > 0 &&
+      processedSessions.every((s: any) => s.started_at || s.cancelled_at)
+
+    const isAlreadyCompleted = schedule.status === 'completed'
+    const hasTermination = !!schedule.termination_request
+
+    if (
+      allSessionsDone &&
+      !isAlreadyCompleted &&
+      !hasTermination
+    ) {
+      const completionNotif = {
+        type: 'natural',
+        at: now.toISOString(),
+      }
+
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({
+          status: 'completed',
+          completion_notification: completionNotif,
+        })
+        .eq('id', schedule.id)
+
+      await supabaseAdmin
+        .from('matches')
+        .update({ status: 'completed', ended_at: now.toISOString() })
+        .eq('id', matchId)
+
+      // Update local var untuk response
+      schedule.status = 'completed'
+      schedule.completion_notification = completionNotif
+
+      console.log('[API] Auto-natural-complete:', matchId)
+    }
+
+    // ===== 8. Compose response =====
     const response = {
       id: schedule.id,
       matchId: schedule.match_id,
@@ -159,16 +219,9 @@ export async function GET(
       schedulesCustom: schedule.schedules_custom,
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       rescheduleNotification: schedule.reschedule_notification ?? null,
+      completionNotification: schedule.completion_notification ?? null,
 
-      extensionRequest: (() => {
-        const er = schedule.extension_request
-        if (!er) return null
-        // Auto-expire kalau deadline lewat & masih pending
-        if (er.status === 'pending' && new Date(er.deadline) < now) {
-          return { ...er, status: 'expired' }
-        }
-        return er
-      })(),
+      extensionRequest: schedule.extension_request ?? null,
       extensionNotification: schedule.extension_notification ?? null,
 
       ulasan: schedule.ulasan || [],
@@ -178,7 +231,6 @@ export async function GET(
       terminationRequest: (() => {
         const tr = schedule.termination_request
         if (!tr) return null
-        // Auto-expire kalau deadline lewat & masih pending
         if (tr.status === 'pending' && new Date(tr.deadline) < now) {
           return { ...tr, status: 'expired' }
         }
@@ -188,10 +240,8 @@ export async function GET(
 
       acceptedAt: match?.accepted_at,
       contractEndDate: match?.contract_end_date,
-      tutorPrivateFolderLabel:
-        schedule.tutor_private_folder_label || 'Pribadi Saya',
-      studentPrivateFolderLabel:
-        schedule.student_private_folder_label || 'Pribadi Saya',
+      tutorPrivateFolderLabel: schedule.tutor_private_folder_label || 'Pribadi Saya',
+      studentPrivateFolderLabel: schedule.student_private_folder_label || 'Pribadi Saya',
 
       student: {
         id: schedule.student_id,
@@ -201,8 +251,7 @@ export async function GET(
         address: match?.student_address || '',
         matchedSubjects: match?.matched_subjects || [],
         latitude: match?.student_latitude ?? studentDetail?.latitude ?? null,
-        longitude:
-          match?.student_longitude ?? studentDetail?.longitude ?? null,
+        longitude: match?.student_longitude ?? studentDetail?.longitude ?? null,
         gender: studentDetail?.gender || '',
         phone: studentDetail?.phone || '',
         bio: studentDetail?.bio || '',
@@ -215,8 +264,7 @@ export async function GET(
         parentEmail: studentDetail?.parent_email || '',
         budgetPerMonth: match?.student_budget_per_month ?? 0,
         sessionsPerMonth: match?.student_sessions_per_month ?? 0,
-        isOnline:
-          match?.student_is_online ?? studentDetail?.is_online ?? true,
+        isOnline: match?.student_is_online ?? studentDetail?.is_online ?? true,
       },
 
       tutor: {
@@ -237,7 +285,7 @@ export async function GET(
       sessions: processedSessions,
     }
 
-    // ===== 8. Cek apakah student sudah review match ini =====
+    // ===== 9. Cek review =====
     const { data: existingReview } = await supabaseAdmin
       .from('reviews')
       .select('id')

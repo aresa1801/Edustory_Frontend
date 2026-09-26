@@ -57,6 +57,7 @@ interface ScheduleData {
   rescheduleNotification?: any | null
   extensionRequest?: any | null
   extensionNotification?: any | null
+  completionNotification?: any | null
   tutorPrivateFolderLabel?: string
   studentPrivateFolderLabel?: string
   gmeetLink?: string | null
@@ -394,6 +395,7 @@ export default function ScheduleDetailView({
   const [showExtensionNotification, setShowExtensionNotification] = useState(false)
   const [processingExtension, setProcessingExtension] = useState(false)
   const [acknowledgingExtNotif, setAcknowledgingExtNotif] = useState(false)
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false)
 
   const fetchData = useCallback(
     async (isRefresh = false) => {
@@ -457,6 +459,13 @@ export default function ScheduleDetailView({
       setShowExtensionNotification(true)
     }
   }, [data?.extensionNotification, role])
+
+  // Auto-show popup kontrak selesai
+  useEffect(() => {
+    if (data?.completionNotification) {
+      setShowCompletionPopup(true)
+    }
+  }, [data?.completionNotification])
 
   const allDates = useMemo(() => {
     if (!data?.acceptedAt || !data?.contractEndDate) return []
@@ -930,6 +939,20 @@ const acknowledgeExtensionNotification = async () => {
   } finally {
     setAcknowledgingExtNotif(false)
   }
+}
+
+const acknowledgeCompletion = async () => {
+  if (!data) return
+  setShowCompletionPopup(false)
+  try {
+    await fetch(`/api/match-schedules/${data.matchId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (err) {
+    console.error('acknowledge completion error:', err)
+  }
+  router.push(`/dashboard/${role}/schedule`)
 }
 
 // ===== GMEET HANDLERS =====
@@ -3089,6 +3112,39 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                 </DialogFooter>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DIALOG 11: COMPLETION NOTIFICATION ===== */}
+        <Dialog open={showCompletionPopup} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-green-500">
+                <CheckCircle className="w-5 h-5" />
+                Kontrak Telah Selesai
+              </DialogTitle>
+              <DialogDescription className="whitespace-pre-wrap">
+                {(() => {
+                  const notif = data?.completionNotification
+                  if (notif?.type === 'terminated') {
+                    return 'Terima kasih sudah berpartisipasi dalam kegiatan belajar-mengajar!'
+                  }
+                  if (role === 'tutor') {
+                    return `Terima kasih sudah meluangkan waktu untuk mengajar ${
+                      data?.student?.name || 'siswa'
+                    }. Anda sudah berjasa sejauh ini!`
+                  }
+                  return `Terima kasih sudah bisa belajar dengan baik dengan ${
+                    data?.tutor?.fullName || 'guru'
+                  }!`
+                })()}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={acknowledgeCompletion} className="w-full">
+                OK
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
