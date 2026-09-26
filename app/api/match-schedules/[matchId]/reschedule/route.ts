@@ -133,7 +133,7 @@ export async function PATCH(
 
     const { data: schedule, error: sErr } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, schedules_custom, schedules_custom_request')
+      .select('id, match_id, tutor_id, student_id, schedules_custom, schedules_custom_request')
       .eq('match_id', matchId)
       .single()
 
@@ -216,6 +216,56 @@ export async function PATCH(
         from: request.from,
         to: request.to,
         at: now,
+      }
+
+            // ===== UPDATE SESSION LAMA (slot asal → mark moved) =====
+      const fromTimeMatch = request.from.time.match(/(\d{1,2})\.(\d{2})/)
+      const fromHour = fromTimeMatch ? parseInt(fromTimeMatch[1]) : 12
+      const fromMinute = fromTimeMatch ? parseInt(fromTimeMatch[2]) : 0
+
+      const fromScheduledAt = new Date(`${request.from.date}T00:00:00Z`)
+      fromScheduledAt.setUTCHours(fromHour, fromMinute, 0, 0)
+
+      const { error: updateOldErr } = await supabaseAdmin
+        .from('sessions')
+        .update({
+          moved_at: now,
+          cancelled_at: now,
+          status: 'cancelled',
+        })
+        .eq('match_id', matchId)
+        .eq('scheduled_at', fromScheduledAt.toISOString())
+
+      if (updateOldErr) {
+        console.error('[reschedule approve] update old session:', updateOldErr)
+        // Lanjut, tapi log error
+      }
+
+      // ===== INSERT SESSION BARU (slot tujuan → punya nyawa) =====
+      const toTimeMatch = request.to.time.match(/(\d{1,2})\.(\d{2})/)
+      const toHour = toTimeMatch ? parseInt(toTimeMatch[1]) : 12
+      const toMinute = toTimeMatch ? parseInt(toTimeMatch[2]) : 0
+
+      const toScheduledAt = new Date(`${request.to.date}T00:00:00Z`)
+      toScheduledAt.setUTCHours(toHour, toMinute, 0, 0)
+
+      const { error: insertNewErr } = await supabaseAdmin
+        .from('sessions')
+        .insert({
+          match_id: matchId,
+          tutor_id: schedule.tutor_id,
+          student_id: schedule.student_id,
+          scheduled_at: toScheduledAt.toISOString(),
+          duration_minutes: 60,
+          status: 'scheduled',
+        })
+
+      if (insertNewErr) {
+        console.error('[reschedule approve] insert new session:', insertNewErr)
+        return NextResponse.json(
+          { error: 'Gagal membuat sesi baru: ' + insertNewErr.message },
+          { status: 500 }
+        )
       }
 
       const { error: updateErr } = await supabaseAdmin

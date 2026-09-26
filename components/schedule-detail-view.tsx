@@ -656,7 +656,7 @@ export default function ScheduleDetailView({
     })
 
     return Object.values(grouped)
-  }, [sessionMap])
+  }, [activeSessionMap])
 
   const handleBack = () => router.back()
   const handleRefresh = () => fetchData(true)
@@ -1566,17 +1566,11 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
                               ''
 
                             // Tentukan status
-                            // Tentukan status
                             let status: SlotStatus = 'past'
                             if (isCustomSlot) {
-                              // Slot hasil pindahan → biarkan biru (upcoming) sesuai waktunya
-                              status = isScheduled
-                                ? getSlotStatus(date, slot, data.sessions || [], now)
-                                : 'upcoming'
-                              // Kalau waktunya belum lewat & belum hangus → paksa upcoming
-                              if (status !== 'cancelled' && status !== 'past' && status !== 'ongoing') {
-                                status = 'upcoming'
-                              }
+                              // Slot hasil pindahan → pakai getSlotStatus normal
+                              // (sekarang ada session row, jadi bisa jadi hijau/merah/abu)
+                              status = getSlotStatus(date, slot, data.sessions || [], now)
                             } else if (isMoved) {
                               status = 'moved'   // ← hanya slot ASAL yang jadi kuning
                             } else if (isScheduled) {
