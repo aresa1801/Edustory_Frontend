@@ -435,8 +435,9 @@ export async function PATCH(
       const hour = timeMatch ? parseInt(timeMatch[1]) : 12
       const minute = timeMatch ? parseInt(timeMatch[2]) : 0
 
-      const scheduledAt = new Date(`${slot.date}T00:00:00Z`)
-      scheduledAt.setUTCHours(hour, minute, 0, 0)
+      const hh = String(hour).padStart(2, '0')
+      const mm = String(minute).padStart(2, '0')
+      const scheduledAt = new Date(`${slot.date}T${hh}:${mm}:00+07:00`)
 
       return {
         match_id: matchId,
