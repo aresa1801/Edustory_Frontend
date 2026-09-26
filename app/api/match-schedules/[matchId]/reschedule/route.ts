@@ -1,6 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Helper: parse "HH.MM - HH.MM" → { hour, minute }
+function parseTimeSlot(timeStr: string): { hour: number; minute: number } {
+  const m = timeStr.match(/(\d{1,2})\.(\d{2})/)
+  return {
+    hour: m ? parseInt(m[1]) : 12,
+    minute: m ? parseInt(m[2]) : 0,
+  }
+}
+
+// Helper: build scheduled_at ISO string dalam WIB (+07:00)
+function buildScheduledAt(dateStr: string, timeSlot: string): string {
+  const { hour, minute } = parseTimeSlot(timeSlot)
+  const hh = String(hour).padStart(2, '0')
+  const mm = String(minute).padStart(2, '0')
+  return new Date(`${dateStr}T${hh}:${mm}:00+07:00`).toISOString()
+}
+
 // ============================================================
 // POST — Student submit permintaan perpindahan jadwal
 // ============================================================
@@ -112,10 +129,7 @@ export async function PATCH(
       !action ||
       !['approve', 'reject', 'cancel', 'acknowledge-notification'].includes(action)
     ) {
-      return NextResponse.json(
-        { error: 'Action tidak valid' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Action tidak valid' }, { status: 400 })
     }
 
     // ===== Acknowledge notification — clear reschedule_notification =====
@@ -133,7 +147,9 @@ export async function PATCH(
 
     const { data: schedule, error: sErr } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, match_id, tutor_id, student_id, schedules_custom, schedules_custom_request')
+      .select(
+        'id, match_id, tutor_id, student_id, schedules_custom, schedules_custom_request'
+      )
       .eq('match_id', matchId)
       .single()
 
@@ -167,13 +183,14 @@ export async function PATCH(
     // ===== APPROVE =====
     if (action === 'approve') {
       const dayNames = [
-        'Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu',
+        'Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu',
       ]
       const monthNames = [
-        'Januari','Februari','Maret','April','Mei','Juni',
-        'Juli','Agustus','September','Oktober','November','Desember',
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
       ]
 
+      // Parse tanggal murni (tanpa timezone) — aman karena hanya butuh hari
       const fromDate = new Date(`${request.from.date}T00:00:00Z`)
       const toDate = new Date(`${request.to.date}T00:00:00Z`)
 
@@ -210,7 +227,7 @@ export async function PATCH(
         : []
       const updatedCustom = [...currentCustom, customEntry]
 
-      // ✅ Set notifikasi approved
+      // ✅ Notifikasi approved
       const notification = {
         type: 'approved',
         from: request.from,
@@ -218,13 +235,8 @@ export async function PATCH(
         at: now,
       }
 
-            // ===== UPDATE SESSION LAMA (slot asal → mark moved) =====
-      const fromTimeMatch = request.from.time.match(/(\d{1,2})\.(\d{2})/)
-      const fromHour = fromTimeMatch ? parseInt(fromTimeMatch[1]) : 12
-      const fromMinute = fromTimeMatch ? parseInt(fromTimeMatch[2]) : 0
-
-      const fromScheduledAt = new Date(`${request.from.date}T00:00:00Z`)
-      fromScheduledAt.setUTCHours(fromHour, fromMinute, 0, 0)
+      // ===== UPDATE SESSION LAMA (slot asal → mark moved) =====
+      const fromScheduledAt = buildScheduledAt(request.from.date, request.from.time)
 
       const { error: updateOldErr } = await supabaseAdmin
         .from('sessions')
@@ -234,20 +246,14 @@ export async function PATCH(
           status: 'cancelled',
         })
         .eq('match_id', matchId)
-        .eq('scheduled_at', fromScheduledAt.toISOString())
+        .eq('scheduled_at', fromScheduledAt)
 
       if (updateOldErr) {
         console.error('[reschedule approve] update old session:', updateOldErr)
-        // Lanjut, tapi log error
       }
 
       // ===== INSERT SESSION BARU (slot tujuan → punya nyawa) =====
-      const toTimeMatch = request.to.time.match(/(\d{1,2})\.(\d{2})/)
-      const toHour = toTimeMatch ? parseInt(toTimeMatch[1]) : 12
-      const toMinute = toTimeMatch ? parseInt(toTimeMatch[2]) : 0
-
-      const toScheduledAt = new Date(`${request.to.date}T00:00:00Z`)
-      toScheduledAt.setUTCHours(toHour, toMinute, 0, 0)
+      const toScheduledAt = buildScheduledAt(request.to.date, request.to.time)
 
       const { error: insertNewErr } = await supabaseAdmin
         .from('sessions')
@@ -255,7 +261,7 @@ export async function PATCH(
           match_id: matchId,
           tutor_id: schedule.tutor_id,
           student_id: schedule.student_id,
-          scheduled_at: toScheduledAt.toISOString(),
+          scheduled_at: toScheduledAt,
           duration_minutes: 60,
           status: 'scheduled',
         })
@@ -268,6 +274,7 @@ export async function PATCH(
         )
       }
 
+      // ===== UPDATE match_schedules =====
       const { error: updateErr } = await supabaseAdmin
         .from('match_schedules')
         .update({

@@ -431,23 +431,23 @@ export async function PATCH(
 
     // ===== 2. Insert sessions baru =====
     const newSessions = slots.map((slot) => {
-      const timeMatch = slot.timeSlot.match(/(\d{1,2})\.(\d{2})/)
-      const hour = timeMatch ? parseInt(timeMatch[1]) : 12
-      const minute = timeMatch ? parseInt(timeMatch[2]) : 0
+    const timeMatch = slot.timeSlot.match(/(\d{1,2})\.(\d{2})/)
+    const hour = timeMatch ? parseInt(timeMatch[1]) : 12
+    const minute = timeMatch ? parseInt(timeMatch[2]) : 0
 
-      const hh = String(hour).padStart(2, '0')
-      const mm = String(minute).padStart(2, '0')
-      const scheduledAt = new Date(`${slot.date}T${hh}:${mm}:00+07:00`)
+    const hh = String(hour).padStart(2, '0')
+    const mm = String(minute).padStart(2, '0')
+    const scheduledAt = new Date(`${slot.date}T${hh}:${mm}:00+07:00`)
 
-      return {
-        match_id: matchId,
-        tutor_id: schedule.tutor_id,
-        student_id: schedule.student_id,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: 60,
-        status: 'scheduled',
-      }
-    })
+    return {
+      match_id: matchId,
+      tutor_id: schedule.tutor_id,
+      student_id: schedule.student_id,
+      scheduled_at: scheduledAt.toISOString(),
+      duration_minutes: 60,
+      status: 'scheduled',
+    }
+  })
 
     const { error: insSessionsErr } = await supabaseAdmin
       .from('sessions')
