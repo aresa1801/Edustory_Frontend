@@ -1214,7 +1214,7 @@ const handleTerminationAction = async (action: 'approve' | 'reject' | 'cancel') 
         <div
           className="max-w-7xl mx-auto p-4 space-y-6"
           onClickCapture={
-            isCompleted
+            isCompleted && !showCompletionPopup && !data?.completionNotification
               ? (e) => {
                   e.preventDefault()
                   e.stopPropagation()

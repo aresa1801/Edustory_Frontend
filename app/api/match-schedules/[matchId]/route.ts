@@ -108,7 +108,7 @@ export async function GET(
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
       .select(
-        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at, moved_at'
+        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at, moved_at, duration_minutes'
       )
       .eq('match_id', matchId)
       .order('scheduled_at', { ascending: true })
@@ -173,9 +173,21 @@ export async function GET(
 
     // ===== 7. AUTO-NATURAL COMPLETE =====
     // Cek semua session sudah selesai (started_at ATAU cancelled_at)
+    // Sesi dianggap "selesai" kalau:
+    // 1. cancelled_at terisi (hangus/dipindah), ATAU
+    // 2. started_at terisi DAN waktu berakhirnya (start + duration) sudah lewat
+    const nowMs = now.getTime()
     const allSessionsDone =
       processedSessions.length > 0 &&
-      processedSessions.every((s: any) => s.started_at || s.cancelled_at)
+      processedSessions.every((s: any) => {
+        if (s.cancelled_at) return true
+        if (s.started_at) {
+          const startMs = new Date(s.scheduled_at).getTime()
+          const durationMs = (s.duration_minutes || 60) * 60 * 1000
+          return nowMs >= startMs + durationMs
+        }
+        return false
+      })
 
     const isAlreadyCompleted = schedule.status === 'completed'
     const hasTermination = !!schedule.termination_request
