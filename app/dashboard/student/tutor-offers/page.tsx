@@ -982,7 +982,7 @@ useEffect(() => {
               className="w-full bg-primary hover:bg-primary/90"
             >
               <Wallet className="w-4 h-4 mr-2" />
-              Isi Deposit & Bayar
+              Isi Deposit Wallet
             </Button>
             <Button
               variant="outline"
