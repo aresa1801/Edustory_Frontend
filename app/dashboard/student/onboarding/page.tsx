@@ -468,7 +468,7 @@ export default function StudentOnboardingPage() {
 
     const targetUrl =
       destination === 'payment'
-        ? '/dashboard/student/payment'
+        ? `/dashboard/student/payment?amount=${depositAmount}`
         : '/dashboard/student'
 
     console.log('[Onboarding] ▶️ Finishing, destination:', destination)

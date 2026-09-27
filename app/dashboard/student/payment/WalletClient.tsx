@@ -33,16 +33,29 @@ export default function WalletClient({
   initialBalance,
   customerName,
   customerEmail,
+  defaultAmount = 0,
 }: {
   initialToken: string
   initialBalance: number
   customerName: string
   customerEmail: string
+  defaultAmount?: number
 }) {
   const [token] = useState(initialToken)
   const [balance, setBalance] = useState(initialBalance)
   const [history, setHistory] = useState<TopUpHistory[]>([])
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(defaultAmount > 0 ? String(defaultAmount) : '')
+  // 🔥 Bersihin query param ?amount=... setelah dibaca,
+  //    biar refresh tidak auto-fill lagi
+  useEffect(() => {
+    if (defaultAmount > 0 && typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('amount')) {
+        url.searchParams.delete('amount')
+        window.history.replaceState({}, '', url.pathname + url.search)
+      }
+    }
+  }, [defaultAmount])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

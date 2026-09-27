@@ -3,7 +3,11 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import WalletClient from './WalletClient'
 
-export default async function PaymentPage() {
+export default async function PaymentPage({
+  searchParams,
+}: {
+  searchParams: { amount?: string }
+}) {
   const cookieStore = cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +26,7 @@ export default async function PaymentPage() {
     redirect('/auth/login')
   }
 
-  // Ambil wallet balance
+  // Wallet balance
   const { data: student } = await supabase
     .from('students')
     .select('id')
@@ -39,12 +43,20 @@ export default async function PaymentPage() {
     balance = wallet?.balance || 0
   }
 
+  // 🔥 Parse amount dari query param
+  const rawAmount = searchParams?.amount
+  const defaultAmount =
+    rawAmount && !isNaN(Number(rawAmount)) && Number(rawAmount) > 0
+      ? Number(rawAmount)
+      : 0
+
   return (
     <WalletClient
       initialToken={session.access_token}
       initialBalance={balance}
       customerName={session.user.email?.split('@')[0] || 'Student'}
       customerEmail={session.user.email || ''}
+      defaultAmount={defaultAmount}
     />
   )
 }
