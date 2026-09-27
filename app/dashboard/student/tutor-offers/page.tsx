@@ -135,27 +135,20 @@ export default function TutorOffersPage() {
   }
 
   const fetchWalletBalance = async () => {
-  if (!user) return
-  try {
-    const supabase = createClient()
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (student) {
-      const { data: wallet } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('student_id', student.id)
-        .maybeSingle()
-      setWalletBalance(Number(wallet?.balance) || 0)
+    if (!user) return
+    try {
+      const res = await fetch(
+        `/api/students/wallet-balance?user_id=${user.id}`,
+        { cache: 'no-store' }
+      )
+      const data = await res.json()
+      console.log('[Offers] Wallet balance:', data)
+      setWalletBalance(Number(data?.balance) || 0)
+    } catch (err) {
+      console.warn('[Offers] Fetch balance error:', err)
+      setWalletBalance(0)
     }
-  } catch (err) {
-    console.warn('[Offers] Fetch balance error:', err)
   }
-}
 
 useEffect(() => {
   isMounted.current = true
@@ -202,6 +195,7 @@ useEffect(() => {
   const handleRefresh = () => {
     if (!isMounted.current) return
     fetchData()
+    fetchWalletBalance()
   }
 
   const handleSchedule = (matchId: string) => {
