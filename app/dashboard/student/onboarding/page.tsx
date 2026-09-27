@@ -17,6 +17,14 @@ import {
   User, School, Users, BookOpen, Calendar, Wallet, CreditCard,
   CheckCircle, ArrowRight, ArrowLeft, ChevronRight
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 // ============================================================
 // KONSTANTA
@@ -75,6 +83,7 @@ export default function StudentOnboardingPage() {
   const router = useRouter()
   const { user: authUser } = useAuth()
   const [step, setStep] = useState(1)
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
   const [profileTab, setProfileTab] = useState('siswa')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -429,28 +438,8 @@ export default function StudentOnboardingPage() {
         await saveStep3Data()
         setStep(4)
       } else if (step === 4) {
-        console.log('[Onboarding] Menyimpan step 4 (metode pembayaran)...')
-        // 1. Simpan data payment ke students
-        await saveStep4Data()
-        console.log('[Onboarding] Step 4 tersimpan, redirect ke dashboard...')
-
-        // 2. Update onboarding_complete di background (fire-and-forget)
-        //    agar tidak menghambat redirect
-        ;(async () => {
-          try {
-            const supabase = createClient()
-            await supabase
-              .from('students')
-              .update({ onboarding_complete: true })
-              .eq('user_id', authUser?.id)
-            console.log('[Onboarding] ✅ onboarding_complete updated in background')
-          } catch (e) {
-            console.warn('[Onboarding] Gagal update onboarding_complete (non-critical)', e)
-          }
-        })()
-
-        // 3. Redirect ke dashboard setelah penyimpanan selesai
-        router.push('/dashboard/student')
+        console.log('[Onboarding] Step 4 valid, tampilkan modal pilihan...')
+        setShowCompletionModal(true)
       }
     } catch (err: any) {
       console.error('[Onboarding] Error:', err)
@@ -466,6 +455,44 @@ export default function StudentOnboardingPage() {
   const handleBack = () => {
     if (step > 1) setStep(s => s - 1)
     else router.push('/auth/select-role')
+  }
+
+  // ============================================================
+  // HANDLE SELESAI – dari modal, redirect ke halaman berbeda
+  // ============================================================
+  const handleFinishOnboarding = async (destination: 'payment' | 'profile') => {
+    setSaving(true)
+    setError(null)
+
+    try {
+      // 1. Simpan data step 4 (metode pembayaran + deposit_amount)
+      await saveStep4Data()
+      console.log('[Onboarding] Step 4 tersimpan via modal')
+
+      // 2. Update onboarding_complete
+      const supabase = createClient()
+      await supabase
+        .from('students')
+        .update({ onboarding_complete: true })
+        .eq('user_id', authUser?.id)
+      console.log('[Onboarding] ✅ onboarding_complete updated')
+
+      // 3. Close modal
+      setShowCompletionModal(false)
+
+      // 4. Redirect sesuai pilihan
+      if (destination === 'payment') {
+        router.push('/dashboard/student/payment')
+      } else {
+        router.push('/dashboard/student')
+      }
+    } catch (err: any) {
+      console.error('[Onboarding] Error finish:', err)
+      setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
+      setShowCompletionModal(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ============================================================
@@ -914,7 +941,7 @@ export default function StudentOnboardingPage() {
                     <p className="font-medium">{gradeLevel}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Jadwal</span>
+                    <span className="text-muted-foreground">Rentang Jadwal</span>
                     <p className="font-medium">{schedule}</p>
                   </div>
                   <div>
@@ -1004,7 +1031,7 @@ export default function StudentOnboardingPage() {
             ) : step === 4 ? (
               <span className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                Selesai & Masuk Dashboard
+                Selesai
               </span>
             ) : (
               <span className="flex items-center gap-2">
@@ -1019,6 +1046,60 @@ export default function StudentOnboardingPage() {
           Anda bisa melengkapi atau mengubah data ini kapan saja di halaman Profil
         </p>
       </div>
+
+      {/* ===== MODAL SELESAI ONBOARDING ===== */}
+      <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex justify-center mb-2">
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+            </div>
+            <DialogTitle className="text-center text-xl">
+              Onboarding Selesai! 🎉
+            </DialogTitle>
+            <DialogDescription className="text-center pt-1">
+              Semua data sudah selesai. Apakah Anda ingin melanjutkan ke dashboard profil atau ke halaman pembayaran?
+            </DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-col gap-2 mt-4">
+            <Button
+              onClick={() => handleFinishOnboarding('payment')}
+              disabled={saving}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Memproses...
+                </span>
+              ) : (
+                <>
+                  <Wallet className="w-4 h-4 mr-2" />
+                  Ke Halaman Pembayaran
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => handleFinishOnboarding('profile')}
+              disabled={saving}
+              variant="outline"
+              className="w-full"
+            >
+              <User className="w-4 h-4 mr-2" />
+              Ke Dashboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
