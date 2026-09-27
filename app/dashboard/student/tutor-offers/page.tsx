@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { createClient } from '@/lib/supabase/client'
 import {
   DollarSign,
   MapPin,
@@ -25,6 +26,8 @@ import {
   Star,
   Award,
   BookOpen,
+  Wallet,
+  AlertCircle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -58,6 +61,7 @@ interface Match {
   accepted_at?: string
   contract_end_date?: string
   schedule_submitted_at?: string
+  student_sessions_per_month?: number  // 🔥 TAMBAH
 }
 
 export default function TutorOffersPage() {
@@ -70,6 +74,19 @@ export default function TutorOffersPage() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const isMounted = useRef(true)
+  // 🔥 Saldo wallet
+  const [walletBalance, setWalletBalance] = useState<number>(0)
+
+  // 🔥 Modal deposit tidak cukup
+  const [insufficientModal, setInsufficientModal] = useState<{
+    open: boolean
+    total: number
+    tutorName: string
+  }>({
+    open: false,
+    total: 0,
+    tutorName: '',
+  })
 
   // === Statistik ===
   const [activeCount, setActiveCount] = useState(0)
@@ -117,16 +134,40 @@ export default function TutorOffersPage() {
     }
   }
 
-  useEffect(() => {
-    isMounted.current = true
-    if (authLoading) return
-    if (!user) {
-      setLoading(false)
-      return
+  const fetchWalletBalance = async () => {
+  if (!user) return
+  try {
+    const supabase = createClient()
+    const { data: student } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (student) {
+      const { data: wallet } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('student_id', student.id)
+        .maybeSingle()
+      setWalletBalance(Number(wallet?.balance) || 0)
     }
-    fetchData()
-    return () => { isMounted.current = false }
-  }, [user?.id, authLoading])
+  } catch (err) {
+    console.warn('[Offers] Fetch balance error:', err)
+  }
+}
+
+useEffect(() => {
+  isMounted.current = true
+  if (authLoading) return
+  if (!user) {
+    setLoading(false)
+    return
+  }
+  fetchData()
+  fetchWalletBalance()  // 🔥 TAMBAH
+  return () => { isMounted.current = false }
+}, [user?.id, authLoading])
 
   // === UPDATE TIMER SETIAP DETIK ===
   useEffect(() => {
@@ -165,6 +206,24 @@ export default function TutorOffersPage() {
 
   const handleSchedule = (matchId: string) => {
     window.location.href = `/dashboard/student/set_schedule?matchId=${matchId}`
+  }
+
+  // 🔥 Cek saldo sebelum lanjut atur jadwal
+  const handleScheduleClick = (match: Match) => {
+    const total =
+      (match.student_sessions_per_month || 0) * (match.tutor_hourly_rate || 0)
+
+    if (walletBalance < total) {
+      setInsufficientModal({
+        open: true,
+        total,
+        tutorName: match.tutor_full_name || 'Tutor',
+      })
+      return
+    }
+
+    // Saldo cukup → lanjut ke halaman set schedule
+    handleSchedule(match.id)
   }
 
   const handleReject = async (matchId: string) => {
@@ -475,7 +534,7 @@ export default function TutorOffersPage() {
                 <div className="mt-4 flex gap-2">
                   <Button
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                    onClick={() => handleSchedule(match.id)}
+                    onClick={() => handleScheduleClick(match)}
                     disabled={processingId === match.id}
                   >
                     <Calendar className="w-4 h-4" />
@@ -857,6 +916,88 @@ export default function TutorOffersPage() {
               disabled={processingId !== null}
             >
               {processingId ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== MODAL DEPOSIT TIDAK CUKUP ===== */}
+      <Dialog
+        open={insufficientModal.open}
+        onOpenChange={(open) =>
+          setInsufficientModal((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex justify-center mb-2">
+              <div className="w-14 h-14 rounded-full bg-yellow-100 flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-yellow-600" />
+              </div>
+            </div>
+            <DialogTitle className="text-center text-xl">
+              Deposit Tidak Cukup
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2 space-y-3">
+              <p className="text-sm leading-relaxed">
+                Mohon maaf, deposit Anda di wallet tidak cukup. Isi deposit Anda
+                terlebih dahulu sebanyak{' '}
+                <strong className="text-foreground">
+                  Rp {insufficientModal.total.toLocaleString('id-ID')}
+                </strong>{' '}
+                untuk setuju dan atur jadwal ke tutor{' '}
+                <strong className="text-foreground">
+                  {insufficientModal.tutorName}
+                </strong>
+                .
+              </p>
+
+              <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1.5 text-left">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Saldo Anda saat ini</span>
+                  <span className="font-medium">
+                    Rp {walletBalance.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total dibutuhkan</span>
+                  <span className="font-medium text-yellow-600">
+                    Rp {insufficientModal.total.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-border/50 pt-1.5 mt-1.5">
+                  <span className="text-muted-foreground font-medium">
+                    Kekurangan
+                  </span>
+                  <span className="font-bold text-red-500">
+                    Rp{' '}
+                    {(insufficientModal.total - walletBalance).toLocaleString(
+                      'id-ID'
+                    )}
+                  </span>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex-col sm:flex-col gap-2 mt-2">
+            <Button
+              onClick={() => {
+                window.location.href = `/dashboard/student/payment?amount=${insufficientModal.total}`
+              }}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Isi Deposit & Bayar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setInsufficientModal((prev) => ({ ...prev, open: false }))
+              }
+              className="w-full"
+            >
+              Kembali
             </Button>
           </DialogFooter>
         </DialogContent>
