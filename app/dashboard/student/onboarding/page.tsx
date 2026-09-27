@@ -481,7 +481,7 @@ export default function StudentOnboardingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/3 to-blue-50/30">
       {/* Header */}
-      <div className="bg-card border-b border-border/30 sticky top-0 z-10">
+      <div className="bg-card border-b border-border/30">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <span className="text-lg">📚</span>
