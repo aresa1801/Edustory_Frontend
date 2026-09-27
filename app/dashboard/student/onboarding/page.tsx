@@ -461,6 +461,9 @@ export default function StudentOnboardingPage() {
   // HANDLE SELESAI – dari modal, redirect ke halaman berbeda
   // ============================================================
   const handleFinishOnboarding = async (destination: 'payment' | 'profile') => {
+    // Guard double-click
+    if (saving) return
+
     setSaving(true)
     setError(null)
 
@@ -469,29 +472,39 @@ export default function StudentOnboardingPage() {
       await saveStep4Data()
       console.log('[Onboarding] Step 4 tersimpan via modal')
 
-      // 2. Update onboarding_complete
+      // 2. Update onboarding_complete — WAJIB di-await
       const supabase = createClient()
-      await supabase
+      const { error: updateErr } = await supabase
         .from('students')
         .update({ onboarding_complete: true })
         .eq('user_id', authUser?.id)
+
+      if (updateErr) {
+        throw new Error(updateErr.message || 'Gagal update status onboarding')
+      }
       console.log('[Onboarding] ✅ onboarding_complete updated')
 
-      // 3. Close modal
+      // 3. Close modal + reset saving
       setShowCompletionModal(false)
+      setSaving(false)
 
-      // 4. Redirect sesuai pilihan
-      if (destination === 'payment') {
-        router.push('/dashboard/student/payment')
-      } else {
-        router.push('/dashboard/student')
-      }
+      // 4. Tentukan target URL
+      const targetUrl =
+        destination === 'payment'
+          ? '/dashboard/student/payment'
+          : '/dashboard/student'
+
+      // 5. Delay 1.5 detik baru hard navigate (biar user lihat modal close dulu)
+      setTimeout(() => {
+        // Pakai window.location.href = HARD navigate (bypass client router)
+        // Ini penting untuk menghindari race condition dengan server component
+        window.location.href = targetUrl
+      }, 1500)
     } catch (err: any) {
       console.error('[Onboarding] Error finish:', err)
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
-      setShowCompletionModal(false)
-    } finally {
       setSaving(false)
+      setShowCompletionModal(false)
     }
   }
 
