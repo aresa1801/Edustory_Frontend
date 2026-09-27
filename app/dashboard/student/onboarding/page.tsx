@@ -381,33 +381,35 @@ export default function StudentOnboardingPage() {
   // SAVE STEP 4 (Payment Method)
   // ============================================================
   const saveStep4Data = async () => {
-    if (!authUser) throw new Error('User tidak ditemukan di context')
-    if (!selectedPayment) throw new Error('Metode pembayaran wajib dipilih')
+  if (!authUser) throw new Error('User tidak ditemukan di context')
+  if (!selectedPayment) throw new Error('Metode pembayaran wajib dipilih')
 
-    const payload = {
-      user_id: authUser.id,
-      payment_method: selectedPayment,
-      transfer_notes: transferProof.trim() || null,
-      deposit_amount: budgetPerMonth ? Number(budgetPerMonth) : null,
-    }
-
-    Object.keys(payload).forEach(key => {
-      const k = key as keyof typeof payload
-      if (payload[k] === null || payload[k] === undefined) delete payload[k]
-    })
-
-    const response = await fetch('/api/students/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      const result = await response.json()
-      throw new Error(result.error || `HTTP ${response.status}`)
-    }
-    return true
+  const payload = {
+    user_id: authUser.id,
+    payment_method: selectedPayment,
+    transfer_notes: transferProof.trim() || null,
+    deposit_amount: budgetPerMonth ? Number(budgetPerMonth) : null,
+    onboarding_complete: true, // 🔥 gabung di sini
   }
+
+  Object.keys(payload).forEach(key => {
+    const k = key as keyof typeof payload
+    if (payload[k] === null || payload[k] === undefined) delete payload[k]
+  })
+
+  const response = await fetch('/api/students/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result?.error || `HTTP ${response.status}`)
+  }
+  return true
+}
 
   // ============================================================
   // HANDLE NEXT
@@ -464,47 +466,35 @@ export default function StudentOnboardingPage() {
     // Guard double-click
     if (saving) return
 
+    const targetUrl =
+      destination === 'payment'
+        ? '/dashboard/student/payment'
+        : '/dashboard/student'
+
+    console.log('[Onboarding] ▶️ Finishing, destination:', destination)
+
+    // 1. Langsung close modal + set saving
+    setShowCompletionModal(false)
     setSaving(true)
     setError(null)
 
     try {
-      // 1. Simpan data step 4 (metode pembayaran + deposit_amount)
+      // 2. Save step 4 + onboarding_complete (satu API call)
       await saveStep4Data()
-      console.log('[Onboarding] Step 4 tersimpan via modal')
+      console.log('[Onboarding] ✅ All data saved')
 
-      // 2. Update onboarding_complete — WAJIB di-await
-      const supabase = createClient()
-      const { error: updateErr } = await supabase
-        .from('students')
-        .update({ onboarding_complete: true })
-        .eq('user_id', authUser?.id)
-
-      if (updateErr) {
-        throw new Error(updateErr.message || 'Gagal update status onboarding')
-      }
-      console.log('[Onboarding] ✅ onboarding_complete updated')
-
-      // 3. Close modal + reset saving
-      setShowCompletionModal(false)
-      setSaving(false)
-
-      // 4. Tentukan target URL
-      const targetUrl =
-        destination === 'payment'
-          ? '/dashboard/student/payment'
-          : '/dashboard/student'
-
-      // 5. Delay 1.5 detik baru hard navigate (biar user lihat modal close dulu)
+      // 3. Redirect HARD setelah delay 1.5s
+      //    window.location.replace = tidak bisa di-back, lebih clean
       setTimeout(() => {
-        // Pakai window.location.href = HARD navigate (bypass client router)
-        // Ini penting untuk menghindari race condition dengan server component
-        window.location.href = targetUrl
+        console.log('[Onboarding] 🚀 Redirecting to:', targetUrl)
+        window.location.replace(targetUrl)
       }, 1500)
     } catch (err: any) {
-      console.error('[Onboarding] Error finish:', err)
-      setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
+      console.error('[Onboarding] ❌ Error:', err)
+      setError(err?.message || 'Terjadi kesalahan. Silakan coba lagi.')
       setSaving(false)
-      setShowCompletionModal(false)
+      // Buka modal lagi supaya user bisa retry
+      setShowCompletionModal(true)
     }
   }
 
