@@ -158,13 +158,24 @@ export async function GET(
 
     if (completedIds.length > 0) {
       console.log('[AUTO-COMPLETE] Sessions completed:', completedIds)
-      await supabaseAdmin
-        .from('sessions')
-        .update({
-          status: 'completed',
-          completed_at: now.toISOString(),
-        })
-        .in('id', completedIds)
+
+      // Group by id dengan completed_at yang dihitung dari started_at + duration
+      for (const id of completedIds) {
+        const s = processedSessions.find((p: any) => p.id === id)
+        if (!s) continue
+
+        const startMs = new Date(s.started_at).getTime()
+        const durationMs = (s.duration_minutes || 60) * 60 * 1000
+        const exactCompleteAt = new Date(startMs + durationMs).toISOString()
+
+        await supabaseAdmin
+          .from('sessions')
+          .update({
+            status: 'completed',
+            completed_at: exactCompleteAt,  // ← = started_at + 60 menit
+          })
+          .eq('id', id)
+      }
     }
 
     // ===== 5. Auto-expire termination_request =====
