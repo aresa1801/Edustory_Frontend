@@ -406,14 +406,14 @@ export default function WalletClient({
         </div>
 
         {/* RIGHT — Log Transaksi */}
-        <div className="space-y-5">
+        <div className="flex flex-col gap-5">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Log Transaksi</h2>
           </div>
 
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="flex-1 flex flex-col">
+            <CardContent className="pt-6 flex-1 flex flex-col">
               {txLoading ? (
                 <div className="flex flex-col items-center py-10">
                   <Spinner className="h-6 w-6" />
@@ -430,7 +430,7 @@ export default function WalletClient({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                   {transactions.map((tx) => {
                     const direction = getDirection(tx)
                     const isIncome = direction === 'in'
