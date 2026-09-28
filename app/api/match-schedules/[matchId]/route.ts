@@ -156,10 +156,9 @@ export async function GET(
         .in('id', expiredIds)
     }
 
-    if (completedIds.length > 0) {
+        if (completedIds.length > 0) {
       console.log('[AUTO-COMPLETE] Sessions completed:', completedIds)
 
-      // Group by id dengan completed_at yang dihitung dari started_at + duration
       for (const id of completedIds) {
         const s = processedSessions.find((p: any) => p.id === id)
         if (!s) continue
@@ -172,7 +171,7 @@ export async function GET(
           .from('sessions')
           .update({
             status: 'completed',
-            completed_at: exactCompleteAt,  // ← = started_at + 60 menit
+            completed_at: exactCompleteAt,
           })
           .eq('id', id)
       }
@@ -223,7 +222,7 @@ export async function GET(
       processedSessions.every((s: any) => {
         if (s.cancelled_at) return true
         if (s.started_at) {
-          const startMs = new Date(s.scheduled_at).getTime()
+          const startMs = new Date(s.started_at).getTime()
           const durationMs = (s.duration_minutes || 60) * 60 * 1000
           return nowMs >= startMs + durationMs
         }
