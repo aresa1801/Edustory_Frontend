@@ -11,56 +11,25 @@ export async function GET(request: NextRequest) {
     )
 
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
+    const studentId = searchParams.get('student_id')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+    if (!studentId) {
+      return NextResponse.json({ error: 'student_id required' }, { status: 400 })
     }
 
-    // 1. Cari student ID dari user_id
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (!student) {
-      return NextResponse.json({ transactions: [] })
-    }
-
-    // 2. Ambil transaksi — coba beberapa nama kolom
-    //    (student_id, user_id) biar kompatibel dengan schema apapun
-    let transactions: any[] = []
-
-    // Coba student_id dulu
-    const { data: byStudent, error: err1 } = await supabase
+    const { data: transactions, error } = await supabase
       .from('wallet_transactions')
       .select('*')
-      .eq('student_id', student.id)
+      .eq('student_id', studentId)
       .order('created_at', { ascending: false })
       .limit(50)
 
-    if (!err1 && byStudent && byStudent.length > 0) {
-      transactions = byStudent
-    } else {
-      // Fallback: coba user_id
-      const { data: byUser, error: err2 } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (!err2 && byUser) {
-        transactions = byUser
-      } else if (err1 && err2) {
-        console.error('[wallet-transactions] both queries failed:', err1, err2)
-        // Return empty instead of error — biar UI tetap jalan
-        return NextResponse.json({ transactions: [] })
-      }
+    if (error) {
+      console.error('[wallet-transactions] query error:', error)
+      return NextResponse.json({ transactions: [] })
     }
 
-    return NextResponse.json({ transactions })
+    return NextResponse.json({ transactions: transactions || [] })
   } catch (err) {
     console.error('[wallet-transactions] unexpected:', err)
     return NextResponse.json({ transactions: [] })

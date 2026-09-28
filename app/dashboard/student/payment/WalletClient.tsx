@@ -38,7 +38,9 @@ interface WalletTransaction {
   transaction_type?: string
   description?: string
   notes?: string
+  reference?: string
   reference_id?: string
+  balance_after?: number
   created_at: string
 }
 
@@ -55,7 +57,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
 
 const QUICK_AMOUNTS = [20000, 50000, 100000, 250000, 500000]
 
-// Label untuk tipe transaksi wallet
 const TX_TYPE_LABEL: Record<string, string> = {
   topup: 'Top Up Saldo',
   top_up: 'Top Up Saldo',
@@ -75,14 +76,13 @@ const TX_TYPE_LABEL: Record<string, string> = {
 }
 
 // ============================================================
-// HELPER — Tentukan arah transaksi (in / out)
+// HELPER
 // ============================================================
 function getDirection(tx: WalletTransaction): 'in' | 'out' {
   const amt = Number(tx.amount) || 0
   if (amt < 0) return 'out'
   if (amt > 0) return 'in'
 
-  // Fallback: pakai type kalau amount 0 (edge case)
   const t = (tx.type || tx.transaction_type || '').toLowerCase()
   if (['topup', 'top_up', 'deposit', 'refund', 'credit', 'session_earning', 'session_release'].includes(t)) {
     return 'in'
@@ -106,12 +106,14 @@ export default function WalletClient({
   customerName,
   customerEmail,
   defaultAmount = 0,
+  studentId,
 }: {
   initialToken: string
   initialBalance: number
   customerName: string
   customerEmail: string
   defaultAmount?: number
+  studentId: string
 }) {
   const [token] = useState(initialToken)
   const [balance, setBalance] = useState(initialBalance)
@@ -122,7 +124,7 @@ export default function WalletClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 🔥 Bersihin query param ?amount=... setelah dibaca
+  // Bersihin query param ?amount=... setelah dibaca
   useEffect(() => {
     if (defaultAmount > 0 && typeof window !== 'undefined') {
       const url = new URL(window.location.href)
@@ -152,30 +154,36 @@ export default function WalletClient({
   }
 
   // ============================================================
-  // FETCH: Wallet transactions (log transaksi)
+  // FETCH: Wallet transactions
   // ============================================================
   const refreshTransactions = async () => {
+    if (!studentId) {
+      console.warn('[Wallet] No studentId — skip fetch')
+      setTxLoading(false)
+      return
+    }
+
     setTxLoading(true)
     try {
-      // Ambil user_id dari Supabase session
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setTransactions([])
-        return
-      }
+      console.log('[Wallet] Fetching transactions for student:', studentId)
 
       const res = await fetch(
-        `/api/students/wallet-transactions?user_id=${user.id}`,
+        `/api/students/wallet-transactions?student_id=${studentId}`,
         { cache: 'no-store' }
       )
+
+      console.log('[Wallet] TX response status:', res.status)
+
       const data = await res.json()
+      console.log('[Wallet] TX data:', data)
+
       setTransactions(data.transactions || [])
     } catch (err) {
-      console.warn('Transactions refresh error:', err)
+      console.error('[Wallet] Transactions error:', err)
       setTransactions([])
     } finally {
       setTxLoading(false)
+      console.log('[Wallet] TX loading done')
     }
   }
 
@@ -280,17 +288,17 @@ export default function WalletClient({
         </p>
       </div>
 
-      {/* ================= TWO COLUMNS ================= */}
+      {/* TWO COLUMNS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* ============ LEFT COLUMN — Deposit dan Penarikan ============ */}
+        {/* LEFT — Deposit dan Penarikan */}
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Deposit dan Penarikan</h2>
           </div>
 
-          {/* Saldo Card */}
+          {/* Saldo */}
           <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -356,7 +364,7 @@ export default function WalletClient({
             </CardContent>
           </Card>
 
-          {/* Riwayat Top Up — kalau ada */}
+          {/* Riwayat Top Up */}
           {history.length > 0 && (
             <Card>
               <CardHeader>
@@ -397,7 +405,7 @@ export default function WalletClient({
           )}
         </div>
 
-        {/* ============ RIGHT COLUMN — Log Transaksi ============ */}
+        {/* RIGHT — Log Transaksi */}
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-primary" />
@@ -436,7 +444,6 @@ export default function WalletClient({
                         className="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/20 transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {/* Arrow icon */}
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                               isIncome

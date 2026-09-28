@@ -43,7 +43,7 @@ export default async function PaymentPage({
     balance = wallet?.balance || 0
   }
 
-  // 🔥 Parse amount dari query param
+  // Parse amount dari query param
   const rawAmount = searchParams?.amount
   const defaultAmount =
     rawAmount && !isNaN(Number(rawAmount)) && Number(rawAmount) > 0
@@ -57,6 +57,7 @@ export default async function PaymentPage({
       customerName={session.user.email?.split('@')[0] || 'Student'}
       customerEmail={session.user.email || ''}
       defaultAmount={defaultAmount}
+      studentId={student?.id || ''}
     />
   )
 }
