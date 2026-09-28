@@ -129,10 +129,11 @@ export async function GET(
         const durationMs = (s.duration_minutes || 60) * 60 * 1000
         if (nowMs >= startMs + durationMs) {
           completedIds.push(s.id)
+          const exactCompleteAt = new Date(startMs + durationMs).toISOString()
           return {
             ...s,
             status: 'completed',
-            completed_at: now.toISOString(),
+            completed_at: exactCompleteAt,
           }
         }
         return s
