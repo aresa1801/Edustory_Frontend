@@ -108,19 +108,39 @@ export async function GET(
     const { data: sessionsData } = await supabaseAdmin
       .from('sessions')
       .select(
-        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at, moved_at, duration_minutes'
+        'id, scheduled_at, status, notes, tutor_ready_at, student_ready_at, started_at, cancelled_at, moved_at, completed_at, duration_minutes'
       )
       .eq('match_id', matchId)
       .order('scheduled_at', { ascending: true })
 
-    const now = new Date()
+        const now = new Date()
+    const nowMs = now.getTime()
     const expiredIds: string[] = []
+    const completedIds: string[] = []
 
     const processedSessions = (sessionsData || []).map((s: any) => {
-      if (s.started_at || s.cancelled_at) return s
+      // ===== Skip kalau sudah selesai / dibatalkan / dipindah =====
+      if (s.cancelled_at || s.completed_at) return s
 
+      // ===== Kalau sudah started (ongoing) =====
+      if (s.started_at) {
+        // Cek apakah sudah lewat durasi
+        const startMs = new Date(s.started_at).getTime()
+        const durationMs = (s.duration_minutes || 60) * 60 * 1000
+        if (nowMs >= startMs + durationMs) {
+          completedIds.push(s.id)
+          return {
+            ...s,
+            status: 'completed',
+            completed_at: now.toISOString(),
+          }
+        }
+        return s
+      }
+
+      // ===== Kalau belum started (scheduled) =====
       const scheduledAt = new Date(s.scheduled_at)
-      const diffMinutes = (now.getTime() - scheduledAt.getTime()) / 1000 / 60
+      const diffMinutes = (nowMs - scheduledAt.getTime()) / 1000 / 60
 
       if (diffMinutes > READY_WINDOW_MINUTES) {
         expiredIds.push(s.id)
@@ -134,6 +154,17 @@ export async function GET(
         .from('sessions')
         .update({ cancelled_at: now.toISOString(), status: 'cancelled' })
         .in('id', expiredIds)
+    }
+
+    if (completedIds.length > 0) {
+      console.log('[AUTO-COMPLETE] Sessions completed:', completedIds)
+      await supabaseAdmin
+        .from('sessions')
+        .update({
+          status: 'completed',
+          completed_at: now.toISOString(),
+        })
+        .in('id', completedIds)
     }
 
     // ===== 5. Auto-expire termination_request =====
@@ -176,7 +207,6 @@ export async function GET(
     // Sesi dianggap "selesai" kalau:
     // 1. cancelled_at terisi (hangus/dipindah), ATAU
     // 2. started_at terisi DAN waktu berakhirnya (start + duration) sudah lewat
-    const nowMs = now.getTime()
     const allSessionsDone =
       processedSessions.length > 0 &&
       processedSessions.every((s: any) => {

@@ -543,7 +543,8 @@ export default function ScheduleDetailView({
   const activeSessionMap = useMemo(() => {
     const filtered: Record<string, string> = { ...sessionMap }
     ;(data?.sessions || []).forEach((s: any) => {
-      if (s.cancelled_at) {
+      // Hapus dari Jadwal Terkini kalau cancelled ATAU completed
+      if (s.cancelled_at || s.completed_at) {
         const sd = new Date(s.scheduled_at)
         const key = `${formatDateKey(sd)}|${getTimeSlotFromDate(sd)}`
         delete filtered[key]
