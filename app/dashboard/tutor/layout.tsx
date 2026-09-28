@@ -10,7 +10,7 @@ import {
   BookOpen,
   Handshake,
   ClipboardList,
-  FileText,
+  Wallet,
   GraduationCap,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
@@ -34,7 +34,7 @@ const navGroups: NavGroup[] = [
     label: 'Mengajar',
     items: [
       { href: '/dashboard/tutor/student-offers', icon: Handshake, label: 'Penawaran Siswa' },
-      { href: '/dashboard/tutor/applications', icon: FileText, label: 'Aplikasi Saya' },
+      { href: '/dashboard/tutor/wallet', icon: Wallet, label: 'Wallet Deposit' },
       { href: '/dashboard/tutor/my-students', icon: Users, label: 'Siswa Saya' },
       { href: '/dashboard/tutor/schedule', icon: Calendar, label: 'Jadwal Mengajar' },
     ],
