@@ -12,8 +12,6 @@ export async function POST(
     const body = await req.json();
     const { action } = body;
 
-    console.log('📥 Action:', action);
-
     if (!action || !['accept', 'reject'].includes(action)) {
       return NextResponse.json(
         { error: 'Invalid action. Use "accept" or "reject".' },
@@ -29,76 +27,46 @@ export async function POST(
     // === 1. Ambil match ===
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
-      .select('id, tutor_id, student_id, status, initiated_by, tutor_hourly_rate, student_sessions_per_month, tutor_full_name')
+      .select('id, tutor_id, student_id, status, initiated_by, tutor_full_name')
       .eq('id', matchId)
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    console.log('✅ Match found:', match.id, 'status:', match.status);
-
-    // === 2. Cek existing hold ===
-    const { data: existingHold } = await supabaseAdmin
-      .from('wallet_transactions')
-      .select('id, status, amount')
-      .eq('reference', matchId)
-      .eq('type', 'session_hold')
-      .maybeSingle();
-
     // ===== HANDLE ACCEPT =====
-    // 🔥 Tutor setuju = tanda tangan kontrak. UANG TETAP DIBEKUKAN.
-    //    Transfer ke tutor baru terjadi saat sesi beneran selesai (fitur terpisah).
+    // Dana TETAP DIBEKUKAN. Transfer ke tutor baru terjadi saat sesi selesai.
     if (action === 'accept') {
-      if (existingHold?.status === 'active') {
-        console.log('⚠️ Hold sudah active, skip');
-      } else if (existingHold?.status === 'completed') {
-        console.log('⚠️ Hold sudah completed, skip');
-      } else if (existingHold && existingHold.status === 'pending') {
-        // Update: pending → active (dana masih dibekukan, TIDAK dipindah)
-        const { error: holdErr } = await supabaseAdmin
-          .from('wallet_transactions')
-          .update({
-            status: 'active',
-            description: `Dana Sesi Aktif - ${match.tutor_full_name || 'Tutor'}`,
-          })
-          .eq('id', existingHold.id);
+      const { error: holdErr } = await supabaseAdmin
+        .from('wallet_transactions')
+        .update({
+          status: 'active',
+          description: `Dana Sesi Aktif - ${match.tutor_full_name || 'Tutor'}`,
+        })
+        .eq('match_id', matchId)
+        .eq('type', 'session_hold')
+        .eq('status', 'pending');
 
-        if (holdErr) {
-          console.error('❌ Hold update error:', holdErr);
-          return NextResponse.json(
-            { error: 'Gagal mengaktifkan dana: ' + holdErr.message },
-            { status: 500 }
-          );
-        }
-        console.log('✅ Hold → active (dana tetap dibekukan)');
-      } else {
-        console.warn('⚠️ Tidak ada session_hold pending untuk diaktifkan');
-      }
+      if (holdErr) console.error('❌ Hold update error:', holdErr);
+      console.log('✅ Holds → active');
     }
 
     // ===== HANDLE REJECT =====
-    // Tutor tolak = dana dikembalikan ke student (unfreeze)
+    // Semua hold → cancelled (unfreeze total)
     if (action === 'reject') {
-      if (existingHold?.status === 'pending' || existingHold?.status === 'active') {
-        const { error: holdErr } = await supabaseAdmin
-          .from('wallet_transactions')
-          .update({
-            status: 'cancelled',
-            description: `Penahanan Dana Dibatalkan - ${match.tutor_full_name || 'Tutor'}`,
-          })
-          .eq('id', existingHold.id);
-
-        if (holdErr) console.error('❌ Hold cancel error:', holdErr);
-        console.log('✅ Hold cancelled (dana dikembalikan)');
-      } else {
-        console.log('⚠️ Tidak ada hold untuk di-cancel');
-      }
+      await supabaseAdmin
+        .from('wallet_transactions')
+        .update({
+          status: 'cancelled',
+          description: `Penahanan Dana Dibatalkan - ${match.tutor_full_name || 'Tutor'}`,
+        })
+        .eq('match_id', matchId)
+        .eq('type', 'session_hold')
+        .in('status', ['pending', 'active']);
     }
 
-    // === 3. Update match status ===
+    // === 2. Update match status ===
     let updatePayload: any = {};
     if (action === 'accept') {
       const now = new Date();
@@ -119,14 +87,10 @@ export async function POST(
       .eq('id', matchId);
 
     if (updateError) {
-      console.error('❌ Update match error:', updateError);
-      return NextResponse.json(
-        { error: 'Update failed: ' + updateError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Update failed: ' + updateError.message }, { status: 500 });
     }
 
-    // === 4. Insert match_schedules (khusus accept) ===
+    // === 3. Insert match_schedules (khusus accept) ===
     if (action === 'accept') {
       const { data: existingSchedule } = await supabaseAdmin
         .from('match_schedules')

@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
     }
 
-    // 1. Cari student
     const { data: student } = await supabase
       .from('students')
       .select('id')
@@ -28,7 +27,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
     }
 
-    // 2. Wallet balance
     const { data: wallet } = await supabase
       .from('wallets')
       .select('balance')
@@ -37,13 +35,13 @@ export async function GET(request: NextRequest) {
 
     const balance = Number(wallet?.balance) || 0
 
-    // 3. Hitung frozen — pending ATAU active
+    // 🔥 Frozen = pending + active + moved
     const { data: frozenTx } = await supabase
       .from('wallet_transactions')
       .select('amount')
       .eq('student_id', student.id)
       .eq('type', 'session_hold')
-      .in('status', ['pending', 'active'])     // ← include 'active'
+      .in('status', ['pending', 'active', 'moved'])
 
     const frozen = (frozenTx || []).reduce(
       (sum, tx) => sum + Math.abs(Number(tx.amount) || 0),

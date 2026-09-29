@@ -103,6 +103,17 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
+  // ===== MOVED — jam ungu (sesi dipindah, dana tetap beku) =====
+  if (status === 'moved') {
+    return {
+      icon: Clock,
+      iconBg: 'bg-purple-500/15',
+      iconColor: 'text-purple-600',
+      amountColor: 'text-purple-600',
+      sign: '',
+    }
+  }
+
   // ===== CANCELLED / FAILED / REJECTED — cross merah =====
   if (['cancelled', 'failed', 'rejected'].includes(status)) {
     return {
@@ -114,7 +125,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // ===== ACTIVE (tutor setuju, dana masih dibekukan) — check hijau =====
+  // ===== ACTIVE — check hijau (tutor setuju, dana masih beku) =====
   if (status === 'active') {
     return {
       icon: CheckCircle2,
@@ -127,7 +138,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
 
   // ===== COMPLETED — cek type =====
 
-  // Top-up → panah hijau (pemasukan)
+  // Top-up → panah hijau
   if (['topup', 'top_up', 'deposit', 'credit'].includes(type)) {
     return {
       icon: ArrowUp,
@@ -138,7 +149,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // Earning / release tutor → panah hijau
+  // Earning / refund → panah hijau
   if (['session_earning', 'session_release', 'refund'].includes(type)) {
     return {
       icon: ArrowUp,
@@ -149,7 +160,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // Session payment (uang keluar ke tutor) → check hijau
+  // Session payment / hold (uang keluar ke tutor) → check hijau
   if (['session_payment', 'session_hold'].includes(type)) {
     return {
       icon: CheckCircle2,
@@ -171,7 +182,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // Fallback berdasarkan sign amount
+  // Fallback
   if (amt < 0) {
     return {
       icon: ArrowDown,

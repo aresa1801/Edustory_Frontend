@@ -5,7 +5,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  console.log('🚀 [SCHEDULES] POST called', { matchId: params.matchId });
+  console.log('🚀 [SCHEDULES] POST', { matchId: params.matchId });
 
   try {
     const { matchId } = params;
@@ -16,29 +16,25 @@ export async function POST(
       return NextResponse.json({ error: 'sessions array required' }, { status: 400 });
     }
 
-    // === 1. Generate schedules_summary dari data frontend ===
-    const summaryMap: Record<string, { subject: string; day: string; time: string; count: number }> = {};
+    // === 1. Generate summary ===
+    const summaryMap: Record<string, any> = {};
     for (const s of sessions) {
       const dateObj = new Date(s.date);
       const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
-      const timeSlot = s.timeSlot;
-      const subject = s.subject || 'Tanpa Mapel';
-      const key = `${subject}-${dayName}-${timeSlot}`;
+      const key = `${s.subject}-${dayName}-${s.timeSlot}`;
       if (!summaryMap[key]) {
-        summaryMap[key] = { subject, day: dayName, time: timeSlot, count: 0 };
+        summaryMap[key] = { subject: s.subject, day: dayName, time: s.timeSlot, count: 0 };
       }
       summaryMap[key].count += 1;
     }
     const summaryArray = Object.values(summaryMap);
-    console.log('📝 schedules_summary:', JSON.stringify(summaryArray, null, 2));
 
-    // === 2. Init supabase admin ===
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // === 3. Ambil match lengkap ===
+    // === 2. Ambil match ===
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select('id, student_id, tutor_id, tutor_hourly_rate, student_sessions_per_month, tutor_full_name')
@@ -46,22 +42,18 @@ export async function POST(
       .single();
 
     if (matchError || !match) {
-      console.error('❌ Match not found:', matchError);
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // === 4. FREEZE LOGIC ===
-    const total =
-      (match.student_sessions_per_month || 0) * (match.tutor_hourly_rate || 0);
+    const ratePerSession = Number(match.tutor_hourly_rate) || 0;
+    const totalSessions = sessions.length;
+    const totalFreeze = ratePerSession * totalSessions;
 
-    if (total <= 0) {
-      return NextResponse.json(
-        { error: 'Total pembayaran tidak valid. Pastikan sesi & rate sudah terisi.' },
-        { status: 400 }
-      );
+    if (ratePerSession <= 0) {
+      return NextResponse.json({ error: 'Rate tutor tidak valid' }, { status: 400 });
     }
 
-    // 4a. Cek balance & frozen saat ini
+    // === 3. Cek available balance ===
     const { data: wallet } = await supabaseAdmin
       .from('wallets')
       .select('balance')
@@ -74,69 +66,44 @@ export async function POST(
       .from('wallet_transactions')
       .select('amount')
       .eq('student_id', match.student_id)
-      .eq('status', 'pending')
-      .eq('type', 'session_hold');
+      .eq('type', 'session_hold')
+      .in('status', ['pending', 'active', 'moved']);
 
     const frozen = (frozenRows || []).reduce(
       (sum, tx) => sum + Math.abs(Number(tx.amount) || 0),
       0
     );
+
     const available = balance - frozen;
 
-    console.log('[FREEZE] balance:', balance, 'frozen:', frozen, 'available:', available, 'total needed:', total);
+    console.log('[FREEZE] balance:', balance, 'frozen:', frozen, 'available:', available, 'need:', totalFreeze);
 
-    if (available < total) {
-      return NextResponse.json(
-        {
-          error: `Saldo tersedia tidak cukup. Dibutuhkan Rp ${total.toLocaleString(
-            'id-ID'
-          )}, tersedia Rp ${available.toLocaleString('id-ID')}. Silakan top-up terlebih dahulu.`,
-        },
-        { status: 400 }
-      );
+    if (available < totalFreeze) {
+      return NextResponse.json({
+        error: `Saldo tersedia tidak cukup. Dibutuhkan Rp ${totalFreeze.toLocaleString('id-ID')}, tersedia Rp ${available.toLocaleString('id-ID')}.`,
+      }, { status: 400 });
     }
 
-    // 4b. Idempotency — cek apakah sudah ada freeze untuk match ini
-    const { data: existingHold } = await supabaseAdmin
+    // === 4. Idempotency cleanup: hapus hold + sessions lama untuk match ini ===
+    await supabaseAdmin
       .from('wallet_transactions')
-      .select('id, status')
-      .eq('reference', matchId)
+      .delete()
+      .eq('match_id', matchId)
       .eq('type', 'session_hold')
-      .maybeSingle();
+      .eq('status', 'pending');
 
-    if (existingHold && existingHold.status === 'pending') {
-      console.log('[FREEZE] Hold sudah ada, skip insert');
-    } else if (!existingHold) {
-      // 4c. Insert freeze tx
-      const { error: freezeErr } = await supabaseAdmin
-        .from('wallet_transactions')
-        .insert({
-          student_id: match.student_id,
-          tutor_id: match.tutor_id,
-          amount: -total,
-          type: 'session_hold',
-          status: 'pending',
-          reference: matchId,
-          description: `Penahanan Dana Sesi - ${match.tutor_full_name || 'Tutor'}`,
-          balance_after: balance,
-        });
-
-      if (freezeErr) {
-        console.error('❌ Freeze insert error:', freezeErr);
-        return NextResponse.json(
-          { error: 'Gagal menahan dana: ' + freezeErr.message },
-          { status: 500 }
-        );
-      }
-      console.log('✅ Freeze inserted:', total);
-    }
+    await supabaseAdmin
+      .from('sessions')
+      .delete()
+      .eq('match_id', matchId)
+      .eq('status', 'scheduled');
 
     // === 5. Insert sessions ===
     const insertData = sessions.map((s: any) => {
-      const startHour = parseInt(s.timeSlot.split(' - ')[0].split('.')[0]);
-      const startMinute = parseInt(s.timeSlot.split(' - ')[0].split('.')[1]);
+      const [startPart] = s.timeSlot.split(' - ');
+      const [hh, mm] = startPart.split('.');
       const scheduledAt = new Date(
-        `${s.date}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00+07:00`
+        `${s.date}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:00+07:00`
       );
       return {
         tutor_id: match.tutor_id,
@@ -149,16 +116,38 @@ export async function POST(
       };
     });
 
-    const { error: insertError } = await supabaseAdmin
+    const { data: insertedSessions, error: insertError } = await supabaseAdmin
       .from('sessions')
-      .insert(insertData);
+      .insert(insertData)
+      .select('id');
 
-    if (insertError) {
-      console.error('❌ Insert sessions error:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    if (insertError || !insertedSessions) {
+      return NextResponse.json({ error: insertError?.message || 'Insert sessions failed' }, { status: 500 });
     }
 
-    // === 6. Update match ===
+    // === 6. Insert N holds (1 per sesi) ===
+    const holdsData = insertedSessions.map((s) => ({
+      student_id: match.student_id,
+      tutor_id: match.tutor_id,
+      match_id: matchId,
+      amount: -ratePerSession,
+      type: 'session_hold',
+      status: 'pending',
+      reference: s.id,
+      description: `Penahanan Dana Sesi - ${match.tutor_full_name || 'Tutor'}`,
+      balance_after: balance,
+    }));
+
+    const { error: freezeErr } = await supabaseAdmin
+      .from('wallet_transactions')
+      .insert(holdsData);
+
+    if (freezeErr) {
+      console.error('[SCHEDULES] freeze error:', freezeErr);
+      return NextResponse.json({ error: 'Gagal menahan dana: ' + freezeErr.message }, { status: 500 });
+    }
+
+    // === 7. Update match ===
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseAdmin
       .from('matches')
@@ -171,15 +160,14 @@ export async function POST(
       .eq('id', matchId);
 
     if (updateError) {
-      console.error('❌ Update match error:', updateError);
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    console.log('✅ Done');
     return NextResponse.json({
       success: true,
       schedules_summary: summaryArray,
-      frozen: total,
+      frozen: totalFreeze,
+      sessions_created: insertedSessions.length,
     });
   } catch (error) {
     console.error('❌ Error:', error);
