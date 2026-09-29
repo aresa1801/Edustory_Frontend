@@ -43,6 +43,21 @@ export default async function PaymentPage({
     balance = wallet?.balance || 0
   }
 
+  // Ambil frozen
+  let frozen = 0
+  if (student) {
+    try {
+      const apiRes = await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/students/wallet-balance?user_id=${session.user.id}`,
+        { cache: 'no-store' }
+      )
+      const apiData = await apiRes.json()
+      frozen = Number(apiData.frozen) || 0
+    } catch (e) {
+      console.warn('[payment] fetch frozen error:', e)
+    }
+  }
+
   // Parse amount dari query param
   const rawAmount = searchParams?.amount
   const defaultAmount =
@@ -54,6 +69,7 @@ export default async function PaymentPage({
     <WalletClient
       initialToken={session.access_token}
       initialBalance={balance}
+      initialFrozen={frozen}
       customerName={session.user.email?.split('@')[0] || 'Student'}
       customerEmail={session.user.email || ''}
       defaultAmount={defaultAmount}

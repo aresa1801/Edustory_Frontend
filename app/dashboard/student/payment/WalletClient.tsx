@@ -36,6 +36,7 @@ interface WalletTransaction {
   amount: number
   type?: string
   transaction_type?: string
+  status?: string
   description?: string
   notes?: string
   reference?: string
@@ -76,18 +77,63 @@ const TX_TYPE_LABEL: Record<string, string> = {
 }
 
 // ============================================================
-// HELPER
+// HELPER — Display config per transaksi
 // ============================================================
-function getDirection(tx: WalletTransaction): 'in' | 'out' {
-  const amt = Number(tx.amount) || 0
-  if (amt < 0) return 'out'
-  if (amt > 0) return 'in'
+type TxDisplay = {
+  icon: React.ElementType
+  iconBg: string
+  iconColor: string
+  amountColor: string
+  sign: '+' | '−' | ''
+}
 
-  const t = (tx.type || tx.transaction_type || '').toLowerCase()
-  if (['topup', 'top_up', 'deposit', 'refund', 'credit', 'session_earning', 'session_release'].includes(t)) {
-    return 'in'
+function getTxDisplay(tx: WalletTransaction): TxDisplay {
+  const status = (tx.status || '').toLowerCase()
+  const amt = Number(tx.amount) || 0
+
+  // PENDING — jam kuning
+  if (status === 'pending') {
+    return {
+      icon: Clock,
+      iconBg: 'bg-yellow-500/15',
+      iconColor: 'text-yellow-600',
+      amountColor: 'text-yellow-600',
+      sign: '',
+    }
   }
-  return 'out'
+
+  // CANCELLED / FAILED / REJECTED — cross merah
+  if (
+    status === 'cancelled' ||
+    status === 'failed' ||
+    status === 'rejected'
+  ) {
+    return {
+      icon: XCircle,
+      iconBg: 'bg-red-500/15',
+      iconColor: 'text-red-600',
+      amountColor: 'text-red-600 line-through opacity-60',
+      sign: '',
+    }
+  }
+
+  // COMPLETED — kalau negatif = keluar (panah merah), positif = masuk (check hijau)
+  if (amt < 0) {
+    return {
+      icon: ArrowDown,
+      iconBg: 'bg-red-500/15',
+      iconColor: 'text-red-600',
+      amountColor: 'text-red-600',
+      sign: '−',
+    }
+  }
+  return {
+    icon: CheckCircle2,
+    iconBg: 'bg-green-500/15',
+    iconColor: 'text-green-600',
+    amountColor: 'text-green-600',
+    sign: '+',
+  }
 }
 
 function getTxLabel(tx: WalletTransaction): string {
@@ -103,6 +149,7 @@ function getTxLabel(tx: WalletTransaction): string {
 export default function WalletClient({
   initialToken,
   initialBalance,
+  initialFrozen = 0,
   customerName,
   customerEmail,
   defaultAmount = 0,
@@ -110,6 +157,7 @@ export default function WalletClient({
 }: {
   initialToken: string
   initialBalance: number
+  initialFrozen?: number
   customerName: string
   customerEmail: string
   defaultAmount?: number
@@ -117,6 +165,7 @@ export default function WalletClient({
 }) {
   const [token] = useState(initialToken)
   const [balance, setBalance] = useState(initialBalance)
+  const [frozen, setFrozen] = useState(initialFrozen)
   const [history, setHistory] = useState<TopUpHistory[]>([])
   const [transactions, setTransactions] = useState<WalletTransaction[]>([])
   const [txLoading, setTxLoading] = useState(true)
@@ -158,45 +207,44 @@ export default function WalletClient({
   // ============================================================
   const refreshTransactions = async () => {
     if (!studentId) {
-      console.warn('[Wallet] No studentId — skip fetch')
       setTxLoading(false)
       return
     }
 
     setTxLoading(true)
     try {
-      console.log('[Wallet] Fetching transactions for student:', studentId)
-
       const res = await fetch(
         `/api/students/wallet-transactions?student_id=${studentId}`,
         { cache: 'no-store' }
       )
-
-      console.log('[Wallet] TX response status:', res.status)
-
       const data = await res.json()
-      console.log('[Wallet] TX data:', data)
-
       setTransactions(data.transactions || [])
     } catch (err) {
       console.error('[Wallet] Transactions error:', err)
       setTransactions([])
     } finally {
       setTxLoading(false)
-      console.log('[Wallet] TX loading done')
     }
   }
 
   // ============================================================
-  // FETCH: Balance
+  // FETCH: Balance + Frozen
   // ============================================================
   const refreshBalance = async () => {
     try {
-      const res = await fetch('/api/wallet/balance', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const res = await fetch(
+        `/api/students/wallet-balance?user_id=${user.id}`,
+        { cache: 'no-store' }
+      )
       const data = await res.json()
-      if (res.ok) setBalance(data.balance ?? 0)
+      if (res.ok) {
+        setBalance(Number(data.balance) || 0)
+        setFrozen(Number(data.frozen) || 0)
+      }
     } catch (err) {
       console.warn('Balance refresh error:', err)
     }
@@ -208,6 +256,7 @@ export default function WalletClient({
   useEffect(() => {
     refreshHistory()
     refreshTransactions()
+    refreshBalance()
   }, [])
 
   // ============================================================
@@ -276,6 +325,8 @@ export default function WalletClient({
   // ============================================================
   // RENDER
   // ============================================================
+  const available = Math.max(0, balance - frozen)
+
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
@@ -291,14 +342,14 @@ export default function WalletClient({
       {/* TWO COLUMNS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* LEFT — Deposit dan Penarikan */}
+        {/* LEFT */}
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Deposit dan Penarikan</h2>
           </div>
 
-          {/* Saldo */}
+          {/* Saldo Card */}
           <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -309,10 +360,23 @@ export default function WalletClient({
               <p className="text-4xl font-bold text-primary">
                 Rp {balance.toLocaleString('id-ID')}
               </p>
+              {frozen > 0 && (
+                <div className="mt-3 pt-3 border-t border-border/40 space-y-1">
+                  <p className="text-xs text-yellow-600 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-medium">
+                      Saldo dibekukan: Rp {frozen.toLocaleString('id-ID')}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Tersedia untuk digunakan: Rp {available.toLocaleString('id-ID')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Form Top Up */}
+          {/* Top-up Form */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Isi Saldo</CardTitle>
@@ -432,8 +496,8 @@ export default function WalletClient({
               ) : (
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                   {transactions.map((tx) => {
-                    const direction = getDirection(tx)
-                    const isIncome = direction === 'in'
+                    const display = getTxDisplay(tx)
+                    const Icon = display.icon
                     const absAmount = Math.abs(Number(tx.amount) || 0)
                     const label = getTxLabel(tx)
                     const date = new Date(tx.created_at)
@@ -445,19 +509,10 @@ export default function WalletClient({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              isIncome
-                                ? 'bg-green-500/15 text-green-600'
-                                : 'bg-red-500/15 text-red-600'
-                            }`}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${display.iconBg} ${display.iconColor}`}
                           >
-                            {isIncome ? (
-                              <ArrowUp className="w-4 h-4" />
-                            ) : (
-                              <ArrowDown className="w-4 h-4" />
-                            )}
+                            <Icon className="w-4 h-4" />
                           </div>
-
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{label}</p>
                             <p className="text-xs text-muted-foreground">
@@ -474,13 +529,10 @@ export default function WalletClient({
                             </p>
                           </div>
                         </div>
-
                         <div
-                          className={`text-sm font-semibold flex-shrink-0 ml-2 ${
-                            isIncome ? 'text-green-600' : 'text-red-600'
-                          }`}
+                          className={`text-sm font-semibold flex-shrink-0 ml-2 ${display.amountColor}`}
                         >
-                          {isIncome ? '+' : '−'}Rp {absAmount.toLocaleString('id-ID')}
+                          {display.sign}Rp {absAmount.toLocaleString('id-ID')}
                         </div>
                       </div>
                     )

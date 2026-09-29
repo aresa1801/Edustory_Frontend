@@ -26,9 +26,10 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // === 1. Ambil match lengkap ===
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
-      .select('id, tutor_id, student_id, status, initiated_by')
+      .select('id, tutor_id, student_id, status, initiated_by, tutor_hourly_rate, student_sessions_per_month, tutor_full_name')
       .eq('id', matchId)
       .single();
 
@@ -37,30 +38,121 @@ export async function POST(
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    console.log('✅ Match found:', match);
+    console.log('✅ Match found:', match.id, 'status:', match.status);
 
-    // ===== PREPARE PAYLOAD =====
+    // === 2. CEK EXISTING HOLD ===
+    const { data: existingHold } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('id, status, amount')
+      .eq('reference', matchId)
+      .eq('type', 'session_hold')
+      .maybeSingle();
+
+    const total =
+      (match.student_sessions_per_month || 0) * (match.tutor_hourly_rate || 0);
+    const fee = Math.round(total * 0.1);
+    const tutorEarning = total - fee;
+
+    console.log('[CONFIRM] total:', total, 'fee:', fee, 'tutorEarning:', tutorEarning);
+
+    // ===== HANDLE ACCEPT =====
+    if (action === 'accept') {
+      // Idempotency: kalau hold sudah completed, jangan proses ulang
+      if (existingHold?.status === 'completed') {
+        console.log('⚠️ Hold sudah completed, skip');
+      } else if (existingHold && existingHold.status === 'pending' && total > 0) {
+        // --- 2a. Update hold student → completed ---
+        const { error: holdErr } = await supabaseAdmin
+          .from('wallet_transactions')
+          .update({
+            status: 'completed',
+            type: 'session_payment',
+            description: `Pembayaran Sesi - ${match.tutor_full_name || 'Tutor'}`,
+          })
+          .eq('id', existingHold.id);
+
+        if (holdErr) console.error('❌ Hold update error:', holdErr);
+
+        // --- 2b. Deduct student balance ---
+        const { data: studentWallet } = await supabaseAdmin
+          .from('wallets')
+          .select('id, balance')
+          .eq('student_id', match.student_id)
+          .maybeSingle();
+
+        if (studentWallet) {
+          const newStudentBalance = (Number(studentWallet.balance) || 0) - total;
+          await supabaseAdmin
+            .from('wallets')
+            .update({ balance: newStudentBalance })
+            .eq('id', studentWallet.id);
+          console.log('[CONFIRM] Student balance →', newStudentBalance);
+        }
+
+        // --- 2c. Credit tutor balance ---
+        const { data: tutorWallet } = await supabaseAdmin
+          .from('wallets')
+          .select('id, balance')
+          .eq('tutor_id', match.tutor_id)
+          .maybeSingle();
+
+        let newTutorBalance = tutorEarning;
+        if (tutorWallet) {
+          newTutorBalance = (Number(tutorWallet.balance) || 0) + tutorEarning;
+          await supabaseAdmin
+            .from('wallets')
+            .update({ balance: newTutorBalance })
+            .eq('id', tutorWallet.id);
+        } else {
+          await supabaseAdmin
+            .from('wallets')
+            .insert({ tutor_id: match.tutor_id, balance: tutorEarning });
+        }
+        console.log('[CONFIRM] Tutor balance →', newTutorBalance);
+
+        // --- 2d. Insert tutor earning tx ---
+        await supabaseAdmin.from('wallet_transactions').insert({
+          tutor_id: match.tutor_id,
+          amount: tutorEarning,
+          type: 'session_earning',
+          status: 'completed',
+          reference: matchId,
+          description: `Pendapatan Sesi - ${match.tutor_full_name || 'Tutor'}`,
+          balance_after: newTutorBalance,
+        });
+      }
+    }
+
+    // ===== HANDLE REJECT =====
+    if (action === 'reject') {
+      if (existingHold?.status === 'pending') {
+        await supabaseAdmin
+          .from('wallet_transactions')
+          .update({
+            status: 'cancelled',
+            description: `Penahanan Dana Dibatalkan - ${match.tutor_full_name || 'Tutor'}`,
+          })
+          .eq('id', existingHold.id);
+        console.log('✅ Hold cancelled (refund)');
+      } else {
+        console.log('⚠️ Tidak ada pending hold untuk di-cancel');
+      }
+    }
+
+    // === 3. Update match status ===
     let updatePayload: any = {};
     if (action === 'accept') {
       const now = new Date();
       const endDate = new Date(now);
       endDate.setDate(endDate.getDate() + 75);
-
       updatePayload = {
         status: 'matched',
         accepted_at: now.toISOString(),
         contract_end_date: endDate.toISOString(),
       };
-      console.log(
-        `📅 Kontrak dimulai: ${now.toISOString()}, berakhir: ${endDate.toISOString()}`
-      );
     } else if (action === 'reject') {
-      updatePayload = {
-        status: 'declined',
-      };
+      updatePayload = { status: 'declined' };
     }
-
-    console.log('🔄 Updating match with payload:', updatePayload);
 
     const { error: updateError } = await supabaseAdmin
       .from('matches')
@@ -68,80 +160,38 @@ export async function POST(
       .eq('id', matchId);
 
     if (updateError) {
-      console.error('❌ Update error:', updateError);
+      console.error('❌ Update match error:', updateError);
       return NextResponse.json(
         { error: 'Update failed: ' + updateError.message },
         { status: 500 }
       );
     }
 
-    console.log('✅ Match updated successfully');
-
-    // ===== INSERT INTO match_schedules jika action ACCEPT =====
+    // === 4. Insert match_schedules (khusus accept) ===
     if (action === 'accept') {
-      const { data: matchData, error: fetchError } = await supabaseAdmin
-        .from('matches')
-        .select('schedules_summary, student_id, tutor_id')
-        .eq('id', matchId)
-        .single();
-
-      if (fetchError || !matchData) {
-        console.error(
-          '❌ Failed to fetch match data for match_schedules:',
-          fetchError
-        );
-        return NextResponse.json(
-          {
-            error:
-              'Gagal mengambil data match untuk membuat jadwal: ' +
-              (fetchError?.message || 'matchData kosong'),
-          },
-          { status: 500 }
-        );
-      }
-
-      // Cek apakah match_schedules sudah ada (biar tidak duplicate insert)
       const { data: existingSchedule } = await supabaseAdmin
         .from('match_schedules')
         .select('id')
         .eq('match_id', matchId)
         .maybeSingle();
 
-      if (existingSchedule) {
-        console.log(
-          '⚠️ match_schedules sudah ada untuk match ini, skip insert'
-        );
-        return NextResponse.json({ success: true });
+      if (!existingSchedule) {
+        const { data: matchData } = await supabaseAdmin
+          .from('matches')
+          .select('schedules_summary, student_id, tutor_id')
+          .eq('id', matchId)
+          .single();
+
+        if (matchData) {
+          await supabaseAdmin.from('match_schedules').insert({
+            match_id: matchId,
+            student_id: matchData.student_id,
+            tutor_id: matchData.tutor_id,
+            schedules_summary_fix: matchData.schedules_summary || null,
+            status: 'active',
+          });
+        }
       }
-
-      // Siapkan data untuk insert match_schedules
-      // ✅ Kolom sesi_1..sesi_20 sudah DIHAPUS dari DB (digantikan tabel sessions)
-      const scheduleInsertData: any = {
-        match_id: matchId,
-        student_id: matchData.student_id,
-        tutor_id: matchData.tutor_id,
-        schedules_summary_fix: matchData.schedules_summary || null,
-        status: 'active',
-      };
-
-      console.log('📝 Inserting match_schedules with data:', scheduleInsertData);
-
-      const { error: insertError } = await supabaseAdmin
-        .from('match_schedules')
-        .insert(scheduleInsertData);
-
-      if (insertError) {
-        console.error('❌ Failed to insert match_schedules:', insertError);
-        return NextResponse.json(
-          {
-            error: 'Gagal membuat jadwal: ' + insertError.message,
-            code: insertError.code,
-          },
-          { status: 500 }
-        );
-      }
-
-      console.log('✅ match_schedules record created successfully');
     }
 
     return NextResponse.json({ success: true });

@@ -14,46 +14,49 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('user_id')
 
     if (!userId) {
-      return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+      return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
     }
 
     // 1. Cari student
-    const { data: student, error: studentErr } = await supabase
+    const { data: student } = await supabase
       .from('students')
       .select('id')
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (studentErr) {
-      console.error('[wallet-balance] student error:', studentErr)
-      return NextResponse.json({ error: studentErr.message }, { status: 500 })
-    }
-
     if (!student) {
-      console.warn('[wallet-balance] no student for user:', userId)
-      return NextResponse.json({ balance: 0 })
+      return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
     }
 
-    // 2. Cari wallet
-    const { data: wallet, error: walletErr } = await supabase
+    // 2. Wallet balance
+    const { data: wallet } = await supabase
       .from('wallets')
       .select('balance')
       .eq('student_id', student.id)
       .maybeSingle()
 
-    if (walletErr) {
-      console.error('[wallet-balance] wallet error:', walletErr)
-      return NextResponse.json({ error: walletErr.message }, { status: 500 })
-    }
+    const balance = Number(wallet?.balance) || 0
+
+    // 3. Hitung frozen — transaksi pending type session_hold
+    const { data: frozenTx } = await supabase
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('student_id', student.id)
+      .eq('status', 'pending')
+      .eq('type', 'session_hold')
+
+    const frozen = (frozenTx || []).reduce(
+      (sum, tx) => sum + Math.abs(Number(tx.amount) || 0),
+      0
+    )
 
     return NextResponse.json({
-      balance: Number(wallet?.balance) || 0,
+      balance,
+      frozen,
+      available: Math.max(0, balance - frozen),
     })
   } catch (err) {
     console.error('[wallet-balance] unexpected:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
   }
 }
