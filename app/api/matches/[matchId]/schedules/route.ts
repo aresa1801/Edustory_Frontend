@@ -112,6 +112,7 @@ export async function POST(
         .from('wallet_transactions')
         .insert({
           student_id: match.student_id,
+          tutor_id: match.tutor_id,
           amount: -total,
           type: 'session_hold',
           status: 'pending',

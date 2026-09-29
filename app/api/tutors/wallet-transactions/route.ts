@@ -17,10 +17,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ transactions: [] })
     }
 
+    // 🔥 Exclude session_hold — itu transaksi milik student
     const { data: transactions, error } = await supabase
       .from('wallet_transactions')
       .select('*')
       .eq('tutor_id', tutorId)
+      .neq('type', 'session_hold')       // ← filter di sini
       .order('created_at', { ascending: false })
       .limit(50)
 
