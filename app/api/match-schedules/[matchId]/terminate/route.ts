@@ -137,7 +137,7 @@ export async function POST(
         .from('sessions')
         .update({ status: 'cancelled', cancelled_at: now.toISOString() })
         .eq('match_id', matchId)
-        .is('started_at', null)
+        .is('completed_at', null)
         .is('cancelled_at', null)
 
       return NextResponse.json({ success: true, type: 'unilateral' })
@@ -351,7 +351,7 @@ export async function PATCH(
       .from('sessions')
       .update({ status: 'cancelled', cancelled_at: now.toISOString() })
       .eq('match_id', matchId)
-      .is('started_at', null)
+      .is('completed_at', null)
       .is('cancelled_at', null)
 
     return NextResponse.json({ success: true })
