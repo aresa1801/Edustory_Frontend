@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
 
     const balance = Number(wallet?.balance) || 0
 
-    // 3. Hitung frozen — transaksi pending type session_hold
+    // 3. Hitung frozen — pending ATAU active
     const { data: frozenTx } = await supabase
       .from('wallet_transactions')
       .select('amount')
       .eq('student_id', student.id)
-      .eq('status', 'pending')
       .eq('type', 'session_hold')
+      .in('status', ['pending', 'active'])     // ← include 'active'
 
     const frozen = (frozenTx || []).reduce(
       (sum, tx) => sum + Math.abs(Number(tx.amount) || 0),

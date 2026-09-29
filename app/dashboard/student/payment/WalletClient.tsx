@@ -89,9 +89,10 @@ type TxDisplay = {
 
 function getTxDisplay(tx: WalletTransaction): TxDisplay {
   const status = (tx.status || '').toLowerCase()
+  const type = (tx.type || tx.transaction_type || '').toLowerCase()
   const amt = Number(tx.amount) || 0
 
-  // PENDING — jam kuning
+  // ===== PENDING — jam kuning =====
   if (status === 'pending') {
     return {
       icon: Clock,
@@ -102,12 +103,8 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // CANCELLED / FAILED / REJECTED — cross merah
-  if (
-    status === 'cancelled' ||
-    status === 'failed' ||
-    status === 'rejected'
-  ) {
+  // ===== CANCELLED / FAILED / REJECTED — cross merah =====
+  if (['cancelled', 'failed', 'rejected'].includes(status)) {
     return {
       icon: XCircle,
       iconBg: 'bg-red-500/15',
@@ -117,7 +114,64 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // COMPLETED — kalau negatif = keluar (panah merah), positif = masuk (check hijau)
+  // ===== ACTIVE (tutor setuju, dana masih dibekukan) — check hijau =====
+  if (status === 'active') {
+    return {
+      icon: CheckCircle2,
+      iconBg: 'bg-green-500/15',
+      iconColor: 'text-green-600',
+      amountColor: 'text-yellow-600',
+      sign: '',
+    }
+  }
+
+  // ===== COMPLETED — cek type =====
+
+  // Top-up → panah hijau (pemasukan)
+  if (['topup', 'top_up', 'deposit', 'credit'].includes(type)) {
+    return {
+      icon: ArrowUp,
+      iconBg: 'bg-green-500/15',
+      iconColor: 'text-green-600',
+      amountColor: 'text-green-600',
+      sign: '+',
+    }
+  }
+
+  // Earning / release tutor → panah hijau
+  if (['session_earning', 'session_release', 'refund'].includes(type)) {
+    return {
+      icon: ArrowUp,
+      iconBg: 'bg-green-500/15',
+      iconColor: 'text-green-600',
+      amountColor: 'text-green-600',
+      sign: '+',
+    }
+  }
+
+  // Session payment (uang keluar ke tutor) → check hijau
+  if (['session_payment', 'session_hold'].includes(type)) {
+    return {
+      icon: CheckCircle2,
+      iconBg: 'bg-green-500/15',
+      iconColor: 'text-green-600',
+      amountColor: 'text-red-600',
+      sign: '−',
+    }
+  }
+
+  // Withdrawal → panah merah
+  if (type.startsWith('withdrawal')) {
+    return {
+      icon: ArrowDown,
+      iconBg: 'bg-red-500/15',
+      iconColor: 'text-red-600',
+      amountColor: 'text-red-600',
+      sign: '−',
+    }
+  }
+
+  // Fallback berdasarkan sign amount
   if (amt < 0) {
     return {
       icon: ArrowDown,
@@ -128,7 +182,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
   return {
-    icon: CheckCircle2,
+    icon: ArrowUp,
     iconBg: 'bg-green-500/15',
     iconColor: 'text-green-600',
     amountColor: 'text-green-600',

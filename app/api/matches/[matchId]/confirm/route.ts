@@ -26,7 +26,7 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // === 1. Ambil match lengkap ===
+    // === 1. Ambil match ===
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
       .select('id, tutor_id, student_id, status, initiated_by, tutor_hourly_rate, student_sessions_per_month, tutor_full_name')
@@ -40,7 +40,7 @@ export async function POST(
 
     console.log('✅ Match found:', match.id, 'status:', match.status);
 
-    // === 2. CEK EXISTING HOLD ===
+    // === 2. Cek existing hold ===
     const { data: existingHold } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id, status, amount')
@@ -48,94 +48,53 @@ export async function POST(
       .eq('type', 'session_hold')
       .maybeSingle();
 
-    const total =
-      (match.student_sessions_per_month || 0) * (match.tutor_hourly_rate || 0);
-    const fee = Math.round(total * 0.1);
-    const tutorEarning = total - fee;
-
-    console.log('[CONFIRM] total:', total, 'fee:', fee, 'tutorEarning:', tutorEarning);
-
     // ===== HANDLE ACCEPT =====
+    // 🔥 Tutor setuju = tanda tangan kontrak. UANG TETAP DIBEKUKAN.
+    //    Transfer ke tutor baru terjadi saat sesi beneran selesai (fitur terpisah).
     if (action === 'accept') {
-      // Idempotency: kalau hold sudah completed, jangan proses ulang
-      if (existingHold?.status === 'completed') {
+      if (existingHold?.status === 'active') {
+        console.log('⚠️ Hold sudah active, skip');
+      } else if (existingHold?.status === 'completed') {
         console.log('⚠️ Hold sudah completed, skip');
-      } else if (existingHold && existingHold.status === 'pending' && total > 0) {
-        // --- 2a. Update hold student → completed ---
+      } else if (existingHold && existingHold.status === 'pending') {
+        // Update: pending → active (dana masih dibekukan, TIDAK dipindah)
         const { error: holdErr } = await supabaseAdmin
           .from('wallet_transactions')
           .update({
-            status: 'completed',
-            type: 'session_payment',
-            description: `Pembayaran Sesi - ${match.tutor_full_name || 'Tutor'}`,
+            status: 'active',
+            description: `Dana Sesi Aktif - ${match.tutor_full_name || 'Tutor'}`,
           })
           .eq('id', existingHold.id);
 
-        if (holdErr) console.error('❌ Hold update error:', holdErr);
-
-        // --- 2b. Deduct student balance ---
-        const { data: studentWallet } = await supabaseAdmin
-          .from('wallets')
-          .select('id, balance')
-          .eq('student_id', match.student_id)
-          .maybeSingle();
-
-        if (studentWallet) {
-          const newStudentBalance = (Number(studentWallet.balance) || 0) - total;
-          await supabaseAdmin
-            .from('wallets')
-            .update({ balance: newStudentBalance })
-            .eq('id', studentWallet.id);
-          console.log('[CONFIRM] Student balance →', newStudentBalance);
+        if (holdErr) {
+          console.error('❌ Hold update error:', holdErr);
+          return NextResponse.json(
+            { error: 'Gagal mengaktifkan dana: ' + holdErr.message },
+            { status: 500 }
+          );
         }
-
-        // --- 2c. Credit tutor balance ---
-        const { data: tutorWallet } = await supabaseAdmin
-          .from('wallets')
-          .select('id, balance')
-          .eq('tutor_id', match.tutor_id)
-          .maybeSingle();
-
-        let newTutorBalance = tutorEarning;
-        if (tutorWallet) {
-          newTutorBalance = (Number(tutorWallet.balance) || 0) + tutorEarning;
-          await supabaseAdmin
-            .from('wallets')
-            .update({ balance: newTutorBalance })
-            .eq('id', tutorWallet.id);
-        } else {
-          await supabaseAdmin
-            .from('wallets')
-            .insert({ tutor_id: match.tutor_id, balance: tutorEarning });
-        }
-        console.log('[CONFIRM] Tutor balance →', newTutorBalance);
-
-        // --- 2d. Insert tutor earning tx ---
-        await supabaseAdmin.from('wallet_transactions').insert({
-          tutor_id: match.tutor_id,
-          amount: tutorEarning,
-          type: 'session_earning',
-          status: 'completed',
-          reference: matchId,
-          description: `Pendapatan Sesi - ${match.tutor_full_name || 'Tutor'}`,
-          balance_after: newTutorBalance,
-        });
+        console.log('✅ Hold → active (dana tetap dibekukan)');
+      } else {
+        console.warn('⚠️ Tidak ada session_hold pending untuk diaktifkan');
       }
     }
 
     // ===== HANDLE REJECT =====
+    // Tutor tolak = dana dikembalikan ke student (unfreeze)
     if (action === 'reject') {
-      if (existingHold?.status === 'pending') {
-        await supabaseAdmin
+      if (existingHold?.status === 'pending' || existingHold?.status === 'active') {
+        const { error: holdErr } = await supabaseAdmin
           .from('wallet_transactions')
           .update({
             status: 'cancelled',
             description: `Penahanan Dana Dibatalkan - ${match.tutor_full_name || 'Tutor'}`,
           })
           .eq('id', existingHold.id);
-        console.log('✅ Hold cancelled (refund)');
+
+        if (holdErr) console.error('❌ Hold cancel error:', holdErr);
+        console.log('✅ Hold cancelled (dana dikembalikan)');
       } else {
-        console.log('⚠️ Tidak ada pending hold untuk di-cancel');
+        console.log('⚠️ Tidak ada hold untuk di-cancel');
       }
     }
 
