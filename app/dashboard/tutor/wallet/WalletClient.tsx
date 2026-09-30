@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,6 +11,7 @@ import {
   History,
   Receipt,
   Info,
+  CheckCircle2,
 } from 'lucide-react'
 
 // ============================================================
@@ -22,6 +22,7 @@ interface WalletTransaction {
   amount: number
   type?: string
   transaction_type?: string
+  status?: string
   description?: string
   notes?: string
   reference?: string
@@ -31,42 +32,22 @@ interface WalletTransaction {
 }
 
 // ============================================================
-// KONSTANTA
-// ============================================================
-const TX_TYPE_LABEL: Record<string, string> = {
-  session_earning: 'Pendapatan Sesi',
-  session_release: 'Pendapatan Sesi',
-  session_payment: 'Pembayaran Sesi',
-  platform_fee: 'Biaya Platform',
-  refund: 'Pengembalian Dana',
-  withdrawal: 'Penarikan Saldo',
-  withdrawal_pending: 'Penarikan (Menunggu)',
-  withdrawal_completed: 'Penarikan Selesai',
-  withdrawal_refund: 'Pengembalian Penarikan',
-  credit: 'Kredit',
-  debit: 'Debit',
-}
-
-// ============================================================
 // HELPER
 // ============================================================
-function getDirection(tx: WalletTransaction): 'in' | 'out' {
-  const amt = Number(tx.amount) || 0
-  if (amt < 0) return 'out'
-  if (amt > 0) return 'in'
-
-  const t = (tx.type || tx.transaction_type || '').toLowerCase()
-  if (['session_earning', 'session_release', 'refund', 'credit'].includes(t)) {
-    return 'in'
-  }
-  return 'out'
-}
-
 function getTxLabel(tx: WalletTransaction): string {
   if (tx.description) return tx.description
   if (tx.notes) return tx.notes
   const t = (tx.type || tx.transaction_type || '').toLowerCase()
-  return TX_TYPE_LABEL[t] || 'Transaksi'
+  const LABELS: Record<string, string> = {
+    session_earning: 'Pendapatan Sesi',
+    session_release: 'Pendapatan Sesi',
+    refund: 'Pengembalian Dana',
+    withdrawal: 'Penarikan Saldo',
+    withdrawal_completed: 'Penarikan Selesai',
+    credit: 'Kredit',
+    debit: 'Debit',
+  }
+  return LABELS[t] || 'Transaksi'
 }
 
 // ============================================================
@@ -126,6 +107,16 @@ export default function TutorWalletClient({
     refreshTransactions()
   }, [tutorId])
 
+  // 🔥 Tutor hanya lihat transaksi yang benar-benar selesai (uang sudah masuk)
+  const visibleTransactions = useMemo(() => {
+    return transactions
+      .filter((tx) => (tx.status || '').toLowerCase() === 'completed')
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+  }, [transactions])
+
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
@@ -140,15 +131,15 @@ export default function TutorWalletClient({
 
       {/* TWO COLUMNS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* LEFT — Wallet dan Penarikan */}
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Wallet dan Penarikan</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Wallet dan Penarikan
+            </h2>
           </div>
 
-          {/* Saldo */}
           <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -165,7 +156,6 @@ export default function TutorWalletClient({
             </CardContent>
           </Card>
 
-          {/* Info / Penarikan Coming Soon */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Penarikan Saldo</CardTitle>
@@ -199,7 +189,7 @@ export default function TutorWalletClient({
                   <Spinner className="h-6 w-6" />
                   <p className="mt-2 text-xs text-muted-foreground">Memuat log...</p>
                 </div>
-              ) : transactions.length === 0 ? (
+              ) : visibleTransactions.length === 0 ? (
                 <div className="py-10 text-center">
                   <div className="w-12 h-12 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-3">
                     <History className="w-6 h-6 text-muted-foreground" />
@@ -211,10 +201,10 @@ export default function TutorWalletClient({
                 </div>
               ) : (
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1">
-                  {transactions.map((tx) => {
-                    const direction = getDirection(tx)
-                    const isIncome = direction === 'in'
-                    const absAmount = Math.abs(Number(tx.amount) || 0)
+                  {visibleTransactions.map((tx) => {
+                    const amount = Number(tx.amount) || 0
+                    const isIncome = amount > 0
+                    const absAmount = Math.abs(amount)
                     const label = getTxLabel(tx)
                     const date = new Date(tx.created_at)
 
@@ -237,7 +227,6 @@ export default function TutorWalletClient({
                               <ArrowDown className="w-4 h-4" />
                             )}
                           </div>
-
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{label}</p>
                             <p className="text-xs text-muted-foreground">
@@ -254,7 +243,6 @@ export default function TutorWalletClient({
                             </p>
                           </div>
                         </div>
-
                         <div
                           className={`text-sm font-semibold flex-shrink-0 ml-2 ${
                             isIncome ? 'text-green-600' : 'text-red-600'
