@@ -27,43 +27,81 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // 🛡️ Guard: sudah completed → idempotent
     if (session.status === 'completed') {
       return NextResponse.json({ success: true, message: 'Already completed' });
     }
 
+    // 🛡️ Guard: session cancelled → tidak boleh complete
+    if (session.status === 'cancelled') {
+      return NextResponse.json(
+        { error: 'Sesi sudah dibatalkan, tidak bisa diselesaikan' },
+        { status: 400 }
+      );
+    }
+
     // 2. Ambil match untuk rate & nama
-    const { data: match } = await supabaseAdmin
+    const { data: match, error: matchErr } = await supabaseAdmin
       .from('matches')
       .select('tutor_hourly_rate, tutor_full_name')
       .eq('id', session.match_id)
       .single();
 
-    if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    if (matchErr || !match) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
 
     const rate = Number(match.tutor_hourly_rate) || 0;
+
+    if (rate <= 0) {
+      return NextResponse.json({ error: 'Rate tutor tidak valid' }, { status: 400 });
+    }
+
     const fee = Math.round(rate * 0.1);
     const tutorEarning = rate - fee;
 
     console.log('[COMPLETE] rate:', rate, 'fee:', fee, 'tutorEarning:', tutorEarning);
 
     // 3. Cari hold
-    const { data: hold } = await supabaseAdmin
+    const { data: hold, error: holdErr } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id, status')
       .eq('reference', sessionId)
       .eq('type', 'session_hold')
       .maybeSingle();
 
+    if (holdErr) {
+      console.error('[SESSION COMPLETE] hold fetch error:', holdErr);
+      return NextResponse.json({ error: 'Failed to fetch hold' }, { status: 500 });
+    }
+
     if (!hold) {
       return NextResponse.json({ error: 'Hold not found' }, { status: 404 });
     }
 
+    // 🛡️ Guard: hold sudah completed → idempotent
     if (hold.status === 'completed') {
       return NextResponse.json({ success: true, message: 'Hold already completed' });
     }
 
+    // 🛡️ Guard: hold cancelled → tidak bisa complete
+    if (hold.status === 'cancelled') {
+      return NextResponse.json(
+        { error: 'Dana sudah dikembalikan, tidak bisa diselesaikan' },
+        { status: 400 }
+      );
+    }
+
+    // 🛡️ Guard: hold moved → tidak bisa complete (dana sudah pindah ke sesi lain)
+    if (hold.status === 'moved') {
+      return NextResponse.json(
+        { error: 'Dana sudah dipindah ke sesi lain, tidak bisa diselesaikan' },
+        { status: 400 }
+      );
+    }
+
     // 4. Update hold → completed
-    await supabaseAdmin
+    const { error: updateHoldErr } = await supabaseAdmin
       .from('wallet_transactions')
       .update({
         status: 'completed',
@@ -71,6 +109,11 @@ export async function POST(
         description: `Pembayaran Sesi - ${match.tutor_full_name || 'Tutor'}`,
       })
       .eq('id', hold.id);
+
+    if (updateHoldErr) {
+      console.error('[SESSION COMPLETE] update hold error:', updateHoldErr);
+      return NextResponse.json({ error: 'Failed to update hold' }, { status: 500 });
+    }
 
     // 5. Deduct student balance
     const { data: studentWallet } = await supabaseAdmin
@@ -145,13 +188,20 @@ export async function POST(
     }
 
     // 9. Update session status
-    await supabaseAdmin
+    const { error: updateSessionErr } = await supabaseAdmin
       .from('sessions')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
+
+    if (updateSessionErr) {
+      console.error('[SESSION COMPLETE] update session error:', updateSessionErr);
+      return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+    }
+
+    console.log(`✅ [SESSION COMPLETE] ${sessionId} — tutor +${tutorEarning}, platform +${fee}`);
 
     return NextResponse.json({ success: true, rate, fee, tutorEarning });
   } catch (err) {
