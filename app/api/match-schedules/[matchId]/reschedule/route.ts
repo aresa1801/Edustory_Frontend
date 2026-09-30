@@ -235,9 +235,25 @@ export async function PATCH(
         at: now,
       }
 
-      // ===== UPDATE SESSION LAMA (slot asal → mark moved) =====
+            // ===== CARI SESSION LAMA DULU (ambil ID + status) =====
       const fromScheduledAt = buildScheduledAt(request.from.date, request.from.time)
 
+      const { data: oldSession, error: oldSessionErr } = await supabaseAdmin
+        .from('sessions')
+        .select('id, status')
+        .eq('match_id', matchId)
+        .eq('scheduled_at', fromScheduledAt)
+        .maybeSingle()
+
+      if (oldSessionErr || !oldSession) {
+        console.error('[reschedule approve] old session not found:', oldSessionErr)
+        return NextResponse.json(
+          { error: 'Sesi lama tidak ditemukan' },
+          { status: 404 }
+        )
+      }
+
+      // ===== UPDATE SESSION LAMA → cancelled + moved =====
       const { error: updateOldErr } = await supabaseAdmin
         .from('sessions')
         .update({
@@ -245,17 +261,16 @@ export async function PATCH(
           cancelled_at: now,
           status: 'cancelled',
         })
-        .eq('match_id', matchId)
-        .eq('scheduled_at', fromScheduledAt)
+        .eq('id', oldSession.id)
 
       if (updateOldErr) {
         console.error('[reschedule approve] update old session:', updateOldErr)
       }
 
-      // ===== INSERT SESSION BARU (slot tujuan → punya nyawa) =====
+      // ===== INSERT SESSION BARU (ambil ID-nya) =====
       const toScheduledAt = buildScheduledAt(request.to.date, request.to.time)
 
-      const { error: insertNewErr } = await supabaseAdmin
+      const { data: newSession, error: insertNewErr } = await supabaseAdmin
         .from('sessions')
         .insert({
           match_id: matchId,
@@ -265,13 +280,32 @@ export async function PATCH(
           duration_minutes: 60,
           status: 'scheduled',
         })
+        .select('id')
+        .single()
 
-      if (insertNewErr) {
+      if (insertNewErr || !newSession) {
         console.error('[reschedule approve] insert new session:', insertNewErr)
         return NextResponse.json(
-          { error: 'Gagal membuat sesi baru: ' + insertNewErr.message },
+          { error: 'Gagal membuat sesi baru: ' + (insertNewErr?.message || '') },
           { status: 500 }
         )
+      }
+
+      // ===== 🔥 REPOINT HOLD DARI SESSION LAMA → SESSION BARU =====
+      const { error: repointErr } = await supabaseAdmin
+        .from('wallet_transactions')
+        .update({
+          reference: newSession.id,   // ← titik ke session baru
+          status: 'active',           // ← reset dari 'moved' balik 'active'
+        })
+        .eq('reference', oldSession.id)
+        .eq('type', 'session_hold')
+
+      if (repointErr) {
+        console.error('[reschedule approve] repoint hold error:', repointErr)
+        // Tidak return error — sesi tetap jalan, tapi log
+      } else {
+        console.log(`✅ Hold repointed: ${oldSession.id} → ${newSession.id}`)
       }
 
       // ===== UPDATE match_schedules =====
