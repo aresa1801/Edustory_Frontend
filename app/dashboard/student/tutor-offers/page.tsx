@@ -137,26 +137,27 @@ export default function TutorOffersPage() {
   const fetchWalletBalance = async () => {
   if (!user) return
   try {
-    // Ambil student_id dulu dari tabel students
-    const supabase = createClient()
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // 1. Ambil student_id via endpoint server (tanpa parameter)
+    const meRes = await fetch('/api/students/me', { cache: 'no-store' })
+    if (!meRes.ok) {
+      console.warn('[Offers] Failed to get student ID')
+      setWalletBalance(0)
+      return
+    }
+    const { student_id } = await meRes.json()
 
-    if (!student?.id) {
-      console.warn('[Offers] Student ID not found')
+    if (!student_id) {
       setWalletBalance(0)
       return
     }
 
+    // 2. Fetch balance
     const res = await fetch(
-      `/api/students/wallet-balance?student_id=${student.id}`,
+      `/api/students/wallet-balance?student_id=${student_id}`,
       { cache: 'no-store' }
     )
     const data = await res.json()
-    console.log('[Offers] Wallet balance:', data)
+    console.log('[Offers] Wallet:', data)
     setWalletBalance(Number(data?.balance) || 0)
   } catch (err) {
     console.warn('[Offers] Fetch balance error:', err)
