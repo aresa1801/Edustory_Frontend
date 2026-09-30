@@ -58,21 +58,26 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // ===== 3. Update session → completed =====
+    // ===== 3. Panggil endpoint complete (bukan update DB langsung) =====
     let sessionCount = 0
-    for (const item of toComplete) {
-      const { error: updateErr } = await supabaseAdmin
-        .from('sessions')
-        .update({
-          status: 'completed',
-          completed_at: item.exactCompleteAt,
-        })
-        .eq('id', item.id)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://v0-edustory.vercel.app'
 
-      if (updateErr) {
-        console.error('[CRON] session update error:', item.id, updateErr)
-      } else {
-        sessionCount++
+    for (const item of toComplete) {
+      try {
+        const res = await fetch(`${appUrl}/api/sessions/${item.id}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const data = await res.json().catch(() => ({}))
+
+        if (!res.ok) {
+          console.error(`[CRON] complete ${item.id} failed:`, data)
+        } else {
+          sessionCount++
+          console.log(`✅ [CRON] ${item.id} completed:`, data)
+        }
+      } catch (err) {
+        console.error(`[CRON] fetch error for ${item.id}:`, err)
       }
     }
 
