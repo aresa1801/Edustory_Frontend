@@ -11,35 +11,24 @@ export async function GET(request: NextRequest) {
     )
 
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
+    const studentId = searchParams.get('student_id')
 
-    if (!userId) {
-      return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
-    }
-
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (!student) {
+    if (!studentId) {
       return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
     }
 
     const { data: wallet } = await supabase
       .from('wallets')
       .select('balance')
-      .eq('student_id', student.id)
+      .eq('student_id', studentId)
       .maybeSingle()
 
     const balance = Number(wallet?.balance) || 0
 
-    // 🔥 Frozen = pending + active + moved
     const { data: frozenTx } = await supabase
       .from('wallet_transactions')
       .select('amount')
-      .eq('student_id', student.id)
+      .eq('student_id', studentId)
       .eq('type', 'session_hold')
       .in('status', ['pending', 'active', 'moved'])
 

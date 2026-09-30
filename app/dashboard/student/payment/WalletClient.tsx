@@ -296,13 +296,10 @@ export default function WalletClient({
   // FETCH: Balance + Frozen
   // ============================================================
   const refreshBalance = async () => {
+    if (!studentId) return
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
       const res = await fetch(
-        `/api/students/wallet-balance?user_id=${user.id}`,
+        `/api/students/wallet-balance?student_id=${studentId}`,
         { cache: 'no-store' }
       )
       const data = await res.json()

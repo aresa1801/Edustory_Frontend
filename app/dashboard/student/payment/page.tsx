@@ -48,7 +48,7 @@ export default async function PaymentPage({
   if (student) {
     try {
       const apiRes = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/students/wallet-balance?user_id=${session.user.id}`,
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/students/wallet-balance?student_id=${student.id}`,
         { cache: 'no-store' }
       )
       const apiData = await apiRes.json()
