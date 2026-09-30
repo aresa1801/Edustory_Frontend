@@ -27,11 +27,6 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // 🛡️ Guard: sudah completed → idempotent
-    if (session.status === 'completed') {
-      return NextResponse.json({ success: true, message: 'Already completed' });
-    }
-
     // 🛡️ Guard: session cancelled → tidak boleh complete
     if (session.status === 'cancelled') {
       return NextResponse.json(
