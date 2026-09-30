@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +41,7 @@ interface WalletTransaction {
   notes?: string
   reference?: string
   reference_id?: string
+  match_id?: string
   balance_after?: number
   created_at: string
 }
@@ -58,24 +59,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
 
 const QUICK_AMOUNTS = [20000, 50000, 100000, 250000, 500000]
 
-const TX_TYPE_LABEL: Record<string, string> = {
-  topup: 'Top Up Saldo',
-  top_up: 'Top Up Saldo',
-  deposit: 'Top Up Saldo',
-  session_payment: 'Pembayaran Sesi',
-  session_hold: 'Penahanan Dana Sesi',
-  session_earning: 'Pendapatan Sesi',
-  session_release: 'Pendapatan Sesi',
-  platform_fee: 'Biaya Platform',
-  refund: 'Pengembalian Dana',
-  withdrawal: 'Penarikan Saldo',
-  withdrawal_pending: 'Penarikan (Menunggu)',
-  withdrawal_completed: 'Penarikan Selesai',
-  withdrawal_refund: 'Pengembalian Penarikan',
-  credit: 'Kredit',
-  debit: 'Debit',
-}
-
 // ============================================================
 // HELPER — Display config per transaksi
 // ============================================================
@@ -92,7 +75,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
   const type = (tx.type || tx.transaction_type || '').toLowerCase()
   const amt = Number(tx.amount) || 0
 
-  // ===== PENDING — jam kuning =====
+  // PENDING — jam kuning
   if (status === 'pending') {
     return {
       icon: Clock,
@@ -103,7 +86,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // ===== MOVED — jam ungu (sesi dipindah, dana tetap beku) =====
+  // MOVED — jam ungu
   if (status === 'moved') {
     return {
       icon: Clock,
@@ -114,18 +97,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // ===== CANCELLED / FAILED / REJECTED — cross merah =====
-  if (['cancelled', 'failed', 'rejected'].includes(status)) {
-    return {
-      icon: XCircle,
-      iconBg: 'bg-red-500/15',
-      iconColor: 'text-red-600',
-      amountColor: 'text-red-600 line-through opacity-60',
-      sign: '',
-    }
-  }
-
-  // ===== ACTIVE — check hijau (tutor setuju, dana masih beku) =====
+  // ACTIVE — check hijau (dana masih beku)
   if (status === 'active') {
     return {
       icon: CheckCircle2,
@@ -136,8 +108,18 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // ===== COMPLETED — cek type =====
+  // CANCELLED / FAILED / REJECTED
+  if (['cancelled', 'failed', 'rejected'].includes(status)) {
+    return {
+      icon: XCircle,
+      iconBg: 'bg-red-500/15',
+      iconColor: 'text-red-600',
+      amountColor: 'text-red-600 line-through opacity-60',
+      sign: '',
+    }
+  }
 
+  // COMPLETED
   // Top-up → panah hijau
   if (['topup', 'top_up', 'deposit', 'credit'].includes(type)) {
     return {
@@ -160,7 +142,7 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // Session payment / hold (uang keluar ke tutor) → check hijau
+  // Session payment → check hijau
   if (['session_payment', 'session_hold'].includes(type)) {
     return {
       icon: CheckCircle2,
@@ -182,7 +164,6 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
     }
   }
 
-  // Fallback
   if (amt < 0) {
     return {
       icon: ArrowDown,
@@ -205,7 +186,16 @@ function getTxLabel(tx: WalletTransaction): string {
   if (tx.description) return tx.description
   if (tx.notes) return tx.notes
   const t = (tx.type || tx.transaction_type || '').toLowerCase()
-  return TX_TYPE_LABEL[t] || 'Transaksi'
+  const LABELS: Record<string, string> = {
+    topup: 'Top Up Saldo',
+    top_up: 'Top Up Saldo',
+    deposit: 'Top Up Saldo',
+    session_payment: 'Pembayaran Sesi',
+    session_hold: 'Penahanan Dana Sesi',
+    session_earning: 'Pendapatan Sesi',
+    refund: 'Pengembalian Dana',
+  }
+  return LABELS[t] || 'Transaksi'
 }
 
 // ============================================================
@@ -238,7 +228,7 @@ export default function WalletClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Bersihin query param ?amount=... setelah dibaca
+  // Bersihin query param ?amount=...
   useEffect(() => {
     if (defaultAmount > 0 && typeof window !== 'undefined') {
       const url = new URL(window.location.href)
@@ -250,7 +240,7 @@ export default function WalletClient({
   }, [defaultAmount])
 
   // ============================================================
-  // FETCH: Top-up history
+  // FETCH
   // ============================================================
   const refreshHistory = async () => {
     try {
@@ -267,15 +257,11 @@ export default function WalletClient({
     }
   }
 
-  // ============================================================
-  // FETCH: Wallet transactions
-  // ============================================================
   const refreshTransactions = async () => {
     if (!studentId) {
       setTxLoading(false)
       return
     }
-
     setTxLoading(true)
     try {
       const res = await fetch(
@@ -292,9 +278,6 @@ export default function WalletClient({
     }
   }
 
-  // ============================================================
-  // FETCH: Balance + Frozen
-  // ============================================================
   const refreshBalance = async () => {
     if (!studentId) return
     try {
@@ -312,14 +295,58 @@ export default function WalletClient({
     }
   }
 
-  // ============================================================
-  // INITIAL LOAD
-  // ============================================================
   useEffect(() => {
     refreshHistory()
     refreshTransactions()
     refreshBalance()
   }, [])
+
+  // ============================================================
+  // 🔥 VISIBLE TRANSACTIONS — Group session_hold per match_id
+  // ============================================================
+  const visibleTransactions = useMemo(() => {
+    const groups = new Map<string, any>()
+    const result: any[] = []
+
+    // Sort desc
+    const sorted = [...transactions].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+
+    sorted.forEach((tx) => {
+      const type = (tx.type || '').toLowerCase()
+      const status = (tx.status || '').toLowerCase()
+
+      // Skip cancelled/failed/rejected session_hold
+      if (type === 'session_hold' && ['cancelled', 'failed', 'rejected'].includes(status)) {
+        return
+      }
+
+      // Group session_hold (pending/active/moved) by match_id
+      if (type === 'session_hold' && tx.match_id) {
+        const key = `match-${tx.match_id}`
+        if (!groups.has(key)) {
+          const g = {
+            ...tx,
+            _isGroup: true,
+            _count: 0,
+            _total: 0,
+            _statuses: [] as string[],
+          }
+          groups.set(key, g)
+          result.push(g)
+        }
+        const g = groups.get(key)!
+        g._count += 1
+        g._total += Math.abs(Number(tx.amount) || 0)
+        g._statuses.push(status)
+      } else {
+        result.push(tx)
+      }
+    })
+
+    return result
+  }, [transactions])
 
   // ============================================================
   // HANDLE TOP-UP
@@ -336,7 +363,6 @@ export default function WalletClient({
       setError('Maksimal top-up Rp 10.000.000')
       return
     }
-
     if (typeof window.snap === 'undefined') {
       setError('Snap.js belum siap. Coba refresh halaman sebentar lagi.')
       return
@@ -389,14 +415,6 @@ export default function WalletClient({
   // ============================================================
   const available = Math.max(0, balance - frozen)
 
-  const visibleTransactions = transactions.filter(
-    (tx) =>
-      !(
-        tx.type === 'session_hold' &&
-        ['cancelled', 'failed', 'rejected'].includes(tx.status || '')
-      )
-  )
-
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
@@ -409,9 +427,7 @@ export default function WalletClient({
         </p>
       </div>
 
-      {/* TWO COLUMNS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* LEFT */}
         <div className="space-y-5">
           <div className="flex items-center gap-2">
@@ -419,7 +435,6 @@ export default function WalletClient({
             <h2 className="text-lg font-semibold text-foreground">Deposit dan Penarikan</h2>
           </div>
 
-          {/* Saldo Card */}
           <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -446,7 +461,6 @@ export default function WalletClient({
             </CardContent>
           </Card>
 
-          {/* Top-up Form */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Isi Saldo</CardTitle>
@@ -498,7 +512,6 @@ export default function WalletClient({
             </CardContent>
           </Card>
 
-          {/* Riwayat Top Up */}
           {history.length > 0 && (
             <Card>
               <CardHeader>
@@ -565,11 +578,16 @@ export default function WalletClient({
                 </div>
               ) : (
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1">
-                  {visibleTransactions.map((tx) => {
+                  {visibleTransactions.map((tx: any) => {
+                    const isGroup = tx._isGroup
                     const display = getTxDisplay(tx)
                     const Icon = display.icon
-                    const absAmount = Math.abs(Number(tx.amount) || 0)
-                    const label = getTxLabel(tx)
+                    const absAmount = isGroup
+                      ? tx._total
+                      : Math.abs(Number(tx.amount) || 0)
+                    const label = isGroup
+                      ? `Penahanan Dana Sesi - ${tx.description?.replace('Penahanan Dana Sesi - ', '') || 'Tutor'} (${tx._count} sesi)`
+                      : getTxLabel(tx)
                     const date = new Date(tx.created_at)
 
                     return (
