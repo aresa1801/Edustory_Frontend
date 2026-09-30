@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       .from('wallet_transactions')
       .select('*')
       .eq('tutor_id', tutorId)
-      .neq('type', 'session_hold')       // ← filter di sini
+      .in('type', ['session_earning', 'session_release', 'refund', 'withdrawal', 'withdrawal_completed', 'credit'])
       .order('created_at', { ascending: false })
       .limit(50)
 

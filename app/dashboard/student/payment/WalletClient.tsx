@@ -143,7 +143,19 @@ function getTxDisplay(tx: WalletTransaction): TxDisplay {
   }
 
   // Session payment → check hijau
-  if (['session_payment', 'session_hold'].includes(type)) {
+  // Session payment → panah merah (uang keluar)
+  if (type === 'session_payment') {
+    return {
+      icon: ArrowDown,
+      iconBg: 'bg-red-500/15',
+      iconColor: 'text-red-600',
+      amountColor: 'text-red-600',
+      sign: '−',
+    }
+  }
+
+  // Session hold (jarang muncul karena grouping) → tetap check hijau
+  if (type === 'session_hold') {
     return {
       icon: CheckCircle2,
       iconBg: 'bg-green-500/15',
