@@ -4,6 +4,9 @@ import { redirect } from 'next/navigation'
 import WalletClient from './WalletClient'
 import { autoCompleteExpiredSessions } from '@/lib/auto-complete'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function PaymentPage({
   searchParams,
 }: {

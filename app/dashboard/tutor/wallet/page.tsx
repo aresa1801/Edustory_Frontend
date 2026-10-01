@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import TutorWalletClient from './WalletClient'
 import { autoCompleteExpiredSessions } from '@/lib/auto-complete'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 export default async function TutorWalletPage() {
   const cookieStore = cookies()
   const supabase = createServerClient(
