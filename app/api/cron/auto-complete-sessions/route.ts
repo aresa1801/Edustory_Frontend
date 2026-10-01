@@ -96,7 +96,9 @@ export async function GET(req: NextRequest) {
       const allDone = allSessions.every((s: any) => {
         if (s.cancelled_at || s.completed_at) return true
         if (s.started_at) {
-          const startMs = new Date(s.started_at).getTime()
+          const startIso = String(s.started_at).replace(' ', 'T')
+          const startMs = new Date(startIso).getTime()
+          if (isNaN(startMs)) return false
           const durationMs = (s.duration_minutes || 60) * 60 * 1000
           return now.getTime() >= startMs + durationMs
         }
