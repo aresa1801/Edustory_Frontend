@@ -31,6 +31,7 @@ export async function autoCompleteExpiredSessions() {
 
     for (const session of toComplete) {
       try {
+        // Ambil match
         const { data: match } = await supabase
           .from('matches')
           .select('tutor_hourly_rate, tutor_full_name')
@@ -44,57 +45,61 @@ export async function autoCompleteExpiredSessions() {
         const fee = Math.round(rate * 0.1)
         const tutorEarning = rate - fee
 
-        const { data: hold } = await supabase
-          .from('wallet_transactions')
-          .select('id, status')
-          .eq('reference', session.id)
-          .eq('type', 'session_hold')
-          .maybeSingle()
-
-        if (!hold) continue
-        if (['completed', 'cancelled', 'moved'].includes(hold.status)) continue
-
-        await supabase
+        // 🔥 CLAIM — conditional UPDATE sebagai mutex.
+        // Kalau 2 instance healing jalan paralel, cuma 1 yang dapet row.
+        const { data: claimed, error: claimErr } = await supabase
           .from('wallet_transactions')
           .update({
             status: 'completed',
             type: 'session_payment',
             description: `Pembayaran Sesi - ${match.tutor_full_name || 'Tutor'}`,
           })
-          .eq('id', hold.id)
-
-        const { data: sw } = await supabase
-          .from('wallets')
-          .select('id, balance')
-          .eq('student_id', session.student_id)
+          .eq('reference', session.id)
+          .eq('type', 'session_hold')
+          .in('status', ['pending', 'active'])
+          .select('id')
           .maybeSingle()
 
-        if (sw) {
-          await supabase
-            .from('wallets')
-            .update({ balance: (Number(sw.balance) || 0) - rate })
-            .eq('id', sw.id)
+        if (claimErr || !claimed) {
+          // Instance lain sudah claim, atau status tidak eligible → skip
+          continue
         }
 
+        // ===== DARI SINI, HANYA 1 INSTANCE YANG JALAN =====
+
+        // Atomic deduct student
+        await supabase.rpc('wallet_deduct', {
+          p_student_id: session.student_id,
+          p_amount: rate,
+        })
+
+        // Credit tutor — atomic
         const { data: tw } = await supabase
           .from('wallets')
-          .select('id, balance')
+          .select('id')
           .eq('tutor_id', session.tutor_id)
           .maybeSingle()
 
-        let newTutorBalance = tutorEarning
-        if (tw) {
-          newTutorBalance = (Number(tw.balance) || 0) + tutorEarning
-          await supabase
-            .from('wallets')
-            .update({ balance: newTutorBalance })
-            .eq('id', tw.id)
-        } else {
+        if (!tw) {
           await supabase
             .from('wallets')
             .insert({ tutor_id: session.tutor_id, balance: tutorEarning })
+        } else {
+          await supabase.rpc('wallet_credit_tutor', {
+            p_tutor_id: session.tutor_id,
+            p_amount: tutorEarning,
+          })
         }
 
+        // Baca balance tutor setelah update (buat balance_after di log)
+        const { data: tw2 } = await supabase
+          .from('wallets')
+          .select('balance')
+          .eq('tutor_id', session.tutor_id)
+          .maybeSingle()
+        const newTutorBalance = Number(tw2?.balance) || tutorEarning
+
+        // Insert log earning (unique index protect)
         await supabase.from('wallet_transactions').insert({
           tutor_id: session.tutor_id,
           match_id: session.match_id,
@@ -106,30 +111,29 @@ export async function autoCompleteExpiredSessions() {
           balance_after: newTutorBalance,
         }).then(() => {}, () => {})
 
-        const { data: pw } = await supabase
+        // Atomic credit platform
+        await supabase.rpc('wallet_credit_platform', { p_amount: fee })
+
+        // Baca balance platform setelah update
+        const { data: pw2 } = await supabase
           .from('platform_wallet')
-          .select('id, balance')
+          .select('balance')
           .limit(1)
           .maybeSingle()
+        const newPlatBal = Number(pw2?.balance) || fee
 
-        if (pw) {
-          const newPlatBal = (Number(pw.balance) || 0) + fee
-          await supabase
-            .from('platform_wallet')
-            .update({ balance: newPlatBal, updated_at: new Date().toISOString() })
-            .eq('id', pw.id)
+        // Insert log platform fee
+        await supabase.from('wallet_transactions').insert({
+          match_id: session.match_id,
+          amount: fee,
+          type: 'platform_fee',
+          status: 'completed',
+          reference: session.id,
+          description: `Biaya Platform (10%) - Sesi ${session.id.slice(0, 8)}`,
+          balance_after: newPlatBal,
+        }).then(() => {}, () => {})
 
-          await supabase.from('wallet_transactions').insert({
-            match_id: session.match_id,
-            amount: fee,
-            type: 'platform_fee',
-            status: 'completed',
-            reference: session.id,
-            description: `Biaya Platform (10%) - Sesi ${session.id.slice(0, 8)}`,
-            balance_after: newPlatBal,
-          }).then(() => {}, () => {})
-        }
-
+        // Update session
         await supabase
           .from('sessions')
           .update({ status: 'completed', completed_at: new Date().toISOString() })

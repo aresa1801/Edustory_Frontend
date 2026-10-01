@@ -1,17 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { autoCompleteExpiredSessions } from '@/lib/auto-complete'
 
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
   try {
-    // 🔥 Lazy healing — paling atas
-    try {
-      await autoCompleteExpiredSessions()
-    } catch (e) {
-      console.error('[wallet-balance] heal error:', e)
-    }
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
