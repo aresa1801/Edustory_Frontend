@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import TutorWalletClient from './WalletClient'
+import { autoCompleteExpiredSessions } from '@/lib/auto-complete'
 
 export default async function TutorWalletPage() {
   const cookieStore = cookies()
@@ -20,6 +21,12 @@ export default async function TutorWalletPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
     redirect('/auth/login')
+  }
+
+    try {
+    await autoCompleteExpiredSessions()
+  } catch (e) {
+    console.error('[tutor-wallet] heal error:', e)
   }
 
   // Ambil tutor data

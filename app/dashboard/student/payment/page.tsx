@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import WalletClient from './WalletClient'
+import { autoCompleteExpiredSessions } from '@/lib/auto-complete'
 
 export default async function PaymentPage({
   searchParams,
@@ -24,6 +25,13 @@ export default async function PaymentPage({
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
     redirect('/auth/login')
+  }
+
+    // Lazy healing
+  try {
+    await autoCompleteExpiredSessions()
+  } catch (e) {
+    console.error('[payment] heal error:', e)
   }
 
   // Wallet balance
