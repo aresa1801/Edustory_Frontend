@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { adjustCredit, DELTA } from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,7 +22,6 @@ export async function PATCH(
     const body = await req.json()
     const { role } = body
 
-    // ===== 1. Validasi role =====
     if (!role || !['tutor', 'student'].includes(role)) {
       return NextResponse.json(
         { error: 'role harus "tutor" atau "student"' },
@@ -29,23 +29,19 @@ export async function PATCH(
       )
     }
 
-    // ===== 2. Ambil session =====
+    // ⬇️ Tambah tutor_id, student_id, match_id
     const { data: session, error: sErr } = await supabaseAdmin
       .from('sessions')
       .select(
-        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status'
+        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status, tutor_id, student_id, match_id'
       )
       .eq('id', sessionId)
       .single()
 
     if (sErr || !session) {
-      return NextResponse.json(
-        { error: 'Session not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     }
 
-    // ===== 3. Kalau sudah cancelled/started, tolak =====
     if (session.cancelled_at) {
       return NextResponse.json(
         { error: 'Sesi sudah hangus/dibatalkan.', state: 'cancelled' },
@@ -64,52 +60,43 @@ export async function PATCH(
       })
     }
 
-    // ===== 4. Cek window 20 menit =====
+    // ===== Cek window 20 menit =====
     const scheduledAt = new Date(session.scheduled_at)
     const now = new Date()
     const diffMinutes = (now.getTime() - scheduledAt.getTime()) / 1000 / 60
 
     if (diffMinutes > READY_WINDOW_MINUTES) {
-      // Auto-cancel
+      // Auto-cancel (guard status biar gak race sama cron)
       await supabaseAdmin
         .from('sessions')
-        .update({
-          cancelled_at: now.toISOString(),
-          status: 'cancelled',
-        })
+        .update({ cancelled_at: now.toISOString(), status: 'cancelled' })
         .eq('id', sessionId)
+        .eq('status', 'scheduled')
+
+      // ⬇️ -7 untuk pihak yang belum klik Siap
+      await applyExpiredPenalty(session)
 
       return NextResponse.json(
-        {
-          error: 'Waktu siap sudah habis. Sesi ditandai hangus.',
-          state: 'expired',
-        },
+        { error: 'Waktu siap sudah habis. Sesi ditandai hangus.', state: 'expired' },
         { status: 410 }
       )
     }
 
-    // ===== 5. Set ready_at untuk role ini =====
+    // ===== Set ready_at =====
     const readyField = `${role}_ready_at`
     const nowIso = now.toISOString()
+    const updatePayload: Record<string, any> = { [readyField]: nowIso }
 
-    const updatePayload: Record<string, any> = {
-      [readyField]: nowIso,
-    }
-
-    // ===== 6. Cek apakah pihak lain sudah ready =====
     const otherReadyAt =
       role === 'tutor' ? session.student_ready_at : session.tutor_ready_at
 
     let bothReady = false
-
-    // Kalau pihak lain sudah ready → set started_at
     if (otherReadyAt && !session.started_at) {
       updatePayload.started_at = nowIso
       updatePayload.status = 'ongoing'
       bothReady = true
     }
 
-    // ===== 7. Update DB =====
     const { error: uErr } = await supabaseAdmin
       .from('sessions')
       .update(updatePayload)
@@ -119,17 +106,34 @@ export async function PATCH(
       return NextResponse.json({ error: uErr.message }, { status: 500 })
     }
 
-    // ===== 8. Return response =====
+    // ⬇️ +2 untuk tutor & student saat both_ready
+    if (bothReady) {
+      await Promise.all([
+        adjustCredit({
+          profileId: session.tutor_id,
+          role: 'tutor',
+          delta: DELTA.both_ready,
+          reason: 'both_ready',
+          refId: session.match_id,
+        }),
+        adjustCredit({
+          profileId: session.student_id,
+          role: 'student',
+          delta: DELTA.both_ready,
+          reason: 'both_ready',
+          refId: session.match_id,
+        }),
+      ])
+    }
+
     return NextResponse.json({
       success: true,
       both_ready: bothReady,
       state: bothReady ? 'started' : 'waiting',
       role,
       ready_at: nowIso,
-      tutor_ready_at:
-        role === 'tutor' ? nowIso : session.tutor_ready_at,
-      student_ready_at:
-        role === 'student' ? nowIso : session.student_ready_at,
+      tutor_ready_at: role === 'tutor' ? nowIso : session.tutor_ready_at,
+      student_ready_at: role === 'student' ? nowIso : session.student_ready_at,
       started_at: updatePayload.started_at || null,
     })
   } catch (err) {
@@ -139,4 +143,38 @@ export async function PATCH(
       { status: 500 }
     )
   }
+}
+
+// ===== Helper: -7 untuk pihak yang ready_at null =====
+async function applyExpiredPenalty(session: {
+  tutor_id: string
+  student_id: string
+  match_id: string
+  tutor_ready_at: string | null
+  student_ready_at: string | null
+}) {
+  const tasks: Promise<any>[] = []
+  if (!session.tutor_ready_at) {
+    tasks.push(
+      adjustCredit({
+        profileId: session.tutor_id,
+        role: 'tutor',
+        delta: DELTA.session_expired,
+        reason: 'session_expired',
+        refId: session.match_id,
+      })
+    )
+  }
+  if (!session.student_ready_at) {
+    tasks.push(
+      adjustCredit({
+        profileId: session.student_id,
+        role: 'student',
+        delta: DELTA.session_expired,
+        reason: 'session_expired',
+        refId: session.match_id,
+      })
+    )
+  }
+  if (tasks.length) await Promise.all(tasks)
 }

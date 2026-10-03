@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isValidUUID, sanitizeText } from '@/lib/security/sanitize'
+import {
+  adjustCredit,
+  suspendUser,
+  DELTA,
+  SUSPEND_DAYS_UNILATERAL,
+} from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,14 +139,40 @@ export async function POST(
         .update({ status: 'completed', ended_at: now.toISOString() })
         .eq('id', matchId)
 
-      await supabaseAdmin
+            await supabaseAdmin
         .from('sessions')
         .update({ status: 'cancelled', cancelled_at: now.toISOString() })
         .eq('match_id', matchId)
         .is('completed_at', null)
         .is('cancelled_at', null)
 
-      return NextResponse.json({ success: true, type: 'unilateral' })
+      // ⬇️ -40 credit + suspend 3 hari untuk pelaku unilateral
+      const [creditRes, suspendRes] = await Promise.all([
+        adjustCredit({
+          profileId: profile.id,
+          role: role as 'tutor' | 'student',
+          delta: DELTA.unilateral_terminate,
+          reason: 'unilateral_terminate',
+          refId: matchId,
+        }),
+        suspendUser({
+          profileId: profile.id,
+          role: role as 'tutor' | 'student',
+          days: SUSPEND_DAYS_UNILATERAL,
+        }),
+      ])
+
+      if (!creditRes.ok) console.error('[terminate] adjustCredit:', creditRes.error)
+      if (!suspendRes.ok) console.error('[terminate] suspendUser:', suspendRes.error)
+
+      return NextResponse.json({
+        success: true,
+        type: 'unilateral',
+        credit: creditRes.ok
+          ? { newScore: creditRes.newScore, tier: creditRes.tier?.id }
+          : null,
+        suspendedUntil: suspendRes.suspendedUntil ?? null,
+      })
     }
 
     // ===== MUTUAL =====
