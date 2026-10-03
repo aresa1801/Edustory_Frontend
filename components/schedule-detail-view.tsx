@@ -427,13 +427,12 @@ export default function ScheduleDetailView({
     if (matchId) fetchData(false)
   }, [matchId, fetchData])
 
-  // Auto-refresh data tiap 3 menit
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchData(true)  // silent refresh (spinner kecil di tombol saja)
-    }, 180000)  // 180.000 ms = 3 menit
-    return () => clearInterval(interval)
-  }, [fetchData])
+   useEffect(() => {
+      const interval = setInterval(() => {
+        setNow(new Date())
+      }, 1000)
+      return () => clearInterval(interval)
+    }, [])
 
   // Auto-show popup penolakan ke pengaju
   useEffect(() => {
