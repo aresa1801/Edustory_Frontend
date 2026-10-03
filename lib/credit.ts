@@ -50,7 +50,7 @@ export interface CreditProfile {
 
 export const CREDIT_MIN = 0
 export const CREDIT_MAX = 100
-export const CREDIT_INITIAL = 100
+export const CREDIT_INITIAL = 99
 export const SUSPEND_DAYS_UNILATERAL = 3
 
 export const DELTA = {
