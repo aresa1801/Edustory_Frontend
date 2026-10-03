@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -157,16 +158,57 @@ const CREDIT_TIERS = [
 // KOMPONEN
 // ============================================================
 export default function TutorAnalyticsPage() {
-  // Dummy: pakai state biar bisa toggle preview suspend
+  const { user, userRole } = useAuth()
+
   const [showSuspendPreview, setShowSuspendPreview] = useState(false)
   const [showCreditInfo, setShowCreditInfo] = useState(false)
 
+  // ⬇️ Credit real dari DB
+  const [realCredit, setRealCredit] = useState<{
+    creditScore: number
+    suspendedUntil: string | null
+    isSuspended: boolean
+  } | null>(null)
+
+  useEffect(() => {
+    if (!user?.id || !userRole) return
+    const role = userRole === 'tutor' ? 'tutor' : 'student'
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `/api/credit/me?user_id=${user.id}&role=${role}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled) {
+          setRealCredit({
+            creditScore: json.creditScore,
+            suspendedUntil: json.suspendedUntil,
+            isSuspended: json.isSuspended,
+          })
+        }
+      } catch (e) {
+        console.error('[analytics] fetch credit:', e)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, userRole])
+
   const stats = {
     ...DUMMY_STATS,
-    isSuspended: showSuspendPreview,
+    // ⬇️ credit dari DB, fallback 99
+    creditScore: realCredit?.creditScore ?? 99,
+    isSuspended:
+      showSuspendPreview || (realCredit?.isSuspended ?? false),
     suspendedUntil: showSuspendPreview
       ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-      : null,
+      : realCredit?.suspendedUntil ?? null,
   }
 
   const reviews = DUMMY_REVIEWS
@@ -192,7 +234,8 @@ export default function TutorAnalyticsPage() {
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-blue-400" />
           <p className="text-sm text-muted-foreground">
-            <strong>Preview Mode</strong> — data dummy, tabel belum ada.
+            <strong>Preview Mode</strong> — Credit Score real-time dari database,
+            sisanya dummy.
           </p>
         </div>
         <Button
