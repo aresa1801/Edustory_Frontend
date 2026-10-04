@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
-import { Star, TrendingUp, BookOpen, Users, Award, MessageCircle } from 'lucide-react'
+import { Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info, AlertTriangle } from 'lucide-react'
 
 interface TutorRating {
   matchId: string
@@ -21,6 +21,66 @@ interface TutorRating {
   existingRating: number | null
   existingReview: string | null
 }
+
+// ============================================================
+// CREDIT TIERS — untuk dialog info
+// ============================================================
+const CREDIT_TIERS = [
+  {
+    range: '81-100',
+    label: 'Aman',
+    color: 'bg-green-500',
+    textColor: 'text-green-400',
+    borderColor: 'border-green-500/40',
+    bgColor: 'bg-green-500/10',
+    description: 'Bisa mengakses segala fitur tanpa hambatan.',
+  },
+  {
+    range: '66-80',
+    label: 'Pembatasan',
+    color: 'bg-lime-500',
+    textColor: 'text-lime-400',
+    borderColor: 'border-lime-500/40',
+    bgColor: 'bg-lime-500/10',
+    description: 'Akses katalog tutor dibatasi refresh setiap 10 detik.',
+  },
+  {
+    range: '51-65',
+    label: 'Waspada',
+    color: 'bg-yellow-500',
+    textColor: 'text-yellow-400',
+    borderColor: 'border-yellow-500/40',
+    bgColor: 'bg-yellow-500/10',
+    description: 'Mengubah profil akan mengalami jeda 2 hari sekali.',
+  },
+  {
+    range: '26-50',
+    label: 'Hati-hati',
+    color: 'bg-orange-500',
+    textColor: 'text-orange-400',
+    borderColor: 'border-orange-500/40',
+    bgColor: 'bg-orange-500/10',
+    description: 'Katalog tutor dibekukan (tidak bisa mencari tutor baru sama sekali).',
+  },
+  {
+    range: '6-25',
+    label: 'Bahaya',
+    color: 'bg-red-500',
+    textColor: 'text-red-400',
+    borderColor: 'border-red-500/40',
+    bgColor: 'bg-red-500/10',
+    description: 'Akun otomatis ditahan admin. Tidak bisa mencari tutor baru. Kontrak berjalan tetap dilanjutkan.',
+  },
+  {
+    range: '0-5',
+    label: 'Blacklist',
+    color: 'bg-black',
+    textColor: 'text-gray-300',
+    borderColor: 'border-gray-500/40',
+    bgColor: 'bg-gray-900/60',
+    description: 'Akun akan di-banned.',
+  },
+]
 
 export default function StudentAnalyticsPage() {
   const [loading, setLoading] = useState(true)
@@ -34,6 +94,18 @@ export default function StudentAnalyticsPage() {
   })
   const [tutorRatings, setTutorRatings] = useState<TutorRating[]>([])
   const [subjects, setSubjects] = useState<string[]>([])
+
+  // ⬇️ CREDIT — state baru
+  const [credit, setCredit] = useState<{
+    creditScore: number
+    suspendedUntil: string | null
+    isSuspended: boolean
+  }>({
+    creditScore: 99,
+    suspendedUntil: null,
+    isSuspended: false,
+  })
+  const [showCreditInfo, setShowCreditInfo] = useState(false)
 
   // Rating dialog
   const [showRatingDialog, setShowRatingDialog] = useState(false)
@@ -54,7 +126,7 @@ export default function StudentAnalyticsPage() {
       console.log('[Analytics] 🔄 Fetching data...')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) {
         console.log('[Analytics] ⚠️ User not found, using empty data')
         setLoading(false)
@@ -65,7 +137,7 @@ export default function StudentAnalyticsPage() {
         .from('students')
         .select('id, subjects')
         .eq('user_id', user.id)
-        .maybeSingle() // ✅ maybeSingle() bukan single()
+        .maybeSingle()
 
       if (studentErr && studentErr.code !== 'PGRST116') {
         console.error('[Analytics] ❌ Student error:', studentErr)
@@ -139,10 +211,43 @@ export default function StudentAnalyticsPage() {
     }
   }
 
+  // ⬇️ FETCH CREDIT — terpisah, gak ngeblok loading utama
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const res = await fetch(
+          `/api/credit/me?user_id=${user.id}&role=student`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          console.warn('[Analytics] credit fetch failed:', res.status)
+          return
+        }
+        const json = await res.json()
+        if (!cancelled) {
+          setCredit({
+            creditScore: Number(json.creditScore ?? 99),
+            suspendedUntil: json.suspendedUntil ?? null,
+            isSuspended: Boolean(json.isSuspended),
+          })
+        }
+      } catch (e) {
+        console.error('[Analytics] fetch credit:', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     isMounted.current = true
 
-    // ⏱️ TIMEOUT 3 DETIK - PASTIKAN LOADING BERHENTI
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('[Analytics] ⏱️ Timeout 3 detik, force loading=false')
@@ -200,8 +305,7 @@ export default function StudentAnalyticsPage() {
       setSelectedMatch(null)
       setRatingValue(0)
       setReviewText('')
-      
-      // Reset fetchDone agar bisa fetch ulang
+
       fetchDone.current = false
       await fetchData()
     } catch (err) {
@@ -211,7 +315,20 @@ export default function StudentAnalyticsPage() {
     }
   }
 
-  // ✅ TAMPILKAN LOADING
+  // ⬇️ Credit warna
+  const creditColor =
+    credit.creditScore >= 80
+      ? 'text-green-400'
+      : credit.creditScore >= 50
+      ? 'text-yellow-400'
+      : 'text-red-400'
+  const creditBg =
+    credit.creditScore >= 80
+      ? 'bg-green-500/20'
+      : credit.creditScore >= 50
+      ? 'bg-yellow-500/20'
+      : 'bg-red-500/20'
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -225,7 +342,7 @@ export default function StudentAnalyticsPage() {
     { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-300', bg: 'bg-blue-500/20' },
     { label: 'Sesi Selesai', value: stats.completedSessions, icon: Award, color: 'text-green-300', bg: 'bg-green-500/20' },
     { label: 'Tutor Aktif', value: stats.activeTutors, icon: Users, color: 'text-purple-300', bg: 'bg-purple-500/20' },
-    { label: 'Penyelesaian', value: `${stats.completionRate}%`, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: 'Penyelesaian', value: `${stats.completionRate}%`, icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/20' },
   ]
 
   const unratedMatches = tutorRatings.filter(r => r.existingRating === null)
@@ -240,13 +357,64 @@ export default function StudentAnalyticsPage() {
         </p>
       </div>
 
+      {/* ⬇️ BANNER SUSPEND */}
+      {credit.isSuspended && credit.suspendedUntil && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Akun Anda sedang <strong>tersuspend</strong> sampai{' '}
+            <strong>
+              {new Date(credit.suspendedUntil).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </strong>
+            . Anda tidak bisa mencari tutor baru selama periode ini, tapi
+            kontrak yang sedang berjalan tetap bisa dijalankan.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert className="mb-6 bg-amber-50 border-amber-200">
           <AlertDescription className="text-amber-700 text-sm">{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* ✅ STATS TETAP TAMPIL MESKIPUN KOSONG */}
+      {/* ⬇️ CREDIT SCORE CARD — dipindah ke atas, full-width-ish */}
+      <div className="mb-6">
+        <Card className="p-5">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-12 h-12 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}
+            >
+              <Shield className={`w-6 h-6 ${creditColor}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm text-muted-foreground">Credit Score</p>
+                <button
+                  type="button"
+                  onClick={() => setShowCreditInfo(true)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Info tingkatan credit score"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className={`text-3xl font-bold ${creditColor}`}>
+                {credit.creditScore}
+                <span className="text-sm text-muted-foreground font-normal">
+                  /100
+                </span>
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* ✅ STATS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="p-5">
@@ -395,7 +563,7 @@ export default function StudentAnalyticsPage() {
                         <span className="text-sm font-medium text-foreground ml-1">{item.existingRating}/5</span>
                       </div>
                       {item.existingReview && (
-                        <p className="text-sm text-muted-foreground mt-1 italic">"{item.existingReview}"</p>
+                        <p className="text-sm text-muted-foreground mt-1 italic">&ldquo;{item.existingReview}&rdquo;</p>
                       )}
                     </div>
                     <Badge className="bg-green-500/20 text-green-700 border border-green-200 text-xs">
@@ -409,6 +577,7 @@ export default function StudentAnalyticsPage() {
         </div>
       )}
 
+      {/* ===== DIALOG RATING ===== */}
       <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
         <DialogContent>
           <DialogHeader>
@@ -464,6 +633,53 @@ export default function StudentAnalyticsPage() {
                 {submittingRating ? 'Menyimpan...' : 'Kirim Penilaian'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== DIALOG INFO CREDIT SCORE ===== */}
+      <Dialog open={showCreditInfo} onOpenChange={setShowCreditInfo}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-green-500" />
+              Tingkatan Credit Score
+            </DialogTitle>
+            <DialogDescription>
+              Setiap tingkatan memiliki konsekuensi berbeda. Jaga credit score
+              Anda untuk tetap mengakses semua fitur.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2.5 py-2">
+            {CREDIT_TIERS.map((tier) => (
+              <div
+                key={tier.range}
+                className={`p-3 rounded-md border ${tier.borderColor} ${tier.bgColor}`}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className={`w-3 h-3 rounded-full ${tier.color}`} />
+                  <span className={`font-bold text-sm ${tier.textColor}`}>
+                    {tier.range}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold uppercase tracking-wide ${tier.textColor}`}
+                  >
+                    — {tier.label}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed pl-5">
+                  {tier.description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 rounded-md bg-muted/20 border border-border mt-2">
+            <p className="text-xs text-muted-foreground">
+              💡 <strong>Cara menaikkan credit:</strong> Login harian (+1),
+              menyelesaikan sesi belajar (+2).
+            </p>
           </div>
         </DialogContent>
       </Dialog>
