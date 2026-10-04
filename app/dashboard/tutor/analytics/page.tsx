@@ -167,39 +167,60 @@ export default function TutorAnalyticsPage() {
     }
   }, [user?.id, userRole])
 
-  // ===== Fetch rating + ulasan (langsung Supabase) =====
+  // ===== Fetch rating + ulasan (langsung Supabase) — DEBUG =====
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
 
     ;(async () => {
       try {
+        console.log('════════════════════════════════════════')
+        console.log('[analytics] START')
+        console.log('[analytics] user.id:', user.id)
+
         const supabase = createClient()
 
-        // 1. Tutor base: rating & total_reviews
-        const { data: tutor, error: tutorErr } = await supabase
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[analytics] session:', session ? 'ADA' : 'NULL')
+        console.log('[analytics] session.user.id:', session?.user?.id)
+
+        const { data: tutor, error: tutorErr, status: tutorStatus } = await supabase
           .from('tutors')
-          .select('id, rating, total_reviews')
+          .select('id, user_id, rating, total_reviews')
           .eq('user_id', user.id)
           .maybeSingle()
 
+        console.log('[analytics] STEP 1 — tutors lookup')
+        console.log('  status:', tutorStatus)
+        console.log('  error:', tutorErr)
+        console.log('  data:', tutor)
+
         if (tutorErr || !tutor) {
-          console.warn('[analytics] tutor not found:', tutorErr)
+          console.warn('[analytics] ⛔ STOP: tutor tidak ketemu / error')
+          if (!cancelled) {
+            setRealRating({ rating: 0, totalReviews: 0, reviews: [] })
+          }
           return
         }
 
-        // 2. Ambil matches milik tutor ini (untuk map match_id → student_full_name)
-        const { data: tutorMatches } = await supabase
+        const tutorId = tutor.id
+
+        const { data: tutorMatches, error: matchErr } = await supabase
           .from('matches')
           .select('id, student_full_name')
-          .eq('tutor_id', tutor.id)
+          .eq('tutor_id', tutorId)
+
+        console.log('[analytics] STEP 2 — matches lookup')
+        console.log('  tutorId:', tutorId)
+        console.log('  error:', matchErr)
+        console.log('  count:', tutorMatches?.length)
+        console.log('  data:', tutorMatches)
 
         const matchIds = (tutorMatches || []).map((m) => m.id)
         const nameByMatch = new Map<string, string>(
           (tutorMatches || []).map((m) => [m.id, m.student_full_name || 'Siswa'])
         )
 
-        // 3. Ambil reviews dari tabel reviews
         let reviews: Array<{
           id: string
           studentName: string
@@ -209,12 +230,18 @@ export default function TutorAnalyticsPage() {
         }> = []
 
         if (matchIds.length > 0) {
-          const { data: reviewRows } = await supabase
+          const { data: reviewRows, error: reviewErr } = await supabase
             .from('reviews')
             .select('id, rating, comment, created_at, match_id')
             .in('match_id', matchIds)
             .order('created_at', { ascending: false })
             .limit(50)
+
+          console.log('[analytics] STEP 3 — reviews lookup')
+          console.log('  matchIds:', matchIds)
+          console.log('  error:', reviewErr)
+          console.log('  count:', reviewRows?.length)
+          console.log('  data:', reviewRows)
 
           reviews = (reviewRows || []).map((r) => ({
             id: r.id,
@@ -223,7 +250,16 @@ export default function TutorAnalyticsPage() {
             comment: r.comment ?? null,
             createdAt: r.created_at,
           }))
+        } else {
+          console.warn('[analytics] STEP 3 — SKIP: matchIds kosong')
         }
+
+        console.log('[analytics] FINAL:', {
+          rating: tutor.rating,
+          totalReviews: tutor.total_reviews,
+          reviewCount: reviews.length,
+        })
+        console.log('════════════════════════════════════════')
 
         if (!cancelled) {
           setRealRating({
@@ -233,7 +269,7 @@ export default function TutorAnalyticsPage() {
           })
         }
       } catch (e) {
-        console.error('[analytics] fetch rating/reviews:', e)
+        console.error('[analytics] ❌ CATCH:', e)
       }
     })()
 
