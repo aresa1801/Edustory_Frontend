@@ -117,7 +117,7 @@ export default function TutorAnalyticsPage() {
       console.log('[analytics] FETCH — start')
       try {
         const res = await fetch(
-          `/api/tutors/analytics?user_id=${user.id}&_t=${Date.now()}`,
+          `/api/tutors/analytics-v2?user_id=${user.id}&_t=${Date.now()}`,
           {
             cache: 'no-store',
             headers: {
