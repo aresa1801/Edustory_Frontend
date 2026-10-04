@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,145 +13,114 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Shield,
   Star,
   Users,
   CheckCircle,
+  CheckCircle2,
   TrendingUp,
+  TrendingDown,
   Wallet,
   AlertTriangle,
   ThumbsUp,
-  Sparkles,
   Info,
+  LogIn,
+  XCircle,
+  History,
 } from 'lucide-react'
 
 // ============================================================
-// DUMMY DATA — untuk preview layout
+// TYPES
 // ============================================================
-const DUMMY_STATS = {
-  creditScore: 88,
-  isSuspended: false,
-  suspendedUntil: null as string | null,
-  rating: 4.6,
-  totalReviews: 24,
-  totalStudents: 12,
-  activeStudents: 3,
-  completedContracts: 9,
-  sessionsCompleted: 47,
-  sessionsMissed: 3,
-  totalEarnings: 18400000,
-  monthlyEarnings: 2400000,
-  avgPerContract: 2044444,
+interface AnalyticsData {
+  tutor: {
+    id: string
+    rating: number
+    totalReviews: number
+    creditScore: number
+    suspendedUntil: string | null
+    isSuspended: boolean
+    tier: string
+    tierLabel: string
+  }
+  stats: {
+    totalStudents: number
+    activeStudents: number
+    completedContracts: number
+    sessionsCompleted: number
+    sessionsMissed: number
+    totalEarnings: number
+    monthlyEarnings: number
+    avgPerContract: number
+  }
+  creditLog: Array<{
+    id: string
+    delta: number
+    balanceAfter: number
+    reason: string
+    refId: string | null
+    createdAt: string
+  }>
+  reviews: Array<{
+    id: string
+    rating: number
+    comment: string | null
+    createdAt: string | null
+    maskedName: string
+  }>
 }
 
-const DUMMY_REVIEWS = [
-  {
-    id: '1',
-    student_name: 'Anaxa',
-    rating: 5,
-    comment: 'Gurunya sabar dan cara mengajarnya mudah dipahami!',
-    created_at: '2026-09-20T10:00:00Z',
+// ============================================================
+// CREDIT LOG LABELS
+// ============================================================
+const REASON_META: Record<
+  string,
+  { label: string; Icon: any; color: string; bg: string }
+> = {
+  daily_login: {
+    label: 'Login harian',
+    Icon: LogIn,
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/15',
   },
-  {
-    id: '2',
-    student_name: 'Rahma',
-    rating: 5,
-    comment: 'Materi dijelaskan runtut dan latihan soalnya banyak.',
-    created_at: '2026-09-15T10:00:00Z',
+  both_ready: {
+    label: 'Sesi dimulai (kedua pihak siap)',
+    Icon: CheckCircle2,
+    color: 'text-green-400',
+    bg: 'bg-green-500/15',
   },
-  {
-    id: '3',
-    student_name: 'Bagas',
-    rating: 4,
-    comment: 'Cukup bagus, tapi kadang agak terlalu cepat.',
-    created_at: '2026-09-10T10:00:00Z',
+  session_expired: {
+    label: 'Sesi hangus — tidak klik Siap',
+    Icon: XCircle,
+    color: 'text-red-400',
+    bg: 'bg-red-500/15',
   },
-  {
-    id: '4',
-    student_name: 'Sinta',
-    rating: 5,
-    comment: 'Very recommended! Saya jadi lebih paham Sejarah.',
-    created_at: '2026-09-05T10:00:00Z',
+  unilateral_terminate: {
+    label: 'Hentikan kontrak sepihak',
+    Icon: AlertTriangle,
+    color: 'text-red-400',
+    bg: 'bg-red-500/15',
   },
-  {
-    id: '5',
-    student_name: 'Dimas',
-    rating: 4,
-    comment: null,
-    created_at: '2026-08-28T10:00:00Z',
+  admin_adjustment: {
+    label: 'Penyesuaian admin',
+    Icon: Shield,
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/15',
   },
-  {
-    id: '6',
-    student_name: 'Laras',
-    rating: 5,
-    comment: 'Penjelasan detail, sering kasih tips ngerjain soal cepat.',
-    created_at: '2026-08-20T10:00:00Z',
-  },
-]
+}
 
 // ============================================================
-// CREDIT TIERS
+// CREDIT TIERS — untuk dialog
 // ============================================================
 const CREDIT_TIERS = [
-  {
-    range: '81-100',
-    label: 'Aman',
-    color: 'bg-green-500',
-    textColor: 'text-green-400',
-    borderColor: 'border-green-500/40',
-    bgColor: 'bg-green-500/10',
-    description: 'Bisa mengakses segala fitur tanpa hambatan.',
-  },
-  {
-    range: '66-80',
-    label: 'Pembatasan',
-    color: 'bg-lime-500',
-    textColor: 'text-lime-400',
-    borderColor: 'border-lime-500/40',
-    bgColor: 'bg-lime-500/10',
-    description:
-      'Menerima siswa maksimal 5× kemudian refresh katalog siswa dibatasi setiap 10 detik sekali.',
-  },
-  {
-    range: '51-65',
-    label: 'Waspada',
-    color: 'bg-yellow-500',
-    textColor: 'text-yellow-400',
-    borderColor: 'border-yellow-500/40',
-    bgColor: 'bg-yellow-500/10',
-    description:
-      'Mengubah profil akan mengalami jeda 2 hari sekali dan maksimal memasang pendapatan hanya Rp 150.000 per sesi.',
-  },
-  {
-    range: '26-50',
-    label: 'Hati-hati',
-    color: 'bg-orange-500',
-    textColor: 'text-orange-400',
-    borderColor: 'border-orange-500/40',
-    bgColor: 'bg-orange-500/10',
-    description:
-      'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.',
-  },
-    {
-    range: '6-25',
-    label: 'Bahaya',
-    color: 'bg-red-500',
-    textColor: 'text-red-400',
-    borderColor: 'border-red-500/40',
-    bgColor: 'bg-red-500/10',
-    description:
-      'Akun akan otomatis ditahan oleh admin. Tidak bisa menerima siswa baru sama sekali, tidak bisa mengganti profil. Kontrak yang sedang berjalan tetap dilanjutkan sampai selesai.',
-  },
-  {
-    range: '0-5',
-    label: 'Blacklist',
-    color: 'bg-black',
-    textColor: 'text-gray-300',
-    borderColor: 'border-gray-500/40',
-    bgColor: 'bg-gray-900/60',
-    description: 'Akun akan di-banned.',
-  },
+  { range: '81-100', label: 'Aman', color: 'bg-green-500', textColor: 'text-green-400', borderColor: 'border-green-500/40', bgColor: 'bg-green-500/10', description: 'Bisa mengakses segala fitur tanpa hambatan.' },
+  { range: '66-80', label: 'Pembatasan', color: 'bg-lime-500', textColor: 'text-lime-400', borderColor: 'border-lime-500/40', bgColor: 'bg-lime-500/10', description: 'Menerima siswa maksimal 5× kemudian refresh katalog siswa dibatasi setiap 10 detik sekali.' },
+  { range: '51-65', label: 'Waspada', color: 'bg-yellow-500', textColor: 'text-yellow-400', borderColor: 'border-yellow-500/40', bgColor: 'bg-yellow-500/10', description: 'Mengubah profil akan mengalami jeda 2 hari sekali dan maksimal memasang pendapatan hanya Rp 150.000 per sesi.' },
+  { range: '26-50', label: 'Hati-hati', color: 'bg-orange-500', textColor: 'text-orange-400', borderColor: 'border-orange-500/40', bgColor: 'bg-orange-500/10', description: 'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.' },
+  { range: '6-25', label: 'Bahaya', color: 'bg-red-500', textColor: 'text-red-400', borderColor: 'border-red-500/40', bgColor: 'bg-red-500/10', description: 'Akun akan otomatis ditahan oleh admin. Tidak bisa menerima siswa baru sama sekali, tidak bisa mengganti profil. Kontrak yang sedang berjalan tetap dilanjutkan sampai selesai.' },
+  { range: '0-5', label: 'Blacklist', color: 'bg-black', textColor: 'text-gray-300', borderColor: 'border-gray-500/40', bgColor: 'bg-gray-900/60', description: 'Akun akan di-banned.' },
 ]
 
 // ============================================================
@@ -160,38 +129,42 @@ const CREDIT_TIERS = [
 export default function TutorAnalyticsPage() {
   const { user, userRole } = useAuth()
 
-  const [showSuspendPreview, setShowSuspendPreview] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<AnalyticsData | null>(null)
   const [showCreditInfo, setShowCreditInfo] = useState(false)
-
-  // ⬇️ Credit real dari DB
-  const [realCredit, setRealCredit] = useState<{
-    creditScore: number
-    suspendedUntil: string | null
-    isSuspended: boolean
-  } | null>(null)
 
   useEffect(() => {
     if (!user?.id || !userRole) return
-    const role = userRole === 'tutor' ? 'tutor' : 'student'
-    let cancelled = false
+    if (userRole !== 'tutor') {
+      setError('Halaman ini hanya untuk tutor.')
+      setLoading(false)
+      return
+    }
 
+    let cancelled = false
     ;(async () => {
       try {
         const res = await fetch(
-          `/api/credit/me?user_id=${user.id}&role=${role}`,
+          `/api/tutor/analytics?user_id=${user.id}`,
           { cache: 'no-store' }
         )
-        if (!res.ok) return
-        const json = await res.json()
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}))
+          throw new Error(j.error || `HTTP ${res.status}`)
+        }
+        const json: AnalyticsData = await res.json()
         if (!cancelled) {
-          setRealCredit({
-            creditScore: json.creditScore,
-            suspendedUntil: json.suspendedUntil,
-            isSuspended: json.isSuspended,
-          })
+          setData(json)
+          setError(null)
         }
       } catch (e) {
-        console.error('[analytics] fetch credit:', e)
+        if (!cancelled) {
+          console.error('[tutor/analytics]', e)
+          setError(e instanceof Error ? e.message : 'Gagal memuat data')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     })()
 
@@ -200,54 +173,56 @@ export default function TutorAnalyticsPage() {
     }
   }, [user?.id, userRole])
 
-  const stats = {
-    ...DUMMY_STATS,
-    // ⬇️ credit dari DB, fallback 99
-    creditScore: realCredit?.creditScore ?? 99,
-    isSuspended:
-      showSuspendPreview || (realCredit?.isSuspended ?? false),
-    suspendedUntil: showSuspendPreview
-      ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-      : realCredit?.suspendedUntil ?? null,
+  // ===== Loading =====
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Spinner className="h-10 w-10 text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Memuat analitik…</p>
+      </div>
+    )
   }
 
-  const reviews = DUMMY_REVIEWS
+  // ===== No data =====
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-3xl font-bold">Analitik Saya</h1>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error || 'Data tidak tersedia.'}</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
 
-  // ===== Credit color =====
+  const { tutor, stats, creditLog, reviews } = data
+  const creditScore = tutor.creditScore
+
   const creditColor =
-    stats.creditScore >= 80
+    creditScore >= 80
       ? 'text-green-400'
-      : stats.creditScore >= 50
+      : creditScore >= 50
       ? 'text-yellow-400'
       : 'text-red-400'
   const creditBg =
-    stats.creditScore >= 80
+    creditScore >= 80
       ? 'bg-green-500/20'
-      : stats.creditScore >= 50
+      : creditScore >= 50
       ? 'bg-yellow-500/20'
       : 'bg-red-500/20'
 
+  const successRate =
+    stats.sessionsCompleted + stats.sessionsMissed > 0
+      ? Math.round(
+          (stats.sessionsCompleted /
+            (stats.sessionsCompleted + stats.sessionsMissed)) *
+            100
+        )
+      : 0
+
   return (
     <div className="space-y-6">
-      {/* ===== BANNER DUMMY ===== */}
-      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <p className="text-sm text-muted-foreground">
-            <strong>Preview Mode</strong> — Credit Score real-time dari database,
-            sisanya dummy.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setShowSuspendPreview(!showSuspendPreview)}
-          className="h-7 text-xs"
-        >
-          {showSuspendPreview ? 'Sembunyikan' : 'Tampilkan'} Preview Suspend
-        </Button>
-      </div>
-
       {/* ===== HEADER ===== */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
@@ -257,13 +232,13 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== BANNER SUSPEND ===== */}
-      {stats.isSuspended && stats.suspendedUntil && (
+      {tutor.isSuspended && tutor.suspendedUntil && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Akun Anda sedang <strong>tersuspend</strong> sampai{' '}
             <strong>
-              {new Date(stats.suspendedUntil).toLocaleDateString('id-ID', {
+              {new Date(tutor.suspendedUntil).toLocaleDateString('id-ID', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
@@ -298,7 +273,7 @@ export default function TutorAnalyticsPage() {
                 </button>
               </div>
               <p className={`text-2xl font-bold ${creditColor}`}>
-                {stats.creditScore}
+                {creditScore}
                 <span className="text-sm text-muted-foreground font-normal">
                   /100
                 </span>
@@ -316,14 +291,14 @@ export default function TutorAnalyticsPage() {
             <div>
               <p className="text-sm text-muted-foreground">Rating</p>
               <p className="text-2xl font-bold text-foreground">
-                {stats.rating.toFixed(1)}
+                {tutor.rating.toFixed(1)}
                 <span className="text-sm text-muted-foreground font-normal">
                   {' '}
                   / 5
                 </span>
               </p>
               <p className="text-xs text-muted-foreground">
-                {stats.totalReviews} ulasan
+                {tutor.totalReviews} ulasan
               </p>
             </div>
           </div>
@@ -401,9 +376,11 @@ export default function TutorAnalyticsPage() {
                 </p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground italic">
-              *Data dummy — angka real akan muncul setelah wallet selesai
-            </p>
+            {stats.totalEarnings === 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                Belum ada pendapatan. Angka akan muncul setelah sesi selesai.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -445,29 +422,15 @@ export default function TutorAnalyticsPage() {
               </span>
             </div>
 
-            {/* Progress bar sesi */}
             <div className="pt-3">
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="text-muted-foreground">Success Rate</span>
-                <span className="font-semibold">
-                  {Math.round(
-                    (stats.sessionsCompleted /
-                      (stats.sessionsCompleted + stats.sessionsMissed)) *
-                      100
-                  )}
-                  %
-                </span>
+                <span className="font-semibold">{successRate}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
-                  style={{
-                    width: `${Math.round(
-                      (stats.sessionsCompleted /
-                        (stats.sessionsCompleted + stats.sessionsMissed)) *
-                        100
-                    )}%`,
-                  }}
+                  style={{ width: `${successRate}%` }}
                 />
               </div>
             </div>
@@ -475,7 +438,90 @@ export default function TutorAnalyticsPage() {
         </Card>
       </div>
 
-      {/* ===== ULASAN ===== */}
+      {/* ===== CREDIT LOG ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="w-5 h-5 text-blue-400" />
+            Riwayat Credit Score
+            {creditLog.length > 0 && (
+              <Badge variant="outline" className="ml-2">
+                {creditLog.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {creditLog.length === 0 ? (
+            <div className="py-8 text-center">
+              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Belum ada riwayat perubahan credit.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[28rem] overflow-y-auto pr-2 divide-y divide-border/30">
+              {creditLog.map((entry) => {
+                const meta =
+                  REASON_META[entry.reason] ?? {
+                    label: entry.reason,
+                    Icon: Shield,
+                    color: 'text-muted-foreground',
+                    bg: 'bg-muted/20',
+                  }
+                const Icon = meta.Icon
+                const positive = entry.delta > 0
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="flex items-center gap-3 py-3"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}
+                    >
+                      <Icon className={`w-4 h-4 ${meta.color}`} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {meta.label}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '-'}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p
+                        className={`text-sm font-bold ${
+                          positive ? 'text-green-400' : 'text-red-400'
+                        }`}
+                      >
+                        {positive ? '+' : ''}
+                        {entry.delta}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        → {entry.balanceAfter}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== ULASAN DARI MURID ===== */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -489,48 +535,59 @@ export default function TutorAnalyticsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
-            {reviews.map((r) => (
-              <div
-                key={r.id}
-                className="p-3 rounded-md border border-border bg-muted/10"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="font-semibold text-sm truncate">
-                    {r.student_name}
-                  </span>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star
-                        key={i}
-                        className={`w-3.5 h-3.5 ${
-                          i <= r.rating
-                            ? 'text-yellow-500 fill-yellow-500'
-                            : 'text-gray-500'
-                        }`}
-                      />
-                    ))}
+          {reviews.length === 0 ? (
+            <div className="py-8 text-center">
+              <ThumbsUp className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Belum ada ulasan dari murid.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
+              {reviews.map((r) => (
+                <div
+                  key={r.id}
+                  className="p-3 rounded-md border border-border bg-muted/10"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-semibold text-sm truncate">
+                      {r.maskedName}
+                    </span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star
+                          key={i}
+                          className={`w-3.5 h-3.5 ${
+                            i <= r.rating
+                              ? 'text-yellow-500 fill-yellow-500'
+                              : 'text-gray-500'
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
+                  {r.comment ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      &ldquo;{r.comment}&rdquo;
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/60 italic">
+                      (tanpa komentar)
+                    </p>
+                  )}
+                  {r.createdAt && (
+                    <p className="text-[11px] text-muted-foreground/60 mt-2">
+                      {new Date(r.createdAt).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  )}
                 </div>
-                {r.comment ? (
-                  <p className="text-sm text-muted-foreground italic">
-                    &ldquo;{r.comment}&rdquo;
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground/60 italic">
-                    (tanpa komentar)
-                  </p>
-                )}
-                <p className="text-[11px] text-muted-foreground/60 mt-2">
-                  {new Date(r.created_at).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -576,6 +633,10 @@ export default function TutorAnalyticsPage() {
             <p className="text-xs text-muted-foreground">
               💡 <strong>Cara menaikkan credit:</strong> Login harian (+1),
               menyelesaikan sesi belajar (+2).
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              ⚠️ <strong>Pengurangan:</strong> Sesi hangus (−7), hentikan
+              kontrak sepihak (−40).
             </p>
           </div>
         </DialogContent>
