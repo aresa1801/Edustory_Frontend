@@ -14,6 +14,7 @@ import {
   GraduationCap,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
+import DailyLoginReward from '@/components/daily-login-reward'
 
 const navGroups: NavGroup[] = [
   {
@@ -49,14 +50,19 @@ const navGroups: NavGroup[] = [
 
 export default function TutorDashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <SharedDashboardLayout
-      navGroups={navGroups}
-      allowedRoles={['tutor']}
-      accentColor="blue"
-      portalLabel="Portal Pengajar"
-      logoIcon={GraduationCap}
-    >
-      {children}
-    </SharedDashboardLayout>
+    <>
+      {/* Silent trigger — auto +1 credit saat user buka/refresh dashboard */}
+      <DailyLoginReward />
+
+      <SharedDashboardLayout
+        navGroups={navGroups}
+        allowedRoles={['tutor']}
+        accentColor="blue"
+        portalLabel="Portal Pengajar"
+        logoIcon={GraduationCap}
+      >
+        {children}
+      </SharedDashboardLayout>
+    </>
   )
 }

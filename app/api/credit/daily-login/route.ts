@@ -7,53 +7,70 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
     let body: any
     try {
       body = await req.json()
     } catch {
-      return NextResponse.json({ error: 'Body JSON tidak valid' }, { status: 400 })
+      return NextResponse.json({ error: 'Body tidak valid' }, { status: 400 })
     }
 
-    const { user_id, role } = body ?? {}
+    const { user_id } = body ?? {}
     if (!isValidUUID(user_id)) {
       return NextResponse.json({ error: 'user_id tidak valid' }, { status: 400 })
     }
-    if (!['tutor', 'student'].includes(role)) {
-      return NextResponse.json({ error: 'role tidak valid' }, { status: 400 })
-    }
 
-    const table = role === 'tutor' ? 'tutors' : 'students'
-    const { data: profile } = await supabaseAdmin
-      .from(table)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // Auto-detect role: coba tutor dulu, kalau gak ada coba student
+    const { data: tutor } = await supabase
+      .from('tutors')
       .select('id')
       .eq('user_id', user_id)
       .maybeSingle()
 
-    if (!profile) {
-      return NextResponse.json({ error: `${role} tidak ditemukan` }, { status: 404 })
+    let role: 'tutor' | 'student'
+    let profileId: string
+
+    if (tutor) {
+      role = 'tutor'
+      profileId = tutor.id
+    } else {
+      const { data: student } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user_id)
+        .maybeSingle()
+
+      if (!student) {
+        return NextResponse.json(
+          { error: 'User bukan tutor/student' },
+          { status: 404 }
+        )
+      }
+      role = 'student'
+      profileId = student.id
     }
 
-    const result = await claimDailyLogin({
-      profileId: profile.id,
-      role,
-    })
+    const result = await claimDailyLogin({ profileId, role })
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error || 'Gagal' }, { status: 500 })
+      return NextResponse.json(
+        { error: result.error || 'Gagal claim daily login' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
       success: true,
+      role,
       claimed: result.claimed,
       newScore: result.newScore,
     })
   } catch (err) {
-    console.error('[credit/daily-login]', err)
+    console.error('[daily-login]', err)
     return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 })
   }
 }
