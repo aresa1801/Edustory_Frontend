@@ -31,17 +31,20 @@ import {
 } from 'lucide-react'
 
 // ============================================================
-// DUMMY — semua kecuali credit, rating, ulasan
+// DUMMY — hanya Pendapatan + Kontrak Aktif yang masih dummy
 // ============================================================
 const DUMMY_STATS = {
-  totalStudents: 12,
-  activeStudents: 3,
-  completedContracts: 9,
-  sessionsCompleted: 47,
-  sessionsMissed: 3,
+  // dummy
+  dummyActiveContracts: 3,
   totalEarnings: 18400000,
   monthlyEarnings: 2400000,
   avgPerContract: 2044444,
+
+  // fallback kalau fetch gagal
+  totalStudents: 12,
+  completedContracts: 9,
+  sessionsCompleted: 47,
+  sessionsMissed: 3,
 }
 
 // ============================================================
@@ -96,6 +99,13 @@ export default function TutorAnalyticsPage() {
       reason: string
       createdAt: string
     }>
+    stats?: {
+      totalStudents: number
+      activeContracts: number
+      sessionsCompleted: number
+      sessionsMissed: number
+      completedContracts: number
+    }
   } | null>(null)
 
   // ===== Fetch semua data analytics =====
@@ -125,7 +135,7 @@ export default function TutorAnalyticsPage() {
 
   // ===== GABUNG =====
   const stats = {
-    ...DUMMY_STATS,
+    // REAL dari DB
     creditScore: data?.creditScore ?? 99,
     isSuspended: showSuspendPreview || (data?.isSuspended ?? false),
     suspendedUntil: showSuspendPreview
@@ -133,10 +143,30 @@ export default function TutorAnalyticsPage() {
       : data?.suspendedUntil ?? null,
     rating: data?.rating ?? 0,
     totalReviews: data?.totalReviews ?? 0,
+    totalStudents: data?.stats?.totalStudents ?? DUMMY_STATS.totalStudents,
+    activeContracts: data?.stats?.activeContracts ?? 0,
+    completedContracts: data?.stats?.completedContracts ?? DUMMY_STATS.completedContracts,
+    sessionsCompleted: data?.stats?.sessionsCompleted ?? DUMMY_STATS.sessionsCompleted,
+    sessionsMissed: data?.stats?.sessionsMissed ?? DUMMY_STATS.sessionsMissed,
+
+    // DUMMY murni
+    dummyActiveContracts: DUMMY_STATS.dummyActiveContracts,
+    totalEarnings: DUMMY_STATS.totalEarnings,
+    monthlyEarnings: DUMMY_STATS.monthlyEarnings,
+    avgPerContract: DUMMY_STATS.avgPerContract,
   }
 
   const reviews = data?.reviews ?? []
   const creditLog = data?.creditLog ?? []
+
+  const successRate =
+    stats.sessionsCompleted + stats.sessionsMissed > 0
+      ? Math.round(
+          (stats.sessionsCompleted /
+            (stats.sessionsCompleted + stats.sessionsMissed)) *
+            100
+        )
+      : 0
 
   // ===== Credit color =====
   const creditColor =
@@ -159,8 +189,7 @@ export default function TutorAnalyticsPage() {
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-blue-400" />
           <p className="text-sm text-muted-foreground">
-            <strong>Preview Mode</strong> — Credit Score, Log, Rating & Ulasan
-            real-time dari database, sisanya dummy.
+            <strong>Preview Mode</strong> — Credit, Log, Rating, Ulasan, Total Murid, Sesi, & Kontrak Selesai real dari database; Pendapatan & Kontrak Aktif dummy.
           </p>
         </div>
         <Button
@@ -247,7 +276,7 @@ export default function TutorAnalyticsPage() {
           </div>
         </Card>
 
-        {/* Total Murid */}
+        {/* Total Murid — REAL */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -259,13 +288,13 @@ export default function TutorAnalyticsPage() {
                 {stats.totalStudents}
               </p>
               <p className="text-xs text-muted-foreground">
-                {stats.activeStudents} aktif
+                {stats.activeContracts} aktif
               </p>
             </div>
           </div>
         </Card>
 
-        {/* Sesi Selesai */}
+        {/* Sesi Selesai — REAL */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -286,6 +315,7 @@ export default function TutorAnalyticsPage() {
 
       {/* ===== PENDAPATAN + AKTIVITAS ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pendapatan — MASIH DUMMY */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -320,6 +350,7 @@ export default function TutorAnalyticsPage() {
           </CardContent>
         </Card>
 
+        {/* Aktivitas — Kontrak Selesai & Sesi REAL, Kontrak Aktif DUMMY */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -330,43 +361,38 @@ export default function TutorAnalyticsPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Kontrak Selesai</span>
-              <span className="text-sm font-bold text-green-300">{stats.completedContracts}</span>
+              <span className="text-sm font-bold text-green-300">
+                {stats.completedContracts}
+              </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Kontrak Aktif</span>
-              <span className="text-sm font-bold text-blue-300">{stats.activeStudents}</span>
+              <span className="text-sm font-bold text-blue-300">
+                {stats.dummyActiveContracts}
+              </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
-              <span className="text-sm font-bold text-green-300">{stats.sessionsCompleted}</span>
+              <span className="text-sm font-bold text-green-300">
+                {stats.sessionsCompleted}
+              </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Sesi Hangus</span>
-              <span className="text-sm font-bold text-red-300">{stats.sessionsMissed}</span>
+              <span className="text-sm font-bold text-red-300">
+                {stats.sessionsMissed}
+              </span>
             </div>
 
             <div className="pt-3">
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="text-muted-foreground">Success Rate</span>
-                <span className="font-semibold">
-                  {Math.round(
-                    (stats.sessionsCompleted /
-                      (stats.sessionsCompleted + stats.sessionsMissed)) *
-                      100
-                  )}
-                  %
-                </span>
+                <span className="font-semibold">{successRate}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
-                  style={{
-                    width: `${Math.round(
-                      (stats.sessionsCompleted /
-                        (stats.sessionsCompleted + stats.sessionsMissed)) *
-                        100
-                    )}%`,
-                  }}
+                  style={{ width: `${successRate}%` }}
                 />
               </div>
             </div>

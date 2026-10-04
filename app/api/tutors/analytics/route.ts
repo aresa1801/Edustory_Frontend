@@ -44,7 +44,84 @@ export async function GET(req: NextRequest) {
     const isSuspended =
       !!suspendedUntil && new Date(suspendedUntil).getTime() > Date.now()
 
-    // ===== 2. Reviews (via matches) =====
+    // ===== 2. Semua matches tutor (untuk total murid + filter contract_history) =====
+    const { data: tutorMatches } = await supabase
+      .from('matches')
+      .select('id, student_id, status')
+      .eq('tutor_id', tutor.id)
+
+    const matchIds = (tutorMatches || []).map((m) => m.id)
+
+    // Total murid = unique student_id dari matches status 'completed' atau 'matched'
+    const studentIdSet = new Set<string>()
+    for (const m of tutorMatches || []) {
+      if (['completed', 'matched'].includes(m.status) && m.student_id) {
+        studentIdSet.add(m.student_id)
+      }
+    }
+    const totalStudents = studentIdSet.size
+
+    // ===== 3. Stats paralel =====
+    const [
+      activeContractsRes,
+      sessionsCompletedRes,
+      sessionsMissedRes,
+      completedSchedulesRes,
+    ] = await Promise.all([
+      // Kontrak aktif → match_schedules status 'active'
+      supabase
+        .from('match_schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('tutor_id', tutor.id)
+        .eq('status', 'active'),
+
+      // Sesi selesai → sessions status 'completed'
+      supabase
+        .from('sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('tutor_id', tutor.id)
+        .eq('status', 'completed'),
+
+      // Sesi hangus → sessions status 'cancelled' DAN moved_at NULL
+      supabase
+        .from('sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('tutor_id', tutor.id)
+        .eq('status', 'cancelled')
+        .is('moved_at', null),
+
+      // Kontrak selesai dari match_schedules
+      supabase
+        .from('match_schedules')
+        .select('match_id')
+        .eq('tutor_id', tutor.id)
+        .eq('status', 'completed'),
+    ])
+
+    // Kontrak selesai dari contract_history (hanya jika ada matches)
+    const completedHistoryRes = matchIds.length > 0
+      ? await supabase
+          .from('contract_history')
+          .select('match_id')
+          .in('match_id', matchIds)
+          .not('completion_type', 'is', null)
+      : { data: [] as { match_id: string }[] }
+
+    const activeContracts = activeContractsRes.count || 0
+    const sessionsCompleted = sessionsCompletedRes.count || 0
+    const sessionsMissed = sessionsMissedRes.count || 0
+
+    // Kontrak selesai = UNION unique match_id dari 2 sumber
+    const completedMatchIdSet = new Set<string>()
+    for (const s of completedSchedulesRes.data || []) {
+      if (s.match_id) completedMatchIdSet.add(s.match_id)
+    }
+    for (const h of completedHistoryRes.data || []) {
+      if (h.match_id) completedMatchIdSet.add(h.match_id)
+    }
+    const completedContracts = completedMatchIdSet.size
+
+    // ===== 4. Reviews =====
     const { data: reviewRows } = await supabase
       .from('reviews')
       .select(`
@@ -66,7 +143,7 @@ export async function GET(req: NextRequest) {
       studentName: anonymizeName(r.matches?.student_full_name),
     }))
 
-    // ===== 3. Credit log =====
+    // ===== 5. Credit log =====
     const { data: logRows } = await supabase
       .from('credit_log')
       .select('id, delta, balance_after, reason, created_at')
@@ -94,6 +171,13 @@ export async function GET(req: NextRequest) {
       totalReviews: Number(tutor.total_reviews ?? 0),
       reviews,
       creditLog,
+      stats: {
+        totalStudents,
+        activeContracts,
+        sessionsCompleted,
+        sessionsMissed,
+        completedContracts,
+      },
     })
   } catch (err) {
     console.error('[tutor/analytics]', err)
