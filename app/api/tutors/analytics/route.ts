@@ -160,25 +160,34 @@ export async function GET(req: NextRequest) {
       createdAt: r.created_at,
     }))
 
-    return NextResponse.json({
-      profileId: tutor.id,
-      creditScore,
-      tier: tier.id,
-      tierLabel: tier.label,
-      suspendedUntil,
-      isSuspended,
-      rating: Number(tutor.rating ?? 0),
-      totalReviews: Number(tutor.total_reviews ?? 0),
-      reviews,
-      creditLog,
-      stats: {
-        totalStudents,
-        activeContracts,
-        sessionsCompleted,
-        sessionsMissed,
-        completedContracts,
+    return NextResponse.json(
+      {
+        profileId: tutor.id,
+        creditScore,
+        tier: tier.id,
+        tierLabel: tier.label,
+        suspendedUntil,
+        isSuspended,
+        rating: Number(tutor.rating ?? 0),
+        totalReviews: Number(tutor.total_reviews ?? 0),
+        reviews,
+        creditLog,
+        stats: {
+          totalStudents,
+          activeContracts,
+          sessionsCompleted,
+          sessionsMissed,
+          completedContracts,
+        },
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    )
   } catch (err) {
     console.error('[tutor/analytics]', err)
     return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 })

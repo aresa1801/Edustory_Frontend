@@ -108,43 +108,65 @@ export default function TutorAnalyticsPage() {
     }
   } | null>(null)
 
-    // ===== Fetch semua data analytics =====
+      // ===== Fetch semua data analytics =====
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
 
     const fetchAnalytics = async () => {
+      console.log('[analytics] FETCH — start')
       try {
         const res = await fetch(
           `/api/tutors/analytics?user_id=${user.id}&_t=${Date.now()}`,
-          { cache: 'no-store' }
+          {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+            },
+          }
         )
+        console.log('[analytics] FETCH — status:', res.status)
+
         if (!res.ok) {
-          console.warn('[analytics] fetch failed:', res.status)
+          console.warn('[analytics] FETCH — not ok, skip')
           return
         }
+
         const json = await res.json()
-        if (!cancelled) setData(json)
+        console.log('[analytics] FETCH — data:', {
+          creditScore: json.creditScore,
+          logCount: json.creditLog?.length,
+          reviewCount: json.reviews?.length,
+        })
+
+        if (cancelled) {
+          console.log('[analytics] FETCH — cancelled, gak setData')
+          return
+        }
+
+        console.log('[analytics] setData dipanggil')
+        setData(json)
       } catch (e) {
-        console.error('[analytics] fetch error:', e)
+        console.error('[analytics] FETCH — error:', e)
       }
     }
 
     fetchAnalytics()
 
-    // ⬇️ BARU: re-fetch saat event 'credit-updated' dari DailyLoginReward
     const handler = () => {
-      console.log('[analytics] credit-updated diterima, re-fetch...')
+      console.log('[analytics] event credit-updated diterima')
       fetchAnalytics()
     }
     window.addEventListener('credit-updated', handler)
 
     return () => {
+      console.log('[analytics] cleanup')
       cancelled = true
       window.removeEventListener('credit-updated', handler)
     }
   }, [user?.id])
-  
+
   // ===== GABUNG =====
   const stats = {
     // REAL dari DB
