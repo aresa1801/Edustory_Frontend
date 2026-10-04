@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
+        _marker: 'V2_BUILD_' + Date.now(), 
         profileId: tutor.id,
         creditScore,
         tier: tier.id,
