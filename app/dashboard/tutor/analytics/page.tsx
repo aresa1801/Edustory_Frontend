@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { createClient } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -84,6 +83,15 @@ export default function TutorAnalyticsPage() {
     isSuspended: boolean
   } | null>(null)
 
+  // Profile ID tutor (tutors.id) — untuk fetch ulasan
+  const [tutorProfileId, setTutorProfileId] = useState<string | null>(null)
+
+  // Rating meta dari tutors (rating + total_reviews)
+  const [tutorRatingMeta, setTutorRatingMeta] = useState<{
+    rating: number
+    totalReviews: number
+  }>({ rating: 0, totalReviews: 0 })
+
   // Credit log real
   const [creditLog, setCreditLog] = useState<
     Array<{
@@ -96,20 +104,20 @@ export default function TutorAnalyticsPage() {
     }>
   >([])
 
-  // Rating & ulasan real
-  const [realRating, setRealRating] = useState<{
-    rating: number
-    totalReviews: number
-    reviews: Array<{
+  // Ulasan real
+  const [realReviews, setRealReviews] = useState<
+    Array<{
       id: string
       studentName: string
       rating: number
       comment: string | null
       createdAt: string
     }>
-  } | null>(null)
+  >([])
 
-  // ===== Fetch credit score =====
+  // ============================================================
+  // 1. Fetch credit + rating meta
+  // ============================================================
   useEffect(() => {
     if (!user?.id || !userRole) return
     const role = userRole === 'tutor' ? 'tutor' : 'student'
@@ -121,13 +129,27 @@ export default function TutorAnalyticsPage() {
           `/api/credit/me?user_id=${user.id}&role=${role}`,
           { cache: 'no-store' }
         )
-        if (!res.ok) return
+        if (!res.ok) {
+          console.warn('[analytics] credit/me failed:', res.status)
+          return
+        }
         const json = await res.json()
-        if (!cancelled) {
-          setRealCredit({
-            creditScore: json.creditScore,
-            suspendedUntil: json.suspendedUntil,
-            isSuspended: json.isSuspended,
+        if (cancelled) return
+
+        setRealCredit({
+          creditScore: json.creditScore,
+          suspendedUntil: json.suspendedUntil,
+          isSuspended: json.isSuspended,
+        })
+
+        // ⬇️ Simpan profileId (tutors.id)
+        if (json.profileId) setTutorProfileId(json.profileId)
+
+        // ⬇️ Simpan rating meta (khusus tutor)
+        if (role === 'tutor') {
+          setTutorRatingMeta({
+            rating: Number(json.rating ?? 0),
+            totalReviews: Number(json.totalReviews ?? 0),
           })
         }
       } catch (e) {
@@ -140,7 +162,9 @@ export default function TutorAnalyticsPage() {
     }
   }, [user?.id, userRole])
 
-  // ===== Fetch credit log =====
+  // ============================================================
+  // 2. Fetch credit log
+  // ============================================================
   useEffect(() => {
     if (!user?.id || !userRole) return
     const role = userRole === 'tutor' ? 'tutor' : 'student'
@@ -167,118 +191,48 @@ export default function TutorAnalyticsPage() {
     }
   }, [user?.id, userRole])
 
-  // ===== Fetch rating + ulasan (langsung Supabase) — DEBUG =====
+  // ============================================================
+  // 3. Fetch ulasan via endpoint server-side (raw=true → nama asli)
+  // ============================================================
   useEffect(() => {
-    if (!user?.id) return
+    if (!tutorProfileId) return
     let cancelled = false
 
     ;(async () => {
       try {
-        console.log('════════════════════════════════════════')
-        console.log('[analytics] START')
-        console.log('[analytics] user.id:', user.id)
-
-        const supabase = createClient()
-
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('[analytics] session:', session ? 'ADA' : 'NULL')
-        console.log('[analytics] session.user.id:', session?.user?.id)
-
-        const { data: tutor, error: tutorErr, status: tutorStatus } = await supabase
-          .from('tutors')
-          .select('id, user_id, rating, total_reviews')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        console.log('[analytics] STEP 1 — tutors lookup')
-        console.log('  status:', tutorStatus)
-        console.log('  error:', tutorErr)
-        console.log('  data:', tutor)
-
-        if (tutorErr || !tutor) {
-          console.warn('[analytics] ⛔ STOP: tutor tidak ketemu / error')
-          if (!cancelled) {
-            setRealRating({ rating: 0, totalReviews: 0, reviews: [] })
-          }
+        const res = await fetch(
+          `/api/tutors/${tutorProfileId}/reviews?raw=true`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          console.warn('[analytics] reviews fetch failed:', res.status)
           return
         }
+        const json = await res.json()
+        if (cancelled) return
 
-        const tutorId = tutor.id
+        const mapped = (json.reviews || []).map((r: any) => ({
+          id: r.id,
+          studentName: r.student_name || 'Anonim',
+          rating: r.rating ?? 0,
+          comment: r.comment ?? null,
+          createdAt: r.created_at,
+        }))
 
-        const { data: tutorMatches, error: matchErr } = await supabase
-          .from('matches')
-          .select('id, student_full_name')
-          .eq('tutor_id', tutorId)
-
-        console.log('[analytics] STEP 2 — matches lookup')
-        console.log('  tutorId:', tutorId)
-        console.log('  error:', matchErr)
-        console.log('  count:', tutorMatches?.length)
-        console.log('  data:', tutorMatches)
-
-        const matchIds = (tutorMatches || []).map((m) => m.id)
-        const nameByMatch = new Map<string, string>(
-          (tutorMatches || []).map((m) => [m.id, m.student_full_name || 'Siswa'])
-        )
-
-        let reviews: Array<{
-          id: string
-          studentName: string
-          rating: number
-          comment: string | null
-          createdAt: string
-        }> = []
-
-        if (matchIds.length > 0) {
-          const { data: reviewRows, error: reviewErr } = await supabase
-            .from('reviews')
-            .select('id, rating, comment, created_at, match_id')
-            .in('match_id', matchIds)
-            .order('created_at', { ascending: false })
-            .limit(50)
-
-          console.log('[analytics] STEP 3 — reviews lookup')
-          console.log('  matchIds:', matchIds)
-          console.log('  error:', reviewErr)
-          console.log('  count:', reviewRows?.length)
-          console.log('  data:', reviewRows)
-
-          reviews = (reviewRows || []).map((r) => ({
-            id: r.id,
-            studentName: nameByMatch.get(r.match_id) || 'Siswa',
-            rating: r.rating ?? 0,
-            comment: r.comment ?? null,
-            createdAt: r.created_at,
-          }))
-        } else {
-          console.warn('[analytics] STEP 3 — SKIP: matchIds kosong')
-        }
-
-        console.log('[analytics] FINAL:', {
-          rating: tutor.rating,
-          totalReviews: tutor.total_reviews,
-          reviewCount: reviews.length,
-        })
-        console.log('════════════════════════════════════════')
-
-        if (!cancelled) {
-          setRealRating({
-            rating: Number(tutor.rating ?? 0),
-            totalReviews: Number(tutor.total_reviews ?? 0),
-            reviews,
-          })
-        }
+        setRealReviews(mapped)
       } catch (e) {
-        console.error('[analytics] ❌ CATCH:', e)
+        console.error('[analytics] fetch reviews:', e)
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [user?.id])
+  }, [tutorProfileId])
 
-  // ===== GABUNG =====
+  // ============================================================
+  // GABUNG
+  // ============================================================
   const stats = {
     ...DUMMY_STATS,
     creditScore: realCredit?.creditScore ?? 99,
@@ -286,11 +240,11 @@ export default function TutorAnalyticsPage() {
     suspendedUntil: showSuspendPreview
       ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
       : realCredit?.suspendedUntil ?? null,
-    rating: realRating?.rating ?? 0,
-    totalReviews: realRating?.totalReviews ?? 0,
+    rating: tutorRatingMeta.rating,
+    totalReviews: tutorRatingMeta.totalReviews,
   }
 
-  const reviews = realRating?.reviews ?? []
+  const reviews = realReviews
 
   // ===== Credit color =====
   const creditColor =

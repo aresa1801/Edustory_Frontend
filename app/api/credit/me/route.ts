@@ -23,12 +23,27 @@ export async function GET(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const table = role === 'tutor' ? 'tutors' : 'students'
-    const { data, error } = await supabase
-      .from(table)
-      .select('id, credit_score, suspended_until, last_login_reward_at')
-      .eq('user_id', userId)
-      .maybeSingle()
+    let data: any = null
+    let error: any = null
+
+    if (role === 'tutor') {
+      // ⬇️ String literal — biar Supabase bisa infer tipe
+      const res = await supabase
+        .from('tutors')
+        .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews')
+        .eq('user_id', userId)
+        .maybeSingle()
+      data = res.data
+      error = res.error
+    } else {
+      const res = await supabase
+        .from('students')
+        .select('id, credit_score, suspended_until, last_login_reward_at')
+        .eq('user_id', userId)
+        .maybeSingle()
+      data = res.data
+      error = res.error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -44,12 +59,15 @@ export async function GET(req: NextRequest) {
       !!suspendedUntil && new Date(suspendedUntil).getTime() > Date.now()
 
     return NextResponse.json({
+      profileId: data.id,
       creditScore: score,
       tier: tier.id,
       tierLabel: tier.label,
       suspendedUntil,
       isSuspended,
       lastLoginRewardAt: data.last_login_reward_at ?? null,
+      rating: role === 'tutor' ? Number(data.rating ?? 0) : null,
+      totalReviews: role === 'tutor' ? Number(data.total_reviews ?? 0) : null,
     })
   } catch (err) {
     console.error('[credit/me]', err)
