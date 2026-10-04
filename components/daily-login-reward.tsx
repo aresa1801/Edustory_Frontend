@@ -8,23 +8,10 @@ export default function DailyLoginReward() {
   const fired = useRef(false)
 
   useEffect(() => {
-    console.log('[daily-login] useEffect RUN | loading=', loading, '| user.id=', user?.id ?? 'NULL')
-
-    if (loading) {
-      console.log('[daily-login] SKIP: masih loading')
-      return
-    }
-    if (!user?.id) {
-      console.log('[daily-login] SKIP: user.id null')
-      return
-    }
-    if (fired.current) {
-      console.log('[daily-login] SKIP: udah fired di mount ini')
-      return
-    }
+    if (loading) return
+    if (!user?.id) return
+    if (fired.current) return
     fired.current = true
-
-    console.log('[daily-login] MULAI FETCH...')
 
     ;(async () => {
       try {
@@ -34,24 +21,28 @@ export default function DailyLoginReward() {
           body: JSON.stringify({ user_id: user.id }),
         })
 
-        console.log('[daily-login] STATUS:', res.status)
-
         if (!res.ok) {
-          const errBody = await res.text()
-          console.warn('[daily-login] failed:', res.status, errBody)
+          console.warn('[daily-login] failed:', res.status)
           return
         }
 
         const json = await res.json()
-        console.log('[daily-login] RESPONSE:', json)
-
         if (json.claimed) {
           console.log(`[daily-login] ✅ +1 credit! Skor baru: ${json.newScore}`)
         } else {
           console.log('[daily-login] ⏭️ sudah claim hari ini, skip.')
         }
+
+        // ⬇️ BARU: broadcast supaya komponen lain (analytics, dll) re-fetch
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('credit-updated', {
+              detail: { newScore: json.newScore, claimed: json.claimed },
+            })
+          )
+        }
       } catch (e) {
-        console.error('[daily-login] CATCH:', e)
+        console.error('[daily-login] error:', e)
       }
     })()
   }, [user?.id, loading])

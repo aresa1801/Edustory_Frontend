@@ -108,15 +108,15 @@ export default function TutorAnalyticsPage() {
     }
   } | null>(null)
 
-  // ===== Fetch semua data analytics =====
+    // ===== Fetch semua data analytics =====
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
 
-    ;(async () => {
+    const fetchAnalytics = async () => {
       try {
         const res = await fetch(
-          `/api/tutors/analytics?user_id=${user.id}`,
+          `/api/tutors/analytics?user_id=${user.id}&_t=${Date.now()}`,
           { cache: 'no-store' }
         )
         if (!res.ok) {
@@ -128,11 +128,23 @@ export default function TutorAnalyticsPage() {
       } catch (e) {
         console.error('[analytics] fetch error:', e)
       }
-    })()
+    }
 
-    return () => { cancelled = true }
+    fetchAnalytics()
+
+    // ⬇️ BARU: re-fetch saat event 'credit-updated' dari DailyLoginReward
+    const handler = () => {
+      console.log('[analytics] credit-updated diterima, re-fetch...')
+      fetchAnalytics()
+    }
+    window.addEventListener('credit-updated', handler)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('credit-updated', handler)
+    }
   }, [user?.id])
-
+  
   // ===== GABUNG =====
   const stats = {
     // REAL dari DB
