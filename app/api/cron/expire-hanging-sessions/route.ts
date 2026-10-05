@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   // ⬇️ CUTOFF: sistem credit cuma berlaku untuk session >= 1 Nov 2026
   // Data historis (Agustus-Oktober) JANGAN di-penalty
-  const CREDIT_SYSTEM_START = new Date('2026-11-01T00:00:00+07:00')
+  const CREDIT_SYSTEM_START = new Date('2026-10-01T00:00:00+07:00')
 
   const { data: sessions, error } = await supabase
     .from('sessions')
