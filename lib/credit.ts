@@ -5,6 +5,9 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // ============================================================
 
 export type Role = 'tutor' | 'student'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 export type CreditReason =
   | 'daily_login'
@@ -131,7 +134,13 @@ function admin(): SupabaseClient {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      global: {
+        fetch: (input, init) =>
+          fetch(input, { ...init, cache: 'no-store' }),
+      },
+    }
   )
 }
 
