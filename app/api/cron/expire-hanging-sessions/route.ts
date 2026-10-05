@@ -20,11 +20,10 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const cutoff = new Date(now.getTime() - READY_WINDOW_MINUTES * 60 * 1000)
 
-  // Cari session scheduled yang:
-  // - udah lewat 20 menit
-  // - belum cancel
-  // - belum complete
-  // - BUKAN session hasil reschedule (moved_at NULL)
+  // ⬇️ CUTOFF: sistem credit cuma berlaku untuk session >= 1 Nov 2026
+  // Data historis (Agustus-Oktober) JANGAN di-penalty
+  const CREDIT_SYSTEM_START = new Date('2026-11-01T00:00:00+07:00')
+
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select(
@@ -33,8 +32,9 @@ export async function GET(req: NextRequest) {
     .eq('status', 'scheduled')
     .is('cancelled_at', null)
     .is('completed_at', null)
-    .is('moved_at', null)                    // ⬅️ BARU: cuma jadwal asli
+    .is('moved_at', null)
     .lt('scheduled_at', cutoff.toISOString())
+    .gte('scheduled_at', CREDIT_SYSTEM_START.toISOString())  // ⬅️ BARU
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
