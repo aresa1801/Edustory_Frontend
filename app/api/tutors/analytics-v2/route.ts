@@ -4,6 +4,8 @@ import { isValidUUID } from '@/lib/security/sanitize'
 import { getCreditTier } from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 function anonymizeName(name: string | null | undefined): string {
   if (!name) return 'Anonim'
@@ -22,7 +24,13 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     // ===== 1. Tutor =====
