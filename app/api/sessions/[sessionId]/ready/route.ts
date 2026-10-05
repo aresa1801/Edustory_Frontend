@@ -33,7 +33,7 @@ export async function PATCH(
     const { data: session, error: sErr } = await supabaseAdmin
       .from('sessions')
       .select(
-        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status, tutor_id, student_id, match_id'
+        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status, tutor_id, student_id, match_id, moved_at'
       )
       .eq('id', sessionId)
       .single()
@@ -73,8 +73,21 @@ export async function PATCH(
         .eq('id', sessionId)
         .eq('status', 'scheduled')
 
-      // ⬇️ -7 untuk pihak yang belum klik Siap
-      await applyExpiredPenalty(session)
+      // ⬇️ Apply -7 HANYA kalau:
+      // 1. moved_at NULL (bukan session hasil reschedule)
+      // 2. Belum ada log penalty untuk session ini (biar gak dobel sama cron)
+      if (!session.moved_at) {
+        const { data: existingLog } = await supabaseAdmin
+          .from('credit_log')
+          .select('id')
+          .eq('ref_id', sessionId)
+          .eq('reason', 'session_expired')
+          .limit(1)
+
+        if (!existingLog || existingLog.length === 0) {
+          await applyExpiredPenalty(session)
+        }
+      }
 
       return NextResponse.json(
         { error: 'Waktu siap sudah habis. Sesi ditandai hangus.', state: 'expired' },

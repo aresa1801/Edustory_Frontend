@@ -20,14 +20,20 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const cutoff = new Date(now.getTime() - READY_WINDOW_MINUTES * 60 * 1000)
 
+  // Cari session scheduled yang:
+  // - udah lewat 20 menit
+  // - belum cancel
+  // - belum complete
+  // - BUKAN session hasil reschedule (moved_at NULL)
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select(
-      'id, scheduled_at, tutor_ready_at, student_ready_at, tutor_id, student_id, match_id, status, cancelled_at'
+      'id, scheduled_at, tutor_ready_at, student_ready_at, tutor_id, student_id, match_id, status, cancelled_at, moved_at'
     )
     .eq('status', 'scheduled')
     .is('cancelled_at', null)
     .is('completed_at', null)
+    .is('moved_at', null)                    // ⬅️ BARU: cuma jadwal asli
     .lt('scheduled_at', cutoff.toISOString())
 
   if (error) {
@@ -35,14 +41,19 @@ export async function GET(req: NextRequest) {
   }
 
   if (!sessions || sessions.length === 0) {
-    return NextResponse.json({ expired: 0, penalized: 0, message: 'No hanging sessions' })
+    return NextResponse.json({
+      expired: 0,
+      penalized: 0,
+      message: 'No hanging sessions',
+    })
   }
 
   let expired = 0
   let penalized = 0
+  const details: any[] = []
 
   for (const s of sessions) {
-    // Guard race dengan ready/route.ts
+    // Guard race dengan ready endpoint
     const { error: updErr } = await supabase
       .from('sessions')
       .update({ status: 'cancelled', cancelled_at: now.toISOString() })
@@ -52,7 +63,22 @@ export async function GET(req: NextRequest) {
     if (updErr) continue
     expired++
 
+    // Cek apakah udah pernah di-penalty (biar gak dobel)
+    const { data: existingLog } = await supabase
+      .from('credit_log')
+      .select('id')
+      .eq('ref_id', s.id)
+      .eq('reason', 'session_expired')
+      .limit(1)
+
+    if (existingLog && existingLog.length > 0) {
+      // Udah pernah di-penalty, skip
+      continue
+    }
+
     const tasks: Promise<any>[] = []
+
+    // Tutor gak klik Siap → -7
     if (!s.tutor_ready_at) {
       tasks.push(
         adjustCredit({
@@ -60,10 +86,12 @@ export async function GET(req: NextRequest) {
           role: 'tutor',
           delta: DELTA.session_expired,
           reason: 'session_expired',
-          refId: s.match_id,
+          refId: s.id,
         })
       )
     }
+
+    // Student gak klik Siap → -7
     if (!s.student_ready_at) {
       tasks.push(
         adjustCredit({
@@ -71,19 +99,27 @@ export async function GET(req: NextRequest) {
           role: 'student',
           delta: DELTA.session_expired,
           reason: 'session_expired',
-          refId: s.match_id,
+          refId: s.id,
         })
       )
     }
+
     if (tasks.length) {
       const results = await Promise.all(tasks)
       penalized += results.filter((r) => r.ok).length
     }
+
+    details.push({
+      sessionId: s.id,
+      tutorPenalized: !s.tutor_ready_at,
+      studentPenalized: !s.student_ready_at,
+    })
   }
 
   return NextResponse.json({
     expired,
     penalized,
+    details,
     timestamp: now.toISOString(),
   })
 }
