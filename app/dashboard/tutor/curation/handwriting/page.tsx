@@ -100,7 +100,7 @@ export default function HandwritingPage() {
       }
 
       setSuccess(true)
-      setTimeout(() => router.push('/curation/progress'), 2500)
+      setTimeout(() => router.push('/dashboard/tutor/curation/progress'), 2500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {

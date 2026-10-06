@@ -148,7 +148,7 @@ export default function InterviewPage() {
           dimensions:     data.dimensions,
         })
         setPhase('result')
-        setTimeout(() => router.push('/curation/progress'), 8000)
+        setTimeout(() => router.push('/dashboard/tutor/curation/progress'), 8000)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
         setPhase('chatting')

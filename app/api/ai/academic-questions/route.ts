@@ -4,9 +4,12 @@
  * Generates academic multiple-choice questions for a specific Indonesian grade level
  * using DeepSeek AI. Falls back to empty array on error so the UI can use static questions.
  *
- * Request body: { level: string; count?: number }
- *   level  — one of "SD Kelas 1" … "SMA Kelas 12"
- *   count  — number of questions (5–20, default 10)
+ * Request body: { level: string; count?: number; subjects?: string[] }
+ *   level    — one of "SD Kelas 1" … "SMA Kelas 12"
+ *   count    — number of questions (5–20, default 10)
+ *   subjects — optional list of the tutor's teaching fields; when given, the
+ *              questions are generated only for those subjects (never spread
+ *              across the whole curriculum).
  *
  * Response: { questions: AIAcademicQuestion[] }
  */
@@ -65,7 +68,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const subjects = LEVEL_SUBJECTS[level]
+    const levelSubjects = LEVEL_SUBJECTS[level]
+
+    // Restrict to the tutor's declared teaching field(s) when provided.
+    const norm = (s: unknown) =>
+      String(s).toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '')
+    let subjects = levelSubjects
+    const requested = Array.isArray(body.subjects)
+      ? body.subjects.filter((s: unknown) => typeof s === 'string' && s.trim())
+      : []
+    if (requested.length > 0) {
+      const want = requested.map(norm)
+      const matched = levelSubjects.filter((ls) => want.includes(norm(ls)))
+      // If the tutor's fields don't map to a canonical label for this level,
+      // keep the tutor's own labels so the AI still targets their field.
+      subjects = matched.length > 0 ? matched : requested
+    }
 
     const systemPrompt = `Anda adalah guru berpengalaman yang membuat soal ujian untuk siswa Indonesia.
 Buat soal pilihan ganda yang akurat, sesuai kurikulum Kemendikbud (Kurikulum Merdeka / K-13),
@@ -91,6 +109,8 @@ Kembalikan HANYA objek JSON dengan struktur berikut (tanpa teks lain):
 
     const userPrompt = `Buat ${count} soal pilihan ganda untuk jenjang "${level}" dalam Bahasa Indonesia.
 Distribusikan soal merata di antara mata pelajaran berikut: ${subjects.join(', ')}.
+PENTING: hanya buat soal untuk mata pelajaran yang disebutkan di atas. Jangan membuat
+soal dari mata pelajaran lain di luar daftar tersebut.
 Pastikan:
 - Soal sesuai dengan standar kompetensi Kemendikbud untuk ${level}
 - Jawaban yang benar bervariasi (tidak selalu jawaban yang sama)

@@ -315,7 +315,7 @@ const renderNameCard = () => {
                 : 'Anda belum kurasi, silakan melakukan kurasi terlebih dahulu untuk diverifikasi dan memberikan kepercayaan pada students!'}
             </p>
             {!isCurationComplete && (
-              <Link href="/curation/progress" className="mt-2 inline-block w-full">
+              <Link href="/dashboard/tutor/curation/progress" className="mt-2 inline-block w-full">
                 <Button size="sm" className="w-full">Kurasi</Button>
               </Link>
             )}
@@ -469,7 +469,7 @@ const renderNameCard = () => {
           {isComplete ? (
             <Badge className="bg-secondary hover:bg-secondary/90">✓ Kurasi Selesai</Badge>
           ) : (
-            <Link href="/curation/progress">
+            <Link href="/dashboard/tutor/curation/progress">
               <Button size="sm" variant="outline" className="mt-1">
                 Lanjutkan Kurasi <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
@@ -566,7 +566,7 @@ const renderNameCard = () => {
         title: 'Proses Kurasi',
         description: '5 tahapan verifikasi: Psikologi, Akademik, Micro Teaching, Tulisan Tangan & Interview',
         icon: ClipboardList,
-        href: '/curation/progress',
+        href: '/dashboard/tutor/curation/progress',
         status: stats.curationComplete ? 'completed' : s3Active ? 'active' : 'locked',
         detail: stats.curationComplete
           ? `Skor: ${stats.curationScore}/100 — ${stats.curationPassed ? '✓ Lulus' : '✗ Tidak Lulus (min. 80)'}`
@@ -658,7 +658,7 @@ const renderNameCard = () => {
         <Alert className="mb-6 border-warning/25 bg-warning/10">
           <AlertDescription className="text-foreground">
             ⚠️ Harap selesaikan semua tahapan kurasi agar bisa menerima permintaan dari siswa.{' '}
-            <Link href="/curation/progress" className="font-medium underline">
+            <Link href="/dashboard/tutor/curation/progress" className="font-medium underline">
               Lihat status kurasi →
             </Link>
           </AlertDescription>

@@ -56,7 +56,7 @@ export default function TutorAssessmentStatus() {
           score: data.psychology?.score,
           weight: 20,
           icon: '🧠',
-          href: '/curation/psychology-test',
+          href: '/dashboard/tutor/curation/psychology-test',
         },
         {
           key: 'academic',
@@ -65,7 +65,7 @@ export default function TutorAssessmentStatus() {
           score: data.academic?.score,
           weight: 30,
           icon: '📚',
-          href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined,
+          href: completedSteps.includes('psychology') ? '/dashboard/tutor/curation/academic-test' : undefined,
         },
         {
           key: 'microteaching',
@@ -74,7 +74,7 @@ export default function TutorAssessmentStatus() {
           score: data.microteaching?.score,
           weight: 25,
           icon: '🎥',
-          href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined,
+          href: completedSteps.includes('academic') ? '/dashboard/tutor/curation/microteaching' : undefined,
         },
         {
           key: 'handwriting',
@@ -83,7 +83,7 @@ export default function TutorAssessmentStatus() {
           score: data.handwriting?.score,
           weight: 15,
           icon: '✍️',
-          href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined,
+          href: completedSteps.includes('microteaching') ? '/dashboard/tutor/curation/handwriting' : undefined,
         },
         {
           key: 'interview',
@@ -92,7 +92,7 @@ export default function TutorAssessmentStatus() {
           score: data.interview?.score,
           weight: 10,
           icon: '💬',
-          href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined,
+          href: completedSteps.includes('handwriting') ? '/dashboard/tutor/curation/interview' : undefined,
         },
       ]
 
@@ -137,7 +137,7 @@ export default function TutorAssessmentStatus() {
       <Alert className="border-primary/20 bg-primary/5">
         <AlertDescription className="text-foreground">
           Anda belum memulai proses kurasi. Kunjungi halaman{' '}
-          <Link href="/curation/progress" className="font-medium underline">
+          <Link href="/dashboard/tutor/curation/progress" className="font-medium underline">
             Status Kurasi
           </Link>{' '}
           untuk memulai tahapan verifikasi sebagai pengajar.

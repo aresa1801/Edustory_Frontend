@@ -28,7 +28,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/tutor/profile', icon: UserCircle, label: 'Profil Saya' },
       { href: '/dashboard/tutor/teaching-interest', icon: BookOpen, label: 'Minat Mengajar' },
-      { href: '/curation/progress', icon: ClipboardList, label: 'Kurasi' },
+      { href: '/dashboard/tutor/curation/progress', icon: ClipboardList, label: 'Kurasi' },
     ],
   },
   {

@@ -353,14 +353,14 @@ export default function PsychologyTestPage() {
               {score >= 70 ? (
                 <Button
                   className="bg-primary hover:bg-primary/90"
-                  onClick={() => router.push('/curation/academic-test')}
+                  onClick={() => router.push('/dashboard/tutor/curation/academic-test')}
                 >
                   Lanjut ke Kemampuan Akademik →
                 </Button>
               ) : null}
               <Button
                 variant="outline"
-                onClick={() => router.push('/curation/progress')}
+                onClick={() => router.push('/dashboard/tutor/curation/progress')}
               >
                 Lihat Progres
               </Button>

@@ -38,7 +38,7 @@ export default function CurationProgressPage() {
             score: data.psychology?.score,
             weight: 20,
             icon: '🧠',
-            href: '/curation/psychology-test'
+            href: '/dashboard/tutor/curation/psychology-test'
           },
           {
             name: 'Kemampuan Akademik',
@@ -46,7 +46,7 @@ export default function CurationProgressPage() {
             score: data.academic?.score,
             weight: 30,
             icon: '📚',
-            href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined
+            href: completedSteps.includes('psychology') ? '/dashboard/tutor/curation/academic-test' : undefined
           },
           {
             name: 'Micro Teaching',
@@ -54,7 +54,7 @@ export default function CurationProgressPage() {
             score: data.microteaching?.overall_score,
             weight: 25,
             icon: '🎥',
-            href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined
+            href: completedSteps.includes('academic') ? '/dashboard/tutor/curation/microteaching' : undefined
           },
           {
             name: 'Tulisan Tangan',
@@ -62,7 +62,7 @@ export default function CurationProgressPage() {
             score: data.handwriting?.overall_score,
             weight: 15,
             icon: '✍️',
-            href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined
+            href: completedSteps.includes('microteaching') ? '/dashboard/tutor/curation/handwriting' : undefined
           },
           {
             name: 'AI Interview',
@@ -70,7 +70,7 @@ export default function CurationProgressPage() {
             score: data.interview?.overall_score,
             weight: 10,
             icon: '💬',
-            href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined
+            href: completedSteps.includes('handwriting') ? '/dashboard/tutor/curation/interview' : undefined
           }
         ]
 

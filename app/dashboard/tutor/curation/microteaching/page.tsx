@@ -76,7 +76,7 @@ export default function MicroTeachingPage() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push('/curation/progress')
+        router.push('/dashboard/tutor/curation/progress')
       }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
