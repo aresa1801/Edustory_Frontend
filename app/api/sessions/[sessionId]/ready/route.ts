@@ -15,7 +15,13 @@ export async function PATCH(
   try {
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const { sessionId } = params
@@ -29,17 +35,42 @@ export async function PATCH(
       )
     }
 
-    // ⬇️ Tambah tutor_id, student_id, match_id
+    // Ambil session + data match (join) untuk validasi
     const { data: session, error: sErr } = await supabaseAdmin
       .from('sessions')
-      .select(
-        'id, scheduled_at, tutor_ready_at, student_ready_at, started_at, cancelled_at, status, tutor_id, student_id, match_id, moved_at'
-      )
+      .select(`
+        id, scheduled_at, tutor_ready_at, student_ready_at,
+        started_at, cancelled_at, status, tutor_id, student_id, match_id, moved_at,
+        matches!inner(id, status, tutor_id, student_id)
+      `)
       .eq('id', sessionId)
       .single()
 
     if (sErr || !session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+    }
+
+    // ============================================================
+    // FIX 1: Guard — tolak session invalid (match_id NULL / match gak aktif)
+    // ============================================================
+    const match = (session as any).matches
+    if (!session.match_id || !match) {
+      return NextResponse.json(
+        { error: 'Session tidak valid (match_id kosong / match tidak ditemukan).' },
+        { status: 400 }
+      )
+    }
+    if (match.status !== 'active') {
+      return NextResponse.json(
+        { error: 'Kontrak sudah selesai/dibatalkan.' },
+        { status: 400 }
+      )
+    }
+    if (match.tutor_id !== session.tutor_id || match.student_id !== session.student_id) {
+      return NextResponse.json(
+        { error: 'Session tidak valid (mismatch tutor/student dengan match).' },
+        { status: 400 }
+      )
     }
 
     if (session.cancelled_at) {
@@ -73,9 +104,10 @@ export async function PATCH(
         .eq('id', sessionId)
         .eq('status', 'scheduled')
 
-      // ⬇️ Apply -7 HANYA kalau:
+      // Apply -7 HANYA kalau:
       // 1. moved_at NULL (bukan session hasil reschedule)
       // 2. Belum ada log penalty untuk session ini (biar gak dobel sama cron)
+      // 3. Session valid (match_id ada & match aktif) — sudah dijaga di atas
       if (!session.moved_at) {
         const { data: existingLog } = await supabaseAdmin
           .from('credit_log')
@@ -85,7 +117,14 @@ export async function PATCH(
           .limit(1)
 
         if (!existingLog || existingLog.length === 0) {
-          await applyExpiredPenalty(session)
+          await applyExpiredPenalty({
+            id: session.id,                                       // ⬅️ BARU
+            tutor_id: session.tutor_id,
+            student_id: session.student_id,
+            match_id: session.match_id,
+            tutor_ready_at: session.tutor_ready_at,
+            student_ready_at: session.student_ready_at,
+          })
         }
       }
 
@@ -140,6 +179,7 @@ export async function PATCH(
 
 // ===== Helper: -7 untuk pihak yang ready_at null =====
 async function applyExpiredPenalty(session: {
+  id: string                                             // ⬅️ BARU
   tutor_id: string
   student_id: string
   match_id: string
@@ -154,7 +194,7 @@ async function applyExpiredPenalty(session: {
         role: 'tutor',
         delta: DELTA.session_expired,
         reason: 'session_expired',
-        refId: session.match_id,
+        refId: session.id,                               // ⬅️ FIX: session.id (bukan match_id)
       })
     )
   }
@@ -165,7 +205,7 @@ async function applyExpiredPenalty(session: {
         role: 'student',
         delta: DELTA.session_expired,
         reason: 'session_expired',
-        refId: session.match_id,
+        refId: session.id,                               // ⬅️ FIX: session.id (bukan match_id)
       })
     )
   }
