@@ -422,8 +422,8 @@ export default function StudentOffersPage() {
       )}
 
       {tutorProfile && profileComplete && students.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 py-2 border-t border-b border-border">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 py-3 border-t border-b border-border sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Filter:</span>
             <Button variant={filterOption === 'all' ? 'default' : 'outline'} size="sm" onClick={() => handleFilter('all')}>
@@ -438,12 +438,12 @@ export default function StudentOffersPage() {
             <Button variant={filterOption === 3 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(3)}>
               3 Kategori Sama
             </Button>
-            <span className="text-sm text-muted-foreground ml-2">
+            <span className="text-sm text-muted-foreground sm:ml-2">
               {filteredAndSortedStudents.length} dari {students.length} siswa
             </span>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 sm:ml-auto">
             <span className={`text-xs font-medium ${mode === 'offline' ? 'text-muted-foreground' : 'text-primary'}`}>
               Online
             </span>
