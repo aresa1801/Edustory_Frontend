@@ -8,86 +8,66 @@ const HowItWorks = () => {
       number: 1,
       icon: MessageSquare,
       title: 'Konsultasi Gratis',
-      description: 'Hubungi kami untuk diskusi kebutuhan belajar Anda',
+      description: 'Ceritakan kebutuhan belajarmu — tim kami bantu memetakan target.',
     },
     {
       number: 2,
       icon: CheckCircle2,
       title: 'Pilih Program',
-      description: 'Tentukan mata pelajaran dan jadwal pembelajaran',
+      description: 'Tentukan mata pelajaran, format, dan jadwal yang paling pas.',
     },
     {
       number: 3,
       icon: Users,
       title: 'Match dengan Pengajar',
-      description: 'Kami carikan pengajar terbaik sesuai kebutuhan Anda',
+      description: 'Kami carikan pengajar terbaik yang sesuai kebutuhanmu.',
     },
     {
       number: 4,
       icon: BookOpen,
       title: 'Mulai Belajar',
-      description: 'Proses pembelajaran dimulai dengan pendekatan personal',
+      description: 'Sesi dimulai dengan pendekatan personal dan progres yang terukur.',
     },
   ]
 
   return (
-    <section className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-background to-card/30 border-t border-border/50">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
-            Cara Mudah Mulai Belajar
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Proses yang sederhana dan transparan untuk memulai perjalanan belajar Anda
+    <section className="section-pad bg-muted/40">
+      <div className="container-page">
+        <div className="mx-auto mb-14 max-w-2xl text-center">
+          <span className="eyebrow">Cara Kerja</span>
+          <h2 className="mt-4">Mulai belajar hanya dalam 4 langkah</h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Proses sederhana dan transparan — dari konsultasi sampai sesi pertama.
           </p>
         </div>
 
-        {/* Steps Container */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative">
-          {/* Connecting Line - Desktop Only */}
-          <div className="hidden lg:block absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-primary via-secondary to-accent z-0"></div>
+        <ol className="relative grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+          {/* Connector (desktop) */}
+          <div
+            aria-hidden
+            className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-primary/40 via-secondary/40 to-accent/40 lg:block"
+          />
 
-          {steps.map((step, index) => {
+          {steps.map((step) => {
             const Icon = step.icon
             return (
-              <div key={index} className="relative z-10">
-                <div className="flex flex-col items-center text-center">
-                  {/* Step Number Circle */}
-                  <div className="mb-6 flex items-center justify-center">
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-full bg-card border-4 border-primary flex items-center justify-center hover:bg-primary/10 transition-colors duration-300">
-                        <span className="text-2xl font-bold text-primary">
-                          {step.number}
-                        </span>
-                      </div>
-                      <div className="absolute inset-0 rounded-full bg-primary/20 scale-125 -z-10"></div>
-                    </div>
+              <li key={step.number} className="relative">
+                <div className="flex flex-col items-start lg:items-center lg:text-center">
+                  <div className="relative mb-5">
+                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card text-lg font-extrabold text-primary shadow-soft">
+                      {step.number}
+                    </span>
+                    <span className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
                   </div>
-
-                  {/* Icon */}
-                  <div className="mb-4 p-3 rounded-lg bg-primary/10">
-                    <Icon className="w-6 h-6 text-primary" />
-                  </div>
-
-                  {/* Content */}
-                  <h3 className="text-xl font-semibold text-foreground mb-2">
-                    {step.title}
-                  </h3>
-                  <p className="text-slate-300">
-                    {step.description}
-                  </p>
+                  <h3 className="text-lg font-bold">{step.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
                 </div>
-
-                {/* Vertical Arrow - Mobile Only */}
-                {index < steps.length - 1 && (
-                  <div className="lg:hidden flex justify-center my-6">
-                    <div className="text-primary text-3xl">↓</div>
-                  </div>
-                )}
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ol>
       </div>
     </section>
   )
