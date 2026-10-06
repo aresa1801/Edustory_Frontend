@@ -152,7 +152,7 @@ export default function CurationProgressPage() {
               key={index}
               className={`p-6 transition-all ${
                 step.completed
-                  ? 'border-green-200 bg-green-50'
+                  ? 'border-success/30 bg-success/10'
                   : step.href
                   ? 'border-primary/20 hover:border-primary/50'
                   : 'border-border opacity-50'
@@ -174,10 +174,10 @@ export default function CurationProgressPage() {
                 <div className="flex items-center gap-4">
                   {step.completed ? (
                     <div className="text-right">
-                      <Badge className="bg-green-500 hover:bg-green-600 mb-2">
+                      <Badge className="bg-success/10 text-success border-success/20 mb-2">
                         Selesai
                       </Badge>
-                      <p className="text-2xl font-bold text-green-300">
+                      <p className="text-2xl font-bold text-success">
                         {step.score}
                       </p>
                     </div>
@@ -200,9 +200,9 @@ export default function CurationProgressPage() {
         </div>
 
         {/* Summary */}
-        <Card className="p-8 mt-8 border-blue-200 bg-blue-50">
-          <h3 className="font-semibold text-blue-900 mb-3">Informasi Penting:</h3>
-          <ul className="text-sm text-blue-800 space-y-2">
+        <Card className="p-8 mt-8 border-primary/30 bg-primary/10">
+          <h3 className="font-semibold text-primary mb-3">Informasi Penting:</h3>
+          <ul className="text-sm text-muted-foreground space-y-2">
             <li>
               ✓ Setiap tahapan harus diselesaikan sebelum yang berikutnya
             </li>

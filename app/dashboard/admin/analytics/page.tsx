@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/dashboard/ui'
 import {
   Shield,
   Star,
@@ -101,23 +102,23 @@ export default function TutorAnalyticsPage() {
   // ===== Credit color =====
   const creditColor =
     stats.creditScore >= 80
-      ? 'text-green-400'
+      ? 'text-success'
       : stats.creditScore >= 50
-      ? 'text-yellow-400'
-      : 'text-red-400'
+      ? 'text-warning'
+      : 'text-destructive'
   const creditBg =
     stats.creditScore >= 80
-      ? 'bg-green-500/20'
+      ? 'bg-success/10'
       : stats.creditScore >= 50
-      ? 'bg-yellow-500/20'
-      : 'bg-red-500/20'
+      ? 'bg-warning/10'
+      : 'bg-destructive/10'
 
   return (
     <div className="space-y-6">
       {/* ===== BANNER DUMMY ===== */}
-      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
+      <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
+          <Sparkles className="w-4 h-4 text-primary" />
           <p className="text-sm text-muted-foreground">
             <strong>Preview Mode</strong> — data dummy, tabel belum ada.
           </p>
@@ -133,12 +134,11 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== HEADER ===== */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
-        <p className="text-muted-foreground">
-          Ringkasan performa mengajar Anda di EduStory.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Analitik Saya"
+        description="Ringkasan performa mengajar Anda di EduStory."
+      />
 
       {/* ===== BANNER SUSPEND ===== */}
       {stats.isSuspended && stats.suspendedUntil && (
@@ -160,12 +160,12 @@ export default function TutorAnalyticsPage() {
       )}
 
       {/* ===== STAT CARDS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Credit Score */}
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
           <div className="flex items-center gap-3">
             <div
-              className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center`}
+              className={`w-10 h-10 rounded-xl ${creditBg} flex items-center justify-center`}
             >
               <Shield className={`w-5 h-5 ${creditColor}`} />
             </div>
@@ -182,10 +182,10 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Rating */}
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+            <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+              <Star className="w-5 h-5 text-accent fill-accent" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Rating</p>
@@ -204,10 +204,10 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Total Murid */}
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-primary" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Murid</p>
@@ -222,10 +222,10 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Sesi Selesai */}
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-300" />
+            <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-secondary" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Sesi Selesai</p>
@@ -243,19 +243,19 @@ export default function TutorAnalyticsPage() {
       {/* ===== PENDAPATAN + AKTIVITAS ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pendapatan */}
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-emerald-500" />
+              <Wallet className="w-5 h-5 text-secondary" />
               Pendapatan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20">
               <p className="text-sm text-muted-foreground mb-1">
                 Total Pendapatan
               </p>
-              <p className="text-3xl font-bold text-emerald-300">
+              <p className="text-3xl font-bold text-secondary">
                 Rp {stats.totalEarnings.toLocaleString('id-ID')}
               </p>
             </div>
@@ -282,10 +282,10 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Aktivitas */}
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-500" />
+              <TrendingUp className="w-5 h-5 text-primary" />
               Aktivitas
             </CardTitle>
           </CardHeader>
@@ -294,7 +294,7 @@ export default function TutorAnalyticsPage() {
               <span className="text-sm text-muted-foreground">
                 Kontrak Selesai
               </span>
-              <span className="text-sm font-bold text-green-300">
+              <span className="text-sm font-bold text-success">
                 {stats.completedContracts}
               </span>
             </div>
@@ -302,19 +302,19 @@ export default function TutorAnalyticsPage() {
               <span className="text-sm text-muted-foreground">
                 Kontrak Aktif
               </span>
-              <span className="text-sm font-bold text-blue-300">
+              <span className="text-sm font-bold text-primary">
                 {stats.activeStudents}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
-              <span className="text-sm font-bold text-green-300">
+              <span className="text-sm font-bold text-success">
                 {stats.sessionsCompleted}
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Sesi Hangus</span>
-              <span className="text-sm font-bold text-red-300">
+              <span className="text-sm font-bold text-destructive">
                 {stats.sessionsMissed}
               </span>
             </div>
@@ -334,7 +334,7 @@ export default function TutorAnalyticsPage() {
               </div>
               <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+                  className="h-full bg-gradient-to-r from-secondary to-secondary/60"
                   style={{
                     width: `${Math.round(
                       (stats.sessionsCompleted /
@@ -350,10 +350,10 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== ULASAN ===== */}
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-yellow-500" />
+            <ThumbsUp className="w-5 h-5 text-accent" />
             Ulasan dari Murid
             {reviews.length > 0 && (
               <Badge variant="outline" className="ml-2">
@@ -379,8 +379,8 @@ export default function TutorAnalyticsPage() {
                         key={i}
                         className={`w-3.5 h-3.5 ${
                           i <= r.rating
-                            ? 'text-yellow-500 fill-yellow-500'
-                            : 'text-gray-500'
+                            ? 'text-accent fill-accent'
+                            : 'text-muted-foreground/40'
                         }`}
                       />
                     ))}

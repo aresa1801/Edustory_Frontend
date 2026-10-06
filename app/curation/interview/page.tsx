@@ -348,23 +348,23 @@ export default function InterviewPage() {
             <Badge
               className={
                 result.passed
-                  ? 'bg-green-500 hover:bg-green-600 text-white mb-4'
-                  : 'bg-yellow-500 hover:bg-yellow-600 text-white mb-4'
+                  ? 'bg-success/10 text-success border-success/20 hover:bg-success/15 mb-4'
+                  : 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/15 mb-4'
               }
             >
               {result.recommendation}
             </Badge>
 
             {result.passed ? (
-              <Alert className="bg-green-50 border-green-200 mb-4">
-                <AlertDescription className="text-green-800">
+              <Alert className="bg-success/10 border-success/20 mb-4">
+                <AlertDescription className="text-success">
                   🎉 <strong>Selamat!</strong> Anda telah menyelesaikan semua tahapan kurasi.
                   Tim kami akan meninjau dan mengumumkan hasilnya dalam 3-5 hari kerja.
                 </AlertDescription>
               </Alert>
             ) : (
-              <Alert className="bg-yellow-50 border-yellow-200 mb-4">
-                <AlertDescription className="text-yellow-800">
+              <Alert className="bg-warning/10 border-warning/20 mb-4">
+                <AlertDescription className="text-warning">
                   Anda telah menyelesaikan semua tahapan kurasi. Tim admin akan mengevaluasi
                   aplikasi Anda secara menyeluruh.
                 </AlertDescription>
@@ -423,13 +423,13 @@ export default function InterviewPage() {
               <Badge variant="outline" className="text-primary border-primary text-xs">
                 Tahap 5 dari 5
               </Badge>
-              <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30 text-xs">
+              <Badge className="bg-primary/10 text-primary border-primary/30 text-xs">
                 💬 AI Interview
               </Badge>
             </div>
             <div
               className={`text-xl font-bold font-mono ${
-                timeRemaining < 180 ? 'text-red-600 animate-pulse' : 'text-primary'
+                timeRemaining < 180 ? 'text-destructive animate-pulse' : 'text-primary'
               }`}
             >
               {formatTime(timeRemaining)}
@@ -450,8 +450,8 @@ export default function InterviewPage() {
 
           {/* Info banner shown before first user message */}
           {messages.length <= 1 && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertDescription className="text-blue-800 text-sm">
+            <Alert className="bg-primary/10 border-primary/30">
+              <AlertDescription className="text-primary text-sm">
                 <ul className="space-y-1">
                   <li>💡 Ini adalah wawancara percakapan — jawab secara natural seperti berbicara langsung.</li>
                   <li>📝 Tekan <strong>Enter</strong> untuk mengirim, <strong>Shift+Enter</strong> untuk baris baru.</li>

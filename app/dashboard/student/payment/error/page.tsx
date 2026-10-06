@@ -6,10 +6,10 @@ import { XCircle } from 'lucide-react'
 export default function PaymentErrorPage() {
   return (
     <div className="max-w-md mx-auto mt-16 p-4">
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <XCircle className="w-16 h-16 text-red-500" />
+            <XCircle className="w-16 h-16 text-destructive" />
           </div>
           <CardTitle>Pembayaran Gagal</CardTitle>
         </CardHeader>

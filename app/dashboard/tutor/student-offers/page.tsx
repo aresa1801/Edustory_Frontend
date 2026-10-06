@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { PageHeader, EmptyState } from '@/components/dashboard/ui'
 import {
   DollarSign,
   MapPin,
@@ -368,23 +369,24 @@ export default function StudentOffersPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Daftar Siswa</h1>
-          <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
-          <RefreshCw className="w-4 h-4" />
-          Refresh Data
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Daftar Siswa"
+        description="Temukan siswa & kirim penawaran."
+        actions={
+          <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+            <RefreshCw className="w-4 h-4" />
+            Refresh Data
+          </Button>
+        }
+      />
 
       {!tutorProfile && (
         <Alert variant="destructive" className="mt-4">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Anda belum memiliki profil tutor. Silakan lengkapi profil Anda terlebih dahulu.
-            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
+            <Button variant="link" className="p-0 h-auto font-semibold text-primary" onClick={() => router.push('/dashboard/tutor/profile')}>
               <UserPlus className="w-4 h-4 inline mr-1" />
               Lengkapi Profil
             </Button>
@@ -393,11 +395,11 @@ export default function StudentOffersPage() {
       )}
 
       {tutorProfile && !profileComplete && (
-        <Alert className="mt-4 border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <AlertDescription className="text-amber-700">
+        <Alert className="mt-4 border-warning/20 bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-warning">
             Profil tutor belum lengkap. Pastikan Anda mengisi nama, nomor HP, pengalaman, tarif, kualifikasi, dan minimal satu spesialisasi.
-            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600" onClick={() => router.push('/dashboard/tutor/profile')}>
+            <Button variant="link" className="p-0 h-auto font-semibold text-primary" onClick={() => router.push('/dashboard/tutor/profile')}>
               Lengkapi Profil
             </Button>
           </AlertDescription>
@@ -405,9 +407,9 @@ export default function StudentOffersPage() {
       )}
 
       {tutorProfile && profileComplete && !isVerified && (
-        <Alert className="mt-4 border-amber-200 bg-amber-50">
-          <Lock className="w-4 h-4 text-amber-500" />
-          <AlertDescription className="text-amber-700">
+        <Alert className="mt-4 border-warning/20 bg-warning/10">
+          <Lock className="w-4 h-4 text-warning" />
+          <AlertDescription className="text-warning">
             Akun tutor Anda belum diverifikasi. Anda belum bisa mengirim penawaran. Tunggu proses verifikasi admin.
           </AlertDescription>
         </Alert>
@@ -420,10 +422,10 @@ export default function StudentOffersPage() {
       )}
 
       {tutorProfile && profileComplete && students.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 py-2 border-t border-b border-gray-200">
+        <div className="flex flex-wrap items-center gap-4 py-2 border-t border-b border-border">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filter:</span>
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Filter:</span>
             <Button variant={filterOption === 'all' ? 'default' : 'outline'} size="sm" onClick={() => handleFilter('all')}>
               Semua
             </Button>
@@ -436,7 +438,7 @@ export default function StudentOffersPage() {
             <Button variant={filterOption === 3 ? 'default' : 'outline'} size="sm" onClick={() => handleFilter(3)}>
               3 Kategori Sama
             </Button>
-            <span className="text-sm text-gray-500 ml-2">
+            <span className="text-sm text-muted-foreground ml-2">
               {filteredAndSortedStudents.length} dari {students.length} siswa
             </span>
           </div>
@@ -448,7 +450,7 @@ export default function StudentOffersPage() {
             <button
               onClick={toggleMode}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                mode === 'online' ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+                mode === 'online' ? 'bg-primary' : 'bg-muted'
               }`}
               role="switch"
               aria-checked={mode === 'online'}
@@ -466,16 +468,17 @@ export default function StudentOffersPage() {
 
       <div ref={listRef}>
         {filteredAndSortedStudents.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <UserCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>
-              {mode === 'online'
+          <EmptyState
+            icon={UserCircle}
+            title="Tidak ada siswa"
+            description={
+              mode === 'online'
                 ? 'Tidak ada siswa online yang sesuai dengan filter.'
-                : 'Tidak ada siswa offline dalam jangkauan 15 km.'}
-            </p>
-          </div>
+                : 'Tidak ada siswa offline dalam jangkauan 15 km.'
+            }
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid gap-5 md:grid-cols-2">
             {filteredAndSortedStudents.map((student, index) => {
               const studentRate = getStudentRate(student)
               const matchCount = tutorProfile ? calculateMatchCount(student, tutorProfile) : 0
@@ -498,26 +501,26 @@ export default function StudentOffersPage() {
               const showDistance = mode === 'offline' && distance !== null && distance <= MAX_DISTANCE
 
               return (
-                <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
+                <Card key={student.id} className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
                   {showDistance && (
-                    <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
+                    <div className="absolute top-3 right-3 z-10 bg-card/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-soft border border-border text-foreground">
                       {distance! < 1 ? '< 1' : distance!.toFixed(1)} km
                     </div>
                   )}
 
                   {isRecommended && (
                     <div className="absolute top-3 left-3 z-10">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-gray-900 text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/30 border border-white/20 animate-pulse">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-bold uppercase tracking-wider shadow-soft border border-accent/30 animate-pulse">
+                        <Sparkles className="w-3.5 h-3.5 text-warning" />
                         Recommended!
-                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                        <Sparkles className="w-3.5 h-3.5 text-warning" />
                       </div>
                     </div>
                   )}
 
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                         {student.avatar_url ? (
                           <img src={student.avatar_url} alt={student.name} className="w-full h-full object-cover rounded-full" />
                         ) : (
@@ -527,12 +530,12 @@ export default function StudentOffersPage() {
                       <div>
                         <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
                         {student.grade_level && (
-                          <Badge variant="secondary" className={`text-xs ${gradeMatched ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold shadow-sm ring-1 ring-amber-400/50' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                          <Badge variant="secondary" className={`text-xs ${gradeMatched ? 'bg-warning/15 text-warning border-warning/30 font-semibold shadow-sm ring-1 ring-warning/50' : 'bg-muted text-foreground border-border'}`}>
                             {student.grade_level}
                           </Badge>
                         )}
                         {tutorProfile && matchCount > 0 && (
-                          <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-700">
+                          <Badge variant="outline" className="ml-1 text-xs border-secondary/30 text-secondary">
                             {matchCount} kesamaan
                           </Badge>
                         )}
@@ -541,21 +544,21 @@ export default function StudentOffersPage() {
 
                     <div className="space-y-1.5 text-sm">
                       <div className="flex items-center">
-                        <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
-                        <span className={rateMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
+                        <DollarSign className="w-4 h-4 mr-1.5 text-secondary" />
+                        <span className={rateMatched ? 'text-warning font-semibold bg-warning/10 px-1 rounded' : 'text-muted-foreground'}>
                           {studentRate > 0 ? `Rp ${studentRate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                         </span>
                       </div>
 
                       <div className="flex items-start">
-                        <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                        <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                         <span className="text-muted-foreground">
                           {student.subjects?.length > 0 ? (
                             student.subjects.map((subj, idx) => {
                               const isMatched = matchedSubjects.includes(subj)
                               return (
                                 <span key={idx}>
-                                  <span className={isMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
+                                  <span className={isMatched ? 'text-warning font-semibold bg-warning/10 px-1 rounded' : 'text-muted-foreground'}>
                                     {subj}
                                   </span>
                                   {idx < student.subjects.length - 1 && ', '}
@@ -567,13 +570,13 @@ export default function StudentOffersPage() {
                       </div>
 
                       <div className="flex items-start">
-                        <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                        <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                         <span className="text-muted-foreground">{student.address || 'Alamat belum diisi'}</span>
                         {showDistance && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                            className="h-5 w-5 ml-1 text-primary hover:text-primary p-0"
                             onClick={() => {
                               const url = `https://www.google.com/maps/dir/?api=1&origin=${tutorProfile!.latitude},${tutorProfile!.longitude}&destination=${student.latitude},${student.longitude}&travelmode=driving`
                               window.open(url, '_blank')
@@ -586,7 +589,7 @@ export default function StudentOffersPage() {
                       </div>
 
                       <div className="flex items-start">
-                        <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                        <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                         <span className="text-muted-foreground">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
                       </div>
                     </div>
@@ -594,7 +597,7 @@ export default function StudentOffersPage() {
                     <div className="mt-4">
                       <Button
                         size="sm"
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                        className="w-full gap-1.5"
                         disabled={sending === student.id}
                         onClick={() => openConfirmDialog(student)}
                       >
@@ -636,7 +639,7 @@ export default function StudentOffersPage() {
             </Button>
             <Button
               onClick={handleConfirmSend}
-              className="min-w-[100px] bg-blue-600 hover:bg-blue-700 text-white"
+              className="min-w-[100px]"
               disabled={sending !== null}
             >
               {sending ? <Spinner className="h-4 w-4" /> : 'Ya, Kirim'}

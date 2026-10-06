@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageHeader, StatCard, EmptyState } from '@/components/dashboard/ui'
 import {
   DollarSign,
   MapPin,
@@ -111,10 +112,10 @@ function StudentPendingCard({
   const hasCoords = lat != null && lng != null && address
 
   return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+    <Card className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
       <CardContent className="p-5">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
             {avatar ? (
               <img
                 src={avatar}
@@ -130,20 +131,20 @@ function StudentPendingCard({
             {grade && (
               <Badge
                 variant="secondary"
-                className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                className="text-xs bg-muted text-foreground border-border"
               >
                 {grade}
               </Badge>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Badge className="bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
+            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
               Menunggu
             </Badge>
             <div className="flex items-center gap-1 text-xs">
               <Circle
                 className={`h-2.5 w-2.5 fill-current ${
-                  isOnline ? 'text-green-500' : 'text-gray-400'
+                  isOnline ? 'text-secondary' : 'text-muted-foreground'
                 }`}
               />
               <span className="text-muted-foreground">
@@ -155,23 +156,23 @@ function StudentPendingCard({
 
         <div className="space-y-1.5 text-sm">
           <div className="flex items-center">
-            <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+            <DollarSign className="w-4 h-4 mr-1.5 text-secondary" />
             <span className="text-muted-foreground">
               {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
             </span>
           </div>
 
           <div className="flex items-start">
-            <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+            <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
             <span
-              className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+              className={`${isNoMatch ? 'text-destructive italic' : 'text-muted-foreground'}`}
             >
               {subjectDisplay}
             </span>
           </div>
 
           <div className="flex items-start">
-            <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+            <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
             <span className="text-muted-foreground">
               {address || 'Alamat belum diisi'}
             </span>
@@ -179,7 +180,7 @@ function StudentPendingCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                className="h-5 w-5 ml-1 text-primary hover:text-primary p-0"
                 onClick={() => {
                   const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
                   window.open(url, '_blank')
@@ -192,14 +193,14 @@ function StudentPendingCard({
           </div>
 
           <div className="flex items-start">
-            <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+            <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
             <div className="text-muted-foreground">
               <span className="font-medium">Jadwal:</span> {scheduleDisplay}
             </div>
           </div>
 
           <div className="flex items-start">
-            <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+            <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
             <span className="text-muted-foreground">
               <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
             </span>
@@ -207,7 +208,7 @@ function StudentPendingCard({
 
           {startDate && (
             <div className="flex items-start">
-              <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+              <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
               <span className="text-muted-foreground">
                 <span className="font-medium">Mulai:</span> {formatDate(startDate)}
               </span>
@@ -217,10 +218,10 @@ function StudentPendingCard({
 
         {match.schedule_submitted_at && (
           <div className="mt-2 flex items-center gap-2 text-sm">
-            <Clock className="w-4 h-4 text-orange-400" />
+            <Clock className="w-4 h-4 text-accent" />
             <span className="text-muted-foreground">
               <span className="font-medium">Sisa waktu merespon:</span>{' '}
-              <span className="font-mono text-orange-600">{timeLeft}</span>
+              <span className="font-mono text-accent">{timeLeft}</span>
             </span>
           </div>
         )}
@@ -228,7 +229,7 @@ function StudentPendingCard({
         <div className="mt-4 flex gap-2">
           <Button
             size="sm"
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+            className="flex-1 gap-1.5"
             onClick={() => onAccept(match.id)}
             disabled={processing}
           >
@@ -500,15 +501,11 @@ export default function MyStudentsPage() {
   const renderTutorPendingCards = () => {
     if (tutorPendingMatches.length === 0) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan diajukan.
-          </CardContent>
-        </Card>
+        <EmptyState title="Belum ada permintaan diajukan." />
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
         {tutorPendingMatches.map((match: any) => {
           const fullName = match.student_full_name || 'Siswa'
           const grade = match.student_grade || ''
@@ -536,11 +533,11 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
             >
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                     {avatar ? (
                       <img
                         src={avatar}
@@ -556,20 +553,20 @@ export default function MyStudentsPage() {
                     {grade && (
                       <Badge
                         variant="secondary"
-                        className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                        className="text-xs bg-muted text-foreground border-border"
                       >
                         {grade}
                       </Badge>
                     )}
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                    <Badge className="bg-accent/15 text-accent border-accent/25 text-xs">
                       Menunggu
                     </Badge>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
-                          isOnline ? 'text-green-500' : 'text-gray-400'
+                          isOnline ? 'text-secondary' : 'text-muted-foreground'
                         }`}
                       />
                       <span className="text-muted-foreground">
@@ -581,23 +578,23 @@ export default function MyStudentsPage() {
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-secondary" />
                     <span className="text-muted-foreground">
                       {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span
-                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                      className={`${isNoMatch ? 'text-destructive italic' : 'text-muted-foreground'}`}
                     >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       {address || 'Alamat belum diisi'}
                     </span>
@@ -605,7 +602,7 @@ export default function MyStudentsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        className="h-5 w-5 ml-1 text-primary hover:text-primary p-0"
                         onClick={() => {
                           const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
                           window.open(url, '_blank')
@@ -618,14 +615,14 @@ export default function MyStudentsPage() {
                   </div>
 
                   <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                     <span className="text-muted-foreground">
                       {schedule || 'Jadwal belum ditentukan'}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
                     </span>
@@ -633,7 +630,7 @@ export default function MyStudentsPage() {
 
                   {startDate && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Mulai:</span> {formatDate(startDate)}
                       </span>
@@ -642,7 +639,7 @@ export default function MyStudentsPage() {
 
                   {match.accepted_at && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Kontrak mulai:</span>{' '}
                         {formatDate(match.accepted_at)}
@@ -651,7 +648,7 @@ export default function MyStudentsPage() {
                   )}
                   {match.contract_end_date && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Berakhir:</span>{' '}
                         {formatDate(match.contract_end_date)}
@@ -661,11 +658,11 @@ export default function MyStudentsPage() {
                               (1000 * 60 * 60 * 24)
                           )
                           return daysLeft >= 0 ? (
-                            <span className="text-xs text-gray-400 ml-2">
+                            <span className="text-xs text-muted-foreground ml-2">
                               (sisa {daysLeft} hari)
                             </span>
                           ) : (
-                            <span className="text-xs text-red-500 ml-2">
+                            <span className="text-xs text-destructive ml-2">
                               (lewat {Math.abs(daysLeft)} hari)
                             </span>
                           )
@@ -692,15 +689,11 @@ export default function MyStudentsPage() {
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan dari siswa.
-          </CardContent>
-        </Card>
+        <EmptyState title="Belum ada permintaan dari siswa." />
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
         {studentPendingMatches.map((match: any) => (
           <StudentPendingCard
             key={match.id}
@@ -721,26 +714,22 @@ export default function MyStudentsPage() {
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada pencocokan yang dikonfirmasi.
-          </CardContent>
-        </Card>
+        <EmptyState title="Belum ada pencocokan yang dikonfirmasi." />
       )
     }
     const statusMap: Record<string, { label: string; color: string }> = {
       matched: {
         label: 'Dikonfirmasi',
-        color: 'bg-green-500/20 text-green-700 border-green-500/30',
+        color: 'bg-secondary/10 text-secondary border-secondary/20',
       },
       active: {
         label: 'Aktif',
-        color: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
+        color: 'bg-primary/10 text-primary border-primary/20',
       },
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
         {activeMatches.map((match: any) => {
           const fullName = match.student_full_name || 'Siswa'
           const grade = match.student_grade || ''
@@ -764,7 +753,7 @@ export default function MyStudentsPage() {
               : 'Tidak ada mata pelajaran yang cocok'
           const isNoMatch = matchedSubjects.length === 0
 
-          const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+          const statusConfig = statusMap[status] || { label: status, color: 'bg-muted' }
 
           const lat = match.student_latitude
           const lng = match.student_longitude
@@ -773,12 +762,12 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                       {avatar ? (
                         <img
                           src={avatar}
@@ -794,7 +783,7 @@ export default function MyStudentsPage() {
                       {grade && (
                         <Badge
                           variant="secondary"
-                          className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                          className="text-xs bg-muted text-foreground border-border"
                         >
                           {grade}
                         </Badge>
@@ -808,7 +797,7 @@ export default function MyStudentsPage() {
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
-                          isOnline ? 'text-green-500' : 'text-gray-400'
+                          isOnline ? 'text-secondary' : 'text-muted-foreground'
                         }`}
                       />
                       <span className="text-muted-foreground">
@@ -820,23 +809,23 @@ export default function MyStudentsPage() {
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-secondary" />
                     <span className="text-muted-foreground">
                       {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span
-                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                      className={`${isNoMatch ? 'text-destructive italic' : 'text-muted-foreground'}`}
                     >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       {address || 'Alamat belum diisi'}
                     </span>
@@ -844,7 +833,7 @@ export default function MyStudentsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        className="h-5 w-5 ml-1 text-primary hover:text-primary p-0"
                         onClick={() => {
                           const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
                           window.open(url, '_blank')
@@ -857,14 +846,14 @@ export default function MyStudentsPage() {
                   </div>
 
                   <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                     <div className="text-muted-foreground">
                       <span className="font-medium">Jadwal:</span> {scheduleDisplay}
                     </div>
                   </div>
 
                   <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
                     </span>
@@ -872,7 +861,7 @@ export default function MyStudentsPage() {
 
                   {match.accepted_at && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Kontrak mulai:</span>{' '}
                         {formatDate(match.accepted_at)}
@@ -881,7 +870,7 @@ export default function MyStudentsPage() {
                   )}
                   {match.contract_end_date && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Berakhir:</span>{' '}
                         {formatDate(match.contract_end_date)}
@@ -891,11 +880,11 @@ export default function MyStudentsPage() {
                               (1000 * 60 * 60 * 24)
                           )
                           return daysLeft >= 0 ? (
-                            <span className="text-xs text-gray-400 ml-2">
+                            <span className="text-xs text-muted-foreground ml-2">
                               (sisa {daysLeft} hari)
                             </span>
                           ) : (
-                            <span className="text-xs text-red-500 ml-2">
+                            <span className="text-xs text-destructive ml-2">
                               (lewat {Math.abs(daysLeft)} hari)
                             </span>
                           )
@@ -913,7 +902,7 @@ export default function MyStudentsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 text-red-500 border-red-200 hover:bg-red-50"
+                    className="flex-1 text-destructive border-destructive/20 hover:bg-destructive/10"
                     disabled
                   >
                     <XCircle className="w-4 h-4 mr-1.5" />
@@ -932,15 +921,11 @@ export default function MyStudentsPage() {
   const renderRejectedCards = () => {
     if (rejectedMatches.length === 0) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada penolakan.
-          </CardContent>
-        </Card>
+        <EmptyState title="Belum ada penolakan." />
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
         {rejectedMatches.map((match: any) => {
           const fullName = match.student_full_name || 'Siswa'
           const grade = match.student_grade || ''
@@ -973,12 +958,12 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
                       {avatar ? (
                         <img
                           src={avatar}
@@ -994,7 +979,7 @@ export default function MyStudentsPage() {
                       {grade && (
                         <Badge
                           variant="secondary"
-                          className="text-xs bg-gray-100 text-gray-700 border-gray-200"
+                          className="text-xs bg-muted text-foreground border-border"
                         >
                           {grade}
                         </Badge>
@@ -1002,13 +987,13 @@ export default function MyStudentsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">
+                    <Badge className="bg-destructive/10 text-destructive border-destructive/25 text-xs">
                       Ditolak
                     </Badge>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
-                          isOnline ? 'text-green-500' : 'text-gray-400'
+                          isOnline ? 'text-secondary' : 'text-muted-foreground'
                         }`}
                       />
                       <span className="text-muted-foreground">
@@ -1018,7 +1003,7 @@ export default function MyStudentsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-gray-400 hover:text-red-500"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => {
                         if (confirm('Hapus data ini dari tampilan?')) {
                           handleRefresh()
@@ -1032,23 +1017,23 @@ export default function MyStudentsPage() {
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-secondary" />
                     <span className="text-muted-foreground">
                       {rate > 0 ? `Rp ${rate.toLocaleString('id-ID')}/jam` : 'Belum diatur'}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span
-                      className={`${isNoMatch ? 'text-red-500 italic' : 'text-muted-foreground'}`}
+                      className={`${isNoMatch ? 'text-destructive italic' : 'text-muted-foreground'}`}
                     >
                       {subjectDisplay}
                     </span>
                   </div>
 
                   <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       {address || 'Alamat belum diisi'}
                     </span>
@@ -1056,7 +1041,7 @@ export default function MyStudentsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 ml-1 text-blue-500 hover:text-blue-700 p-0"
+                        className="h-5 w-5 ml-1 text-primary hover:text-primary p-0"
                         onClick={() => {
                           const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
                           window.open(url, '_blank')
@@ -1069,14 +1054,14 @@ export default function MyStudentsPage() {
                   </div>
 
                   <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                     <div className="text-muted-foreground">
                       <span className="font-medium">Jadwal:</span> {scheduleDisplay}
                     </div>
                   </div>
 
                   <div className="flex items-start">
-                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400 flex-shrink-0" />
+                    <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Jumlah pertemuan:</span> {sessionDisplay}
                     </span>
@@ -1084,7 +1069,7 @@ export default function MyStudentsPage() {
 
                   {startDate && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent flex-shrink-0" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Mulai:</span> {formatDate(startDate)}
                       </span>
@@ -1093,24 +1078,24 @@ export default function MyStudentsPage() {
                 </div>
 
                 {status === 'declined' && initiatedBy === 'tutor' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">
                       ✗ Penawaran anda ditolak oleh student
                     </p>
                   </div>
                 )}
 
                 {status === 'declined' && initiatedBy === 'student' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">
                       ✗ Permintaan jadwal siswa ditolak
                     </p>
                   </div>
                 )}
 
                 {status === 'cancelled' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">
                       ✗ Penawaran dibatalkan
                     </p>
                   </div>
@@ -1126,104 +1111,70 @@ export default function MyStudentsPage() {
   // ===== RENDER UTAMA =====
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Siswa Saya</h1>
-          <p className="text-muted-foreground">
-            Kelola siswa aktif dan permintaan baru.
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-medium ${mode === 'offline' ? 'text-muted-foreground' : 'text-primary'}`}>
-              Online
-            </span>
-            <button
-              onClick={toggleMode}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                mode === 'online' ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-              role="switch"
-              aria-checked={mode === 'online'}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                  mode === 'online' ? 'translate-x-5' : 'translate-x-0.5'
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Siswa Saya"
+        description="Kelola siswa aktif dan permintaan baru."
+        actions={
+          <>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${mode === 'offline' ? 'text-muted-foreground' : 'text-primary'}`}>
+                Online
+              </span>
+              <button
+                onClick={toggleMode}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  mode === 'online' ? 'bg-primary' : 'bg-muted'
                 }`}
-              />
-            </button>
-            <span className={`text-xs font-medium ${mode === 'online' ? 'text-muted-foreground' : 'text-primary'}`}>
-              Offline
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="gap-1.5"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Data
-          </Button>
-        </div>
-      </div>
+                role="switch"
+                aria-checked={mode === 'online'}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    mode === 'online' ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-medium ${mode === 'online' ? 'text-muted-foreground' : 'text-primary'}`}>
+                Offline
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="gap-1.5"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh Data
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Siswa Aktif</p>
-              <p className="text-2xl font-bold">{totalStudents}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-indigo-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Student</p>
-              <p className="text-2xl font-bold">{studentPendingCount}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-yellow-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Diajukan</p>
-              <p className="text-2xl font-bold">{tutorPendingCount}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Penolakan</p>
-              <p className="text-2xl font-bold">{rejectedCount}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard label="Siswa Aktif" value={totalStudents} icon={Users} tone="primary" />
+        <StatCard
+          label="Permintaan Student"
+          value={studentPendingCount}
+          icon={MessageCircle}
+          tone="primary"
+        />
+        <StatCard
+          label="Permintaan Diajukan"
+          value={tutorPendingCount}
+          icon={Clock}
+          tone="accent"
+        />
+        <StatCard label="Penolakan" value={rejectedCount} icon={XCircle} tone="muted" />
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="mb-6 grid w-full grid-cols-2 gap-1 sm:grid-cols-4">
           <TabsTrigger value="active">
             Pencocokan Aktif
             {totalStudents > 0 && (
-              <span className="ml-2 bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
                 {totalStudents}
               </span>
             )}
@@ -1231,7 +1182,7 @@ export default function MyStudentsPage() {
           <TabsTrigger value="student-pending">
             Permintaan Student
             {studentPendingCount > 0 && (
-              <span className="ml-2 bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
                 {studentPendingCount}
               </span>
             )}
@@ -1239,7 +1190,7 @@ export default function MyStudentsPage() {
           <TabsTrigger value="tutor-pending">
             Permintaan Diajukan
             {tutorPendingCount > 0 && (
-              <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-accent text-accent-foreground text-xs rounded-full px-1.5 py-0.5">
                 {tutorPendingCount}
               </span>
             )}
@@ -1247,7 +1198,7 @@ export default function MyStudentsPage() {
           <TabsTrigger value="rejected">
             Penolakan
             {rejectedCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-destructive text-destructive-foreground text-xs rounded-full px-1.5 py-0.5">
                 {rejectedCount}
               </span>
             )}

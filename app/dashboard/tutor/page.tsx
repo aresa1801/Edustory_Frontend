@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Camera } from 'lucide-react'
 import { AvatarUploader } from '@/components/AvatarUploader'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 import {
   UserCircle,
   BookOpen,
@@ -66,9 +67,9 @@ const GRADE_LEVEL_ORDER = [
 ]
 
 const getLevelColor = (level: string): string => {
-  if (level.startsWith('SD')) return 'text-green-400'
-  if (level.startsWith('SMP')) return 'text-orange-400'
-  if (level.startsWith('SMA')) return 'text-red-400'
+  if (level.startsWith('SD')) return 'text-secondary'
+  if (level.startsWith('SMP')) return 'text-accent'
+  if (level.startsWith('SMA')) return 'text-destructive'
   return 'text-muted-foreground'
 }
 
@@ -261,9 +262,9 @@ export default function TutorDashboard() {
 
     return all.map((subject, idx) => {
       let color = 'text-muted-foreground'
-      if (subjects.sd.includes(subject)) color = 'text-green-400'
-      else if (subjects.smp.includes(subject)) color = 'text-orange-400'
-      else if (subjects.sma.includes(subject)) color = 'text-red-400'
+      if (subjects.sd.includes(subject)) color = 'text-secondary'
+      else if (subjects.smp.includes(subject)) color = 'text-accent'
+      else if (subjects.sma.includes(subject)) color = 'text-destructive'
 
       const tooltip = getSubjectTooltip(subject, subjects)
 
@@ -292,11 +293,11 @@ const renderNameCard = () => {
   })
 
   return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow h-full relative overflow-hidden">
+    <Card className="relative h-full overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
       {/* Badge status kurasi - pojok kanan atas */}
       <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
         <Badge 
-          className={`${isCurationComplete ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white text-xs px-2 py-0.5`}
+          className={`${isCurationComplete ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 'bg-accent text-accent-foreground hover:bg-accent/90'} text-xs px-2 py-0.5`}
         >
           {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
         </Badge>
@@ -335,7 +336,7 @@ const renderNameCard = () => {
         {/* Foto + Nama */}
         <div className="flex items-center gap-4">
           <div
-            className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+            className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
             onClick={() => setIsAvatarModalOpen(true)}
           >
             {avatarUrl ? (
@@ -362,30 +363,30 @@ const renderNameCard = () => {
         {/* Tarif & Rating */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1">
           <span className="flex items-center text-sm text-muted-foreground">
-            <DollarSign className="w-4 h-4 mr-1 text-green-500" />
+            <DollarSign className="w-4 h-4 mr-1 text-secondary" />
             {formatCurrency(hourlyRate)}
           </span>
           <span className="flex items-center text-sm text-muted-foreground">
-            <Star className="w-4 h-4 mr-1 text-yellow-500" />
+            <Star className="w-4 h-4 mr-1 text-accent" />
             {stats.rating > 0 ? `${stats.rating.toFixed(1)} (${stats.totalReviews} ulasan)` : 'Belum ada rating'}
           </span>
         </div>
 
         {/* Pengalaman */}
         <div className="flex items-center text-sm text-muted-foreground mb-2">
-          <Clock className="w-4 h-4 mr-1 text-blue-400" />
+          <Clock className="w-4 h-4 mr-1 text-primary" />
           {formatExperience(experienceYears)}
         </div>
 
         {/* Kualifikasi & Kelas & Mata Pelajaran */}
         <div className="space-y-1.5">
           <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <Award className="w-4 h-4 mt-0.5 text-blue-400 flex-shrink-0" />
+            <Award className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
             <span className="break-words">{qualifications || 'Belum diisi'}</span>
           </p>
 
           <p className="text-sm flex items-start gap-2">
-            <School className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" />
+            <School className="w-4 h-4 mt-0.5 text-secondary flex-shrink-0" />
             <span>
               {sortedLevels.length > 0 ? (
                 sortedLevels.map((lvl, idx) => {
@@ -406,7 +407,7 @@ const renderNameCard = () => {
           </p>
 
           <p className="text-sm flex items-start gap-2">
-            <BookMarked className="w-4 h-4 mt-0.5 text-purple-400 flex-shrink-0" />
+            <BookMarked className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
             <span>
               {renderSubjects(allSubjects)}
             </span>
@@ -414,8 +415,8 @@ const renderNameCard = () => {
         </div>
 
         {/* Label & Tombol Edit */}
-        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
-          <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
+          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
             Namecard untuk ditampilkan ke siswa
           </span>
           <div className="flex gap-2">
@@ -448,7 +449,7 @@ const renderNameCard = () => {
     })
 
     return (
-      <Card className="border shadow-sm h-full">
+      <Card className="h-full rounded-2xl border shadow-soft">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ClipboardList className="w-5 h-5" />
@@ -466,7 +467,7 @@ const renderNameCard = () => {
           </div>
 
           {isComplete ? (
-            <Badge className="bg-green-500 hover:bg-green-600">✓ Kurasi Selesai</Badge>
+            <Badge className="bg-secondary hover:bg-secondary/90">✓ Kurasi Selesai</Badge>
           ) : (
             <Link href="/curation/progress">
               <Button size="sm" variant="outline" className="mt-1">
@@ -476,7 +477,7 @@ const renderNameCard = () => {
           )}
 
           {stats.curationComplete && stats.curationScore > 0 && (
-            <p className="text-sm font-medium text-blue-400">
+            <p className="text-sm font-medium text-primary">
               Skor: {stats.curationScore}/100 {stats.curationPassed ? '✅ Lulus' : '❌ Tidak Lulus (min. 80)'}
             </p>
           )}
@@ -501,7 +502,7 @@ const renderNameCard = () => {
                     )
                   })}
                 </div>
-                <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                <p className="text-xs text-primary bg-primary/10 p-2 rounded border border-primary/20">
                   💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
                   semua kelas di bawahnya.
                 </p>
@@ -517,7 +518,7 @@ const renderNameCard = () => {
                     {targetLevel ?? '(pilih pada tes kemampuan akademik)'}
                   </span>
                 </p>
-                <p className="text-xs text-blue-300 bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                <p className="text-xs text-primary bg-primary/10 p-2 rounded border border-primary/20">
                   💡 Setelah terverifikasi untuk kelas tertentu, Anda otomatis bisa mengajar
                   semua kelas di bawahnya.
                 </p>
@@ -646,17 +647,16 @@ const renderNameCard = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard Pengajar</h1>
-        <p className="text-muted-foreground">
-          Selamat datang, {tutorName}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Dashboard Pengajar"
+        description={`Selamat datang, ${tutorName}! Kelola permintaan siswa dan pencocokan pembelajaran Anda.`}
+      />
 
       {/* Alert jika kurasi belum complete */}
       {!stats.curationComplete && (
-        <Alert className="mb-6 bg-amber-500/10 border-amber-500/30">
-          <AlertDescription className="text-amber-300">
+        <Alert className="mb-6 border-warning/25 bg-warning/10">
+          <AlertDescription className="text-foreground">
             ⚠️ Harap selesaikan semua tahapan kurasi agar bisa menerima permintaan dari siswa.{' '}
             <Link href="/curation/progress" className="font-medium underline">
               Lihat status kurasi →
@@ -666,51 +666,11 @@ const renderNameCard = () => {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Siswa Aktif</p>
-              <p className="text-2xl font-bold text-foreground">{stats.activeStudents}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-yellow-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Masuk</p>
-              <p className="text-2xl font-bold text-foreground">{stats.pendingRequests}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-green-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
-              <p className="text-2xl font-bold text-foreground">{stats.completedSessions}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-purple-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Status Kurasi</p>
-              <p className="text-2xl font-bold text-foreground">{stats.curationDone}/{stats.curationTotal}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Siswa Aktif" value={stats.activeStudents} icon={Users} tone="primary" />
+        <StatCard label="Permintaan Masuk" value={stats.pendingRequests} icon={FileText} tone="accent" />
+        <StatCard label="Sesi Selesai" value={stats.completedSessions} icon={Calendar} tone="secondary" />
+        <StatCard label="Status Kurasi" value={`${stats.curationDone}/${stats.curationTotal}`} icon={BarChart3} tone="primary" />
       </div>
 
       {/* Namecard + Progress Kurasi */}
@@ -722,26 +682,26 @@ const renderNameCard = () => {
       {/* Roadmap - hanya jika kurasi complete */}
       {stats.curationComplete && (
         <>
-          <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+          <Card className="rounded-2xl border-0 bg-gradient-to-r from-primary to-primary/80 text-white shadow-soft">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-blue-100 text-sm font-medium">Progress Keseluruhan</p>
+                  <p className="text-sm font-medium text-primary-foreground/80">Progress Keseluruhan</p>
                   <p className="text-4xl font-bold mt-1">{overallProgress}%</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-blue-100 text-sm">Tahap Selesai</p>
+                  <p className="text-sm text-primary-foreground/80">Tahap Selesai</p>
                   <p className="text-4xl font-bold mt-1">{completedCount}/{steps.length}</p>
                 </div>
               </div>
-              <div className="w-full h-2 bg-blue-500/50 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-primary/30 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-white rounded-full transition-all duration-500"
                   style={{ width: `${overallProgress}%` }}
                 />
               </div>
               {nextStep && (
-                <p className="text-blue-100 text-sm mt-3">
+                <p className="mt-3 text-sm text-primary-foreground/80">
                   Langkah selanjutnya: <span className="font-semibold text-white">{nextStep.title}</span>
                 </p>
               )}
@@ -749,12 +709,12 @@ const renderNameCard = () => {
           </Card>
 
           {stats.curationPassed && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               {[
-                { label: 'Siswa Aktif', value: stats.activeStudents, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/20' },
-                { label: 'Permintaan Baru', value: stats.pendingRequests, icon: Handshake, color: 'text-amber-400', bg: 'bg-amber-500/20' },
-                { label: 'Sesi Selesai', value: stats.completedSessions, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/20' },
-                { label: 'Rating', value: stats.rating > 0 ? `★ ${stats.rating.toFixed(1)}` : '—', icon: Star, color: 'text-purple-400', bg: 'bg-purple-500/20' },
+                { label: 'Siswa Aktif', value: stats.activeStudents, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
+                { label: 'Permintaan Baru', value: stats.pendingRequests, icon: Handshake, color: 'text-warning', bg: 'bg-warning/15' },
+                { label: 'Sesi Selesai', value: stats.completedSessions, icon: CheckCircle2, color: 'text-secondary', bg: 'bg-secondary/10' },
+                { label: 'Rating', value: stats.rating > 0 ? `★ ${stats.rating.toFixed(1)}` : '—', icon: Star, color: 'text-primary', bg: 'bg-primary/10' },
               ].map(({ label, value, icon: Icon, color, bg }) => (
                 <Card key={label} className="border-0 shadow-sm">
                   <CardContent className="p-4 flex items-center gap-3">
@@ -787,9 +747,9 @@ const renderNameCard = () => {
                       <div
                         className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
                           isCompleted
-                            ? 'bg-green-500 border-green-500 text-white'
+                            ? 'bg-secondary border-secondary text-secondary-foreground'
                             : isActive
-                            ? 'bg-blue-600 border-blue-600 text-white'
+                            ? 'bg-primary border-primary text-primary-foreground'
                             : 'bg-card border-border/50 text-muted-foreground'
                         }`}
                       >
@@ -804,18 +764,18 @@ const renderNameCard = () => {
                       {index < steps.length - 1 && (
                         <div
                           className={`w-0.5 flex-1 mt-1 min-h-[24px] ${
-                            isCompleted ? 'bg-green-500/50' : 'bg-border'
+                            isCompleted ? 'bg-secondary/30' : 'bg-border'
                           }`}
                         />
                       )}
                     </div>
 
                     <Card
-                      className={`flex-1 mb-3 border shadow-sm transition-all ${
+                      className={`mb-3 flex-1 rounded-2xl border shadow-soft transition-all ${
                         isCompleted
-                          ? 'border-green-500/30 bg-green-500/10'
+                          ? 'border-secondary/20 bg-secondary/10'
                           : isActive
-                          ? 'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:shadow-md'
+                          ? 'border-primary/20 bg-primary/10 hover:border-primary/50 hover:shadow-lifted'
                           : 'border-border/30 bg-card/50 opacity-60'
                       }`}
                     >
@@ -823,13 +783,13 @@ const renderNameCard = () => {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-start gap-3 flex-1">
                             <div
-                              className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                isCompleted ? 'bg-green-500/20' : isActive ? 'bg-blue-500/20' : 'bg-muted/30'
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                isCompleted ? 'bg-secondary/10' : isActive ? 'bg-primary/10' : 'bg-muted/30'
                               }`}
                             >
                               <Icon
                                 className={`w-5 h-5 ${
-                                  isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-muted-foreground'
+                                  isCompleted ? 'text-secondary' : isActive ? 'text-primary' : 'text-muted-foreground'
                                 }`}
                               />
                             </div>
@@ -843,7 +803,7 @@ const renderNameCard = () => {
                                   {step.title}
                                 </h3>
                                 {isCompleted && (
-                                  <Badge className="text-[10px] bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/20">
+                                  <Badge className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 hover:bg-secondary/10">
                                     ✓ Selesai
                                   </Badge>
                                 )}
@@ -858,9 +818,9 @@ const renderNameCard = () => {
                                 <p
                                   className={`text-xs mt-1.5 font-medium ${
                                     isCompleted
-                                      ? 'text-green-400'
+                                      ? 'text-secondary'
                                       : isActive
-                                      ? 'text-blue-400'
+                                      ? 'text-primary'
                                       : 'text-muted-foreground'
                                   }`}
                                 >
@@ -868,7 +828,7 @@ const renderNameCard = () => {
                                 </p>
                               )}
                               {step.id === 'curation' && !stats.curationPassed && stats.curationComplete && (
-                                <div className="flex items-center gap-1 mt-2 text-amber-400">
+                                <div className="flex items-center gap-1 mt-2 text-warning">
                                   <AlertTriangle className="w-3.5 h-3.5" />
                                   <span className="text-xs font-medium">Skor belum mencapai 80. Hubungi admin untuk info lebih lanjut.</span>
                                 </div>
@@ -883,7 +843,7 @@ const renderNameCard = () => {
                                 variant={isCompleted ? 'outline' : 'default'}
                                 className={`text-xs gap-1.5 ${
                                   isCompleted
-                                    ? 'border-green-500/30 text-green-300 hover:bg-green-500/10'
+                                    ? 'border-secondary/20 text-secondary hover:bg-secondary/10'
                                     : 'bg-primary hover:bg-primary/90 text-primary-foreground'
                                 }`}
                               >

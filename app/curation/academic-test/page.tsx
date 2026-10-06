@@ -538,8 +538,8 @@ export default function AcademicTestPage() {
             </p>
           </div>
 
-          <Alert className="mb-6 bg-blue-50 border-blue-200">
-            <AlertDescription className="text-blue-800">
+          <Alert className="mb-6 bg-primary/10 border-primary/30">
+            <AlertDescription className="text-primary">
               <strong>Sumber bank soal:</strong> Soal-soal bersumber dari kurikulum Kemendikbud dan
               referensi open-source seperti{' '}
               <a href="https://github.com/soallatihan/soallatihan.github.io" target="_blank" rel="noopener noreferrer" className="underline font-medium">
@@ -603,14 +603,14 @@ export default function AcademicTestPage() {
             <div className="text-6xl font-bold text-primary mb-4">{score}</div>
             <p className="text-xl text-muted-foreground mb-6">Skor Anda dari 100</p>
             {score >= 70 ? (
-              <Alert className="bg-green-50 border-green-200 mb-6">
-                <AlertDescription className="text-green-800">
+              <Alert className="bg-success/10 border-success/20 mb-6">
+                <AlertDescription className="text-success">
                   Selamat! Anda lulus tes kemampuan akademik. Mari lanjut ke bagian selanjutnya.
                 </AlertDescription>
               </Alert>
             ) : (
-              <Alert className="bg-yellow-50 border-yellow-200 mb-6">
-                <AlertDescription className="text-yellow-800">
+              <Alert className="bg-warning/10 border-warning/20 mb-6">
+                <AlertDescription className="text-warning">
                   Skor Anda belum memenuhi standar minimum (70). Silakan coba lagi.
                 </AlertDescription>
               </Alert>
@@ -650,7 +650,7 @@ export default function AcademicTestPage() {
               <h1 className="text-2xl font-bold text-foreground">Tes Kemampuan Akademik</h1>
               <p className="text-sm text-muted-foreground">{selectedLevel}</p>
             </div>
-            <div className={`text-2xl font-bold ${timeRemaining < 300 ? 'text-red-500' : 'text-primary'}`}>
+            <div className={`text-2xl font-bold ${timeRemaining < 300 ? 'text-destructive' : 'text-primary'}`}>
               {minutes}:{seconds.toString().padStart(2, '0')}
             </div>
           </div>

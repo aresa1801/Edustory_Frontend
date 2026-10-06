@@ -278,7 +278,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-primary hover:bg-primary/90 text-white"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {loading ? 'Sedang memproses...' : isGoogleAuth ? 'Lanjutkan' : 'Daftar'}
             </Button>
@@ -295,9 +295,10 @@ export default function RegisterPage() {
 
               <Button
                 type="button"
+                variant="outline"
                 onClick={handleGoogleSignUp}
                 disabled={loading}
-                className="w-full h-12 bg-white text-black hover:bg-gray-100 flex items-center justify-center gap-3"
+                className="w-full h-12 flex items-center justify-center gap-3"
               >
                 <Chrome className="w-5 h-5" />
                 {loading ? 'Sedang mendaftar...' : 'Daftar dengan Google'}

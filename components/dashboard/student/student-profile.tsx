@@ -182,9 +182,9 @@ export default function StudentProfile() {
     : '?'
 
   const completionColor =
-    completionScore >= 80 ? 'text-green-300' :
-    completionScore >= 50 ? 'text-yellow-300' :
-    'text-red-500'
+    completionScore >= 80 ? 'text-success' :
+    completionScore >= 50 ? 'text-warning' :
+    'text-destructive'
 
   // --- Tampilan read-only ---
   return (
@@ -206,7 +206,7 @@ export default function StudentProfile() {
               </p>
               {studentData.status && (
                 <span className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                  studentData.status === 'active' ? 'bg-green-100 text-green-300' : 'bg-slate-500/20 text-slate-300'
+                  studentData.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
                 }`}>
                   <ShieldCheck className="w-3 h-3" />
                   {studentData.status === 'active' ? 'Akun Aktif' : displayValue(studentData.status)}

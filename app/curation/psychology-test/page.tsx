@@ -333,14 +333,14 @@ export default function PsychologyTestPage() {
               Skor Anda dari 100
             </p>
             {score >= 70 ? (
-              <Alert className="bg-green-50 border-green-200 mb-6">
-                <AlertDescription className="text-green-800">
+              <Alert className="bg-success/10 border-success/20 mb-6">
+                <AlertDescription className="text-success">
                   Selamat! Anda lulus tes psikologi. Mari lanjut ke bagian selanjutnya.
                 </AlertDescription>
               </Alert>
             ) : (
-              <Alert className="bg-yellow-50 border-yellow-200 mb-6">
-                <AlertDescription className="text-yellow-800">
+              <Alert className="bg-warning/10 border-warning/20 mb-6">
+                <AlertDescription className="text-warning">
                   Skor Anda belum memenuhi standar minimum (70). Silakan coba lagi.
                 </AlertDescription>
               </Alert>

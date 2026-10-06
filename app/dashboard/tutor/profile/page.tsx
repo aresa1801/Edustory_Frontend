@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader, SectionCard } from '@/components/dashboard/ui'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -29,26 +29,26 @@ const STATUS_CONFIG = {
   pending: {
     label: 'Menunggu Verifikasi',
     icon: Clock,
-    color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    iconColor: 'text-amber-500',
+    color: 'bg-warning/15 text-warning border-warning/20',
+    iconColor: 'text-warning',
   },
   approved: {
     label: 'Disetujui',
     icon: CheckCircle2,
-    color: 'bg-green-500/20 text-green-300 border-green-500/30',
-    iconColor: 'text-green-500',
+    color: 'bg-secondary/10 text-secondary border-secondary/20',
+    iconColor: 'text-secondary',
   },
   rejected: {
     label: 'Ditolak',
     icon: XCircle,
-    color: 'bg-red-500/20 text-red-300 border-red-500/30',
-    iconColor: 'text-red-500',
+    color: 'bg-destructive/10 text-destructive border-destructive/25',
+    iconColor: 'text-destructive',
   },
   suspended: {
     label: 'Ditangguhkan',
-    color: 'bg-slate-50 text-slate-600 border-slate-200',
+    color: 'bg-muted text-muted-foreground border-border',
     icon: XCircle,
-    iconColor: 'text-slate-400',
+    iconColor: 'text-muted-foreground',
   },
 }
 
@@ -283,71 +283,62 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Profil Saya</h1>
-          <p className="text-slate-500 text-sm mt-1">Lengkapi profil Anda untuk memulai proses menjadi pengajar</p>
-        </div>
-        {isProfileComplete ? (
-          <Badge className="bg-green-500/20 text-green-300 border-green-500/30 gap-1.5 px-3 py-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Profil Lengkap
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-amber-300 border-amber-200 bg-amber-50 gap-1.5 px-3 py-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Belum Lengkap
-          </Badge>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Profil Saya"
+        description="Lengkapi profil Anda untuk memulai proses menjadi pengajar"
+        actions={
+          isProfileComplete ? (
+            <Badge className="bg-secondary/10 text-secondary border-secondary/20 gap-1.5 px-3 py-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Profil Lengkap
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-warning border-warning/20 bg-warning/10 gap-1.5 px-3 py-1.5">
+              <Clock className="w-3.5 h-3.5" />
+              Belum Lengkap
+            </Badge>
+          )
+        }
+      />
 
       {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-300">{success}</AlertDescription>
+        <Alert className="bg-secondary/10 border-secondary/20">
+          <AlertDescription className="text-secondary">{success}</AlertDescription>
         </Alert>
       )}
 
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <UserCircle className="w-4 h-4" />
-            Status Akun
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SectionCard
+        title={<span className="flex items-center gap-2"><UserCircle className="w-4 h-4" />Status Akun</span>}
+      >
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <StatusIcon className={`w-5 h-5 ${statusCfg.iconColor}`} />
               <div>
-                <p className="text-sm font-semibold text-slate-800">{statusCfg.label}</p>
+                <p className="text-sm font-semibold text-foreground">{statusCfg.label}</p>
                 {approvalStatus === 'pending' && (
-                  <p className="text-xs text-slate-500">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
+                  <p className="text-xs text-muted-foreground">Profil Anda sedang dalam antrian verifikasi (2–3 hari kerja)</p>
                 )}
                 {approvalStatus === 'approved' && (
-                  <p className="text-xs text-slate-500">Anda dapat menerima permintaan siswa</p>
+                  <p className="text-xs text-muted-foreground">Anda dapat menerima permintaan siswa</p>
                 )}
               </div>
             </div>
             {verified && (
-              <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+              <Badge className="bg-primary/5 text-primary border-primary/20">
                 ✓ Terverifikasi
               </Badge>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </SectionCard>
 
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <UserCircle className="w-4 h-4" />
-            Informasi Pribadi
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <SectionCard
+        title={<span className="flex items-center gap-2"><UserCircle className="w-4 h-4" />Informasi Pribadi</span>}
+        bodyClassName="space-y-4"
+      >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Nama Lengkap</Label>
               <Input
                 value={form.full_name}
                 onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))}
@@ -355,15 +346,15 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email
               </Label>
-              <Input value={form.email} disabled className="bg-slate-50 text-slate-500" />
+              <Input value={form.email} disabled className="bg-muted text-muted-foreground" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <Phone className="w-3 h-3" /> Nomor WhatsApp
             </Label>
             <Input
@@ -374,7 +365,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600">Bio Singkat</Label>
+            <Label className="text-xs font-medium text-muted-foreground">Bio Singkat</Label>
             <Textarea
               value={form.bio}
               onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
@@ -383,20 +374,15 @@ export default function ProfilePage() {
               className="resize-none"
             />
           </div>
-        </CardContent>
-      </Card>
+      </SectionCard>
 
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <GraduationCap className="w-4 h-4" />
-            Informasi Profesional
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <SectionCard
+        title={<span className="flex items-center gap-2"><GraduationCap className="w-4 h-4" />Informasi Profesional</span>}
+        bodyClassName="space-y-4"
+      >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Briefcase className="w-3 h-3" /> Pengalaman Mengajar (Tahun)
               </Label>
               <Input
@@ -409,7 +395,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <Banknote className="w-3 h-3" /> Tarif Per Jam (Rp)
               </Label>
               <Input
@@ -424,7 +410,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <BookOpen className="w-3 h-3" /> Kualifikasi & Sertifikasi
             </Label>
             <Textarea
@@ -438,29 +424,28 @@ export default function ProfilePage() {
 
           {form.specializations.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600">Mata Pelajaran yang Diajarkan</Label>
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <Label className="text-xs font-medium text-muted-foreground">Mata Pelajaran yang Diajarkan</Label>
+              <div className="flex flex-wrap gap-2 p-3 bg-muted rounded-xl border border-border">
                 {form.specializations.map((s: string) => (
                   <Badge key={s} variant="secondary" className="text-xs">
                     {s}
                   </Badge>
                 ))}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Kelola mata pelajaran di halaman{' '}
-                <a href="/dashboard/tutor/teaching-interest" className="text-blue-300 underline">
+                <a href="/dashboard/tutor/teaching-interest" className="text-primary underline">
                   Minat Mengajar
                 </a>
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </SectionCard>
 
       <Button
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 h-11"
+        className="w-full gap-2 h-11"
       >
         {saving ? (
           <>

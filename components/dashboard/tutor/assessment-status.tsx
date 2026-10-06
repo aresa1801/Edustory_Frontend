@@ -134,8 +134,8 @@ export default function TutorAssessmentStatus() {
 
   if (steps.length === 0) {
     return (
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-800">
+      <Alert className="border-primary/20 bg-primary/5">
+        <AlertDescription className="text-foreground">
           Anda belum memulai proses kurasi. Kunjungi halaman{' '}
           <Link href="/curation/progress" className="font-medium underline">
             Status Kurasi
@@ -153,7 +153,7 @@ export default function TutorAssessmentStatus() {
   return (
     <div className="space-y-6">
       {/* Overall Progress Card */}
-      <Card className="p-6 border-2 border-primary/20">
+      <Card className="rounded-2xl border-2 border-primary/20 p-5 shadow-soft sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-muted-foreground mb-1">Skor Keseluruhan</p>
@@ -177,9 +177,9 @@ export default function TutorAssessmentStatus() {
         {steps.map(step => (
           <Card
             key={step.key}
-            className={`p-5 transition-all ${
+            className={`rounded-2xl p-5 shadow-soft transition hover:shadow-lifted ${
               step.completed
-                ? 'border-green-200 bg-green-50'
+                ? 'border-secondary/20 bg-secondary/10'
                 : step.href
                 ? 'border-primary/20 hover:border-primary/50'
                 : 'border-border opacity-60'
@@ -196,16 +196,15 @@ export default function TutorAssessmentStatus() {
               <div className="flex items-center gap-3">
                 {step.completed ? (
                   <div className="text-right">
-                    <Badge className="bg-green-500 hover:bg-green-600 mb-1">✓ Selesai</Badge>
+                    <Badge className="mb-1 bg-secondary text-secondary-foreground hover:bg-secondary/90">✓ Selesai</Badge>
                     {step.score !== undefined && (
-                      <p className="text-xl font-bold text-green-300">{step.score}</p>
+                      <p className="text-xl font-bold text-secondary">{step.score}</p>
                     )}
                   </div>
                 ) : step.href ? (
                   <Button
                     size="sm"
                     onClick={() => router.push(step.href!)}
-                    className="bg-primary hover:bg-primary/90"
                   >
                     Mulai
                   </Button>
@@ -222,15 +221,15 @@ export default function TutorAssessmentStatus() {
 
       {/* Status Info */}
       {allCompleted ? (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">
+        <Alert className="border-secondary/20 bg-secondary/10">
+          <AlertDescription className="text-foreground">
             🎉 Selamat! Anda telah menyelesaikan semua tahapan kurasi. Tim kami sedang meninjau
             aplikasi Anda dan akan mengumumkan hasilnya dalam 3-5 hari kerja.
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert className="bg-blue-50 border-blue-200">
-          <AlertDescription className="text-blue-800">
+        <Alert className="border-primary/20 bg-primary/5">
+          <AlertDescription className="text-foreground">
             <ul className="space-y-1">
               <li>✓ Setiap tahapan harus diselesaikan sebelum yang berikutnya</li>
               <li>✓ Anda memiliki 7 hari untuk menyelesaikan semua tahapan</li>

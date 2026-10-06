@@ -16,7 +16,7 @@ function TutorAssessmentStatusFallback() {
   return (
     <Card>
       <CardContent className="p-6">
-        <p className="text-slate-500">Status kurasi akan tampil di sini setelah Anda menyelesaikan profil.</p>
+        <p className="text-muted-foreground">Status kurasi akan tampil di sini setelah Anda menyelesaikan profil.</p>
         <Link href="/dashboard/tutor/profile">
           <Button variant="outline" className="mt-3">Lengkapi Profil</Button>
         </Link>
@@ -29,7 +29,7 @@ function TutorProfileFallback() {
   return (
     <Card>
       <CardContent className="p-6">
-        <p className="text-slate-500">Profil Anda dapat dilengkapi di halaman profil.</p>
+        <p className="text-muted-foreground">Profil Anda dapat dilengkapi di halaman profil.</p>
         <Link href="/dashboard/tutor/profile">
           <Button variant="outline" className="mt-3">Ke Halaman Profil</Button>
         </Link>
@@ -39,10 +39,10 @@ function TutorProfileFallback() {
 }
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-  approved: { label: 'Disetujui', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-  rejected: { label: 'Ditolak', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+  pending: { label: 'Menunggu Verifikasi', color: 'bg-warning/10 text-warning border-warning/20' },
+  approved: { label: 'Disetujui', color: 'bg-secondary/10 text-secondary border-secondary/20' },
+  rejected: { label: 'Ditolak', color: 'bg-destructive/10 text-destructive border-destructive/25' },
+  suspended: { label: 'Ditangguhkan', color: 'bg-muted text-muted-foreground border-border' },
 }
 
 export default function ApplicationsPage() {
@@ -147,14 +147,14 @@ export default function ApplicationsPage() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Aplikasi Pengajar</h1>
-          <p className="text-slate-500 text-sm mt-1">Anda belum terdaftar sebagai pengajar.</p>
+          <h1 className="text-2xl font-bold text-foreground">Aplikasi Pengajar</h1>
+          <p className="text-sm text-muted-foreground mt-1">Anda belum terdaftar sebagai pengajar.</p>
         </div>
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-slate-600 mb-4">Silakan lengkapi profil Anda terlebih dahulu untuk memulai proses aplikasi.</p>
+            <p className="text-muted-foreground mb-4">Silakan lengkapi profil Anda terlebih dahulu untuk memulai proses aplikasi.</p>
             <Link href="/dashboard/tutor/profile">
-              <Button className="bg-blue-600 hover:bg-blue-700">Lengkapi Profil</Button>
+              <Button>Lengkapi Profil</Button>
             </Link>
           </CardContent>
         </Card>
@@ -169,30 +169,30 @@ export default function ApplicationsPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Aplikasi Pengajar</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-foreground">Aplikasi Pengajar</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Pantau status aplikasi dan kurasi Anda sebagai pengajar di EduStory.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="rounded-2xl p-5 shadow-soft">
           <p className="text-sm text-muted-foreground mb-1">Status Aplikasi</p>
           <Badge variant="outline" className={`${statusConfig.color} border text-sm`}>
             {statusConfig.label}
           </Badge>
         </Card>
 
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft">
           <p className="text-sm text-muted-foreground mb-1">Tahapan Kurasi</p>
           <p className="text-2xl font-bold text-foreground">{completedSteps.length}/5</p>
           <Progress value={curationPercent} className="h-1.5 mt-2" />
         </Card>
 
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft">
           <p className="text-sm text-muted-foreground mb-1">Verifikasi</p>
           {tutor.verified ? (
-            <Badge className="bg-green-500 hover:bg-green-600">✓ Terverifikasi</Badge>
+            <Badge className="bg-secondary text-secondary-foreground hover:bg-secondary/90">✓ Terverifikasi</Badge>
           ) : (
             <Badge variant="outline" className="text-muted-foreground">Belum Terverifikasi</Badge>
           )}
@@ -208,8 +208,8 @@ export default function ApplicationsPage() {
       )}
 
       {tutor.approval_status === 'approved' && (
-        <Alert className="mb-6 bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">
+        <Alert className="mb-6 border-secondary/20 bg-secondary/10">
+          <AlertDescription className="text-foreground">
             🎉 Selamat! Aplikasi Anda telah disetujui. Anda sekarang dapat menerima permintaan dari siswa.
           </AlertDescription>
         </Alert>

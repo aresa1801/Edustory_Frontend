@@ -161,9 +161,9 @@ export default function TutorWalletClient({
               <CardTitle className="text-base">Penarikan Saldo</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-blue-800 leading-relaxed">
+              <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
+                <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                <div className="text-xs leading-relaxed text-foreground">
                   Fitur penarikan saldo ke rekening bank akan segera hadir. Sementara ini,
                   hubungi admin untuk proses penarikan manual.
                 </div>
@@ -211,14 +211,14 @@ export default function TutorWalletClient({
                     return (
                       <div
                         key={tx.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/20 transition-colors"
+                        className="flex items-center justify-between rounded-xl border border-border/40 p-3 transition-colors hover:bg-muted/20"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                               isIncome
-                                ? 'bg-green-500/15 text-green-600'
-                                : 'bg-red-500/15 text-red-600'
+                                ? 'bg-secondary/15 text-secondary'
+                                : 'bg-destructive/15 text-destructive'
                             }`}
                           >
                             {isIncome ? (
@@ -245,7 +245,7 @@ export default function TutorWalletClient({
                         </div>
                         <div
                           className={`text-sm font-semibold flex-shrink-0 ml-2 ${
-                            isIncome ? 'text-green-600' : 'text-red-600'
+                            isIncome ? 'text-secondary' : 'text-destructive'
                           }`}
                         >
                           {isIncome ? '+' : '−'}Rp {absAmount.toLocaleString('id-ID')}

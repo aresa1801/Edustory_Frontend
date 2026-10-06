@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 
 interface Match {
   id: string
@@ -327,7 +328,7 @@ useEffect(() => {
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardContent className="py-12 text-center text-muted-foreground">
             Belum ada pencocokan yang dikonfirmasi.
           </CardContent>
@@ -335,12 +336,12 @@ useEffect(() => {
       )
     }
     const statusMap: Record<string, { label: string; color: string }> = {
-      matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-700 border-green-500/30' },
-      active: { label: 'Aktif', color: 'bg-blue-500/20 text-blue-700 border-blue-500/30' },
+      matched: { label: 'Dikonfirmasi', color: 'bg-success/10 text-success border-success/20' },
+      active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         {activeMatches.map((match) => {
           const fullName = match.tutor_full_name || 'Tutor'
           const grade = match.tutor_verified_grade_levels?.join(', ') || ''
@@ -348,7 +349,7 @@ useEffect(() => {
           const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
           const status = match.status
           const avatar = match.tutor_avatar_url
-          const statusConfig = statusMap[status] || { label: status, color: 'bg-gray-200' }
+          const statusConfig = statusMap[status] || { label: status, color: 'bg-muted text-muted-foreground' }
 
           let daysLeft = null
           if (match.contract_end_date) {
@@ -358,11 +359,11 @@ useEffect(() => {
           }
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                       {avatar ? (
                         <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
                       ) : (
@@ -372,7 +373,7 @@ useEffect(() => {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
                           {grade}
                         </Badge>
                       )}
@@ -383,34 +384,34 @@ useEffect(() => {
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-success" />
                     <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
                   </div>
                   <div className="flex items-center">
-                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <Star className="w-4 h-4 mr-1.5 text-accent" />
                     <span className="text-muted-foreground">
                       {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <Award className="w-4 h-4 mr-1.5 text-primary" />
                     <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
                   </div>
                   {match.tutor_bio && (
                     <div className="flex items-start">
-                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
                     </div>
                   )}
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {subjects}
                     </span>
                   </div>
                   {match.schedules_summary && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                       <div>
                         <span className="font-medium">Jadwal:</span>
                         {renderScheduleSummary(match.schedules_summary)}
@@ -419,7 +420,7 @@ useEffect(() => {
                   )}
                   {match.accepted_at && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Kontrak mulai:</span> {formatDate(match.accepted_at)}
                       </span>
@@ -427,13 +428,13 @@ useEffect(() => {
                   )}
                   {match.contract_end_date && (
                     <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                      <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Berakhir:</span> {formatDate(match.contract_end_date)}
                         {daysLeft !== null && daysLeft >= 0 ? (
-                          <span className="text-xs text-gray-400 ml-2">(sisa {daysLeft} hari)</span>
+                          <span className="text-xs text-muted-foreground ml-2">(sisa {daysLeft} hari)</span>
                         ) : daysLeft !== null && daysLeft < 0 ? (
-                          <span className="text-xs text-red-500 ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
+                          <span className="text-xs text-destructive ml-2">(lewat {Math.abs(daysLeft)} hari)</span>
                         ) : null}
                       </span>
                     </div>
@@ -445,7 +446,7 @@ useEffect(() => {
                     <Calendar className="w-4 h-4 mr-1.5" />
                     Lihat Jadwal
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 text-red-500 border-red-200 hover:bg-red-50" disabled>
+                  <Button variant="outline" size="sm" className="flex-1 text-destructive border-destructive/20 hover:bg-destructive/10" disabled>
                     <XCircle className="w-4 h-4 mr-1.5" />
                     Hentikan Kontrak
                   </Button>
@@ -462,7 +463,7 @@ useEffect(() => {
   const renderTutorPendingCards = () => {
     if (tutorPendingMatches.length === 0) {
       return (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardContent className="py-12 text-center text-muted-foreground">
             Belum ada permintaan masuk dari tutor.
           </CardContent>
@@ -470,7 +471,7 @@ useEffect(() => {
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         {tutorPendingMatches.map((match) => {
           const fullName = match.tutor_full_name || 'Tutor'
           const grade = match.tutor_verified_grade_levels?.join(', ') || ''
@@ -480,10 +481,10 @@ useEffect(() => {
           const avatar = match.tutor_avatar_url
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                     {avatar ? (
                       <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
                     ) : (
@@ -493,46 +494,46 @@ useEffect(() => {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                      <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
                         {grade}
                       </Badge>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-700 border-yellow-500/30 text-xs">
+                  <Badge className="ml-auto bg-warning/10 text-warning border-warning/20 text-xs">
                     Menunggu
                   </Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-success" />
                     <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
                   </div>
                   <div className="flex items-center">
-                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <Star className="w-4 h-4 mr-1.5 text-accent" />
                     <span className="text-muted-foreground">
                       {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <Award className="w-4 h-4 mr-1.5 text-primary" />
                     <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
                   </div>
                   {match.tutor_bio && (
                     <div className="flex items-start">
-                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
                     </div>
                   )}
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {subjects}
                     </span>
                   </div>
                   {startDate && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Mulai:</span> {formatDate(startDate)}
                       </span>
@@ -542,7 +543,7 @@ useEffect(() => {
 
                 <div className="mt-4 flex gap-2">
                   <Button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                    className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
                     onClick={() => handleScheduleClick(match)}
                     disabled={processingId === match.id}
                   >
@@ -571,7 +572,7 @@ useEffect(() => {
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardContent className="py-12 text-center text-muted-foreground">
             Belum ada permintaan jadwal yang Anda kirim.
           </CardContent>
@@ -579,7 +580,7 @@ useEffect(() => {
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         {studentPendingMatches.map((match) => {
           const fullName = match.tutor_full_name || 'Tutor'
           const grade = match.tutor_verified_grade_levels?.join(', ') || ''
@@ -595,10 +596,10 @@ useEffect(() => {
           const timeLeft = timeLeftMap[match.id] || ''
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                     {avatar ? (
                       <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
                     ) : (
@@ -608,52 +609,52 @@ useEffect(() => {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                      <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
                         {grade}
                       </Badge>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-indigo-500/20 text-indigo-700 border-indigo-500/30 text-xs">
+                  <Badge className="ml-auto bg-primary/10 text-primary border-primary/20 text-xs">
                     Menunggu
                   </Badge>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-success" />
                     <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
                   </div>
                   <div className="flex items-center">
-                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <Star className="w-4 h-4 mr-1.5 text-accent" />
                     <span className="text-muted-foreground">
                       {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <Award className="w-4 h-4 mr-1.5 text-primary" />
                     <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
                   </div>
                   {match.tutor_bio && (
                     <div className="flex items-start">
-                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
                     </div>
                   )}
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {subjects}
                     </span>
                   </div>
                   <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                     <div className="text-muted-foreground">
                       <span className="font-medium">Jadwal:</span> {scheduleDisplay}
                     </div>
                   </div>
                   {startDate && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Mulai:</span> {formatDate(startDate)}
                       </span>
@@ -662,11 +663,11 @@ useEffect(() => {
                 </div>
 
                 {/* ===== KOTAK MENUNGGU + TIMER ===== */}
-                <div className="mt-4 bg-gray-100 border border-gray-200 rounded p-3 text-center space-y-1">
-                  <p className="text-sm font-medium text-gray-600">⏳ Menunggu konfirmasi tutor</p>
-                  <p className="text-xs text-gray-500">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
+                <div className="mt-4 bg-muted border border-border rounded-xl p-3 text-center space-y-1">
+                  <p className="text-sm font-medium text-foreground">⏳ Menunggu konfirmasi tutor</p>
+                  <p className="text-xs text-muted-foreground">Jadwal sudah dikirim, tunggu tanggapan guru.</p>
                   {timeLeft && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-orange-600 mt-1">
+                    <div className="flex items-center justify-center gap-2 text-sm text-accent mt-1">
                       <Clock className="w-4 h-4" />
                       <span className="font-mono font-medium">{timeLeft}</span>
                     </div>
@@ -684,7 +685,7 @@ useEffect(() => {
   const renderRejectedCards = () => {
     if (rejectedMatches.length === 0) {
       return (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardContent className="py-12 text-center text-muted-foreground">
             Belum ada penolakan.
           </CardContent>
@@ -692,7 +693,7 @@ useEffect(() => {
       )
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         {rejectedMatches.map((match) => {
           const fullName = match.tutor_full_name || 'Tutor'
           const grade = match.tutor_verified_grade_levels?.join(', ') || ''
@@ -708,11 +709,11 @@ useEffect(() => {
             : 'Belum ditentukan'
 
           return (
-            <Card key={match.id} className="border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                       {avatar ? (
                         <img src={avatar} alt={fullName} className="w-full h-full object-cover" />
                       ) : (
@@ -722,18 +723,18 @@ useEffect(() => {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
                           {grade}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">Ditolak</Badge>
+                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">Ditolak</Badge>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-gray-400 hover:text-red-500"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => handleHide(match.id)}
                       title="Sembunyikan"
                     >
@@ -744,40 +745,40 @@ useEffect(() => {
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 mr-1.5 text-green-500" />
+                    <DollarSign className="w-4 h-4 mr-1.5 text-success" />
                     <span className="text-muted-foreground">Rp {rate.toLocaleString('id-ID')}/jam</span>
                   </div>
                   <div className="flex items-center">
-                    <Star className="w-4 h-4 mr-1.5 text-yellow-500" />
+                    <Star className="w-4 h-4 mr-1.5 text-accent" />
                     <span className="text-muted-foreground">
                       {match.tutor_rating || 0} ({match.tutor_total_reviews || 0} ulasan)
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <Award className="w-4 h-4 mr-1.5 text-blue-500" />
+                    <Award className="w-4 h-4 mr-1.5 text-primary" />
                     <span className="text-muted-foreground">{match.tutor_experience_years || 0} tahun pengalaman</span>
                   </div>
                   {match.tutor_bio && (
                     <div className="flex items-start">
-                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400" />
+                      <BookOpen className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground line-clamp-2">{match.tutor_bio}</span>
                     </div>
                   )}
                   <div className="flex items-start">
-                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-indigo-400" />
+                    <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                     <span className="text-muted-foreground">
                       <span className="font-medium">Mapel:</span> {subjects}
                     </span>
                   </div>
                   <div className="flex items-start">
-                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400" />
+                    <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-accent" />
                     <div className="text-muted-foreground">
                       <span className="font-medium">Jadwal:</span> {scheduleDisplay}
                     </div>
                   </div>
                   {startDate && (
                     <div className="flex items-start">
-                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-blue-400" />
+                      <Calendar className="w-4 h-4 mr-1.5 mt-0.5 text-primary" />
                       <span className="text-muted-foreground">
                         <span className="font-medium">Mulai:</span> {formatDate(startDate)}
                       </span>
@@ -786,18 +787,18 @@ useEffect(() => {
                 </div>
 
                 {status === 'declined' && initiatedBy === 'tutor' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran ditolak oleh Anda</p>
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">✗ Penawaran ditolak oleh Anda</p>
                   </div>
                 )}
                 {status === 'declined' && initiatedBy === 'student' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran ditolak oleh tutor</p>
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">✗ Penawaran ditolak oleh tutor</p>
                   </div>
                 )}
                 {status === 'cancelled' && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-                    <p className="text-xs font-medium text-red-700">✗ Penawaran dibatalkan</p>
+                  <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded p-3">
+                    <p className="text-xs font-medium text-destructive">✗ Penawaran dibatalkan</p>
                   </div>
                 )}
               </CardContent>
@@ -811,89 +812,50 @@ useEffect(() => {
   // ===== MAIN RENDER =====
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Penawaran Tutor</h1>
-          <p className="text-muted-foreground">Kelola penawaran dari tutor dan permintaan jadwal.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
-          <RefreshCw className="w-4 h-4" />
-          Refresh Data
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Tutor"
+        title="Penawaran Tutor"
+        description="Kelola penawaran dari tutor dan permintaan jadwal."
+        actions={
+          <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+            <RefreshCw className="w-4 h-4" />
+            Refresh Data
+          </Button>
+        }
+      />
 
       {/* Statistik */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pencocokan Aktif</p>
-              <p className="text-2xl font-bold">{activeCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-yellow-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Masuk</p>
-              <p className="text-2xl font-bold">{tutorPendingCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-indigo-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Permintaan Saya</p>
-              <p className="text-2xl font-bold">{studentPendingCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Penolakan</p>
-              <p className="text-2xl font-bold">{rejectedCount}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Pencocokan Aktif" value={activeCount} icon={Users} tone="primary" />
+        <StatCard label="Permintaan Masuk" value={tutorPendingCount} icon={MessageCircle} tone="accent" />
+        <StatCard label="Permintaan Saya" value={studentPendingCount} icon={CheckCircle} tone="primary" />
+        <StatCard label="Penolakan" value={rejectedCount} icon={XCircle} tone="muted" />
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 mb-6">
           <TabsTrigger value="active">
             Pencocokan Aktif
             {activeCount > 0 && (
-              <span className="ml-2 bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5">{activeCount}</span>
+              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">{activeCount}</span>
             )}
           </TabsTrigger>
           <TabsTrigger value="tutor-pending">
             Permintaan Masuk
             {tutorPendingCount > 0 && (
-              <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5">{tutorPendingCount}</span>
+              <span className="ml-2 bg-warning text-white text-xs rounded-full px-1.5 py-0.5">{tutorPendingCount}</span>
             )}
           </TabsTrigger>
           <TabsTrigger value="student-pending">
             Permintaan Saya
             {studentPendingCount > 0 && (
-              <span className="ml-2 bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5">{studentPendingCount}</span>
+              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">{studentPendingCount}</span>
             )}
           </TabsTrigger>
           <TabsTrigger value="rejected">
             Penolakan
             {rejectedCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{rejectedCount}</span>
+              <span className="ml-2 bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{rejectedCount}</span>
             )}
           </TabsTrigger>
         </TabsList>
@@ -940,8 +902,8 @@ useEffect(() => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex justify-center mb-2">
-              <div className="w-14 h-14 rounded-full bg-yellow-100 flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-yellow-600" />
+              <div className="w-14 h-14 rounded-full bg-warning/10 flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-warning" />
               </div>
             </div>
             <DialogTitle className="text-center text-xl">
@@ -961,7 +923,7 @@ useEffect(() => {
                 .
               </p>
 
-              <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1.5 text-left">
+              <div className="bg-muted/50 rounded-xl p-3 text-sm space-y-1.5 text-left">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Saldo Anda saat ini</span>
                   <span className="font-medium">
@@ -970,7 +932,7 @@ useEffect(() => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total dibutuhkan</span>
-                  <span className="font-medium text-yellow-600">
+                  <span className="font-medium text-warning">
                     Rp {insufficientModal.total.toLocaleString('id-ID')}
                   </span>
                 </div>
@@ -978,7 +940,7 @@ useEffect(() => {
                   <span className="text-muted-foreground font-medium">
                     Kekurangan
                   </span>
-                  <span className="font-bold text-red-500">
+                  <span className="font-bold text-destructive">
                     Rp{' '}
                     {(insufficientModal.total - walletBalance).toLocaleString(
                       'id-ID'

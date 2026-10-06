@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/auth'
+import { SectionCard, EmptyState } from '@/components/dashboard/ui'
 
 export default function AdminTutorCuration() {
   const [applications, setApplications] = useState<any[]>([])
@@ -161,20 +162,16 @@ export default function AdminTutorCuration() {
 
   if (applications.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">
-            Tidak ada aplikasi pengajar yang menunggu verifikasi
-          </p>
-        </CardContent>
-      </Card>
+      <SectionCard className="rounded-2xl">
+        <EmptyState title="Tidak ada aplikasi pengajar yang menunggu verifikasi" />
+      </SectionCard>
     )
   }
 
   return (
     <div className="space-y-4">
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-800">
+      <Alert className="bg-primary/5 border-primary/20">
+        <AlertDescription className="text-primary">
           Ada {applications.length} aplikasi pengajar yang menunggu verifikasi. Pastikan untuk memeriksa kualifikasi dan latar belakang mereka.
         </AlertDescription>
       </Alert>
@@ -184,7 +181,7 @@ export default function AdminTutorCuration() {
         const user = tutor?.users_profile
 
         return (
-          <Card key={app.id} className="overflow-hidden border-l-4 border-l-purple-500">
+          <Card key={app.id} className="overflow-hidden rounded-2xl border-l-4 border-l-primary shadow-soft transition hover:shadow-lifted">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -196,7 +193,7 @@ export default function AdminTutorCuration() {
                     Telepon: <span className="font-medium">{user?.phone}</span>
                   </p>
                 </div>
-                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                <Badge variant="outline" className="rounded-full bg-primary/10 text-primary border-primary/20">
                   Dalam Review
                 </Badge>
               </div>
@@ -260,7 +257,7 @@ export default function AdminTutorCuration() {
                   Tolak
                 </Button>
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1"
                   disabled={processingId === app.id}
                   onClick={() => handleApprove(app.id)}
                 >
@@ -296,7 +293,7 @@ export default function AdminTutorCuration() {
                 id="reason"
                 value={rejectionReason}
                 onChange={e => setRejectionReason(e.target.value)}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-md text-sm"
+                className="mt-1 w-full px-3 py-2 border border-input rounded-xl text-sm"
                 rows={4}
                 placeholder="Jelaskan mengapa aplikasi ini ditolak..."
               />

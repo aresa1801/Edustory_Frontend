@@ -7,13 +7,15 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
+import { EmptyState } from '@/components/dashboard/ui'
+import { Handshake } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-  matched: { label: '✓ Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-  active: { label: 'Aktif Mengajar', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+  pending: { label: 'Menunggu', color: 'bg-warning/10 text-warning border-warning/20' },
+  matched: { label: '✓ Dikonfirmasi', color: 'bg-secondary/10 text-secondary border-secondary/20' },
+  active: { label: 'Aktif Mengajar', color: 'bg-primary/10 text-primary border-primary/20' },
+  completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
+  cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/25' },
 }
 
 export default function TutorMyMatches() {
@@ -88,13 +90,13 @@ export default function TutorMyMatches() {
 
   if (matches.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">
-            Anda belum memiliki pencocokan yang dikonfirmasi
-          </p>
-        </CardContent>
-      </Card>
+      <div className="surface">
+        <EmptyState
+          icon={Handshake}
+          title="Belum ada pencocokan"
+          description="Anda belum memiliki pencocokan yang dikonfirmasi"
+        />
+      </div>
     )
   }
 
@@ -105,7 +107,7 @@ export default function TutorMyMatches() {
         const student = match.students
 
         return (
-          <Card key={match.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <Card key={match.id} className="overflow-hidden rounded-2xl shadow-soft transition hover:shadow-lifted">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -161,15 +163,15 @@ export default function TutorMyMatches() {
               </div>
 
               {match.status === 'matched' && (
-                <div className="bg-green-50 border border-green-200 rounded p-3 space-y-2">
-                  <p className="text-sm font-medium text-green-300">
+                <div className="space-y-2 rounded-xl border border-secondary/20 bg-secondary/10 p-3">
+                  <p className="text-sm font-medium text-secondary">
                     Pencocokan dikonfirmasi! Hubungi siswa untuk mengatur jadwal pembelajaran.
                   </p>
                   {student?.users_profile?.phone && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-green-300 text-green-300 hover:bg-green-100"
+                      className="border-secondary/30 text-secondary hover:bg-secondary/10"
                       onClick={() =>
                         window.open(
                           `https://wa.me/${student.users_profile.phone.replace(/\D/g, '')}`,

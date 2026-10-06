@@ -38,7 +38,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
     <SharedDashboardLayout
       navGroups={navGroups}
       allowedRoles={['student']}
-      accentColor="blue"
+      accentColor="purple"
       portalLabel="Portal Siswa"
       logoIcon={GraduationCap}
     >

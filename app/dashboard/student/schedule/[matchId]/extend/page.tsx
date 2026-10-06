@@ -648,11 +648,11 @@ function ExtendContractContent() {
             return (
               <div key={s.n} className="flex items-center flex-1 min-w-0">
                 <div
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl ${
                     active
                       ? 'bg-primary text-white'
                       : done
-                      ? 'bg-green-500/20 text-green-300'
+                      ? 'bg-success/10 text-success'
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
@@ -666,7 +666,7 @@ function ExtendContractContent() {
                 {idx < arr.length - 1 && (
                   <div
                     className={`flex-1 h-0.5 mx-2 ${
-                      done ? 'bg-green-400' : 'bg-border'
+                      done ? 'bg-success' : 'bg-border'
                     }`}
                   />
                 )}
@@ -683,7 +683,7 @@ function ExtendContractContent() {
 
       {/* ============ STEP 1: RENCANA BELAJAR ============ */}
       {step === 1 && (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className="w-5 h-5 text-primary" />
@@ -696,13 +696,13 @@ function ExtendContractContent() {
           <CardContent className="space-y-6">
             {/* Info fixed */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/30 border">
+              <div className="p-3 rounded-xl bg-muted/30 border">
                 <p className="text-xs text-muted-foreground mb-1">Durasi Kontrak</p>
                 <p className="font-semibold">
                   {EXTENSION_DURATION_DAYS} hari (fixed)
                 </p>
               </div>
-              <div className="p-3 rounded-md bg-muted/30 border">
+              <div className="p-3 rounded-xl bg-muted/30 border">
                 <p className="text-xs text-muted-foreground mb-1">Mata Pelajaran</p>
                 <p className="font-semibold">{matchedSubjects.join(', ') || '-'}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -716,12 +716,12 @@ function ExtendContractContent() {
             {/* Metode jadwal */}
             <div className="space-y-2">
               <Label className="text-base font-semibold">
-                Metode Jadwal <span className="text-red-500">*</span>
+                Metode Jadwal <span className="text-destructive">*</span>
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => setUseOldSchedule(false)}
-                  className={`px-4 py-3 rounded-lg border text-left transition-all ${
+                  className={`px-4 py-3 rounded-xl border text-left transition-all ${
                     !useOldSchedule
                       ? 'bg-primary text-white border-primary'
                       : 'bg-card border-border hover:border-primary/50'
@@ -740,7 +740,7 @@ function ExtendContractContent() {
                 <button
                   onClick={() => setUseOldSchedule(true)}
                   disabled={oldSummary.length === 0}
-                  className={`px-4 py-3 rounded-lg border text-left transition-all ${
+                  className={`px-4 py-3 rounded-xl border text-left transition-all ${
                     useOldSchedule
                       ? 'bg-primary text-white border-primary'
                       : 'bg-card border-border hover:border-primary/50'
@@ -759,7 +759,7 @@ function ExtendContractContent() {
               </div>
 
               {useOldSchedule && oldSummary.length > 0 && (
-                <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 mt-3">
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 mt-3">
                   <p className="text-xs text-muted-foreground mb-2">
                     Jadwal lama yang akan dipakai:
                   </p>
@@ -784,14 +784,14 @@ function ExtendContractContent() {
               <>
                 <div className="space-y-2">
                   <Label className="text-base font-semibold">
-                    Rentang Jadwal Belajar <span className="text-red-500">*</span>
+                    Rentang Jadwal Belajar <span className="text-destructive">*</span>
                   </Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {SCHEDULE_OPTIONS.map((opt) => (
                       <button
                         key={opt}
                         onClick={() => setScheduleRange(opt)}
-                        className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                        className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all text-left ${
                           scheduleRange === opt
                             ? 'bg-primary text-white border-primary'
                             : 'bg-card border-border hover:border-primary/50'
@@ -811,7 +811,7 @@ function ExtendContractContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-1.5">
                 <Label className="text-base font-semibold">
-                  Budget per Bulan (Rp) <span className="text-red-500">*</span>
+                  Budget per Bulan (Rp) <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
@@ -832,14 +832,14 @@ function ExtendContractContent() {
 
               <div className="space-y-1.5">
                 <Label className="text-base font-semibold">
-                  Jumlah Sesi per Bulan <span className="text-red-500">*</span>
+                  Jumlah Sesi per Bulan <span className="text-destructive">*</span>
                 </Label>
                 <div className="grid grid-cols-4 gap-2">
                   {SESSION_OPTIONS.map((n) => (
                     <button
                       key={n}
                       onClick={() => setSessionsPerMonth(n)}
-                      className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${
+                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
                         sessionsPerMonth === n
                           ? 'bg-primary text-white border-primary'
                           : 'bg-card border-border hover:border-primary/50'
@@ -853,16 +853,16 @@ function ExtendContractContent() {
             </div>
 
             {budgetPerMonth && sessionsPerMonth && (
-              <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <p className="text-sm font-semibold text-blue-300 mb-1">
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                <p className="text-sm font-semibold text-primary mb-1">
                   Estimasi Biaya per Jam
                 </p>
-                <p className="text-2xl font-bold text-blue-200">
+                <p className="text-2xl font-bold text-primary">
                   Rp{' '}
                   {Math.round(
                     Number(budgetPerMonth) / Number(sessionsPerMonth)
                   ).toLocaleString('id-ID')}
-                  <span className="text-sm font-normal text-blue-300">/jam</span>
+                  <span className="text-sm font-normal text-primary">/jam</span>
                 </p>
               </div>
             )}
@@ -875,7 +875,7 @@ function ExtendContractContent() {
         <>
           {/* Subject picker */}
           {matchedSubjects.length > 0 && (
-            <Card>
+            <Card className="rounded-2xl shadow-soft">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Mata Pelajaran Aktif</CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -904,7 +904,7 @@ function ExtendContractContent() {
                           disabled={exhausted}
                           className={`capitalize ${
                             isActive
-                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                               : ''
                           } ${exhausted ? 'opacity-50' : ''}`}
                         >
@@ -947,7 +947,7 @@ function ExtendContractContent() {
           )}
 
           {/* Grid */}
-          <Card>
+          <Card className="rounded-2xl shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{monthName}</CardTitle>
               <Badge variant="outline">
@@ -959,16 +959,16 @@ function ExtendContractContent() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
-                      <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
+                      <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-foreground z-10 border-r-2 font-semibold text-background">
                         Jam
                       </th>
                       {visibleDates.map((date, idx) => (
                         <th
                           key={idx}
-                          className="border p-1 text-center min-w-[44px] bg-gray-800 text-white"
+                          className="border p-1 text-center min-w-[44px] bg-foreground text-background"
                         >
                           <div>{date.getDate()}</div>
-                          <div className="text-xs text-gray-300">
+                          <div className="text-xs text-background/70">
                             {date.toLocaleDateString('id-ID', {
                               weekday: 'short',
                             })}
@@ -980,7 +980,7 @@ function ExtendContractContent() {
                   <tbody>
                     {TIME_SLOTS.map((slot, rowIdx) => (
                       <tr key={rowIdx}>
-                        <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
+                        <td className="border p-1 font-medium text-xs sticky left-0 bg-foreground z-10 border-r-2 text-background">
                           {slot.label}
                         </td>
                         {visibleDates.map((date, colIdx) => {
@@ -989,14 +989,14 @@ function ExtendContractContent() {
                           return (
                             <td
                               key={colIdx}
-                              className="border p-0.5 text-center cursor-pointer hover:bg-gray-50"
+                              className="border p-0.5 text-center cursor-pointer hover:bg-muted/40"
                               onClick={() => handleSlotClick(date, slot.label)}
                             >
                               <div
                                 className={`w-full h-10 flex items-center justify-center rounded transition-colors ${
                                   filled
                                     ? 'bg-primary/30 text-primary font-bold'
-                                    : 'bg-gray-100 hover:bg-gray-200'
+                                    : 'bg-muted hover:bg-muted-foreground/20'
                                 }`}
                               >
                                 {filled ? subject?.charAt(0).toUpperCase() : 'O'}
@@ -1019,10 +1019,10 @@ function ExtendContractContent() {
 
       {/* ============ STEP 3: KONFIRMASI ============ */}
       {step === 3 && (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <CheckCircle className="w-5 h-5 text-green-500" />
+              <CheckCircle className="w-5 h-5 text-success" />
               Konfirmasi Pengajuan
             </CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -1085,8 +1085,8 @@ function ExtendContractContent() {
               </div>
             </div>
 
-            <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20 flex gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 flex gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
                 Tutor punya waktu <strong>3 hari</strong> untuk merespons. Jika
                 tidak direspons, pengajuan otomatis <strong>ditolak</strong>.
@@ -1112,7 +1112,7 @@ function ExtendContractContent() {
           <Button
             onClick={handleSubmit}
             disabled={submitting || totalSelected === 0}
-            className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {submitting ? (
               <Spinner className="w-4 h-4" />

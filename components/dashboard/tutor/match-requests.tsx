@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
+import { EmptyState, TonePill } from '@/components/dashboard/ui'
+import { Handshake } from 'lucide-react'
 
 export default function TutorMatchRequests() {
   const [matches, setMatches] = useState<any[]>([])
@@ -123,20 +124,20 @@ export default function TutorMatchRequests() {
 
   if (matches.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">
-            Belum ada permintaan dari siswa saat ini
-          </p>
-        </CardContent>
-      </Card>
+      <div className="surface">
+        <EmptyState
+          icon={Handshake}
+          title="Belum ada permintaan"
+          description="Belum ada permintaan dari siswa saat ini"
+        />
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-800">
+      <Alert className="border-primary/20 bg-primary/5">
+        <AlertDescription className="text-foreground">
           Anda memiliki {matches.length} permintaan baru dari siswa. Terima atau tolak permintaan untuk melanjutkan.
         </AlertDescription>
       </Alert>
@@ -145,7 +146,7 @@ export default function TutorMatchRequests() {
         const student = match.students
 
         return (
-          <Card key={match.id} className="overflow-hidden border-l-4 border-l-yellow-500 hover:shadow-lg transition-shadow">
+          <Card key={match.id} className="overflow-hidden rounded-2xl border border-border/80 border-l-4 border-l-accent shadow-soft transition hover:shadow-lifted">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -157,9 +158,9 @@ export default function TutorMatchRequests() {
                     Tingkat: {student?.grade_level}
                   </p>
                 </div>
-                <Badge variant="outline" className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+                <TonePill tone="accent">
                   ⏳ Menunggu Konfirmasi
-                </Badge>
+                </TonePill>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -215,7 +216,7 @@ export default function TutorMatchRequests() {
                   Tolak
                 </Button>
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1"
                   disabled={confirmingId === match.id}
                   onClick={() => handleConfirmMatch(match.id, 'confirm')}
                 >

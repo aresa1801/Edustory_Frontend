@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 import { createClient } from '@/lib/auth'
 import {
   DollarSign,
@@ -50,11 +51,11 @@ interface Stats {
 // Helpers
 // ---------------------------------------------------------------------------
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  pending: { label: 'Menunggu', color: 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800', icon: Clock },
-  paid: { label: 'Lunas', color: 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800', icon: CheckCircle2 },
-  rejected: { label: 'Ditolak', color: 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800', icon: XCircle },
-  expired: { label: 'Kedaluwarsa', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700', icon: Clock },
-  refunded: { label: 'Dikembalikan', color: 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800', icon: RefreshCw },
+  pending: { label: 'Menunggu', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
+  paid: { label: 'Lunas', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
+  rejected: { label: 'Ditolak', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: XCircle },
+  expired: { label: 'Kedaluwarsa', color: 'bg-muted text-muted-foreground border-border', icon: Clock },
+  refunded: { label: 'Dikembalikan', color: 'bg-primary/10 text-primary border-primary/20', icon: RefreshCw },
 }
 
 const METHOD_ICON: Record<string, React.ElementType> = {
@@ -181,66 +182,30 @@ export default function AdminPaymentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-foreground mb-1">Laporan Pembayaran</h1>
-        <p className="text-slate-500 dark:text-muted-foreground text-sm">
-          Kelola dan verifikasi pembayaran siswa — QRIS, E-Money, dan Transfer Bank.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Laporan Pembayaran"
+        description="Kelola dan verifikasi pembayaran siswa — QRIS, E-Money, dan Transfer Bank."
+      />
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-5 border-slate-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">Total Lunas</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-foreground">Rp {stats.totalAmount.toLocaleString('id-ID')}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5 border-slate-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">Menunggu</p>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5 border-slate-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">Lunas</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.paid}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5 border-slate-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">Total Transaksi</p>
-              <p className="text-2xl font-bold text-slate-800 dark:text-foreground">{stats.total}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total Lunas"
+          value={`Rp ${stats.totalAmount.toLocaleString('id-ID')}`}
+          tone="secondary"
+          icon={DollarSign}
+        />
+        <StatCard label="Menunggu" value={stats.pending} tone="accent" icon={Clock} />
+        <StatCard label="Lunas" value={stats.paid} tone="secondary" icon={CheckCircle2} />
+        <StatCard label="Total Transaksi" value={stats.total} tone="primary" icon={TrendingUp} />
       </div>
 
       {/* Revenue by method */}
       {Object.keys(stats.revenueByMethod).length > 0 && (
-        <Card className="border-slate-200 dark:border-gray-700">
+        <Card className="rounded-2xl border-border shadow-soft">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-slate-800 dark:text-gray-100">Pendapatan per Metode</CardTitle>
+            <CardTitle className="text-base text-foreground">Pendapatan per Metode</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -249,13 +214,13 @@ export default function AdminPaymentsPage() {
                 .map(([method, amount]) => {
                   const Icon = METHOD_ICON[method] || DollarSign
                   return (
-                    <div key={method} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-gray-800 last:border-0">
+                    <div key={method} className="flex items-center justify-between py-2 border-b border-border/60 last:border-0">
                       <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4 text-slate-400 dark:text-gray-500" />
-                        <span className="text-sm text-slate-700 dark:text-gray-200 capitalize">{method.toUpperCase()}</span>
-                        <span className="text-xs text-slate-400 dark:text-gray-500">({stats.byMethod[method]} transaksi)</span>
+                        <Icon className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm text-foreground capitalize">{method.toUpperCase()}</span>
+                        <span className="text-xs text-muted-foreground">({stats.byMethod[method]} transaksi)</span>
                       </div>
-                      <span className="text-sm font-semibold text-green-700 dark:text-green-400">
+                      <span className="text-sm font-semibold text-success">
                         Rp {amount.toLocaleString('id-ID')}
                       </span>
                     </div>
@@ -267,15 +232,15 @@ export default function AdminPaymentsPage() {
       )}
 
       {/* Filters */}
-      <Card className="border-slate-200 dark:border-gray-700">
+      <Card className="rounded-2xl border-border shadow-soft">
         <CardContent className="pt-4 pb-3">
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-500 dark:text-gray-400 font-medium">Status:</label>
+              <label className="text-xs text-muted-foreground font-medium">Status:</label>
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="text-xs border border-slate-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200"
+                className="text-xs border border-border rounded-xl px-2.5 py-1.5 bg-card text-foreground"
               >
                 <option value="all">Semua</option>
                 <option value="pending">Menunggu</option>
@@ -286,11 +251,11 @@ export default function AdminPaymentsPage() {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-500 dark:text-gray-400 font-medium">Metode:</label>
+              <label className="text-xs text-muted-foreground font-medium">Metode:</label>
               <select
                 value={filterMethod}
                 onChange={e => setFilterMethod(e.target.value)}
-                className="text-xs border border-slate-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200"
+                className="text-xs border border-border rounded-xl px-2.5 py-1.5 bg-card text-foreground"
               >
                 <option value="all">Semua</option>
                 {uniqueMethods.map(m => (
@@ -309,15 +274,15 @@ export default function AdminPaymentsPage() {
       )}
 
       {/* Payment list */}
-      <Card className="border-slate-200 dark:border-gray-700">
+      <Card className="rounded-2xl border-border shadow-soft">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base text-slate-800 dark:text-gray-100">
+          <CardTitle className="text-base text-foreground">
             Daftar Pembayaran ({filtered.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-gray-500 text-center py-8">Tidak ada data pembayaran.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Tidak ada data pembayaran.</p>
           ) : (
             <div className="space-y-3">
               {filtered.map(p => {
@@ -331,40 +296,40 @@ export default function AdminPaymentsPage() {
                 return (
                   <div
                     key={p.id}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors"
+                    className="p-4 rounded-2xl border border-border hover:bg-muted/40 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-slate-800 dark:text-foreground">
+                          <p className="font-semibold text-foreground">
                             Rp {Number(p.amount).toLocaleString('id-ID')}
                           </p>
-                          <Badge className={`${cfg.color} text-xs flex items-center gap-1`}>
+                          <Badge className={`${cfg.color} rounded-full text-xs flex items-center gap-1`}>
                             <Icon className="w-3 h-3" /> {cfg.label}
                           </Badge>
-                          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-gray-400">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <MethodIcon className="w-3.5 h-3.5" />
                             <span className="uppercase">{p.payment_method}</span>
                           </div>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-muted-foreground">
-                          Siswa: <span className="font-medium">{studentName}</span>
-                          {studentEmail && <span className="text-slate-400 dark:text-gray-500"> · {studentEmail}</span>}
+                        <p className="text-sm text-muted-foreground">
+                          Siswa: <span className="font-medium text-foreground">{studentName}</span>
+                          {studentEmail && <span className="text-muted-foreground/70"> · {studentEmail}</span>}
                         </p>
-                        <p className="text-sm text-slate-600 dark:text-muted-foreground">
-                          Tutor: <span className="font-medium">{tutorName}</span>
+                        <p className="text-sm text-muted-foreground">
+                          Tutor: <span className="font-medium text-foreground">{tutorName}</span>
                           {subject !== '—' && <span> · {subject}</span>}
                         </p>
                         {p.transaction_ref && (
-                          <p className="text-xs text-slate-400 dark:text-gray-500 font-mono">{p.transaction_ref}</p>
+                          <p className="text-xs text-muted-foreground/70 font-mono">{p.transaction_ref}</p>
                         )}
-                        <p className="text-xs text-slate-400 dark:text-gray-500">
+                        <p className="text-xs text-muted-foreground/70">
                           {new Date(p.created_at).toLocaleString('id-ID', {
                             day: 'numeric', month: 'short', year: 'numeric',
                             hour: '2-digit', minute: '2-digit',
                           })}
                           {p.paid_at && (
-                            <span className="ml-2 text-green-600 dark:text-green-400">
+                            <span className="ml-2 text-success">
                               · Lunas: {new Date(p.paid_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                             </span>
                           )}
@@ -379,7 +344,7 @@ export default function AdminPaymentsPage() {
                             variant="outline"
                             disabled={confirmingId === p.id}
                             onClick={() => handleAction(p.id, 'rejected')}
-                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
                           >
                             {confirmingId === p.id ? <Spinner className="w-3 h-3" /> : <XCircle className="w-4 h-4" />}
                             <span className="ml-1 hidden sm:inline">Tolak</span>
@@ -388,7 +353,7 @@ export default function AdminPaymentsPage() {
                             size="sm"
                             disabled={confirmingId === p.id}
                             onClick={() => handleAction(p.id, 'paid')}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
                           >
                             {confirmingId === p.id ? <Spinner className="w-3 h-3" /> : <CheckCircle2 className="w-4 h-4" />}
                             <span className="ml-1 hidden sm:inline">Konfirmasi</span>

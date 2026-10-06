@@ -131,7 +131,7 @@ export default function HandwritingPage() {
             <Badge variant="outline" className="text-primary border-primary">
               Tahap 4 dari 5
             </Badge>
-            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30">✍️ Tulisan Tangan</Badge>
+            <Badge className="bg-secondary/15 text-secondary border-secondary/30">✍️ Tulisan Tangan</Badge>
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Tes Tulisan Tangan & Penjelasan
@@ -142,8 +142,8 @@ export default function HandwritingPage() {
           </p>
         </div>
 
-        <Alert className="mb-8 bg-blue-50 border-blue-200">
-          <AlertDescription className="text-blue-800">
+        <Alert className="mb-8 bg-primary/10 border-primary/30">
+          <AlertDescription className="text-primary">
             <ul className="space-y-1">
               <li>📷 Ambil foto jawaban tulisan tangan Anda dengan pencahayaan yang baik</li>
               <li>✏️ Pastikan tulisan jelas, rapi, dan mudah dibaca</li>
@@ -174,7 +174,7 @@ export default function HandwritingPage() {
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                     problems[index].imageFile
-                      ? 'border-green-400 bg-green-50'
+                      ? 'border-success/50 bg-success/10'
                       : 'border-border hover:border-primary/50'
                   }`}
                 >
@@ -201,7 +201,7 @@ export default function HandwritingPage() {
                     )}
                   </label>
                   {problems[index].imageFile && (
-                    <p className="text-sm text-green-300 mt-2 font-medium">
+                    <p className="text-sm text-success mt-2 font-medium">
                       ✓ {problems[index].imageFile!.name}
                     </p>
                   )}
@@ -222,7 +222,7 @@ export default function HandwritingPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {problems[index].explanation.length}/50 karakter minimum
                   {problems[index].explanation.length >= 50 && (
-                    <span className="text-green-300 ml-2">✓ Mencukupi</span>
+                    <span className="text-success ml-2">✓ Mencukupi</span>
                   )}
                 </p>
               </div>

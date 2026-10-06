@@ -11,10 +11,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', color: 'bg-yellow-900/30 text-yellow-400' },
-  approved: { label: 'Terverifikasi', color: 'bg-green-900/30 text-green-400' },
-  rejected: { label: 'Ditolak', color: 'bg-red-900/30 text-red-400' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-gray-700 text-gray-300' },
+  pending: { label: 'Menunggu Verifikasi', color: 'bg-warning/10 text-warning' },
+  approved: { label: 'Terverifikasi', color: 'bg-secondary/10 text-secondary' },
+  rejected: { label: 'Ditolak', color: 'bg-destructive/10 text-destructive' },
+  suspended: { label: 'Ditangguhkan', color: 'bg-muted text-muted-foreground' },
 }
 
 export default function TutorProfile() {
@@ -122,8 +122,8 @@ export default function TutorProfile() {
       )}
 
       {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-300">{success}</AlertDescription>
+        <Alert className="border-secondary/20 bg-secondary/10">
+          <AlertDescription className="text-foreground">{success}</AlertDescription>
         </Alert>
       )}
 
@@ -153,12 +153,12 @@ export default function TutorProfile() {
             </p>
           )}
           {profile.approval_status === 'approved' && (
-            <p className="text-sm text-green-300">
+            <p className="text-sm text-secondary">
               Profil Anda telah diverifikasi dan disetujui! Anda sekarang dapat menerima permintaan dari siswa.
             </p>
           )}
           {profile.verified && (
-            <Badge variant="outline" className="bg-green-50 text-green-300 border-green-200 mt-2">
+            <Badge variant="outline" className="mt-2 border-secondary/20 bg-secondary/10 text-secondary">
               ✓ Terverifikasi
             </Badge>
           )}
@@ -170,7 +170,7 @@ export default function TutorProfile() {
           <CardTitle>Informasi Pribadi</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="fullName">Nama Lengkap</Label>
               <Input
@@ -219,7 +219,7 @@ export default function TutorProfile() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="experience">Pengalaman Mengajar (Tahun)</Label>
               <Input
@@ -257,9 +257,9 @@ export default function TutorProfile() {
           </div>
 
           {profile.rating > 0 && (
-            <div className="bg-muted p-3 rounded-lg">
+            <div className="rounded-xl bg-muted p-3">
               <p className="text-sm text-muted-foreground">Rating Rata-rata</p>
-              <p className="text-lg font-bold text-yellow-500">
+              <p className="text-lg font-bold text-accent">
                 ★ {profile.rating} ({profile.total_reviews} ulasan)
               </p>
             </div>
@@ -270,7 +270,7 @@ export default function TutorProfile() {
       <Button
         onClick={handleSaveProfile}
         disabled={saving}
-        className="w-full bg-primary hover:bg-primary/90"
+        className="w-full"
       >
         {saving ? (
           <>

@@ -6,10 +6,10 @@ import { CheckCircle2 } from 'lucide-react'
 export default function PaymentSuccessPage() {
   return (
     <div className="max-w-md mx-auto mt-16 p-4">
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <CheckCircle2 className="w-16 h-16 text-green-500" />
+            <CheckCircle2 className="w-16 h-16 text-success" />
           </div>
           <CardTitle>Pembayaran Berhasil</CardTitle>
         </CardHeader>

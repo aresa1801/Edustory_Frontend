@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { PageHeader } from '@/components/dashboard/ui'
 
 // ========== HELPER ==========
 const getNext37Days = () => {
@@ -619,25 +620,26 @@ function SetScheduleContent() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Atur Jadwal Belajar</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        eyebrow="Jadwal"
+        title="Atur Jadwal Belajar"
+        description={
+          <>
             Pilih mata pelajaran dan tentukan jadwal untuk{' '}
-            <span className="font-medium">{matchData.tutor_full_name || 'Tutor'}</span>.
-          </p>
-        </div>
-      </div>
+            <span className="font-medium text-foreground">{matchData.tutor_full_name || 'Tutor'}</span>.
+          </>
+        }
+      />
 
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
           <Badge variant="outline" className="text-sm font-normal">
             📊 Sesi tersisa:{' '}
             <span className={`font-bold ${
-              remainingSessions <= 0 ? 'text-red-500' :
-              remainingSessions <= 3 ? 'text-orange-500' :
-              'text-green-600'
+              remainingSessions <= 0 ? 'text-destructive' :
+              remainingSessions <= 3 ? 'text-warning' :
+              'text-success'
             }`}>
               {remainingSessions}
             </span>
@@ -709,7 +711,7 @@ function SetScheduleContent() {
       </Card>
 
       {selectedSubjects.length >= 2 && (
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="text-lg">Pilih Mata Pelajaran Aktif</CardTitle>
           </CardHeader>
@@ -727,7 +729,7 @@ function SetScheduleContent() {
                     key={subj}
                     variant="outline"
                     disabled
-                    className="bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed capitalize"
+                    className="bg-muted text-muted-foreground border-border cursor-not-allowed capitalize"
                   >
                     {subj} {used}/{allocated}
                   </Button>
@@ -741,8 +743,8 @@ function SetScheduleContent() {
                   onClick={() => setActiveSubject(subj)}
                   className={`capitalize ${
                     isActive
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'hover:bg-muted'
                   }`}
                 >
                   {subj} {used}/{allocated}
@@ -759,7 +761,7 @@ function SetScheduleContent() {
         </Card>
       )}
 
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{monthName}</CardTitle>
           <span className="text-sm text-muted-foreground">
@@ -771,13 +773,13 @@ function SetScheduleContent() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-gray-800 z-10 border-r-2 font-semibold text-white">
+                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-foreground z-10 border-r-2 font-semibold text-background">
                     Jam
                   </th>
                   {visibleDates.map((date, idx) => (
-                    <th key={idx} className="border p-1 text-center min-w-[44px] bg-gray-800 text-white">
+                    <th key={idx} className="border p-1 text-center min-w-[44px] bg-foreground text-background">
                       <div>{date.getDate()}</div>
-                      <div className="text-xs text-gray-300">
+                      <div className="text-xs text-background/70">
                         {date.toLocaleDateString('id-ID', { weekday: 'short' })}
                       </div>
                     </th>
@@ -787,7 +789,7 @@ function SetScheduleContent() {
               <tbody>
                 {TIME_SLOTS.map((slot, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs sticky left-0 bg-gray-800 z-10 border-r-2 text-white">
+                    <td className="border p-1 font-medium text-xs sticky left-0 bg-foreground z-10 border-r-2 text-background">
                       {slot.label}
                     </td>
                     {visibleDates.map((date, colIdx) => {
@@ -796,14 +798,14 @@ function SetScheduleContent() {
                       return (
                         <td
                           key={colIdx}
-                          className="border p-0.5 text-center cursor-pointer hover:bg-gray-50"
+                          className="border p-0.5 text-center cursor-pointer hover:bg-muted/40"
                           onClick={() => handleSlotClick(date, slot.label)}
                         >
                           <div
                             className={`w-full h-10 flex items-center justify-center rounded transition-colors ${
                               filled
                                 ? 'bg-primary/20 text-primary font-bold'
-                                : 'bg-gray-100 hover:bg-gray-200'
+                                : 'bg-muted hover:bg-muted-foreground/20'
                             }`}
                           >
                             {filled ? subject?.charAt(0).toUpperCase() : 'O'}
@@ -823,7 +825,7 @@ function SetScheduleContent() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader>
           {/* 👇 Judul diubah jadi lebih ringkas 👇 */}
           <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
@@ -839,7 +841,7 @@ function SetScheduleContent() {
 
       <div className="flex justify-end">
         <Button
-          className="bg-green-600 hover:bg-green-700 text-white"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={() => {
             console.log('>>> Tombol Simpan diklik!');
             console.log('📊 totalSelected:', totalSelected);

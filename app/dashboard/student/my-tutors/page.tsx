@@ -2,17 +2,17 @@
 
 import { Suspense } from 'react'
 import { Spinner } from '@/components/ui/spinner'
+import { PageHeader } from '@/components/dashboard/ui'
 import StudentMyMatches from '@/components/dashboard/student/my-matches'
 
 export default function MyTutorsPage() {
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Pengajar Saya</h1>
-        <p className="text-muted-foreground">
-          Lihat semua pengajar yang sedang atau pernah mengajar Anda.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Pengajar"
+        title="Pengajar Saya"
+        description="Lihat semua pengajar yang sedang atau pernah mengajar Anda."
+      />
 
       <Suspense fallback={
         <div className="flex justify-center items-center py-12">

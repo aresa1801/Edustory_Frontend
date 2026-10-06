@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
 import { Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info, AlertTriangle } from 'lucide-react'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 
 interface TutorRating {
   matchId: string
@@ -29,55 +30,55 @@ const CREDIT_TIERS = [
   {
     range: '81-100',
     label: 'Aman',
-    color: 'bg-green-500',
-    textColor: 'text-green-400',
-    borderColor: 'border-green-500/40',
-    bgColor: 'bg-green-500/10',
+    color: 'bg-success',
+    textColor: 'text-success',
+    borderColor: 'border-success/40',
+    bgColor: 'bg-success/10',
     description: 'Bisa mengakses segala fitur tanpa hambatan.',
   },
   {
     range: '66-80',
     label: 'Pembatasan',
-    color: 'bg-lime-500',
-    textColor: 'text-lime-400',
-    borderColor: 'border-lime-500/40',
-    bgColor: 'bg-lime-500/10',
+    color: 'bg-secondary',
+    textColor: 'text-secondary',
+    borderColor: 'border-secondary/40',
+    bgColor: 'bg-secondary/10',
     description: 'Akses katalog tutor dibatasi refresh setiap 10 detik.',
   },
   {
     range: '51-65',
     label: 'Waspada',
-    color: 'bg-yellow-500',
-    textColor: 'text-yellow-400',
-    borderColor: 'border-yellow-500/40',
-    bgColor: 'bg-yellow-500/10',
+    color: 'bg-accent',
+    textColor: 'text-accent',
+    borderColor: 'border-accent/40',
+    bgColor: 'bg-accent/10',
     description: 'Mengubah profil akan mengalami jeda 2 hari sekali.',
   },
   {
     range: '26-50',
     label: 'Hati-hati',
-    color: 'bg-orange-500',
-    textColor: 'text-orange-400',
-    borderColor: 'border-orange-500/40',
-    bgColor: 'bg-orange-500/10',
+    color: 'bg-warning',
+    textColor: 'text-warning',
+    borderColor: 'border-warning/40',
+    bgColor: 'bg-warning/10',
     description: 'Katalog tutor dibekukan (tidak bisa mencari tutor baru sama sekali).',
   },
   {
     range: '6-25',
     label: 'Bahaya',
-    color: 'bg-red-500',
-    textColor: 'text-red-400',
-    borderColor: 'border-red-500/40',
-    bgColor: 'bg-red-500/10',
+    color: 'bg-destructive',
+    textColor: 'text-destructive',
+    borderColor: 'border-destructive/40',
+    bgColor: 'bg-destructive/10',
     description: 'Akun otomatis ditahan admin. Tidak bisa mencari tutor baru. Kontrak berjalan tetap dilanjutkan.',
   },
   {
     range: '0-5',
     label: 'Blacklist',
-    color: 'bg-black',
-    textColor: 'text-gray-300',
-    borderColor: 'border-gray-500/40',
-    bgColor: 'bg-gray-900/60',
+    color: 'bg-foreground',
+    textColor: 'text-muted-foreground',
+    borderColor: 'border-border',
+    bgColor: 'bg-muted',
     description: 'Akun akan di-banned.',
   },
 ]
@@ -318,16 +319,16 @@ export default function StudentAnalyticsPage() {
   // ⬇️ Credit warna
   const creditColor =
     credit.creditScore >= 80
-      ? 'text-green-400'
+      ? 'text-success'
       : credit.creditScore >= 50
-      ? 'text-yellow-400'
-      : 'text-red-400'
+      ? 'text-warning'
+      : 'text-destructive'
   const creditBg =
     credit.creditScore >= 80
-      ? 'bg-green-500/20'
+      ? 'bg-success/10'
       : credit.creditScore >= 50
-      ? 'bg-yellow-500/20'
-      : 'bg-red-500/20'
+      ? 'bg-warning/10'
+      : 'bg-destructive/10'
 
   if (loading) {
     return (
@@ -339,23 +340,22 @@ export default function StudentAnalyticsPage() {
   }
 
   const statCards = [
-    { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, color: 'text-blue-300', bg: 'bg-blue-500/20' },
-    { label: 'Sesi Selesai', value: stats.completedSessions, icon: Award, color: 'text-green-300', bg: 'bg-green-500/20' },
-    { label: 'Tutor Aktif', value: stats.activeTutors, icon: Users, color: 'text-purple-300', bg: 'bg-purple-500/20' },
-    { label: 'Penyelesaian', value: `${stats.completionRate}%`, icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/20' },
+    { label: 'Total Sesi', value: stats.totalSessions, icon: BookOpen, tone: 'primary' as const },
+    { label: 'Sesi Selesai', value: stats.completedSessions, icon: Award, tone: 'secondary' as const },
+    { label: 'Tutor Aktif', value: stats.activeTutors, icon: Users, tone: 'accent' as const },
+    { label: 'Penyelesaian', value: `${stats.completionRate}%`, icon: TrendingUp, tone: 'muted' as const },
   ]
 
   const unratedMatches = tutorRatings.filter(r => r.existingRating === null)
   const ratedMatches = tutorRatings.filter(r => r.existingRating !== null)
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik & Performa</h1>
-        <p className="text-muted-foreground">
-          Pantau progres belajar dan berikan penilaian kepada tutor Anda.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Analitik"
+        title="Analitik & Performa"
+        description="Pantau progres belajar dan berikan penilaian kepada tutor Anda."
+      />
 
       {/* ⬇️ BANNER SUSPEND */}
       {credit.isSuspended && credit.suspendedUntil && (
@@ -377,14 +377,14 @@ export default function StudentAnalyticsPage() {
       )}
 
       {error && (
-        <Alert className="mb-6 bg-amber-50 border-amber-200">
-          <AlertDescription className="text-amber-700 text-sm">{error}</AlertDescription>
+        <Alert className="mb-6 bg-warning/10 border-warning/20">
+          <AlertDescription className="text-warning text-sm">{error}</AlertDescription>
         </Alert>
       )}
 
       {/* ⬇️ CREDIT SCORE CARD — dipindah ke atas, full-width-ish */}
       <div className="mb-6">
-        <Card className="p-5">
+        <Card className="rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-3">
             <div
               className={`w-12 h-12 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}
@@ -415,24 +415,14 @@ export default function StudentAnalyticsPage() {
       </div>
 
       {/* ✅ STATS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} className="p-5">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center`}>
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-2xl font-bold text-foreground">{value}</p>
-              </div>
-            </div>
-          </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-8">
+        {statCards.map(({ label, value, icon: Icon, tone }) => (
+          <StatCard key={label} label={label} value={value} icon={Icon} tone={tone} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
@@ -449,7 +439,7 @@ export default function StudentAnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Star className="w-4 h-4" />
@@ -467,7 +457,7 @@ export default function StudentAnalyticsPage() {
                   {[1, 2, 3, 4, 5].map(star => (
                     <Star
                       key={star}
-                      className={`w-6 h-6 ${star <= Math.round(stats.averageRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`}
+                      className={`w-6 h-6 ${star <= Math.round(stats.averageRating) ? 'text-accent fill-accent' : 'text-muted-foreground/30'}`}
                     />
                   ))}
                 </div>
@@ -486,7 +476,7 @@ export default function StudentAnalyticsPage() {
       </div>
 
       {subjects.length > 0 && (
-        <Card className="mb-8">
+        <Card className="rounded-2xl shadow-soft mb-8">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
@@ -509,14 +499,14 @@ export default function StudentAnalyticsPage() {
             <MessageCircle className="w-5 h-5 text-primary" />
             Berikan Penilaian ({unratedMatches.length} tutor menunggu)
           </h2>
-          <Alert className="mb-4 bg-blue-50 border-blue-200">
-            <AlertDescription className="text-blue-800 text-sm">
+          <Alert className="mb-4 bg-primary/10 border-primary/20">
+            <AlertDescription className="text-primary text-sm">
               Penilaian Anda membantu siswa lain menemukan tutor terbaik. Berikan penilaian jujur berdasarkan pengalaman belajar Anda.
             </AlertDescription>
           </Alert>
           <div className="space-y-3">
             {unratedMatches.map(item => (
-              <Card key={item.matchId} className="border-l-4 border-l-primary/40">
+              <Card key={item.matchId} className="rounded-2xl shadow-soft border-l-4 border-l-primary/40">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -547,7 +537,7 @@ export default function StudentAnalyticsPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Riwayat Penilaian</h2>
           <div className="space-y-3">
             {ratedMatches.map(item => (
-              <Card key={item.matchId}>
+              <Card key={item.matchId} className="rounded-2xl shadow-soft">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -557,7 +547,7 @@ export default function StudentAnalyticsPage() {
                         {[1, 2, 3, 4, 5].map(star => (
                           <Star
                             key={star}
-                            className={`w-4 h-4 ${star <= (item.existingRating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`}
+                            className={`w-4 h-4 ${star <= (item.existingRating || 0) ? 'text-accent fill-accent' : 'text-muted-foreground/30'}`}
                           />
                         ))}
                         <span className="text-sm font-medium text-foreground ml-1">{item.existingRating}/5</span>
@@ -566,7 +556,7 @@ export default function StudentAnalyticsPage() {
                         <p className="text-sm text-muted-foreground mt-1 italic">&ldquo;{item.existingReview}&rdquo;</p>
                       )}
                     </div>
-                    <Badge className="bg-green-500/20 text-green-700 border border-green-200 text-xs">
+                    <Badge className="bg-success/10 text-success border border-success/20 text-xs">
                       Sudah Dinilai
                     </Badge>
                   </div>
@@ -598,7 +588,7 @@ export default function StudentAnalyticsPage() {
                   >
                     <Star
                       className={`w-8 h-8 transition-colors ${
-                        star <= ratingValue ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                        star <= ratingValue ? 'text-accent fill-accent' : 'text-muted-foreground/30'
                       }`}
                     />
                   </button>
@@ -642,7 +632,7 @@ export default function StudentAnalyticsPage() {
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-green-500" />
+              <Shield className="w-5 h-5 text-success" />
               Tingkatan Credit Score
             </DialogTitle>
             <DialogDescription>
