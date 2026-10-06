@@ -16,26 +16,24 @@ export async function autoCompleteExpiredSessions() {
 
     const nowMs = Date.now()
 
-    const { data: sessions } = await supabase
+    // ============================================================
+    // BAGIAN 1 — Complete session `ongoing` yang udah lewat deadline
+    // ============================================================
+    const { data: ongoingSessions } = await supabase
       .from('sessions')
       .select('id, match_id, student_id, tutor_id, started_at, duration_minutes')
       .eq('status', 'ongoing')
       .not('started_at', 'is', null)
       .is('completed_at', null)
 
-    if (!sessions || sessions.length === 0) return { completed: 0 }
-
-    const toComplete = sessions.filter((s: any) => {
+    const toComplete = (ongoingSessions || []).filter((s: any) => {
       const iso = String(s.started_at).replace(' ', 'T')
       const startMs = new Date(iso).getTime()
       if (isNaN(startMs)) return false
       return nowMs >= startMs + (s.duration_minutes || 60) * 60 * 1000
     })
 
-    if (toComplete.length === 0) return { completed: 0 }
-
     let completed = 0
-    let creditAwarded = 0
 
     for (const session of toComplete) {
       try {
@@ -53,7 +51,7 @@ export async function autoCompleteExpiredSessions() {
         const fee = Math.round(rate * 0.1)
         const tutorEarning = rate - fee
 
-        // 🔥 CLAIM — conditional UPDATE sebagai mutex.
+        // 🔥 CLAIM — conditional UPDATE sebagai mutex
         const { data: claimed, error: claimErr } = await supabase
           .from('wallet_transactions')
           .update({
@@ -107,16 +105,19 @@ export async function autoCompleteExpiredSessions() {
         const newTutorBalance = Number(tw2?.balance) || tutorEarning
 
         // Insert log earning
-        await supabase.from('wallet_transactions').insert({
-          tutor_id: session.tutor_id,
-          match_id: session.match_id,
-          amount: tutorEarning,
-          type: 'session_earning',
-          status: 'completed',
-          reference: session.id,
-          description: `Pendapatan Sesi - ${match.tutor_full_name || 'Tutor'}`,
-          balance_after: newTutorBalance,
-        }).then(() => {}, () => {})
+        await supabase
+          .from('wallet_transactions')
+          .insert({
+            tutor_id: session.tutor_id,
+            match_id: session.match_id,
+            amount: tutorEarning,
+            type: 'session_earning',
+            status: 'completed',
+            reference: session.id,
+            description: `Pendapatan Sesi - ${match.tutor_full_name || 'Tutor'}`,
+            balance_after: newTutorBalance,
+          })
+          .then(() => {}, () => {})
 
         // Atomic credit platform
         await supabase.rpc('wallet_credit_platform', { p_amount: fee })
@@ -129,17 +130,52 @@ export async function autoCompleteExpiredSessions() {
         const newPlatBal = Number(pw2?.balance) || fee
 
         // Insert log platform fee
-        await supabase.from('wallet_transactions').insert({
-          match_id: session.match_id,
-          amount: fee,
-          type: 'platform_fee',
-          status: 'completed',
-          reference: session.id,
-          description: `Biaya Platform (10%) - Sesi ${session.id.slice(0, 8)}`,
-          balance_after: newPlatBal,
-        }).then(() => {}, () => {})
+        await supabase
+          .from('wallet_transactions')
+          .insert({
+            match_id: session.match_id,
+            amount: fee,
+            type: 'platform_fee',
+            status: 'completed',
+            reference: session.id,
+            description: `Biaya Platform (10%) - Sesi ${session.id.slice(0, 8)}`,
+            balance_after: newPlatBal,
+          })
+          .then(() => {}, () => {})
 
-        // ===== +2 CREDIT untuk tutor & student =====
+        // Update session → completed
+        await supabase
+          .from('sessions')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', session.id)
+
+        completed++
+      } catch (err) {
+        console.error('[autoComplete] error:', session.id, err)
+      }
+    }
+
+    // ============================================================
+    // BAGIAN 2 — CATCH-UP: kasih +2 ke session yang udah `completed`
+    // tapi belum dikasih log credit `both_ready`
+    // (scoped ke 15 menit terakhir, biar gak nabrak data lama)
+    // ============================================================
+    const cutoff15min = new Date(nowMs - 15 * 60 * 1000).toISOString()
+
+    const { data: recentlyCompleted } = await supabase
+      .from('sessions')
+      .select('id, match_id, student_id, tutor_id, completed_at')
+      .eq('status', 'completed')
+      .gte('completed_at', cutoff15min)
+      .not('started_at', 'is', null)
+
+    let creditAwarded = 0
+
+    for (const session of recentlyCompleted || []) {
+      try {
         // Anti-dobel: cek apakah session ini udah pernah dikasih +2
         const { data: existingReward } = await supabase
           .from('credit_log')
@@ -148,35 +184,28 @@ export async function autoCompleteExpiredSessions() {
           .eq('reason', 'both_ready')
           .limit(1)
 
-        if (!existingReward || existingReward.length === 0) {
-          const results = await Promise.all([
-            adjustCredit({
-              profileId: session.tutor_id,
-              role: 'tutor',
-              delta: DELTA.both_ready,
-              reason: 'both_ready',
-              refId: session.id,
-            }),
-            adjustCredit({
-              profileId: session.student_id,
-              role: 'student',
-              delta: DELTA.both_ready,
-              reason: 'both_ready',
-              refId: session.id,
-            }),
-          ])
-          creditAwarded += results.filter((r) => r.ok).length
-        }
+        if (existingReward && existingReward.length > 0) continue
 
-        // Update session
-        await supabase
-          .from('sessions')
-          .update({ status: 'completed', completed_at: new Date().toISOString() })
-          .eq('id', session.id)
+        const results = await Promise.all([
+          adjustCredit({
+            profileId: session.tutor_id,
+            role: 'tutor',
+            delta: DELTA.both_ready,
+            reason: 'both_ready',
+            refId: session.id,
+          }),
+          adjustCredit({
+            profileId: session.student_id,
+            role: 'student',
+            delta: DELTA.both_ready,
+            reason: 'both_ready',
+            refId: session.id,
+          }),
+        ])
 
-        completed++
+        creditAwarded += results.filter((r) => r.ok).length
       } catch (err) {
-        console.error('[autoComplete] error:', session.id, err)
+        console.error('[autoComplete] catchup error:', session.id, err)
       }
     }
 
