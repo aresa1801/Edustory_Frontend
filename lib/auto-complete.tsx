@@ -1,10 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
+import { adjustCredit, DELTA } from '@/lib/credit'
 
 export async function autoCompleteExpiredSessions() {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const nowMs = Date.now()
@@ -28,6 +35,7 @@ export async function autoCompleteExpiredSessions() {
     if (toComplete.length === 0) return { completed: 0 }
 
     let completed = 0
+    let creditAwarded = 0
 
     for (const session of toComplete) {
       try {
@@ -46,7 +54,6 @@ export async function autoCompleteExpiredSessions() {
         const tutorEarning = rate - fee
 
         // 🔥 CLAIM — conditional UPDATE sebagai mutex.
-        // Kalau 2 instance healing jalan paralel, cuma 1 yang dapet row.
         const { data: claimed, error: claimErr } = await supabase
           .from('wallet_transactions')
           .update({
@@ -91,7 +98,7 @@ export async function autoCompleteExpiredSessions() {
           })
         }
 
-        // Baca balance tutor setelah update (buat balance_after di log)
+        // Baca balance tutor setelah update
         const { data: tw2 } = await supabase
           .from('wallets')
           .select('balance')
@@ -99,7 +106,7 @@ export async function autoCompleteExpiredSessions() {
           .maybeSingle()
         const newTutorBalance = Number(tw2?.balance) || tutorEarning
 
-        // Insert log earning (unique index protect)
+        // Insert log earning
         await supabase.from('wallet_transactions').insert({
           tutor_id: session.tutor_id,
           match_id: session.match_id,
@@ -114,7 +121,6 @@ export async function autoCompleteExpiredSessions() {
         // Atomic credit platform
         await supabase.rpc('wallet_credit_platform', { p_amount: fee })
 
-        // Baca balance platform setelah update
         const { data: pw2 } = await supabase
           .from('platform_wallet')
           .select('balance')
@@ -133,6 +139,35 @@ export async function autoCompleteExpiredSessions() {
           balance_after: newPlatBal,
         }).then(() => {}, () => {})
 
+        // ===== +2 CREDIT untuk tutor & student =====
+        // Anti-dobel: cek apakah session ini udah pernah dikasih +2
+        const { data: existingReward } = await supabase
+          .from('credit_log')
+          .select('id')
+          .eq('ref_id', session.id)
+          .eq('reason', 'both_ready')
+          .limit(1)
+
+        if (!existingReward || existingReward.length === 0) {
+          const results = await Promise.all([
+            adjustCredit({
+              profileId: session.tutor_id,
+              role: 'tutor',
+              delta: DELTA.both_ready,
+              reason: 'both_ready',
+              refId: session.id,
+            }),
+            adjustCredit({
+              profileId: session.student_id,
+              role: 'student',
+              delta: DELTA.both_ready,
+              reason: 'both_ready',
+              refId: session.id,
+            }),
+          ])
+          creditAwarded += results.filter((r) => r.ok).length
+        }
+
         // Update session
         await supabase
           .from('sessions')
@@ -145,9 +180,9 @@ export async function autoCompleteExpiredSessions() {
       }
     }
 
-    return { completed }
+    return { completed, creditAwarded }
   } catch (err) {
     console.error('[autoComplete] unexpected:', err)
-    return { completed: 0 }
+    return { completed: 0, creditAwarded: 0 }
   }
 }

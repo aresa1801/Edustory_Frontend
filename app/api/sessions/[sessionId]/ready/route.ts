@@ -119,26 +119,6 @@ export async function PATCH(
       return NextResponse.json({ error: uErr.message }, { status: 500 })
     }
 
-    // ⬇️ +2 untuk tutor & student saat both_ready
-    if (bothReady) {
-      await Promise.all([
-        adjustCredit({
-          profileId: session.tutor_id,
-          role: 'tutor',
-          delta: DELTA.both_ready,
-          reason: 'both_ready',
-          refId: session.match_id,
-        }),
-        adjustCredit({
-          profileId: session.student_id,
-          role: 'student',
-          delta: DELTA.both_ready,
-          reason: 'both_ready',
-          refId: session.match_id,
-        }),
-      ])
-    }
-
     return NextResponse.json({
       success: true,
       both_ready: bothReady,
