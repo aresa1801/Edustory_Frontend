@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -96,6 +96,34 @@ export default function StudentOffersPage() {
   const [mode, setMode] = useState<ModeOption>('online')
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+    // Suspend state
+  const [suspendInfo, setSuspendInfo] = useState<{
+    suspendedUntil: string
+  } | null>(null)
+  const [nowTick, setNowTick] = useState(Date.now())
+
+  // Timer countdown — update tiap detik kalau suspend aktif
+  useEffect(() => {
+    if (!suspendInfo) return
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [suspendInfo])
+
+  // Format countdown
+  const suspendCountdown = useMemo(() => {
+    if (!suspendInfo) return ''
+    const ms = new Date(suspendInfo.suspendedUntil).getTime() - nowTick
+    if (ms <= 0) return 'Hukuman selesai'
+    const totalSec = Math.floor(ms / 1000)
+    const days = Math.floor(totalSec / 86400)
+    const hours = Math.floor((totalSec % 86400) / 3600)
+    const minutes = Math.floor((totalSec % 3600) / 60)
+    const seconds = totalSec % 60
+    if (days > 0) return `${days} hari ${hours} jam ${minutes} menit`
+    if (hours > 0) return `${hours} jam ${minutes} menit ${seconds} detik`
+    if (minutes > 0) return `${minutes} menit ${seconds} detik`
+    return `${seconds} detik`
+  }, [suspendInfo, nowTick])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
   const listRef = useRef<HTMLDivElement>(null)
@@ -302,46 +330,57 @@ export default function StudentOffersPage() {
     setShowConfirmDialog(true)
   }
 
-  const handleConfirmSend = async () => {
-  if (!selectedStudent || !tutorProfile) return
+    const handleConfirmSend = async () => {
+    if (!selectedStudent || !tutorProfile) return
 
-  const student = selectedStudent
-  setShowConfirmDialog(false)
-  setSending(student.id)
+    const student = selectedStudent
+    setShowConfirmDialog(false)
+    setSending(student.id)
 
-  try {
-    // Hitung mata pelajaran yang cocok
-    const matchedSubjects = getMatchedSubjects(student, tutorProfile)
+    try {
+      const matchedSubjects = getMatchedSubjects(student, tutorProfile)
+      const primarySubject = matchedSubjects.length > 0 ? matchedSubjects[0] : 'Umum'
 
-    // Ambil subject pertama untuk kompatibilitas (atau bisa gunakan matchedSubjects[0])
-    const primarySubject = matchedSubjects.length > 0 ? matchedSubjects[0] : 'Umum'
+      const res = await fetch('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tutor_id: tutorProfile.id,
+          student_id: student.id,
+          subject: primarySubject,
+          matched_subjects: matchedSubjects,
+          status: 'pending',
+          initiated_by: 'tutor',
+          lesson_frequency: 'flexible',
+          start_date: new Date().toISOString().split('T')[0],
+        }),
+      })
 
-    const res = await fetch('/api/matches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tutor_id: tutorProfile.id,
-        student_id: student.id,
-        subject: primarySubject, // tetap kirim untuk kompatibilitas
-        matched_subjects: matchedSubjects, // kirim array semua yang cocok
-        status: 'pending',
-        initiated_by: 'tutor',
-        lesson_frequency: 'flexible',
-        start_date: new Date().toISOString().split('T')[0],
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Gagal')
+      // ⬇️ HANDLE SUSPEND
+      if (res.status === 403) {
+        const err = await res.json().catch(() => ({}))
+        if (err.error === 'SUSPENDED' && err.suspendedUntil) {
+          setSuspendInfo({ suspendedUntil: err.suspendedUntil })
+          setSending(null)
+          setSelectedStudent(null)
+          return
+        }
+        throw new Error(err.error || 'Akses ditolak')
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Gagal mengirim penawaran')
+      }
+
+      alert('✅ Penawaran berhasil dikirim!')
+    } catch (err: any) {
+      alert('❌ Gagal: ' + err.message)
+    } finally {
+      setSending(null)
+      setSelectedStudent(null)
     }
-    alert('✅ Penawaran berhasil dikirim!')
-  } catch (err: any) {
-    alert('❌ Gagal: ' + err.message)
-  } finally {
-    setSending(null)
-    setSelectedStudent(null)
   }
-}
 
   const handleFilter = (option: FilterOption) => {
     setFilterOption(option)
@@ -609,6 +648,39 @@ export default function StudentOffersPage() {
           </div>
         )}
       </div>
+
+      {/* Dialog Suspend */}
+      <Dialog open={!!suspendInfo} onOpenChange={(o) => { if (!o) setSuspendInfo(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertTriangle className="w-5 h-5" />
+              Akun Anda Sedang Disuspend
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda tidak bisa menerima siswa baru karena baru saja
+              membatalkan kontrak secara paksa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-xs text-muted-foreground mb-2">Sisa hukuman:</p>
+            <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center">
+              <p className="text-2xl font-bold font-mono text-red-400">
+                {suspendCountdown}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSuspendInfo(null)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Konfirmasi */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

@@ -9,6 +9,8 @@ import {
 } from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 const TERMINATION_WINDOW_HOURS = 48
 const REASON_MAX_LENGTH = 500
@@ -23,7 +25,13 @@ export async function POST(
   try {
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const { matchId } = params
@@ -50,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: 'user_id tidak valid' }, { status: 400 })
     }
 
-    // ✅ WAJIB: reason untuk mutual, sanitize
+    // WAJIB: reason untuk mutual, sanitize
     let cleanReason: string | null = null
     if (type === 'mutual') {
       if (typeof reason !== 'string' || reason.trim().length === 0) {
@@ -139,21 +147,22 @@ export async function POST(
         .update({ status: 'completed', ended_at: now.toISOString() })
         .eq('id', matchId)
 
-            await supabaseAdmin
+      await supabaseAdmin
         .from('sessions')
         .update({ status: 'cancelled', cancelled_at: now.toISOString() })
         .eq('match_id', matchId)
         .is('completed_at', null)
         .is('cancelled_at', null)
 
-      // ⬇️ -40 credit + suspend 3 hari untuk pelaku unilateral
+      // -40 credit + suspend 3 hari untuk PELAKU unilateral
+      // refId: null karena ref_id FK ke sessions.id, bukan matches.id
       const [creditRes, suspendRes] = await Promise.all([
         adjustCredit({
           profileId: profile.id,
           role: role as 'tutor' | 'student',
           delta: DELTA.unilateral_terminate,
           reason: 'unilateral_terminate',
-          refId: matchId,
+          refId: null,
         }),
         suspendUser({
           profileId: profile.id,
@@ -217,7 +226,13 @@ export async function PATCH(
   try {
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const { matchId } = params
@@ -280,7 +295,7 @@ export async function PATCH(
 
     const now = new Date()
 
-    // ===== ACKNOWLEDGE: requester tandai sudah lihat penolakan =====
+    // ===== ACKNOWLEDGE =====
     if (action === 'acknowledge') {
       if (currentReq.requested_by !== role) {
         return NextResponse.json({ error: 'Hanya pengaju' }, { status: 403 })
@@ -304,7 +319,7 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== CANCEL: hanya pengaju =====
+    // ===== CANCEL =====
     if (action === 'cancel') {
       if (currentReq.requested_by !== role) {
         return NextResponse.json({ error: 'Hanya pengaju' }, { status: 403 })
@@ -323,7 +338,7 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== APPROVE / REJECT: hanya penerima =====
+    // ===== APPROVE / REJECT =====
     if (currentReq.requested_by === role) {
       return NextResponse.json({ error: 'Hanya penerima' }, { status: 403 })
     }
@@ -350,7 +365,7 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // ===== APPROVE =====
+    // ===== APPROVE (MUTUAL) — TANPA PENALTY =====
     const { error: updSchedErr } = await supabaseAdmin
       .from('match_schedules')
       .update({

@@ -2,12 +2,22 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 // GET (tidak berubah)
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const authHeader = request.headers.get('authorization')
@@ -71,12 +81,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST – dengan tambahan tutor_avatar_url
+// POST – dengan tambahan tutor_avatar_url + cek suspend
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const body = await request.json()
@@ -86,16 +102,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
     }
 
-    // 1. Ambil data tutor (termasuk avatar_url)
+    // 1. Ambil data tutor (termasuk avatar_url + suspended_until)
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
-      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url')
+      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, suspended_until')
       .eq('id', tutor_id)
       .single()
 
     if (tutorErr || !tutor) {
       console.error('[API] Tutor error:', tutorErr)
       return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
+    }
+
+    // ============================================================
+    // ⬇️ BARU: Cek suspend tutor
+    // Kalau suspended_until > now → tolak dengan 403 + info countdown
+    // ============================================================
+    if (tutor.suspended_until) {
+      const suspendedUntilMs = new Date(tutor.suspended_until).getTime()
+      if (suspendedUntilMs > Date.now()) {
+        return NextResponse.json(
+          {
+            error: 'SUSPENDED',
+            message: 'Akun tutor sedang disuspend. Tidak bisa mengirim penawaran.',
+            suspendedUntil: tutor.suspended_until,
+          },
+          { status: 403 }
+        )
+      }
     }
 
     // 2. Ambil data student
@@ -136,7 +170,7 @@ export async function POST(request: NextRequest) {
         student_longitude: student.longitude,
         student_is_online: student.is_online ?? true,
 
-        // Statis tutor (tambah avatar_url)
+        // Statis tutor
         tutor_full_name: tutor.full_name,
         tutor_bio: tutor.bio,
         tutor_experience_years: tutor.experience_years,
@@ -144,7 +178,7 @@ export async function POST(request: NextRequest) {
         tutor_rating: tutor.rating,
         tutor_total_reviews: tutor.total_reviews,
         tutor_verified_grade_levels: tutor.verified_grade_levels,
-        tutor_avatar_url: tutor.avatar_url, // ✅ baru
+        tutor_avatar_url: tutor.avatar_url,
       })
       .select()
 
