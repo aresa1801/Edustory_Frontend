@@ -7,7 +7,6 @@ export const runtime = 'nodejs'
 
 export async function GET() {
   try {
-    // 1. Baca session dari cookie
     const cookieStore = cookies()
     const supabaseAuth = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,15 +25,21 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 2. Lookup student.id pakai service role (bypass RLS)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
+    // ⬇️ TAMBAH suspended_until di select
     const { data: student } = await supabaseAdmin
       .from('students')
-      .select('id')
+      .select('id, suspended_until')
       .eq('user_id', session.user.id)
       .maybeSingle()
 
@@ -42,7 +47,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ student_id: student.id })
+    return NextResponse.json({
+      student_id: student.id,
+      suspended_until: student.suspended_until ?? null,   // ⬅️ BARU
+    })
   } catch (err) {
     console.error('[students/me] error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

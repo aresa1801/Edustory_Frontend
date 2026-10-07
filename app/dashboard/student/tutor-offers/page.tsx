@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -77,6 +77,11 @@ export default function TutorOffersPage() {
   // 🔥 Saldo wallet
   const [walletBalance, setWalletBalance] = useState<number>(0)
 
+  // 🔥 State suspend student
+  const [studentSuspendedUntil, setStudentSuspendedUntil] = useState<string | null>(null)
+  const [suspendPopup, setSuspendPopup] = useState(false)
+  const [nowTick, setNowTick] = useState(Date.now())
+
   // 🔥 Modal deposit tidak cukup
   const [insufficientModal, setInsufficientModal] = useState<{
     open: boolean
@@ -135,35 +140,37 @@ export default function TutorOffersPage() {
   }
 
   const fetchWalletBalance = async () => {
-  if (!user) return
-  try {
-    // 1. Ambil student_id via endpoint server (tanpa parameter)
-    const meRes = await fetch('/api/students/me', { cache: 'no-store' })
-    if (!meRes.ok) {
-      console.warn('[Offers] Failed to get student ID')
-      setWalletBalance(0)
-      return
-    }
-    const { student_id } = await meRes.json()
+    if (!user) return
+    try {
+      const meRes = await fetch('/api/students/me', { cache: 'no-store' })
+      if (!meRes.ok) {
+        console.warn('[Offers] Failed to get student ID')
+        setWalletBalance(0)
+        return
+      }
+      const meJson = await meRes.json()
+      const { student_id, suspended_until } = meJson  // ⬅️ tambah
 
-    if (!student_id) {
-      setWalletBalance(0)
-      return
-    }
+      // ⬇️ BARU: simpan suspended_until
+      setStudentSuspendedUntil(suspended_until ?? null)
 
-    // 2. Fetch balance
-    const res = await fetch(
-      `/api/students/wallet-balance?student_id=${student_id}`,
-      { cache: 'no-store' }
-    )
-    const data = await res.json()
-    console.log('[Offers] Wallet:', data)
-    setWalletBalance(Number(data?.balance) || 0)
-  } catch (err) {
-    console.warn('[Offers] Fetch balance error:', err)
-    setWalletBalance(0)
+      if (!student_id) {
+        setWalletBalance(0)
+        return
+      }
+
+      const res = await fetch(
+        `/api/students/wallet-balance?student_id=${student_id}`,
+        { cache: 'no-store' }
+      )
+      const data = await res.json()
+      console.log('[Offers] Wallet:', data)
+      setWalletBalance(Number(data?.balance) || 0)
+    } catch (err) {
+      console.warn('[Offers] Fetch balance error:', err)
+      setWalletBalance(0)
+    }
   }
-}
 
 useEffect(() => {
   isMounted.current = true
@@ -207,6 +214,29 @@ useEffect(() => {
     return () => clearInterval(interval)
   }, [matches])
 
+    // ⬇️ Timer countdown suspend (update tiap detik)
+  useEffect(() => {
+    if (!studentSuspendedUntil) return
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [studentSuspendedUntil])
+
+  // Format countdown
+  const suspendCountdown = useMemo(() => {
+    if (!studentSuspendedUntil) return ''
+    const ms = new Date(studentSuspendedUntil).getTime() - nowTick
+    if (ms <= 0) return 'Hukuman selesai'
+    const totalSec = Math.floor(ms / 1000)
+    const days = Math.floor(totalSec / 86400)
+    const hours = Math.floor((totalSec % 86400) / 3600)
+    const minutes = Math.floor((totalSec % 3600) / 60)
+    const seconds = totalSec % 60
+    if (days > 0) return `${days} hari ${hours} jam ${minutes} menit`
+    if (hours > 0) return `${hours} jam ${minutes} menit ${seconds} detik`
+    if (minutes > 0) return `${minutes} menit ${seconds} detik`
+    return `${seconds} detik`
+  }, [studentSuspendedUntil, nowTick])
+
   const handleRefresh = () => {
     if (!isMounted.current) return
     fetchData()
@@ -217,8 +247,13 @@ useEffect(() => {
     window.location.href = `/dashboard/student/set_schedule?matchId=${matchId}`
   }
 
-  // 🔥 Cek saldo sebelum lanjut atur jadwal
   const handleScheduleClick = (match: Match) => {
+    // ⬇️ CEK SUSPEND DULU
+    if (studentSuspendedUntil && new Date(studentSuspendedUntil).getTime() > Date.now()) {
+      setSuspendPopup(true)
+      return
+    }
+
     const total =
       (match.student_sessions_per_month || 0) * (match.tutor_hourly_rate || 0)
 
@@ -231,7 +266,6 @@ useEffect(() => {
       return
     }
 
-    // Saldo cukup → lanjut ke halaman set schedule
     handleSchedule(match.id)
   }
 
@@ -925,6 +959,39 @@ useEffect(() => {
               disabled={processingId !== null}
             >
               {processingId ? <Spinner className="h-4 w-4" /> : 'Ya, Tolak'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+            {/* ===== MODAL SUSPEND STUDENT ===== */}
+      <Dialog open={suspendPopup} onOpenChange={setSuspendPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertCircle className="w-5 h-5" />
+              Akun Anda Sedang Disuspend
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda tidak bisa menyetujui penawaran dan mengatur jadwal baru
+              karena baru saja membatalkan kontrak secara paksa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-xs text-muted-foreground mb-2">Sisa hukuman:</p>
+            <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center">
+              <p className="text-2xl font-bold font-mono text-red-400">
+                {suspendCountdown}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSuspendPopup(false)}
+              className="w-full"
+            >
+              Mengerti
             </Button>
           </DialogFooter>
         </DialogContent>
