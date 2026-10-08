@@ -342,9 +342,9 @@ export default function StudentBrowseTutors() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {tutors.map(tutor => (
-            <Card key={tutor.id} className="hover:shadow-lg transition-shadow flex flex-col">
+            <Card key={tutor.id} className="rounded-2xl shadow-soft hover:shadow-lifted transition flex flex-col">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3 flex-1">
@@ -358,7 +358,7 @@ export default function StudentBrowseTutors() {
                       )}
                       {tutor.verified && (
                         <div className="mt-1">
-                          <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30 text-xs py-0">
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs py-0">
                             ✓ Terverifikasi
                           </Badge>
                         </div>
@@ -367,8 +367,8 @@ export default function StudentBrowseTutors() {
                   </div>
                   {tutor.rating > 0 && (
                     <div className="text-right flex-shrink-0">
-                      <div className="flex items-center gap-1 text-yellow-500 font-bold text-sm">
-                        <Star className="w-3 h-3 fill-yellow-500" />
+                      <div className="flex items-center gap-1 text-accent font-bold text-sm">
+                        <Star className="w-3 h-3 fill-accent" />
                         {Number(tutor.rating).toFixed(1)}
                       </div>
                       <div className="text-xs text-muted-foreground">({tutor.total_reviews})</div>
@@ -439,7 +439,7 @@ export default function StudentBrowseTutors() {
                 <div key={s} className="flex items-center gap-2">
                   {i > 0 && <div className={`h-0.5 w-8 ${dialogStep > 1 ? 'bg-primary' : 'bg-muted'}`} />}
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                    s < dialogStep ? 'bg-green-500 text-white' :
+                    s < dialogStep ? 'bg-success text-white' :
                     s === dialogStep ? 'bg-primary text-primary-foreground' :
                     'bg-muted text-muted-foreground'
                   }`}>
@@ -537,7 +537,7 @@ export default function StudentBrowseTutors() {
                   </div>
                 ))}
               </RadioGroup>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs text-primary">
                 💡 Deposit dikembalikan jika pengajar tidak mengkonfirmasi dalam 24 jam.
               </div>
             </div>
@@ -546,8 +546,8 @@ export default function StudentBrowseTutors() {
           {/* Step 3: Success */}
           {dialogStep === 3 && (
             <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                <CheckCircle className="w-10 h-10 text-green-300" />
+              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto">
+                <CheckCircle className="w-10 h-10 text-success" />
               </div>
               <div className="space-y-2">
                 <p className="font-medium text-base">Pendaftaran Dikirim!</p>
@@ -560,7 +560,7 @@ export default function StudentBrowseTutors() {
                   <p className="font-semibold mt-0.5">{selectedPaymentMethod?.account}</p>
                 </div>
               </div>
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
+              <div className="p-3 bg-warning/10 border border-warning/20 rounded-xl text-xs text-warning">
                 ⏳ Konfirmasi akan dikirim setelah pembayaran terverifikasi.
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { BadgeCheck } from 'lucide-react'
+import { BadgeCheck, Star, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TutorProfileModal } from '@/components/tutor-profile-modal'
 
@@ -28,20 +28,16 @@ const Tutors = () => {
       certifications: [
         'Sertifikat Pendidik Profesional (SERTIPEND)',
         'Cambridge IGCSE Mathematics Examiner',
-        'Master Teacher Award 2023'
+        'Master Teacher Award 2023',
       ],
-      specializations: [
-        'Persiapan Ujian Nasional',
-        'Kalkulus & Analisis Lanjut',
-        'Bimbingan Universitas Asing'
-      ],
+      specializations: ['Persiapan Ujian Nasional', 'Kalkulus & Analisis Lanjut', 'Bimbingan Universitas Asing'],
       methodology: [
         'Problem-based learning dengan pendekatan interaktif',
         'Analisis soal dan strategi pengerjaan efisien',
         'Personalized learning path sesuai kebutuhan siswa',
-        'Regular progress tracking dan reporting'
+        'Regular progress tracking dan reporting',
       ],
-      availableDays: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+      availableDays: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'],
     },
     {
       id: 2,
@@ -61,20 +57,16 @@ const Tutors = () => {
       certifications: [
         'Professor Fisika - Universitas Terkemuka',
         'Peneliti Fisika Pendidikan Bersertifikat',
-        'International Physics Educator Award'
+        'International Physics Educator Award',
       ],
-      specializations: [
-        'Fisika Dasar & Lanjut',
-        'Persiapan OSN Fisika',
-        'Riset dan Eksperimen Ilmiah'
-      ],
+      specializations: ['Fisika Dasar & Lanjut', 'Persiapan OSN Fisika', 'Riset dan Eksperimen Ilmiah'],
       methodology: [
         'Hands-on experiments dan demonstrasi praktis',
         'Simulasi virtual physics untuk pemahaman mendalam',
         'Critical thinking dan problem solving approach',
-        'Portfolio-based assessment dan evaluation'
+        'Portfolio-based assessment dan evaluation',
       ],
-      availableDays: ['Senin', 'Rabu', 'Jumat', 'Sabtu', 'Minggu']
+      availableDays: ['Senin', 'Rabu', 'Jumat', 'Sabtu', 'Minggu'],
     },
     {
       id: 3,
@@ -94,20 +86,16 @@ const Tutors = () => {
       certifications: [
         'Cambridge CELTA - Teaching English Certification',
         'TOEFL & IELTS Certified Examiner',
-        'Conversational English Specialist'
+        'Conversational English Specialist',
       ],
-      specializations: [
-        'Test Preparation (TOEFL, IELTS, CAE)',
-        'Business English & Professional Communication',
-        'Pronunciation & Accent Reduction'
-      ],
+      specializations: ['Test Preparation (TOEFL, IELTS, CAE)', 'Business English & Professional Communication', 'Pronunciation & Accent Reduction'],
       methodology: [
         'Immersive English learning environment',
         'Task-based language teaching methodology',
         'Pronunciation correction dengan feedback real-time',
-        'Communicative approach untuk natural conversation'
+        'Communicative approach untuk natural conversation',
       ],
-      availableDays: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
+      availableDays: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
     },
     {
       id: 4,
@@ -127,20 +115,16 @@ const Tutors = () => {
       certifications: [
         'Certified Science Educator',
         'Kimia Lanjutan & Organik Specialist',
-        'Laboratory Safety & Experiment Design Certificate'
+        'Laboratory Safety & Experiment Design Certificate',
       ],
-      specializations: [
-        'Kimia Dasar & Kimia Organik',
-        'Biologi Molekuler & Genetika',
-        'Eksperimen Laboratorium Virtual & Real'
-      ],
+      specializations: ['Kimia Dasar & Kimia Organik', 'Biologi Molekuler & Genetika', 'Eksperimen Laboratorium Virtual & Real'],
       methodology: [
         'Pendekatan STEM dengan eksperimen hands-on',
         'Visualisasi reaksi kimia melalui animasi 3D',
         'Concept mapping untuk pemahaman struktur materi',
-        'Safety-first laboratory practice approach'
+        'Safety-first laboratory practice approach',
       ],
-      availableDays: ['Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+      availableDays: ['Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'],
     },
     {
       id: 5,
@@ -160,20 +144,16 @@ const Tutors = () => {
       certifications: [
         'Senior Software Engineer - Microsoft Certified',
         'Full-Stack Web Development Specialist',
-        'Cloud Architecture Associate (AWS)'
+        'Cloud Architecture Associate (AWS)',
       ],
-      specializations: [
-        'Web Development (Frontend & Backend)',
-        'Mobile App Development',
-        'Database Design & Optimization'
-      ],
+      specializations: ['Web Development (Frontend & Backend)', 'Mobile App Development', 'Database Design & Optimization'],
       methodology: [
         'Project-based learning dengan aplikasi real',
         'Agile development methodology teaching',
         'Code review dan best practices training',
-        'Portfolio building untuk job readiness'
+        'Portfolio building untuk job readiness',
       ],
-      availableDays: ['Senin', 'Rabu', 'Kamis', 'Sabtu']
+      availableDays: ['Senin', 'Rabu', 'Kamis', 'Sabtu'],
     },
     {
       id: 6,
@@ -193,123 +173,91 @@ const Tutors = () => {
       certifications: [
         'Sertifikat Guru Bahasa Indonesia Profesional',
         'Literary Analysis & Criticism Specialist',
-        'Professional Writing & Editing Certificate'
+        'Professional Writing & Editing Certificate',
       ],
-      specializations: [
-        'Sastra Indonesia Klasik & Modern',
-        'Teknik Menulis Esai & Artikel',
-        'Keterampilan Presentasi & Public Speaking'
-      ],
+      specializations: ['Sastra Indonesia Klasik & Modern', 'Teknik Menulis Esai & Artikel', 'Keterampilan Presentasi & Public Speaking'],
       methodology: [
         'Literature-based teaching dengan analisis mendalam',
         'Interactive writing workshops dan feedback sessions',
         'Grammar mastery melalui contextual learning',
-        'Creative expression dan storytelling development'
+        'Creative expression dan storytelling development',
       ],
-      availableDays: ['Senin', 'Selasa', 'Rabu', 'Jumat', 'Sabtu']
+      availableDays: ['Senin', 'Selasa', 'Rabu', 'Jumat', 'Sabtu'],
     },
   ]
 
   return (
-    <section className="w-full py-16 md:py-20 lg:py-24 bg-card/50 border-t border-border/50">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
-            Pengajar Profesional Kami
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Dipilih dan dilatih secara khusus untuk memberikan kualitas terbaik
+    <section className="section-pad">
+      <div className="container-page">
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <span className="eyebrow">Pengajar</span>
+          <h2 className="mt-4">Pengajar profesional kami</h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Dipilih dan dilatih secara khusus untuk memberikan kualitas terbaik.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {tutors.map((tutor, index) => (
-            <div
-              key={index}
-              className="group bg-card rounded-xl border border-border overflow-hidden transition-all duration-300"
-            >
-              {/* Image Area - 3:4 Ratio */}
-              <div className="relative h-80 overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900">
+            <article key={tutor.id} className="surface hover-card group flex flex-col overflow-hidden">
+              <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                 <Image
                   src={tutor.image}
                   alt={tutor.name}
                   fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   priority={index < 3}
                 />
-                {/* Hover Overlay - Minimalist */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300"></div>
+                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-card/90 px-2.5 py-1 text-xs font-semibold text-foreground backdrop-blur">
+                  <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+                  {tutor.rating}
+                </span>
               </div>
 
-              {/* Content */}
-              <div className="p-6 border-t border-border/50 group-hover:border-primary/30 transition-colors duration-300">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
-                      {tutor.name}
-                      <BadgeCheck className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
-                    </h3>
-                    <p className="text-sm text-primary font-medium">
-                      {tutor.qualification}
-                    </p>
-                  </div>
-                </div>
+              <div className="flex flex-1 flex-col p-5">
+                <h3 className="flex items-center gap-2 text-base font-bold">
+                  <span className="truncate">{tutor.name}</span>
+                  <BadgeCheck className="h-4.5 w-4.5 shrink-0 text-primary" />
+                </h3>
+                <p className="text-sm font-medium text-primary">{tutor.qualification}</p>
+                <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{tutor.subjects}</p>
 
-                <div className="space-y-3 mb-6">
+                <div className="mt-4 flex items-center gap-4 text-sm">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase font-semibold">
-                      Mata Pelajaran
-                    </p>
-                    <p className="text-foreground group-hover:text-slate-100 transition-colors duration-300">
-                      {tutor.subjects}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Pengalaman</p>
+                    <p className="font-semibold">{tutor.experience}</p>
                   </div>
-                  
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Pengalaman</p>
-                      <p className="font-semibold text-foreground">
-                        {tutor.experience}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Rating</p>
-                      <p className="font-semibold text-primary group-hover:text-cyan-400 transition-colors duration-300">
-                        {tutor.rating}
-                      </p>
-                    </div>
+                  <span className="h-8 w-px bg-border" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Mulai dari</p>
+                    <p className="font-semibold">{tutor.hourlyRate}</p>
                   </div>
                 </div>
 
                 <Button
                   onClick={() => setSelectedTutor(tutor)}
                   variant="outline"
-                  className="w-full border-primary text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300 group/btn"
+                  className="mt-5 w-full justify-between rounded-xl hover:border-primary/50 hover:bg-primary/5"
                 >
-                  <span className="group-hover/btn:text-cyan-300 transition-colors duration-300">
-                    Lihat Profil
-                  </span>
+                  Lihat profil
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Button>
               </div>
-            </div>
+            </article>
           ))}
         </div>
 
-        <div className="text-center">
-          <Button className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold">
-            Lihat Semua Pengajar
+        <div className="mt-10 text-center">
+          <Button size="lg" className="h-12 gap-2 px-8 text-base">
+            Lihat semua pengajar
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Tutor Profile Modal */}
       {selectedTutor && (
-        <TutorProfileModal
-          tutor={selectedTutor}
-          isOpen={!!selectedTutor}
-          onClose={() => setSelectedTutor(null)}
-        />
+        <TutorProfileModal tutor={selectedTutor} isOpen={!!selectedTutor} onClose={() => setSelectedTutor(null)} />
       )}
     </section>
   )

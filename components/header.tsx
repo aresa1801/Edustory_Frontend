@@ -7,16 +7,23 @@ import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTrian
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
+import { cn } from '@/lib/utils'
 
 // Helper function to mask email - hanya 3 bintang
 const maskEmail = (email?: string | null): string => {
   if (!email) return ''
   const [username, domain] = email.split('@')
   if (!username || !domain) return email
-  
-  const maskedUsername = username[0] + '***'
-  return `${maskedUsername}@${domain}`
+  return `${username[0]}***@${domain}`
 }
+
+const menuItems = [
+  { label: 'Layanan', href: '#layanan' },
+  { label: 'Program', href: '#program' },
+  { label: 'Testimoni', href: '#testimoni' },
+  { label: 'Blog', href: '#blog' },
+  { label: 'Kontak', href: '#kontak' },
+]
 
 const Header = () => {
   const router = useRouter()
@@ -25,17 +32,24 @@ const Header = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
   const [showEmergency, setShowEmergency] = useState(false)
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false) // ✅ State untuk dialog logout
-  
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
   const { user, userRole, loading, forceSignOut } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
+    handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const toggleMenu = () => setIsOpen(!isOpen)
+  // Lock body scroll while the mobile sheet is open
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
 
   const handleSignIn = () => {
     setAuthMode('signin')
@@ -49,288 +63,233 @@ const Header = () => {
     setIsOpen(false)
   }
 
-  // ✅ Navigasi ke dashboard atau select-role
   const handleDashboardClick = () => {
     if (!user) {
       setAuthMode('signin')
       setAuthOpen(true)
       return
     }
-
     if (!userRole) {
-      console.log('[Header] User belum pilih role, redirect ke select-role')
       router.push('/auth/select-role')
       return
     }
-
-    const dashboardPath = userRole === 'student' 
-      ? '/dashboard/student' 
-      : userRole === 'tutor'
-      ? '/dashboard/tutor'
-      : userRole === 'admin'
-      ? '/dashboard/admin'
-      : '/dashboard'
-    
+    const dashboardPath =
+      userRole === 'student'
+        ? '/dashboard/student'
+        : userRole === 'tutor'
+          ? '/dashboard/tutor'
+          : userRole === 'admin'
+            ? '/dashboard/admin'
+            : '/dashboard'
     router.push(dashboardPath)
   }
 
-  // ✅ Buka dialog konfirmasi logout (bukan langsung logout)
-  const handleLogoutClick = () => {
-    setShowLogoutDialog(true)
-  }
-
-  // ✅ Fungsi logout sebenarnya setelah konfirmasi
   const confirmLogout = async () => {
     setShowLogoutDialog(false)
+    setIsOpen(false)
     try {
       await forceSignOut()
-    } catch (error) {
-      console.error('[Header] Logout error:', error)
+    } catch {
       window.location.href = '/'
     }
   }
 
-  // ✅ Batalkan logout
-  const cancelLogout = () => {
-    setShowLogoutDialog(false)
-  }
-
   const handleEmergencyClear = async () => {
-    console.log('[Header] Emergency clear initiated...')
-    
     localStorage.clear()
     sessionStorage.clear()
-    
     if ('caches' in window) {
       try {
         const names = await caches.keys()
-        await Promise.all(names.map(name => caches.delete(name)))
-        console.log('[Header] Browser cache cleared')
-      } catch (e) {
-        console.error('[Header] Failed to clear browser cache:', e)
+        await Promise.all(names.map((name) => caches.delete(name)))
+      } catch {
+        /* ignore */
       }
     }
-    
     window.location.href = '/?emergency_clear=' + Date.now()
   }
-
-  const menuItems = [
-    { label: 'Layanan', href: '#layanan' },
-    { label: 'Program', href: '#program' },
-    { label: 'Testimoni', href: '#testimoni' },
-    { label: 'Blog', href: '#blog' },
-    { label: 'Kontak', href: '#kontak' },
-  ]
 
   return (
     <>
       <header
-        className={`sticky top-0 z-50 w-full transition-all duration-300 ${
-          scrolled
-            ? 'bg-background/95 backdrop-blur-md border-b border-border/50 shadow-sm'
-            : 'bg-transparent'
-        }`}
+        className={cn(
+          'sticky top-0 z-50 w-full transition-all duration-300',
+          scrolled ? 'border-b border-border/60 bg-background/85 backdrop-blur-xl' : 'bg-transparent',
+        )}
       >
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
+        <div className="container-page">
+          <div className="flex h-16 items-center justify-between md:h-20">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 font-bold text-xl hover:opacity-90 transition-opacity">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <BookOpen className="w-4 h-4 text-white" />
-              </div>
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70">
-                EduStory
+            <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-soft">
+                <BookOpen className="h-4.5 w-4.5" />
+              </span>
+              <span className="font-display text-xl font-extrabold tracking-tight">
+                Edu<span className="text-primary">Story</span>
               </span>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-7">
+            {/* Desktop nav */}
+            <nav className="hidden items-center gap-1 md:flex">
               {menuItems.map((item) => (
                 <a
                   key={item.label}
                   href={item.href}
-                  className="text-sm text-muted-foreground hover:text-foreground font-medium transition-colors"
+                  className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   {item.label}
                 </a>
               ))}
             </nav>
 
-            {/* Desktop CTA Buttons */}
-            <div className="hidden md:flex items-center gap-3">
+            {/* Desktop actions */}
+            <div className="hidden items-center gap-2.5 md:flex">
               {user ? (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="font-medium">{maskEmail(user.email)}</span>
-                  </div>
-                  <Button
-                    onClick={handleDashboardClick}
-                    className="bg-primary hover:bg-primary/90 text-white gap-2"
-                    disabled={loading && !userRole}
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    {loading && !userRole ? 'Memuat...' : 'Dashboard'}
+                  <span className="flex items-center gap-2 rounded-full border border-border/70 bg-card px-3 py-1.5 text-sm">
+                    <span className="h-2 w-2 rounded-full bg-secondary" />
+                    <span className="font-medium text-muted-foreground">{maskEmail(user.email)}</span>
+                  </span>
+                  <Button onClick={handleDashboardClick} disabled={loading && !userRole} className="gap-2">
+                    <LayoutDashboard className="h-4 w-4" />
+                    {loading && !userRole ? 'Memuat…' : 'Dashboard'}
                   </Button>
-                  {/* ✅ Tombol logout sekarang memicu dialog */}
                   <Button
-                    onClick={handleLogoutClick}
+                    onClick={() => setShowLogoutDialog(true)}
                     variant="outline"
                     size="icon"
-                    className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                    className="h-9 w-9 hover:border-destructive/40 hover:text-destructive"
                     title="Logout"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="h-4 w-4" />
                   </Button>
                   <Button
-                    onClick={() => setShowEmergency(!showEmergency)}
+                    onClick={() => setShowEmergency((v) => !v)}
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
-                    title="Emergency Clear Cache"
+                    className="h-9 w-9 text-warning hover:text-warning"
+                    title="Emergency clear cache"
                   >
-                    <AlertTriangle className="w-4 h-4" />
+                    <AlertTriangle className="h-4 w-4" />
                   </Button>
                   {showEmergency && (
-                    <Button
-                      onClick={handleEmergencyClear}
-                      variant="destructive"
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700 gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Emergency Clear
+                    <Button onClick={handleEmergencyClear} variant="destructive" size="sm" className="gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Clear
                     </Button>
                   )}
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="ghost"
-                    onClick={handleSignIn}
-                    className="text-foreground hover:text-primary gap-2"
-                  >
-                    <LogIn className="w-4 h-4" />
+                  <Button variant="ghost" onClick={handleSignIn} className="gap-2">
+                    <LogIn className="h-4 w-4" />
                     Masuk
                   </Button>
-                  <Button
-                    onClick={handleSignUp}
-                    className="bg-primary hover:bg-primary/90 text-white gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
+                  <Button onClick={handleSignUp} className="gap-2">
+                    <UserPlus className="h-4 w-4" />
                     Daftar
                   </Button>
                 </>
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile toggle */}
             <button
-              onClick={toggleMenu}
-              className="md:hidden p-2 rounded-lg hover:bg-white/10 text-foreground"
-              aria-label="Toggle menu"
+              onClick={() => setIsOpen((v) => !v)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-foreground transition hover:bg-muted md:hidden"
+              aria-label={isOpen ? 'Tutup menu' : 'Buka menu'}
+              aria-expanded={isOpen}
             >
-              {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
-
-          {/* Mobile Navigation */}
-          {isOpen && (
-            <nav className="md:hidden pb-4 border-t border-border/50">
-              <div className="flex flex-col gap-1 py-3">
-                {menuItems.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded-lg font-medium transition-colors"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    {item.label}
-                  </a>
-                ))}
-                <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
-                  {user ? (
-                    <>
-                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground mb-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span className="font-medium">{maskEmail(user.email)}</span>
-                      </div>
-                      <Button
-                        onClick={() => {
-                          handleDashboardClick()
-                          setIsOpen(false)
-                        }}
-                        className="w-full bg-primary hover:bg-primary/90 text-white"
-                        disabled={loading && !userRole}
-                      >
-                        <LayoutDashboard className="w-4 h-4 mr-2" />
-                        {loading && !userRole ? 'Memuat...' : 'Dashboard'}
-                      </Button>
-                      {/* ✅ Tombol logout mobile juga memicu dialog */}
-                      <Button
-                        onClick={handleLogoutClick}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Logout
-                      </Button>
-                      <Button
-                        onClick={handleEmergencyClear}
-                        variant="destructive"
-                        size="sm"
-                        className="w-full gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Emergency Clear Cache
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="outline" onClick={handleSignIn} className="w-full">
-                        <LogIn className="w-4 h-4 mr-2" />
-                        Masuk
-                      </Button>
-                      <Button onClick={handleSignUp} className="w-full bg-primary hover:bg-primary/90 text-white">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Daftar
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </nav>
-          )}
         </div>
 
-        <AuthModalDialog
-          isOpen={authOpen }
-          onOpenChange={setAuthOpen}
-          defaultMode={authMode}
-        />
+        <AuthModalDialog isOpen={authOpen} onOpenChange={setAuthOpen} defaultMode={authMode} />
       </header>
 
-      {/* ✅ Modal Konfirmasi Logout */}
-      {showLogoutDialog &&(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-card rounded-2xl border border-border/50 p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-foreground mb-2">Konfirmasi Logout</h3>
-            <p className="text-muted-foreground mb-6">
+      {/* Mobile sheet */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div
+            className="absolute inset-0 bg-foreground/40 backdrop-blur-sm animate-fade-in"
+            onClick={() => setIsOpen(false)}
+            aria-hidden
+          />
+          <nav className="absolute inset-x-0 top-16 mx-3 rounded-2xl border border-border/70 bg-card p-4 shadow-lifted animate-slide-up">
+            <div className="flex flex-col">
+              {menuItems.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="rounded-xl px-4 py-3 text-base font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 border-t border-border/70 pt-3">
+              {user ? (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                    <span className="h-2 w-2 rounded-full bg-secondary" />
+                    <span className="font-medium">{maskEmail(user.email)}</span>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      handleDashboardClick()
+                      setIsOpen(false)
+                    }}
+                    className="w-full gap-2"
+                    disabled={loading && !userRole}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    {loading && !userRole ? 'Memuat…' : 'Dashboard'}
+                  </Button>
+                  <Button onClick={() => setShowLogoutDialog(true)} variant="outline" className="w-full gap-2">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                  <Button onClick={handleEmergencyClear} variant="ghost" size="sm" className="w-full gap-2 text-warning">
+                    <Trash2 className="h-4 w-4" />
+                    Emergency clear cache
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={handleSignIn} className="w-full gap-2">
+                    <LogIn className="h-4 w-4" />
+                    Masuk
+                  </Button>
+                  <Button onClick={handleSignUp} className="w-full gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Daftar
+                  </Button>
+                </>
+              )}
+            </div>
+          </nav>
+        </div>
+      )}
+
+      {/* Logout confirm */}
+      {showLogoutDialog && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-border/70 bg-card p-6 shadow-lifted animate-scale-in">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <LogOut className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-bold">Konfirmasi logout</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
               Apakah Anda yakin ingin keluar dari akun ini?
             </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={cancelLogout}
-              >
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
                 Batal
               </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmLogout}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Ya, Logout
+              <Button variant="destructive" onClick={confirmLogout}>
+                Ya, logout
               </Button>
             </div>
           </div>

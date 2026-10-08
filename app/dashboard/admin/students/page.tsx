@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 import { Search, Users, User, Phone, MapPin, BookOpen, Calendar, GraduationCap, Mail } from 'lucide-react'
 
 interface Student {
@@ -91,11 +92,11 @@ export default function AdminStudentsPage() {
 
   const getStatusBadge = (status: string) => {
     return status === 'active' ? (
-      <Badge className="bg-green-500/20 text-green-300 hover:bg-green-500/30">
+      <Badge className="rounded-full bg-success/10 text-success border border-success/20 hover:bg-success/15">
         Aktif
       </Badge>
     ) : (
-      <Badge variant="outline">
+      <Badge variant="outline" className="rounded-full bg-muted text-muted-foreground border-border">
         Tidak Aktif
       </Badge>
     )
@@ -108,13 +109,14 @@ export default function AdminStudentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Daftar Siswa Aktif</h1>
-        <p className="text-muted-foreground">Kelola data siswa yang terdaftar di platform</p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Daftar Siswa Aktif"
+        description="Kelola data siswa yang terdaftar di platform"
+      />
 
       {/* Search and Filter */}
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
@@ -122,13 +124,13 @@ export default function AdminStudentsPage() {
             placeholder="Cari nama, email, atau nomor telepon..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border/30 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-border/30 bg-card text-foreground focus:outline-none focus:border-primary/50"
+          className="px-4 py-2 rounded-xl border border-border bg-card text-foreground focus:outline-none focus:border-primary/50"
         >
           <option value="all">Semua Status</option>
           <option value="active">Aktif</option>
@@ -137,9 +139,9 @@ export default function AdminStudentsPage() {
       </div>
 
       {/* Students Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-2xl shadow-soft">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[760px]">
             <thead className="border-b border-border/30 bg-primary/5">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Nama</th>
@@ -178,7 +180,7 @@ export default function AdminStudentsPage() {
                   <td className="px-6 py-4 text-sm">
                     <button
                       onClick={() => setSelectedStudent(student)}
-                      className="px-3 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
                     >
                       Lihat Detail
                     </button>
@@ -197,15 +199,9 @@ export default function AdminStudentsPage() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total Siswa</p>
-          <p className="text-2xl font-bold text-foreground">{students.length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Siswa Aktif</p>
-          <p className="text-2xl font-bold text-green-300">{students.filter(s => s.status === 'active').length}</p>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard label="Total Siswa" value={students.length} tone="primary" icon={Users} />
+        <StatCard label="Siswa Aktif" value={students.filter(s => s.status === 'active').length} tone="secondary" icon={User} />
       </div>
 
       {/* Student Detail Dialog */}
@@ -220,11 +216,11 @@ export default function AdminStudentsPage() {
           {selectedStudent && (
             <div className="space-y-4 text-sm">
               {/* Identity */}
-              <div className="rounded-lg border border-border/30 p-4 space-y-3">
+              <div className="rounded-xl border border-border/60 p-4 space-y-3">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
                   <User className="w-4 h-4" /> Identitas Siswa
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <p className="text-muted-foreground text-xs">Nama Lengkap</p>
                     <p className="font-medium">{selectedStudent.name}</p>
@@ -270,11 +266,11 @@ export default function AdminStudentsPage() {
 
               {/* School */}
               {(selectedStudent.school_name || selectedStudent.grade_level) && (
-                <div className="rounded-lg border border-border/30 p-4 space-y-3">
+                <div className="rounded-xl border border-border/60 p-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <GraduationCap className="w-4 h-4" /> Data Sekolah
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {selectedStudent.school_name && (
                       <div>
                         <p className="text-muted-foreground text-xs">Nama Sekolah</p>
@@ -302,11 +298,11 @@ export default function AdminStudentsPage() {
               )}
 
               {/* Learning */}
-              <div className="rounded-lg border border-border/30 p-4 space-y-3">
+              <div className="rounded-xl border border-border/60 p-4 space-y-3">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
                   <BookOpen className="w-4 h-4" /> Minat & Rencana Belajar
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="col-span-2">
                     <p className="text-muted-foreground text-xs">Mata Pelajaran</p>
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -344,11 +340,11 @@ export default function AdminStudentsPage() {
 
               {/* Parent */}
               {(selectedStudent.parent_name || selectedStudent.parent_phone) && (
-                <div className="rounded-lg border border-border/30 p-4 space-y-3">
+                <div className="rounded-xl border border-border/60 p-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Users className="w-4 h-4" /> Data Orang Tua
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {selectedStudent.parent_name && (
                       <div>
                         <p className="text-muted-foreground text-xs">Nama Orang Tua</p>

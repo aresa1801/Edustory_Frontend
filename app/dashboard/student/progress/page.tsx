@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/auth'
 import { BookOpen, TrendingUp, Users, Calendar } from 'lucide-react'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 
 export default function StudentProgressPage() {
   const [loading, setLoading] = useState(true)
@@ -145,13 +146,12 @@ export default function StudentProgressPage() {
   const subjects = profile?.subjects || []
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Progres Belajar</h1>
-        <p className="text-muted-foreground">
-          Pantau perkembangan belajar dan histori sesi Anda.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Progres"
+        title="Progres Belajar"
+        description="Pantau perkembangan belajar dan histori sesi Anda."
+      />
 
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -160,59 +160,16 @@ export default function StudentProgressPage() {
       )}
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pengajar Aktif</p>
-              <p className="text-2xl font-bold text-foreground">{activeMatches.length}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-green-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
-              <p className="text-2xl font-bold text-foreground">{completedMatches.length}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-yellow-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Menunggu Konfirmasi</p>
-              <p className="text-2xl font-bold text-foreground">{pendingMatches.length}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-purple-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Pencocokan</p>
-              <p className="text-2xl font-bold text-foreground">{totalMatches}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-8">
+        <StatCard label="Pengajar Aktif" value={activeMatches.length} icon={Users} tone="primary" />
+        <StatCard label="Sesi Selesai" value={completedMatches.length} icon={TrendingUp} tone="secondary" />
+        <StatCard label="Menunggu Konfirmasi" value={pendingMatches.length} icon={Calendar} tone="accent" />
+        <StatCard label="Total Pencocokan" value={totalMatches} icon={BookOpen} tone="muted" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Completion Rate */}
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle>Tingkat Penyelesaian</CardTitle>
           </CardHeader>
@@ -227,7 +184,7 @@ export default function StudentProgressPage() {
         </Card>
 
         {/* Subjects */}
-        <Card>
+        <Card className="rounded-2xl shadow-soft">
           <CardHeader>
             <CardTitle>Mata Pelajaran</CardTitle>
           </CardHeader>
@@ -260,7 +217,7 @@ export default function StudentProgressPage() {
       </div>
 
       {/* Match History */}
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader>
           <CardTitle>Histori Pencocokan</CardTitle>
         </CardHeader>
@@ -273,18 +230,18 @@ export default function StudentProgressPage() {
             <div className="space-y-3">
               {matches.map(match => {
                 const statusMap: Record<string, { label: string; color: string }> = {
-                  pending: { label: 'Menunggu', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-                  matched: { label: 'Dikonfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-                  active: { label: 'Aktif', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
-                  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+                  pending: { label: 'Menunggu', color: 'bg-warning/10 text-warning border-warning/20' },
+                  matched: { label: 'Dikonfirmasi', color: 'bg-success/10 text-success border-success/20' },
+                  active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
+                  completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
+                  cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/20' },
                 }
                 const status = statusMap[match.status] || { label: match.status, color: '' }
 
                 return (
                   <div
                     key={match.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border/30 hover:bg-muted/30 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-xl border border-border/30 hover:bg-muted/30 transition-colors"
                   >
                     <div>
                       <p className="font-medium text-foreground">{match.subject}</p>

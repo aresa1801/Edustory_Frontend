@@ -38,7 +38,7 @@ export default function CurationProgressPage() {
             score: data.psychology?.score,
             weight: 20,
             icon: '🧠',
-            href: '/curation/psychology-test'
+            href: '/dashboard/tutor/curation/psychology-test'
           },
           {
             name: 'Kemampuan Akademik',
@@ -46,7 +46,7 @@ export default function CurationProgressPage() {
             score: data.academic?.score,
             weight: 30,
             icon: '📚',
-            href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined
+            href: completedSteps.includes('psychology') ? '/dashboard/tutor/curation/academic-test' : undefined
           },
           {
             name: 'Micro Teaching',
@@ -54,7 +54,7 @@ export default function CurationProgressPage() {
             score: data.microteaching?.overall_score,
             weight: 25,
             icon: '🎥',
-            href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined
+            href: completedSteps.includes('academic') ? '/dashboard/tutor/curation/microteaching' : undefined
           },
           {
             name: 'Tulisan Tangan',
@@ -62,7 +62,7 @@ export default function CurationProgressPage() {
             score: data.handwriting?.overall_score,
             weight: 15,
             icon: '✍️',
-            href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined
+            href: completedSteps.includes('microteaching') ? '/dashboard/tutor/curation/handwriting' : undefined
           },
           {
             name: 'AI Interview',
@@ -70,7 +70,7 @@ export default function CurationProgressPage() {
             score: data.interview?.overall_score,
             weight: 10,
             icon: '💬',
-            href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined
+            href: completedSteps.includes('handwriting') ? '/dashboard/tutor/curation/interview' : undefined
           }
         ]
 
@@ -152,7 +152,7 @@ export default function CurationProgressPage() {
               key={index}
               className={`p-6 transition-all ${
                 step.completed
-                  ? 'border-green-200 bg-green-50'
+                  ? 'border-success/30 bg-success/10'
                   : step.href
                   ? 'border-primary/20 hover:border-primary/50'
                   : 'border-border opacity-50'
@@ -174,10 +174,10 @@ export default function CurationProgressPage() {
                 <div className="flex items-center gap-4">
                   {step.completed ? (
                     <div className="text-right">
-                      <Badge className="bg-green-500 hover:bg-green-600 mb-2">
+                      <Badge className="bg-success/10 text-success border-success/20 mb-2">
                         Selesai
                       </Badge>
-                      <p className="text-2xl font-bold text-green-300">
+                      <p className="text-2xl font-bold text-success">
                         {step.score}
                       </p>
                     </div>
@@ -200,9 +200,9 @@ export default function CurationProgressPage() {
         </div>
 
         {/* Summary */}
-        <Card className="p-8 mt-8 border-blue-200 bg-blue-50">
-          <h3 className="font-semibold text-blue-900 mb-3">Informasi Penting:</h3>
-          <ul className="text-sm text-blue-800 space-y-2">
+        <Card className="p-8 mt-8 border-primary/30 bg-primary/10">
+          <h3 className="font-semibold text-primary mb-3">Informasi Penting:</h3>
+          <ul className="text-sm text-muted-foreground space-y-2">
             <li>
               ✓ Setiap tahapan harus diselesaikan sebelum yang berikutnya
             </li>

@@ -2,158 +2,129 @@
 
 import Link from 'next/link'
 import { BookOpen, MapPin, Phone, Mail, MessageCircle, Facebook, Instagram, Linkedin, Twitter } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { CONTACT_INFO } from '@/lib/constants'
+
+const socials = [
+  { icon: Facebook, label: 'Facebook' },
+  { icon: Instagram, label: 'Instagram' },
+  { icon: Twitter, label: 'Twitter' },
+  { icon: Linkedin, label: 'LinkedIn' },
+]
 
 const Footer = () => {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="w-full bg-card border-t border-border/50">
-      {/* Main Footer Content */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-16 md:py-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-          {/* Column 1: Logo & Tagline */}
+    <footer className="w-full border-t border-border/70 bg-card">
+      <div className="container-page py-16">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
+          {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 font-bold text-2xl mb-4">
-              <BookOpen className="w-8 h-8" />
-              <span>EduStory</span>
+            <div className="mb-4 flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <BookOpen className="h-4.5 w-4.5" />
+              </span>
+              <span className="font-display text-xl font-extrabold tracking-tight">
+                Edu<span className="text-primary">Story</span>
+              </span>
             </div>
-            <p className="text-slate-300 mb-6">
-              Platform pembelajaran privat terpercaya dengan pengajar profesional dan personalized.
+            <p className="mb-6 text-sm text-muted-foreground">
+              Platform pembelajaran privat terpercaya dengan pengajar profesional dan pendekatan yang personal.
             </p>
-            {/* Social Media Icons */}
-            <div className="flex gap-3">
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
-                <Linkedin className="w-5 h-5" />
-              </a>
+            <div className="flex gap-2.5">
+              {socials.map(({ icon: Icon, label }) => (
+                <a
+                  key={label}
+                  href="#"
+                  aria-label={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                >
+                  <Icon className="h-4 w-4" />
+                </a>
+              ))}
             </div>
           </div>
 
-          {/* Column 2: Quick Links */}
+          {/* Menu */}
           <div>
-            <h4 className="font-semibold text-lg mb-6">Menu Utama</h4>
-            <ul className="space-y-3">
-              <li>
-                <a href="#home" className="text-muted-foreground hover:text-primary transition-colors">
-                  Home
-                </a>
-              </li>
-              <li>
-                <a href="#layanan" className="text-muted-foreground hover:text-primary transition-colors">
-                  Layanan
-                </a>
-              </li>
-              <li>
-                <a href="#program" className="text-muted-foreground hover:text-primary transition-colors">
-                  Program
-                </a>
-              </li>
-              <li>
-                <a href="#blog" className="text-muted-foreground hover:text-primary transition-colors">
-                  Blog
-                </a>
-              </li>
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-wider text-foreground">Menu Utama</h4>
+            <ul className="space-y-3 text-sm">
+              {[
+                ['Home', '#home'],
+                ['Layanan', '#layanan'],
+                ['Program', '#program'],
+                ['Blog', '#blog'],
+              ].map(([label, href]) => (
+                <li key={label}>
+                  <a href={href} className="text-muted-foreground transition-colors hover:text-primary">
+                    {label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Column 3: Services */}
+          {/* Services */}
           <div>
-            <h4 className="font-semibold text-lg mb-6">Layanan Kami</h4>
-            <ul className="space-y-3">
-              <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Les Privat
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Les Online
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Homeschooling
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Corporate Training
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Kelas Semi-Privat
-                </a>
-              </li>
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-wider text-foreground">Layanan Kami</h4>
+            <ul className="space-y-3 text-sm">
+              {['Les Privat', 'Les Online', 'Homeschooling', 'Corporate Training', 'Kelas Semi-Privat'].map((label) => (
+                <li key={label}>
+                  <a href="#layanan" className="text-muted-foreground transition-colors hover:text-primary">
+                    {label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Column 4: Contact */}
+          {/* Contact */}
           <div>
-            <h4 className="font-semibold text-lg mb-6">Hubungi Kami</h4>
-            <div className="space-y-4">
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-wider text-foreground">Hubungi Kami</h4>
+            <div className="space-y-4 text-sm">
               <div className="flex gap-3">
-                <MapPin className="w-5 h-5 flex-shrink-0 text-primary" />
+                <MapPin className="h-5 w-5 flex-shrink-0 text-primary" />
                 <p className="text-muted-foreground">
-                  Jl. Pendidikan No. 123<br />
+                  Jl. Pendidikan No. 123
+                  <br />
                   Jakarta, Indonesia 12345
                 </p>
               </div>
-              <div className="flex gap-3">
-                <Phone className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href={`tel:${CONTACT_INFO.phone}`} className="text-muted-foreground hover:text-primary transition-colors">
-                  {CONTACT_INFO.phoneFormatted}
-                </a>
-              </div>
-              <div className="flex gap-3">
-                <Mail className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a href={`mailto:${CONTACT_INFO.email}`} className="text-muted-foreground hover:text-primary transition-colors">
-                  {CONTACT_INFO.email}
-                </a>
-              </div>
-              <div className="flex gap-3">
-                <MessageCircle className="w-5 h-5 flex-shrink-0 text-primary" />
-                <a
-                  href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Chat WhatsApp
-                </a>
-              </div>
+              <a href={`tel:${CONTACT_INFO.phone}`} className="flex gap-3 text-muted-foreground transition-colors hover:text-primary">
+                <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
+                {CONTACT_INFO.phoneFormatted}
+              </a>
+              <a href={`mailto:${CONTACT_INFO.email}`} className="flex gap-3 text-muted-foreground transition-colors hover:text-primary">
+                <Mail className="h-5 w-5 flex-shrink-0 text-primary" />
+                {CONTACT_INFO.email}
+              </a>
+              <a
+                href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex gap-3 text-muted-foreground transition-colors hover:text-primary"
+              >
+                <MessageCircle className="h-5 w-5 flex-shrink-0 text-primary" />
+                Chat WhatsApp
+              </a>
             </div>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-border/50 pt-8">
-          {/* Bottom Bar */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-muted-foreground text-sm">
-              &copy; {currentYear} EduStory. Semua hak cipta dilindungi.
-            </p>
-            <div className="flex gap-6 text-sm">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                Kebijakan Privasi
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                Syarat & Ketentuan
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                FAQ
-              </a>
-            </div>
+        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/70 pt-8 md:flex-row">
+          <p className="text-sm text-muted-foreground">
+            &copy; {currentYear} EduStory. Semua hak cipta dilindungi.
+          </p>
+          <div className="flex gap-6 text-sm">
+            <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
+              Kebijakan Privasi
+            </Link>
+            <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
+              Syarat &amp; Ketentuan
+            </Link>
+            <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
+              FAQ
+            </Link>
           </div>
         </div>
       </div>

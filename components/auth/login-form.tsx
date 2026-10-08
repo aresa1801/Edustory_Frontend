@@ -38,15 +38,15 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-card border border-border rounded-2xl shadow-soft p-8">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground mb-2">Selamat Datang</h1>
           <p className="text-muted-foreground">Masuk ke akun EduStory Anda</p>
         </div>
 
         {message === 'pending_approval' && (
-          <Alert className="mb-6 bg-blue-50 border-blue-200">
-            <AlertDescription className="text-blue-800">
+          <Alert className="mb-6 bg-primary/10 border-primary/30">
+            <AlertDescription className="text-primary">
               Pendaftaran Anda berhasil! Tim kami akan segera memverifikasi profil Anda.
             </AlertDescription>
           </Alert>

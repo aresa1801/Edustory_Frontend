@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -386,15 +387,72 @@ const LEVELS = [
   'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
 ]
 
-function getQuestionsForLevel(level: string): Question[] {
-  const forLevel = QUESTION_BANK.filter(q => q.level === level)
-  if (forLevel.length === 0) return QUESTION_BANK.slice(0, 10)
+// Canonical subject labels per level (aligned with the AI question endpoint).
+const LEVEL_SUBJECTS: Record<string, string[]> = {
+  'SD Kelas 1': ['Matematika', 'Bahasa Indonesia'],
+  'SD Kelas 2': ['Matematika', 'IPA', 'Bahasa Indonesia'],
+  'SD Kelas 3': ['Matematika', 'IPA', 'Bahasa Indonesia'],
+  'SD Kelas 4': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia'],
+  'SD Kelas 5': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia'],
+  'SD Kelas 6': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia', 'PKn'],
+  'SMP Kelas 7': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia', 'Bahasa Inggris'],
+  'SMP Kelas 8': ['Matematika', 'IPA (Fisika)', 'IPA (Biologi)', 'Bahasa Indonesia', 'Bahasa Inggris'],
+  'SMP Kelas 9': ['Matematika', 'IPA (Kimia)', 'IPA (Fisika)', 'IPS', 'Bahasa Inggris'],
+  'SMA Kelas 10': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Bahasa Indonesia', 'Bahasa Inggris'],
+  'SMA Kelas 11': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Ekonomi', 'Bahasa Inggris'],
+  'SMA Kelas 12': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Bahasa Inggris', 'Sejarah'],
+}
+
+type TutorSpecs = { sd: string[]; smp: string[]; sma: string[] }
+
+// Normalise a subject so labels like 'PKN'/'PKn' or 'IPA'/'IPA (Fisika)' compare equal.
+function normSubject(s: string): string {
+  return String(s).toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '')
+}
+
+function bandOfLevel(level: string): 'sd' | 'smp' | 'sma' {
+  if (level.startsWith('SMP')) return 'smp'
+  if (level.startsWith('SMA')) return 'sma'
+  return 'sd'
+}
+
+// Subjects a tutor may be tested on for a given level — restricted to the
+// teaching field(s) they declared, never the whole curriculum.
+function subjectsForLevel(level: string, specs: TutorSpecs): string[] {
+  const all = LEVEL_SUBJECTS[level] || []
+  const declared = specs[bandOfLevel(level)] || []
+  if (declared.length === 0) return all
+  const want = declared.map(normSubject)
+  const matched = all.filter((s) => want.includes(normSubject(s)))
+  return matched.length > 0 ? matched : declared
+}
+
+// Levels a tutor may pick — only the bands they actually teach.
+function levelsForTutor(specs: TutorSpecs): string[] {
+  const bands = new Set<'sd' | 'smp' | 'sma'>()
+  if (specs.sd.length) bands.add('sd')
+  if (specs.smp.length) bands.add('smp')
+  if (specs.sma.length) bands.add('sma')
+  if (bands.size === 0) return LEVELS
+  return LEVELS.filter((l) => bands.has(bandOfLevel(l)))
+}
+
+function getQuestionsForLevel(level: string, subjects: string[] = []): Question[] {
+  let forLevel = QUESTION_BANK.filter((q) => q.level === level)
+  if (subjects.length > 0) {
+    const want = subjects.map(normSubject)
+    forLevel = forLevel.filter((q) => want.includes(normSubject(q.subject)))
+  }
+  if (forLevel.length === 0) return []
   return forLevel.slice(0, 10)
 }
 
 
 export default function AcademicTestPage() {
   const router = useRouter()
+  const { user: authUser } = useAuth()
+  const [tutorSpecs, setTutorSpecs] = useState<TutorSpecs>({ sd: [], smp: [], sma: [] })
+  const [startError, setStartError] = useState<string | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -407,6 +465,36 @@ export default function AcademicTestPage() {
   const [score, setScore] = useState(0)
 
   const handleSubmitRef = useRef<() => void>(() => {})
+
+  // Load the tutor's declared teaching fields so the academic test only
+  // covers the subject(s) they will actually teach.
+  useEffect(() => {
+    let active = true
+    const fetchSpecs = async () => {
+      if (!authUser?.id) return
+      try {
+        const res = await fetch(`/api/tutors/profile?user_id=${authUser.id}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+        })
+        if (!res.ok) return
+        const { tutor } = await res.json()
+        if (active && tutor) {
+          setTutorSpecs({
+            sd: tutor.specializations_sd || [],
+            smp: tutor.specializations_smp || [],
+            sma: tutor.specializations_sma || [],
+          })
+        }
+      } catch {
+        // ignore — fall back to full curriculum
+      }
+    }
+    fetchSpecs()
+    return () => {
+      active = false
+    }
+  }, [authUser?.id])
 
   useEffect(() => {
     if (!timerActive) return
@@ -424,17 +512,20 @@ export default function AcademicTestPage() {
 
   const handleStartTest = async (level: string) => {
     setSelectedLevel(level)
+    setStartError(null)
     setLoadingQuestions(true)
     setAnswers({})
     setCurrentQuestion(0)
     setTimeRemaining(40 * 60)
+
+    const subjects = subjectsForLevel(level, tutorSpecs)
 
     let qs: Question[] = []
     try {
       const res = await fetch('/api/ai/academic-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level, count: 10 }),
+        body: JSON.stringify({ level, count: 10, subjects }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -447,7 +538,16 @@ export default function AcademicTestPage() {
     }
 
     if (qs.length === 0) {
-      qs = getQuestionsForLevel(level)
+      qs = getQuestionsForLevel(level, subjects)
+    }
+
+    if (qs.length === 0) {
+      setLoadingQuestions(false)
+      setSelectedLevel(null)
+      setStartError(
+        `Belum tersedia soal untuk bidang yang Anda ampu di ${level}. Hubungi admin untuk menambah bank soal.`
+      )
+      return
     }
 
     setQuestions(qs)
@@ -500,7 +600,7 @@ export default function AcademicTestPage() {
 
       if (response.ok) {
         setTimeout(() => {
-          router.push('/curation/progress')
+          router.push('/dashboard/tutor/curation/progress')
         }, 2500)
       }
     } catch (error) {
@@ -533,13 +633,19 @@ export default function AcademicTestPage() {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-foreground mb-2">Tes Kemampuan Akademik</h1>
             <p className="text-muted-foreground">
-              Pilih jenjang kelas yang ingin Anda uji. Soal mencakup berbagai mata pelajaran
-              dari <strong>SD Kelas 1</strong> hingga <strong>SMA Kelas 12</strong> (Kurikulum Merdeka / K-13).
+              Pilih jenjang kelas yang ingin Anda uji. Soal hanya mencakup mata pelajaran
+              sesuai <strong>bidang ilmu yang Anda ampu</strong> (Kurikulum Merdeka / K-13).
             </p>
           </div>
 
-          <Alert className="mb-6 bg-blue-50 border-blue-200">
-            <AlertDescription className="text-blue-800">
+          {startError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>{startError}</AlertDescription>
+            </Alert>
+          )}
+
+          <Alert className="mb-6 bg-primary/10 border-primary/30">
+            <AlertDescription className="text-primary">
               <strong>Sumber bank soal:</strong> Soal-soal bersumber dari kurikulum Kemendikbud dan
               referensi open-source seperti{' '}
               <a href="https://github.com/soallatihan/soallatihan.github.io" target="_blank" rel="noopener noreferrer" className="underline font-medium">
@@ -554,9 +660,9 @@ export default function AcademicTestPage() {
           </Alert>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {LEVELS.map((level) => {
-              const count = QUESTION_BANK.filter(q => q.level === level).length
-              const displayCount = Math.min(count, 10)
+            {levelsForTutor(tutorSpecs).map((level) => {
+              const subjects = subjectsForLevel(level, tutorSpecs)
+              const displayCount = Math.min(getQuestionsForLevel(level, subjects).length, 10)
               const isSD = level.startsWith('SD')
               const isSMP = level.startsWith('SMP')
               const isSMA = level.startsWith('SMA')
@@ -572,11 +678,13 @@ export default function AcademicTestPage() {
                     </span>
                     <div>
                       <h3 className="font-semibold text-foreground">{level}</h3>
-                      <p className="text-xs text-muted-foreground">{displayCount} soal tersedia</p>
+                      <p className="text-xs text-muted-foreground">
+                        {displayCount > 0 ? `${displayCount} soal tersedia` : 'Soal dibuat oleh AI'}
+                      </p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {[...new Set(QUESTION_BANK.filter(q => q.level === level).map(q => q.subject))].map(s => (
+                    {subjects.map(s => (
                       <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
                     ))}
                   </div>
@@ -603,14 +711,14 @@ export default function AcademicTestPage() {
             <div className="text-6xl font-bold text-primary mb-4">{score}</div>
             <p className="text-xl text-muted-foreground mb-6">Skor Anda dari 100</p>
             {score >= 70 ? (
-              <Alert className="bg-green-50 border-green-200 mb-6">
-                <AlertDescription className="text-green-800">
+              <Alert className="bg-success/10 border-success/20 mb-6">
+                <AlertDescription className="text-success">
                   Selamat! Anda lulus tes kemampuan akademik. Mari lanjut ke bagian selanjutnya.
                 </AlertDescription>
               </Alert>
             ) : (
-              <Alert className="bg-yellow-50 border-yellow-200 mb-6">
-                <AlertDescription className="text-yellow-800">
+              <Alert className="bg-warning/10 border-warning/20 mb-6">
+                <AlertDescription className="text-warning">
                   Skor Anda belum memenuhi standar minimum (70). Silakan coba lagi.
                 </AlertDescription>
               </Alert>
@@ -650,7 +758,7 @@ export default function AcademicTestPage() {
               <h1 className="text-2xl font-bold text-foreground">Tes Kemampuan Akademik</h1>
               <p className="text-sm text-muted-foreground">{selectedLevel}</p>
             </div>
-            <div className={`text-2xl font-bold ${timeRemaining < 300 ? 'text-red-500' : 'text-primary'}`}>
+            <div className={`text-2xl font-bold ${timeRemaining < 300 ? 'text-destructive' : 'text-primary'}`}>
               {minutes}:{seconds.toString().padStart(2, '0')}
             </div>
           </div>

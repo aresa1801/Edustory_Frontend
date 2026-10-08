@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, Calendar } from 'lucide-react'
+import { ArrowRight, CalendarDays, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const Blog = () => {
@@ -13,8 +13,7 @@ const Blog = () => {
       category: 'Belajar',
       date: '15 Maret 2024',
       readTime: '5 min',
-      image: '📚',
-      color: 'bg-primary/10',
+      emoji: '📚',
       slug: 'tips-belajar-efektif-smp',
     },
     {
@@ -24,8 +23,7 @@ const Blog = () => {
       category: 'Test Prep',
       date: '12 Maret 2024',
       readTime: '7 min',
-      image: '✏️',
-      color: 'bg-secondary/10',
+      emoji: '✏️',
       slug: 'cara-mempersiapkan-utbk',
     },
     {
@@ -35,82 +33,73 @@ const Blog = () => {
       category: 'Edukasi',
       date: '10 Maret 2024',
       readTime: '4 min',
-      image: '💬',
-      color: 'bg-accent/10',
+      emoji: '💬',
       slug: 'pentingnya-komunikasi-pembelajaran-online',
     },
   ]
 
   return (
-    <section id="blog" className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-b from-card/50 to-background">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
-            Tips & Artikel Pendidikan
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Artikel berkualitas dari para ahli pendidikan untuk membantu perjalanan belajar Anda
-          </p>
+    <section id="blog" className="section-pad bg-muted/40">
+      <div className="container-page">
+        <div className="mb-12 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-xl">
+            <span className="eyebrow">Blog</span>
+            <h2 className="mt-4">Tips &amp; artikel pendidikan</h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Wawasan dari para ahli untuk menemani perjalanan belajarmu.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="w-fit rounded-xl">
+            <Link href="/blog">
+              Lihat semua artikel
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <article
-              key={post.id}
-              className="bg-card rounded-xl border border-border hover:border-primary/50 overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group flex flex-col transform hover:scale-102 hover:-translate-y-1"
-            >
-              {/* Image/Icon Area */}
-              <div className={`h-48 ${post.color} flex items-center justify-center text-6xl group-hover:scale-105 transition-transform`}>
-                {post.image}
-              </div>
+            <article key={post.id} className="surface hover-card group flex flex-col overflow-hidden">
+              <Link href={`/blog/${post.slug}`} className="block">
+                <div className="flex h-40 items-center justify-center bg-gradient-to-br from-primary/10 via-card to-accent/10 text-5xl transition-transform duration-300 group-hover:scale-[1.02]">
+                  <span aria-hidden>{post.emoji}</span>
+                </div>
+              </Link>
 
-              {/* Content */}
-              <div className="p-6 flex flex-col flex-grow">
-                {/* Category & Date */}
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
+              <div className="flex flex-1 flex-col p-6">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                     {post.category}
                   </span>
-                  <div className="flex items-center gap-1 text-sm text-slate-300">
-                    <Calendar className="w-4 h-4" />
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5" />
                     {post.date}
-                  </div>
+                  </span>
                 </div>
 
-                {/* Title */}
-                <h3 className="text-xl font-semibold text-foreground mb-3 line-clamp-2 group-hover:text-primary transition-colors">
-                  {post.title}
+                <h3 className="text-lg font-bold leading-snug">
+                  <Link href={`/blog/${post.slug}`} className="transition-colors group-hover:text-primary">
+                    {post.title}
+                  </Link>
                 </h3>
+                <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted-foreground">{post.excerpt}</p>
 
-                {/* Excerpt */}
-                <p className="text-slate-300 mb-6 line-clamp-2 flex-grow">
-                  {post.excerpt}
-                </p>
-
-                {/* Read Time & Link */}
-                <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <span className="text-sm text-muted-foreground">
+                <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
                     {post.readTime} baca
                   </span>
-                  <Link href={`/blog/${post.slug}`}>
-                    <Button
-                      variant="ghost"
-                      className="text-primary hover:text-primary/90 p-0 h-auto font-semibold flex items-center gap-2"
-                    >
-                      Baca Selengkapnya
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
+                  <Link
+                    href={`/blog/${post.slug}`}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-primary"
+                  >
+                    Baca
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>
               </div>
             </article>
           ))}
-        </div>
-
-        <div className="text-center mt-12">
-          <Button className="bg-primary hover:bg-primary/90 text-white h-12 px-8 text-base font-semibold">
-            Lihat Semua Artikel
-          </Button>
         </div>
       </div>
     </section>

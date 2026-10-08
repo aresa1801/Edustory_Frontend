@@ -290,7 +290,7 @@ export default function StudentRegistrationForm() {
               value={formData.learningGoals}
               onChange={handleInputChange}
               placeholder="Ceritakan tujuan belajar Anda"
-              className="mt-1 w-full px-3 py-2 border border-input rounded-md text-sm"
+              className="mt-1 w-full px-3 py-2 border border-input rounded-lg text-sm"
               rows={3}
             />
           </div>

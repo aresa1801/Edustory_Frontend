@@ -70,10 +70,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
       <div className="max-w-5xl w-full">
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent mb-3">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-3">
             Pilih Peran Anda
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -101,10 +101,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             `}
             onClick={() => !isLoading && handleSelectRole('student')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary" />
             <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-4">
-                <GraduationCap className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <GraduationCap className="w-10 h-10 text-primary" />
               </div>
               <CardTitle className="text-2xl font-bold">Saya Student</CardTitle>
               <CardDescription className="text-base">
@@ -118,7 +118,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
                 <li>✓ Raih prestasi akademik bersama mentor terbaik</li>
               </ul>
               <Button 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 disabled={isLoading === 'student'}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -141,10 +141,10 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
             `}
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-400" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary to-accent" />
             <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mx-auto mb-4">
-                <UserCog className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+              <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mx-auto mb-4">
+                <UserCog className="w-10 h-10 text-secondary" />
               </div>
               <CardTitle className="text-2xl font-bold">Saya Tutor</CardTitle>
               <CardDescription className="text-base">
@@ -158,7 +158,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
                 <li>✓ Dapatkan penghasilan tambahan</li>
               </ul>
               <Button 
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
                 disabled={isLoading === 'tutor'}
                 onClick={(e) => {
                   e.stopPropagation()

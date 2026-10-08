@@ -1,14 +1,11 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/dashboard/ui'
 
 export default function AdminStatistics() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Statistik Platform</CardTitle>
-      </CardHeader>
-      <CardContent className="py-12 text-center">
+    <SectionCard title="Statistik Platform" className="rounded-2xl">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">
           Dasbor statistik akan segera tersedia. Anda dapat melihat:
         </p>
@@ -19,7 +16,7 @@ export default function AdminStatistics() {
           <li>• Grafik pertumbuhan pengguna</li>
           <li>• Metrik kepuasan pengguna</li>
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   )
 }

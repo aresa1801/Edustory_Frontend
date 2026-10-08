@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 import {
   Search, CheckCircle2, XCircle, Clock, User, Phone, Mail,
   BookOpen, Star, DollarSign, Award, Video, FileImage, ExternalLink,
@@ -214,25 +215,25 @@ export default function AdminTutorsPage() {
     switch (status) {
       case 'pending_curation':
         return (
-          <Badge className="bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30">
+          <Badge className="rounded-full bg-warning/10 text-warning border border-warning/20 hover:bg-warning/15">
             <Clock className="w-3 h-3 mr-1" /> Menunggu Review
           </Badge>
         )
       case 'approved':
         return (
-          <Badge className="bg-green-500/20 text-green-300 hover:bg-green-500/30">
+          <Badge className="rounded-full bg-success/10 text-success border border-success/20 hover:bg-success/15">
             <CheckCircle2 className="w-3 h-3 mr-1" /> Disetujui
           </Badge>
         )
       case 'rejected':
         return (
-          <Badge className="bg-red-500/20 text-red-300 hover:bg-red-500/30">
+          <Badge className="rounded-full bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/15">
             <XCircle className="w-3 h-3 mr-1" /> Ditolak
           </Badge>
         )
       case 'active':
         return (
-          <Badge className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+          <Badge className="rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15">
             Aktif
           </Badge>
         )
@@ -248,13 +249,14 @@ export default function AdminTutorsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Daftar Tutor</h1>
-        <p className="text-muted-foreground">Kelola dan verifikasi data tutor di platform</p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Daftar Tutor"
+        description="Kelola dan verifikasi data tutor di platform"
+      />
 
       {/* Search and Filter */}
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
@@ -262,13 +264,13 @@ export default function AdminTutorsPage() {
             placeholder="Cari nama atau email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border/30 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-border/30 bg-card text-foreground focus:outline-none focus:border-primary/50"
+          className="px-4 py-2 rounded-xl border border-border bg-card text-foreground focus:outline-none focus:border-primary/50"
         >
           <option value="all">Semua Status</option>
           <option value="pending_curation">Menunggu Review</option>
@@ -279,9 +281,9 @@ export default function AdminTutorsPage() {
       </div>
 
       {/* Tutors Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-2xl shadow-soft">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[880px]">
             <thead className="border-b border-border/30 bg-primary/5">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Nama</th>
@@ -320,7 +322,7 @@ export default function AdminTutorsPage() {
                   <td className="px-6 py-4 text-sm">
                     <button
                       onClick={() => openDetail(tutor)}
-                      className="px-3 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
                     >
                       Lihat Detail
                     </button>
@@ -339,23 +341,11 @@ export default function AdminTutorsPage() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total Tutor</p>
-          <p className="text-2xl font-bold text-foreground">{tutors.length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Menunggu Review</p>
-          <p className="text-2xl font-bold text-yellow-300">{tutors.filter(t => t.approval_status === 'pending_curation').length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Aktif</p>
-          <p className="text-2xl font-bold text-green-300">{tutors.filter(t => t.approval_status === 'active' || t.approval_status === 'approved').length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Ditolak</p>
-          <p className="text-2xl font-bold text-red-300">{tutors.filter(t => t.approval_status === 'rejected').length}</p>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Tutor" value={tutors.length} tone="primary" icon={User} />
+        <StatCard label="Menunggu Review" value={tutors.filter(t => t.approval_status === 'pending_curation').length} tone="accent" icon={Clock} />
+        <StatCard label="Aktif" value={tutors.filter(t => t.approval_status === 'active' || t.approval_status === 'approved').length} tone="secondary" icon={CheckCircle2} />
+        <StatCard label="Ditolak" value={tutors.filter(t => t.approval_status === 'rejected').length} tone="muted" icon={XCircle} />
       </div>
 
       {/* Tutor Detail Dialog */}
@@ -372,20 +362,20 @@ export default function AdminTutorsPage() {
 
               {/* Action message */}
               {actionMessage && (
-                <div className={`rounded-lg p-3 text-sm ${actionMessage.type === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                <div className={`rounded-xl p-3 text-sm ${actionMessage.type === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
                   {actionMessage.text}
                 </div>
               )}
 
               {/* Identity */}
-              <div className="rounded-lg border border-border/30 p-4 space-y-3">
+              <div className="rounded-xl border border-border/60 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <User className="w-4 h-4" /> Profil Tutor
                   </h3>
                   {getStatusBadge(selectedTutor.approval_status || selectedTutor.status)}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <p className="text-muted-foreground text-xs">Nama Lengkap</p>
                     <p className="font-medium">{selectedTutor.full_name}</p>
@@ -426,7 +416,7 @@ export default function AdminTutorsPage() {
               </div>
 
               {/* Subjects & Qualifications */}
-              <div className="rounded-lg border border-border/30 p-4 space-y-3">
+              <div className="rounded-xl border border-border/60 p-4 space-y-3">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
                   <BookOpen className="w-4 h-4" /> Spesialisasi & Kualifikasi
                 </h3>
@@ -457,13 +447,13 @@ export default function AdminTutorsPage() {
                 <>
                   {/* Microteaching */}
                   {selectedTutor.curationSubmissions.microteaching?.length > 0 && (
-                    <div className="rounded-lg border border-border/30 p-4 space-y-3">
+                    <div className="rounded-xl border border-border/60 p-4 space-y-3">
                       <h3 className="font-semibold text-foreground flex items-center gap-2">
                         <Video className="w-4 h-4" /> Submission Microteaching
                       </h3>
                       {selectedTutor.curationSubmissions.microteaching.map((mt: any) => (
                         <div key={mt.id} className="space-y-2 border-t border-border/20 pt-2 first:border-t-0 first:pt-0">
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <div>
                               <p className="text-muted-foreground text-xs">Topik</p>
                               <p className="font-medium">{mt.topic_selected}</p>
@@ -493,7 +483,7 @@ export default function AdminTutorsPage() {
                             <span className="text-xs text-muted-foreground">Skor Admin:</span>
                             <span className="font-medium">{mt.overall_score ?? '(belum dinilai)'}</span>
                             {mt.passed != null && (
-                              <Badge className={mt.passed ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}>
+                              <Badge className={mt.passed ? 'rounded-full bg-success/10 text-success border border-success/20' : 'rounded-full bg-destructive/10 text-destructive border border-destructive/20'}>
                                 {mt.passed ? 'Lulus' : 'Tidak Lulus'}
                               </Badge>
                             )}
@@ -505,14 +495,14 @@ export default function AdminTutorsPage() {
 
                   {/* Handwriting */}
                   {selectedTutor.curationSubmissions.handwriting?.length > 0 && (
-                    <div className="rounded-lg border border-border/30 p-4 space-y-3">
+                    <div className="rounded-xl border border-border/60 p-4 space-y-3">
                       <h3 className="font-semibold text-foreground flex items-center gap-2">
                         <FileImage className="w-4 h-4" /> Submission Tulisan Tangan
                       </h3>
                       {selectedTutor.curationSubmissions.handwriting.map((hw: any) => (
                         <div key={hw.id} className="space-y-2 border-t border-border/20 pt-2 first:border-t-0 first:pt-0">
                           <p className="text-muted-foreground text-xs">Dikumpulkan: {new Date(hw.submitted_at).toLocaleDateString('id-ID')}</p>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                               <p className="text-muted-foreground text-xs">Soal 1</p>
                               {hw.problem_1_image_url && (
@@ -536,7 +526,7 @@ export default function AdminTutorsPage() {
                             <span className="text-xs text-muted-foreground">Skor Admin:</span>
                             <span className="font-medium">{hw.overall_score ?? '(belum dinilai)'}</span>
                             {hw.passed != null && (
-                              <Badge className={hw.passed ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}>
+                              <Badge className={hw.passed ? 'rounded-full bg-success/10 text-success border border-success/20' : 'rounded-full bg-destructive/10 text-destructive border border-destructive/20'}>
                                 {hw.passed ? 'Lulus' : 'Tidak Lulus'}
                               </Badge>
                             )}
@@ -550,7 +540,7 @@ export default function AdminTutorsPage() {
 
               {/* Approve / Reject actions */}
               {(selectedTutor.approval_status === 'pending_curation' || !selectedTutor.verified) && (
-                <div className="rounded-lg border border-border/30 p-4 space-y-3">
+                <div className="rounded-xl border border-border/60 p-4 space-y-3">
                   <h3 className="font-semibold text-foreground">Keputusan Kurasi</h3>
                   {showRejectInput ? (
                     <div className="space-y-3">
@@ -582,7 +572,7 @@ export default function AdminTutorsPage() {
                     <div className="flex gap-3">
                       <Button
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
                         onClick={handleApprove}
                         disabled={actionLoading}
                       >

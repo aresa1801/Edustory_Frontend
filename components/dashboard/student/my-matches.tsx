@@ -8,11 +8,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Konfirmasi', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-  matched: { label: 'Terconfirmasi', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-  active: { label: 'Aktif', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Selesai', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+  pending: { label: 'Menunggu Konfirmasi', color: 'bg-warning/10 text-warning border-warning/20' },
+  matched: { label: 'Terconfirmasi', color: 'bg-success/10 text-success border-success/20' },
+  active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
+  completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
+  cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/20' },
 }
 
 export default function StudentMyMatches() {
@@ -163,7 +163,7 @@ export default function StudentMyMatches() {
         const tutor = match.tutors
 
         return (
-          <Card key={match.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <Card key={match.id} className="overflow-hidden rounded-2xl shadow-soft hover:shadow-lifted transition">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -228,8 +228,8 @@ export default function StudentMyMatches() {
               </div>
 
               {match.status === 'matched' && (
-                <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
-                  <p className="text-sm font-medium text-green-300">
+                <div className="rounded-xl border border-success/20 bg-success/10 p-2 text-center">
+                  <p className="text-sm font-medium text-success">
                     🎉 Pengajar telah mengkonfirmasi! Silakan hubungi untuk jadwal pembelajaran
                   </p>
                 </div>

@@ -124,7 +124,7 @@ export default function SelectRolePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
+            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lifted"
             onClick={() => !isLoading && handleSelectRole('student')}
           >
             <CardHeader>
@@ -148,7 +148,7 @@ export default function SelectRolePage() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
+            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lifted"
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
             <CardHeader>

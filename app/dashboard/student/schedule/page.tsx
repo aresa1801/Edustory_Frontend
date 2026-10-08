@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
+import { PageHeader, StatCard } from '@/components/dashboard/ui'
 import {
   Calendar,
   Clock,
@@ -369,96 +370,55 @@ export default function StudentSchedulePage() {
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Jadwal Belajar</h1>
-          <p className="text-muted-foreground">
-            Kelola jadwal belajar dengan tutor yang sudah dikonfirmasi.
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              Filter:
-            </span>
-            <button
-              onClick={toggleMode}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border bg-background hover:bg-muted transition-colors"
+      <PageHeader
+        eyebrow="Jadwal"
+        title="Jadwal Belajar"
+        description="Kelola jadwal belajar dengan tutor yang sudah dikonfirmasi."
+        actions={
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Filter:
+              </span>
+              <button
+                onClick={toggleMode}
+                className="px-3 py-1.5 text-xs font-medium rounded-xl border bg-background hover:bg-muted transition-colors"
+              >
+                {getModeLabel()}
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="gap-1.5"
             >
-              {getModeLabel()}
-            </button>
+              <RefreshCw
+                className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+              />
+              Refresh
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="gap-1.5"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
-            />
-            Refresh
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Statistik */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-4 h-4 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Tutor</p>
-              <p className="text-xl font-bold">{schedules.length}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <Circle className="w-4 h-4 text-green-500 fill-green-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Online</p>
-              <p className="text-xl font-bold">{totalOnline}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-400/20 flex items-center justify-center">
-              <Circle className="w-4 h-4 text-gray-400 fill-gray-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Offline</p>
-              <p className="text-xl font-bold">{totalOffline}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-slate-500/20 flex items-center justify-center">
-              <CheckCircle className="w-4 h-4 text-slate-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Kontrak Selesai</p>
-              <p className="text-xl font-bold">{completedSchedules.length}</p>
-            </div>
-          </div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Tutor" value={schedules.length} icon={Users} tone="primary" />
+        <StatCard label="Online" value={totalOnline} icon={Circle} tone="secondary" />
+        <StatCard label="Offline" value={totalOffline} icon={Circle} tone="muted" />
+        <StatCard label="Kontrak Selesai" value={completedSchedules.length} icon={CheckCircle} tone="accent" />
       </div>
 
       {/* ===== BAGIAN 1: AKTIF ===== */}
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <Circle className="w-4 h-4 text-green-500 fill-green-500" />
+          <Circle className="w-4 h-4 text-success fill-success" />
           Aktif ({filteredActive.length})
         </h2>
         {filteredActive.length === 0 ? (
-          <Card>
+          <Card className="rounded-2xl shadow-soft">
             <CardContent className="py-8 text-center text-muted-foreground">
               {mode === 'all'
                 ? 'Belum ada tutor aktif.'
@@ -475,13 +435,13 @@ export default function StudentSchedulePage() {
               return (
                 <Card
                   key={schedule.id}
-                  className="border shadow-sm hover:shadow-md transition-shadow"
+                  className="rounded-2xl border shadow-soft hover:shadow-lifted transition"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
                             {tutor.avatar ? (
                               <img
                                 src={tutor.avatar}
@@ -504,8 +464,8 @@ export default function StudentSchedulePage() {
                             <Circle
                               className={`h-2 w-2 fill-current ${
                                 schedule.student?.isOnline
-                                  ? 'text-green-500'
-                                  : 'text-gray-400'
+                                  ? 'text-success'
+                                  : 'text-muted-foreground'
                               }`}
                             />
                             <span className="text-muted-foreground">
@@ -523,11 +483,11 @@ export default function StudentSchedulePage() {
                             </span>{' '}
                             {formatDate(schedule.contractEndDate)}
                             {daysLeft >= 0 ? (
-                              <span className="text-gray-400 ml-1">
+                              <span className="text-muted-foreground ml-1">
                                 (sisa {daysLeft} hari)
                               </span>
                             ) : (
-                              <span className="text-red-500 ml-1">
+                              <span className="text-destructive ml-1">
                                 (lewat {Math.abs(daysLeft)} hari)
                               </span>
                             )}
@@ -566,11 +526,11 @@ export default function StudentSchedulePage() {
       {/* ===== BAGIAN 2: KONTRAK SELESAI ===== */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-slate-500" />
+          <CheckCircle className="w-4 h-4 text-muted-foreground" />
           Kontrak Selesai ({filteredCompleted.length})
         </h2>
         {filteredCompleted.length === 0 ? (
-          <Card>
+          <Card className="rounded-2xl shadow-soft">
             <CardContent className="py-8 text-center text-muted-foreground">
               {mode === 'all'
                 ? 'Belum ada kontrak yang selesai.'
@@ -585,13 +545,13 @@ export default function StudentSchedulePage() {
               return (
                 <Card
                   key={schedule.id}
-                  className="border shadow-sm hover:shadow-md transition-shadow border-slate-200 bg-slate-50/50"
+                  className="rounded-2xl border shadow-soft hover:shadow-lifted transition border-border bg-muted/40"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-muted-foreground/60 to-muted-foreground flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
                             {tutor.avatar ? (
                               <img
                                 src={tutor.avatar}
@@ -614,8 +574,8 @@ export default function StudentSchedulePage() {
                             <Circle
                               className={`h-2 w-2 fill-current ${
                                 tutor.isOnline
-                                  ? 'text-green-500'
-                                  : 'text-gray-400'
+                                  ? 'text-success'
+                                  : 'text-muted-foreground'
                               }`}
                             />
                             <span className="text-muted-foreground">
@@ -645,7 +605,7 @@ export default function StudentSchedulePage() {
                         </Button>
                                                 {schedule.extensionRequest?.status === 'pending' ? (
                           <div className="flex flex-col gap-2 items-end">
-                            <div className="text-xs text-amber-400 font-mono font-bold">
+                            <div className="text-xs text-warning font-mono font-bold">
                               Sisa waktu:{' '}
                               {(() => {
                                 const deadline = new Date(
@@ -664,7 +624,7 @@ export default function StudentSchedulePage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
+                              className="text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
                               onClick={() => setExtCancelSchedule(schedule)}
                             >
                               <XCircle className="w-3.5 h-3.5 mr-1.5" />
@@ -675,7 +635,7 @@ export default function StudentSchedulePage() {
                           <Button
                             variant="default"
                             size="sm"
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                            className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                             onClick={() => handleRequestExtension(schedule)}
                           >
                             <RotateCw className="w-3.5 h-3.5 mr-1.5" />
@@ -717,7 +677,7 @@ export default function StudentSchedulePage() {
             <div className="space-y-6 py-2">
               {/* ===== HEADER PROFIL ===== */}
               <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 overflow-hidden">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 overflow-hidden">
                   {selectedSchedule.tutor.avatar ? (
                     <img
                       src={selectedSchedule.tutor.avatar}
@@ -735,7 +695,7 @@ export default function StudentSchedulePage() {
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge
                       variant="secondary"
-                      className="text-xs bg-green-500/20 text-green-200 border-green-500/30"
+                      className="text-xs bg-success/10 text-success border-success/20"
                     >
                       Tutor
                     </Badge>
@@ -743,8 +703,8 @@ export default function StudentSchedulePage() {
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
                           selectedSchedule.tutor.isOnline
-                            ? 'text-green-500'
-                            : 'text-gray-400'
+                            ? 'text-success'
+                            : 'text-muted-foreground'
                         }`}
                       />
                       <span className="text-muted-foreground">
@@ -758,10 +718,10 @@ export default function StudentSchedulePage() {
               {/* ===== GRID 3 KOLOM ===== */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* KOLOM 1: INFORMASI PRIBADI */}
-                <Card className="border shadow-sm">
+                <Card className="rounded-2xl border shadow-soft">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
-                      <User className="w-4 h-4 text-blue-500" />
+                      <User className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">Informasi Pribadi</h4>
                     </div>
                     <div className="space-y-2 text-sm">
@@ -806,10 +766,10 @@ export default function StudentSchedulePage() {
                 </Card>
 
                 {/* KOLOM 2: INFORMASI PROFESIONAL */}
-                <Card className="border shadow-sm">
+                <Card className="rounded-2xl border shadow-soft">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
-                      <Briefcase className="w-4 h-4 text-purple-500" />
+                      <Briefcase className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">
                         Informasi Profesional
                       </h4>
@@ -848,7 +808,7 @@ export default function StudentSchedulePage() {
                         </p>
                         <Badge
                           variant="outline"
-                          className="mt-1 text-xs bg-green-500/20 text-green-200 border-green-500/30"
+                          className="mt-1 text-xs bg-success/10 text-success border-success/20"
                         >
                           ✓ Terverifikasi
                         </Badge>
@@ -858,16 +818,16 @@ export default function StudentSchedulePage() {
                 </Card>
 
                 {/* KOLOM 3: RATING & ULASAN (FIXED HEIGHT) */}
-                <Card className="border shadow-sm flex flex-col h-[420px]">
+                <Card className="rounded-2xl border shadow-soft flex flex-col h-[420px]">
                   <CardContent className="p-4 flex flex-col h-full min-h-0">
                     <div className="flex items-center gap-2 pb-2 border-b shrink-0">
-                      <Star className="w-4 h-4 text-yellow-500" />
+                      <Star className="w-4 h-4 text-accent" />
                       <h4 className="font-semibold text-sm">Rating & Ulasan</h4>
                     </div>
 
                     {/* Skor Rating */}
                     <div className="flex items-center gap-2 shrink-0 pt-3">
-                      <span className="text-3xl font-bold text-yellow-400">
+                      <span className="text-3xl font-bold text-accent">
                         {selectedSchedule.tutor.rating || 0}
                       </span>
                       <div>
@@ -877,8 +837,8 @@ export default function StudentSchedulePage() {
                               key={i}
                               className={`w-3.5 h-3.5 ${
                                 i <= Math.round(selectedSchedule.tutor.rating || 0)
-                                  ? 'text-yellow-500 fill-yellow-500'
-                                  : 'text-gray-500'
+                                  ? 'text-accent fill-accent'
+                                  : 'text-muted-foreground'
                               }`}
                             />
                           ))}
@@ -927,8 +887,8 @@ export default function StudentSchedulePage() {
                                       key={i}
                                       className={`w-2.5 h-2.5 ${
                                         i <= review.rating
-                                          ? 'text-yellow-500 fill-yellow-500'
-                                          : 'text-gray-500'
+                                          ? 'text-accent fill-accent'
+                                          : 'text-muted-foreground'
                                       }`}
                                     />
                                   ))}
@@ -967,7 +927,7 @@ export default function StudentSchedulePage() {
               {(() => {
                 if (checkingReview) {
                   return (
-                    <Card className="border shadow-sm">
+                    <Card className="rounded-2xl border shadow-soft">
                       <CardContent className="p-4 flex items-center justify-center">
                         <Spinner className="w-4 h-4 mr-2" />
                         <span className="text-sm text-muted-foreground">Memeriksa status ulasan...</span>
@@ -993,16 +953,16 @@ export default function StudentSchedulePage() {
 
                 if (!isCompleted) {
                   return (
-                    <Card className="border shadow-sm bg-slate-500/5 border-slate-500/20">
+                    <Card className="rounded-2xl border shadow-soft bg-muted/50 border-border">
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
-                          <Lock className="w-4 h-4 text-slate-500" />
+                          <Lock className="w-4 h-4 text-muted-foreground" />
                           <h4 className="font-semibold text-sm text-muted-foreground">
                             Berikan Rating
                           </h4>
                           <Badge
                             variant="outline"
-                            className="text-[10px] bg-slate-500/20 text-slate-300 border-slate-500/30"
+                            className="text-[10px] bg-muted text-muted-foreground border-border"
                           >
                             🔒 Terkunci
                           </Badge>
@@ -1016,10 +976,10 @@ export default function StudentSchedulePage() {
                 }
 
                 return (
-                  <Card className="border shadow-sm bg-yellow-500/5 border-yellow-500/20">
+                  <Card className="rounded-2xl border shadow-soft bg-warning/5 border-warning/20">
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center gap-2">
-                        <Star className="w-4 h-4 text-yellow-500" />
+                        <Star className="w-4 h-4 text-accent" />
                         <h4 className="font-semibold text-sm">Berikan Rating</h4>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -1040,8 +1000,8 @@ export default function StudentSchedulePage() {
                             <Star
                               className={`w-8 h-8 ${
                                 i <= myRating
-                                  ? 'text-yellow-500 fill-yellow-500'
-                                  : 'text-gray-500'
+                                  ? 'text-accent fill-accent'
+                                  : 'text-muted-foreground'
                               }`}
                             />
                           </button>
@@ -1075,7 +1035,7 @@ export default function StudentSchedulePage() {
                             </Button>
                             <Button
                               size="sm"
-                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                               onClick={handleSubmitReview}
                               disabled={submittingReview || myRating === 0}
                             >
@@ -1091,10 +1051,10 @@ export default function StudentSchedulePage() {
 
               {/* ===== JADWAL TERKINI & KUSTOM ===== */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="border shadow-sm">
+                <Card className="rounded-2xl border shadow-soft">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
-                      <Calendar className="w-4 h-4 text-orange-500" />
+                      <Calendar className="w-4 h-4 text-accent" />
                       <h4 className="font-semibold text-sm">Jadwal Terkini</h4>
                     </div>
                     <div className="pt-1 space-y-1">
@@ -1123,10 +1083,10 @@ export default function StudentSchedulePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border shadow-sm">
+                <Card className="rounded-2xl border shadow-soft">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
-                      <RotateCw className="w-4 h-4 text-teal-500" />
+                      <RotateCw className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">Jadwal Kustom</h4>
                     </div>
                     <div className="pt-1">
@@ -1159,10 +1119,10 @@ export default function StudentSchedulePage() {
               </div>
 
               {/* ===== INFORMASI KONTRAK ===== */}
-              <Card className="border shadow-sm bg-muted/30">
+              <Card className="rounded-2xl border shadow-soft bg-muted/30">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 pb-2 border-b mb-3">
-                    <GraduationCap className="w-4 h-4 text-indigo-500" />
+                    <GraduationCap className="w-4 h-4 text-primary" />
                     <h4 className="font-semibold text-sm">Informasi Kontrak</h4>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -1207,7 +1167,7 @@ export default function StudentSchedulePage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-500">
+            <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="w-5 h-5" />
               Apakah ingin membatalkan perpanjangan yang sudah diatur?
             </DialogTitle>

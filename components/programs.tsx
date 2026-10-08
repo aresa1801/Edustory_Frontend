@@ -3,11 +3,20 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ArrowRight } from 'lucide-react'
+
+const TABS = [
+  { key: 'sd', label: 'SD' },
+  { key: 'smp', label: 'SMP' },
+  { key: 'sma', label: 'SMA' },
+  { key: 'mahasiswa', label: 'Mahasiswa' },
+  { key: 'bahasa', label: 'Bahasa' },
+] as const
 
 const Programs = () => {
-  const [activeTab, setActiveTab] = useState('sd')
+  const [activeTab, setActiveTab] = useState<string>('sd')
 
-  const programData = {
+  const programData: Record<string, { subject: string; level: string; price: string }[]> = {
     sd: [
       { subject: 'Matematika', level: 'SD 1-3', price: 'Rp 150K - 200K' },
       { subject: 'Bahasa Indonesia', level: 'SD 1-3', price: 'Rp 150K - 200K' },
@@ -50,73 +59,63 @@ const Programs = () => {
     ],
   }
 
-  const programs = programData[activeTab as keyof typeof programData]
+  const programs = programData[activeTab] ?? []
 
   return (
-    <section id="program" className="w-full py-16 md:py-20 lg:py-24 bg-card/50 border-t border-border">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-primary mb-4">
-            Program Pembelajaran Kami
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Berbagai pilihan program untuk semua tingkat pendidikan
+    <section id="program" className="section-pad border-y border-border/70 bg-muted/40">
+      <div className="container-page">
+        <div className="mx-auto mb-10 max-w-2xl text-center">
+          <span className="eyebrow">Program</span>
+          <h2 className="mt-4">Program pembelajaran kami</h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Berbagai pilihan mata pelajaran untuk semua tingkat pendidikan.
           </p>
         </div>
 
-        {/* Category Tabs */}
-        <div className="flex flex-wrap justify-center gap-3 mb-12">
-          {['sd', 'smp', 'sma', 'mahasiswa', 'bahasa'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-lg font-semibold transition-all duration-300 ${
-                activeTab === tab
-                  ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/20'
-                  : 'bg-card text-foreground border border-border hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10'
-              }`}
-            >
-              {tab === 'sd' && 'SD'}
-              {tab === 'smp' && 'SMP'}
-              {tab === 'sma' && 'SMA'}
-              {tab === 'mahasiswa' && 'Mahasiswa'}
-              {tab === 'bahasa' && 'Bahasa'}
-            </button>
-          ))}
+        {/* Tabs — scrollable, pill style */}
+        <div className="-mx-4 mb-10 flex justify-start gap-2 overflow-x-auto px-4 pb-2 sm:justify-center sm:overflow-visible">
+          {TABS.map((tab) => {
+            const active = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                aria-pressed={active}
+                className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-soft'
+                    : 'border border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Program Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {programs.map((program, index) => (
-            <div
-              key={index}
-              className="p-6 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group transform hover:scale-102 hover:-translate-y-1"
-            >
-              <div className="mb-4 flex items-start justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
-                    {program.subject}
-                  </h3>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-                    {program.level}
-                  </Badge>
-                </div>
+            <article key={`${program.subject}-${index}`} className="surface hover-card group flex flex-col p-6">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-bold">{program.subject}</h3>
+                <Badge variant="secondary" className="shrink-0 rounded-full bg-primary/10 text-primary">
+                  {program.level}
+                </Badge>
               </div>
-              
-              <div className="mb-6">
-                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-1">
-                  {program.price}
-                </p>
-                <p className="text-sm text-muted-foreground">per sesi</p>
+
+              <div className="mt-5 flex-1">
+                <p className="text-2xl font-extrabold tracking-tight text-foreground">{program.price}</p>
+                <p className="text-sm text-muted-foreground">per sesi (estimasi)</p>
               </div>
 
               <Button
                 variant="outline"
-                className="w-full border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
+                className="mt-6 w-full justify-between rounded-xl border-border hover:border-primary/50 hover:bg-primary/5"
               >
-                Lihat Detail
+                Lihat detail
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Button>
-            </div>
+            </article>
           ))}
         </div>
       </div>

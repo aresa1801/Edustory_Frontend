@@ -53,6 +53,7 @@ export default async function TutorWalletPage() {
       initialBalance={balance}
       tutorId={tutor?.id || ''}
       tutorName={session.user.email?.split('@')[0] || 'Tutor'}
+      initialToken={session.access_token}
     />
   )
 }

@@ -1,10 +1,10 @@
 'use client'
 
 import { MessageCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { CONTACT_INFO } from '@/lib/constants'
 
 const WhatsAppButton = () => {
-  const whatsappNumber = '6281234567890'
+  const whatsappNumber = CONTACT_INFO.whatsapp
   const message = 'Halo, saya ingin konsultasi tentang layanan pembelajaran EduStory.'
 
   const openWhatsApp = () => {
@@ -13,14 +13,13 @@ const WhatsAppButton = () => {
   }
 
   return (
-    <Button
+    <button
       onClick={openWhatsApp}
-      size="icon"
-      className="fixed bottom-6 right-6 bg-success hover:bg-success/90 text-white shadow-lg rounded-full w-14 h-14 z-40 animate-scale-in"
+      className="fixed bottom-6 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-secondary-foreground shadow-lifted transition-transform duration-200 hover:scale-105 active:scale-95 animate-scale-in"
       aria-label="Chat on WhatsApp"
     >
-      <MessageCircle className="w-6 h-6" />
-    </Button>
+      <MessageCircle className="h-6 w-6" />
+    </button>
   )
 }
 

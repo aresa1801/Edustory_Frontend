@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { MessageCircle, Phone } from 'lucide-react'
-import { CONTACT_INFO, WHATSAPP_MESSAGES } from '@/lib/constants'
+import { MessageCircle, Phone, Clock } from 'lucide-react'
+import { CONTACT_INFO } from '@/lib/constants'
 
 const CTA = () => {
   const whatsappNumber = CONTACT_INFO.whatsapp
@@ -13,72 +13,69 @@ const CTA = () => {
   }
 
   return (
-    <section id="kontak" className="w-full py-16 md:py-20 lg:py-24 bg-gradient-to-r from-blue-600 via-blue-700 to-slate-800 text-white relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full -ml-48 -mb-48"></div>
+    <section id="kontak" className="section-pad">
+      <div className="container-page">
+        <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card px-6 py-12 shadow-soft sm:px-12 md:py-16">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
+          />
+          <div className="relative grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div>
+              <span className="eyebrow">Konsultasi Gratis</span>
+              <h2 className="mt-4">Siap tingkatkan prestasi belajar?</h2>
+              <p className="mt-4 max-w-lg text-lg text-muted-foreground">
+                Ceritakan kebutuhanmu — tim EduStory akan merekomendasikan pengajar dan program yang paling tepat.
+              </p>
 
-      <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 relative z-10">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
-            Siap Meningkatkan Prestasi Belajar?
-          </h2>
-          <p className="text-lg text-white/90 max-w-2xl mx-auto">
-            Konsultasi gratis dengan tim kami sekarang juga dan temukan solusi pembelajaran terbaik untuk Anda
-          </p>
-        </div>
-
-        {/* Contact Methods */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 md:p-12 mb-8 border border-white/20">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div className="text-center">
-              <div className="flex justify-center mb-4">
-                <Phone className="w-8 h-8" />
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button onClick={openWhatsApp} size="lg" className="h-12 gap-2 bg-secondary px-7 text-base text-secondary-foreground hover:bg-secondary/90">
+                  <MessageCircle className="h-5 w-5" />
+                  Chat WhatsApp
+                </Button>
+                <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base">
+                  <a href={`tel:${phoneNumber}`}>Telepon Kami</a>
+                </Button>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Telepon</h3>
+            </div>
+
+            {/* Contact cards */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <a
                 href={`tel:${phoneNumber}`}
-                className="text-white/80 hover:text-white transition-colors font-medium"
+                className="surface flex items-center gap-4 p-5 transition hover:border-primary/40"
               >
-                {phoneNumber}
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Phone className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs text-muted-foreground">Telepon</p>
+                  <p className="font-semibold">{phoneNumber}</p>
+                </div>
               </a>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center mb-4">
-                <MessageCircle className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">WhatsApp</h3>
               <button
                 onClick={openWhatsApp}
-                className="text-white/80 hover:text-white transition-colors font-medium"
+                className="surface flex items-center gap-4 p-5 text-left transition hover:border-secondary/40"
               >
-                Chat dengan kami
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary/12 text-secondary">
+                  <MessageCircle className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs text-muted-foreground">WhatsApp</p>
+                  <p className="font-semibold">Chat dengan kami</p>
+                </div>
               </button>
+              <div className="surface flex items-center gap-4 p-5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/16 text-accent-foreground">
+                  <Clock className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs text-muted-foreground">Jam layanan</p>
+                  <p className="font-semibold">Setiap hari · 08.00–20.00 WIB</p>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              onClick={openWhatsApp}
-              className="bg-success hover:bg-success/90 text-white h-12 px-8 text-base font-semibold flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-5 h-5" />
-              WhatsApp Sekarang
-            </Button>
-            <Button
-              className="bg-white hover:bg-white/90 text-primary h-12 px-8 text-base font-semibold"
-            >
-              Hubungi Kami
-            </Button>
-          </div>
-        </div>
-
-        {/* Additional Info */}
-        <div className="text-center text-sm text-white/80">
-          <p>Kami siap melayani setiap hari pukul 08:00 - 20:00 WIB</p>
-          <p>Respons cepat dan konsultasi gratis untuk semua pertanyaan Anda</p>
         </div>
       </div>
     </section>

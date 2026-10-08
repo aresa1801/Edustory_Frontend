@@ -7,7 +7,7 @@ import { useAuth, AppRole } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { LogOut, Menu, X, PanelLeftClose, PanelLeftOpen, MoreHorizontal } from 'lucide-react'
 
 export interface NavItem {
   href: string
@@ -35,33 +35,33 @@ interface SharedDashboardLayoutProps {
   logoIcon: React.ElementType
 }
 
-const ACCENT: Record<AccentColor, {
-  logo: string
-  active: string
-  activeIcon: string
-  chevron: string
-  avatar: string
-}> = {
+const ACCENT: Record<
+  AccentColor,
+  { logo: string; active: string; activeIcon: string; avatar: string; ring: string; dot: string }
+> = {
   blue: {
-    logo: 'bg-blue-600',
-    active: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    activeIcon: 'text-blue-600 dark:text-blue-400',
-    chevron: 'text-blue-400 dark:text-blue-500',
-    avatar: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+    logo: 'bg-[#2A7FFF]',
+    active: 'bg-[#2A7FFF]/10 text-[#2A7FFF] dark:bg-[#2A7FFF]/20 dark:text-[#7FBBFF]',
+    activeIcon: 'text-[#2A7FFF] dark:text-[#7FBBFF]',
+    avatar: 'bg-[#2A7FFF]/12 text-[#2A7FFF] dark:text-[#7FBBFF]',
+    ring: 'ring-[#2A7FFF]/25',
+    dot: 'bg-[#2A7FFF]',
   },
   purple: {
-    logo: 'bg-purple-600',
-    active: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-    activeIcon: 'text-purple-600 dark:text-purple-400',
-    chevron: 'text-purple-400 dark:text-purple-500',
-    avatar: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
+    logo: 'bg-primary',
+    active: 'bg-primary/10 text-primary dark:bg-primary/20',
+    activeIcon: 'text-primary',
+    avatar: 'bg-primary/12 text-primary',
+    ring: 'ring-primary/25',
+    dot: 'bg-primary',
   },
   green: {
-    logo: 'bg-green-600',
-    active: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-    activeIcon: 'text-green-600 dark:text-green-400',
-    chevron: 'text-green-400 dark:text-green-500',
-    avatar: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+    logo: 'bg-secondary',
+    active: 'bg-secondary/12 text-secondary dark:bg-secondary/20',
+    activeIcon: 'text-secondary',
+    avatar: 'bg-secondary/12 text-secondary',
+    ring: 'ring-secondary/25',
+    dot: 'bg-secondary',
   },
 }
 
@@ -90,14 +90,11 @@ export default function SharedDashboardLayout({
 
   useEffect(() => {
     if (loading) return
-
     if (!user) {
       router.push('/auth/login')
       return
     }
-
     if (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      // Redirect to the correct dashboard for this role
       const roleRedirectMap: Record<AppRole, string> = {
         student: '/dashboard/student',
         tutor: '/dashboard/tutor',
@@ -107,136 +104,150 @@ export default function SharedDashboardLayout({
     }
   }, [loading, user, userRole, allowedRoles, redirectPath, router])
 
+  // Close the mobile drawer on route change
+  useEffect(() => {
+    setMobileDrawerOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileDrawerOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileDrawerOpen])
+
   const handleLogout = async () => {
     try {
       await signOut()
     } catch {
-      // Ignore sign-out errors; proceed with client-side redirect
+      /* ignore */
     }
     window.location.replace('/')
   }
 
-  const isActive = (href: string, exact?: boolean) => {
-    if (exact) return pathname === href
-    return pathname.startsWith(href)
-  }
+  const isActive = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname === href || pathname.startsWith(href + '/')
 
   const initials = userName
-    ? userName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    ? userName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
     : (user?.email ?? 'U').slice(0, 2).toUpperCase()
 
   const roleLabel = userRole ? ROLE_LABEL[userRole] : ''
 
-  // Flat list of all nav items for mobile
-  const flatNavItems = navGroups.flatMap(g => g.items)
-  // First 3 items go in the bottom bar; the rest are accessible via the drawer
+  const flatNavItems = navGroups.flatMap((g) => g.items)
   const mobileBottomItems = flatNavItems.slice(0, 3)
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950">
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memuat dashboard...</p>
+          <div className="mx-auto mb-4 h-11 w-11 animate-spin rounded-full border-[3px] border-primary/20 border-t-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Memuat dashboard…</p>
         </div>
       </div>
     )
   }
 
-  // Still waiting for redirect to fire — render nothing
   if (!user || (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole))) {
     return null
   }
 
-  return (
-    <div className="flex h-screen bg-slate-50 dark:bg-gray-950 font-sans">
-      {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────────── */}
-      <aside
-        className={`hidden md:flex ${
-          sidebarOpen ? 'w-64' : 'w-[72px]'
-        } bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 transition-all duration-300 flex-col shadow-sm z-20`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-gray-800 gap-3">
-          <div className={`w-9 h-9 rounded-xl ${colors.logo} flex items-center justify-center flex-shrink-0`}>
-            <LogoIcon className="w-5 h-5 text-white" />
-          </div>
-          {sidebarOpen && (
-            <div>
-              <p className="font-bold text-slate-800 dark:text-gray-100 leading-none">EduStory</p>
-              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wider">
-                {portalLabel}
-              </p>
-            </div>
+  const BrandMark = (
+    <div className="flex items-center gap-3">
+      <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-soft ${colors.logo}`}>
+        <LogoIcon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="font-display font-extrabold leading-none tracking-tight">
+          Edu<span className="text-primary">Story</span>
+        </p>
+        <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{portalLabel}</p>
+      </div>
+    </div>
+  )
+
+  const NavList = ({
+    onNavigate,
+    dense = false,
+    expanded,
+  }: {
+    onNavigate?: () => void
+    dense?: boolean
+    expanded: boolean
+  }) => (
+    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+      {navGroups.map((group) => (
+        <div key={group.label}>
+          {expanded && (
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+              {group.label}
+            </p>
           )}
+          <div className="space-y-1">
+            {group.items.map(({ href, icon: Icon, label, exact }) => {
+              const active = isActive(href, exact)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={!expanded ? label : undefined}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group flex items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all ${
+                    dense ? 'py-3' : 'py-2.5'
+                  } ${
+                    active
+                      ? colors.active
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <Icon
+                    size={dense ? 20 : 18}
+                    className={`flex-shrink-0 ${active ? colors.activeIcon : 'text-muted-foreground/80 group-hover:text-foreground'}`}
+                  />
+                  {expanded && <span className="truncate">{label}</span>}
+                  {expanded && active && <span className={`ml-auto h-1.5 w-1.5 rounded-full ${colors.dot}`} />}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  )
+
+  return (
+    <div className="flex h-[100dvh] overflow-hidden bg-muted/30 font-sans">
+      {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
+      <aside
+        className={`z-20 hidden flex-col border-r border-border/70 bg-card transition-all duration-300 md:flex ${
+          sidebarOpen ? 'w-64' : 'w-[76px]'
+        }`}
+      >
+        <div className="flex h-16 items-center gap-3 border-b border-border/70 px-4">
+          {BrandMark}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-          {navGroups.map(group => (
-            <div key={group.label}>
-              {sidebarOpen && (
-                <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 px-2">
-                  {group.label}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {group.items.map(({ href, icon: Icon, label, exact }) => {
-                  const active = isActive(href, exact)
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      title={!sidebarOpen ? label : undefined}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
-                        active
-                          ? colors.active
-                          : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
-                      }`}
-                    >
-                      <Icon
-                        className={`flex-shrink-0 ${
-                          active
-                            ? colors.activeIcon
-                            : 'text-slate-400 dark:text-gray-500 group-hover:text-slate-600 dark:group-hover:text-gray-300'
-                        }`}
-                        size={18}
-                      />
-                      {sidebarOpen && <span className="truncate">{label}</span>}
-                      {sidebarOpen && active && (
-                        <ChevronRight className={`ml-auto w-3.5 h-3.5 ${colors.chevron}`} />
-                      )}
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+        <NavList expanded={sidebarOpen} />
 
-        {/* User section & Logout */}
-        <div className="p-3 border-t border-slate-100 dark:border-gray-800">
+        <div className="border-t border-border/70 p-3">
           {sidebarOpen ? (
-            <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
-              <Avatar className="w-8 h-8 flex-shrink-0">
-                <AvatarFallback className={`${colors.avatar} text-xs font-semibold`}>
-                  {initials}
-                </AvatarFallback>
+            <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+              <Avatar className="h-8 w-8 flex-shrink-0">
+                <AvatarFallback className={`text-xs font-semibold ${colors.avatar}`}>{initials}</AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">
-                  {userName || user?.email}
-                </p>
-                <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{userName || user?.email}</p>
+                <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
               <Button
                 onClick={handleLogout}
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 title="Keluar"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="h-4 w-4" />
               </Button>
             </div>
           ) : (
@@ -244,164 +255,106 @@ export default function SharedDashboardLayout({
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-full text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+              className="w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               title="Keluar"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="h-4 w-4" />
             </Button>
           )}
         </div>
       </aside>
 
-      {/* ── Mobile Drawer Backdrop ───────────────────────────────────────────── */}
+      {/* ── Mobile drawer ──────────────────────────────────────────────── */}
       {mobileDrawerOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm animate-fade-in md:hidden"
           onClick={() => setMobileDrawerOpen(false)}
-          aria-hidden="true"
+          aria-hidden
         />
       )}
-
-      {/* ── Mobile Slide-in Drawer ───────────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 flex flex-col shadow-xl z-50 md:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-border/70 bg-card shadow-lifted transition-transform duration-300 ease-in-out md:hidden ${
           mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
-        aria-label="Mobile navigation"
+        aria-label="Navigasi"
       >
-        {/* Drawer Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${colors.logo} flex items-center justify-center flex-shrink-0`}>
-              <LogoIcon className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="font-bold text-slate-800 dark:text-gray-100 leading-none">EduStory</p>
-              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wider">
-                {portalLabel}
-              </p>
-            </div>
-          </div>
+        <div className="flex h-16 items-center justify-between border-b border-border/70 px-4">
+          {BrandMark}
           <button
             onClick={() => setMobileDrawerOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted"
             aria-label="Tutup menu"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Drawer Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-          {navGroups.map(group => (
-            <div key={group.label}>
-              <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 px-2">
-                {group.label}
-              </p>
-              <div className="space-y-0.5">
-                {group.items.map(({ href, icon: Icon, label, exact }) => {
-                  const active = isActive(href, exact)
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileDrawerOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-sm font-medium group ${
-                        active
-                          ? colors.active
-                          : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
-                      }`}
-                    >
-                      <Icon
-                        className={`flex-shrink-0 ${
-                          active
-                            ? colors.activeIcon
-                            : 'text-slate-400 dark:text-gray-500 group-hover:text-slate-600 dark:group-hover:text-gray-300'
-                        }`}
-                        size={20}
-                      />
-                      <span className="truncate">{label}</span>
-                      {active && (
-                        <ChevronRight className={`ml-auto w-3.5 h-3.5 ${colors.chevron}`} />
-                      )}
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+        <NavList dense expanded onNavigate={() => setMobileDrawerOpen(false)} />
 
-        {/* Drawer User & Logout */}
-        <div className="p-3 border-t border-slate-100 dark:border-gray-800">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
-            <Avatar className="w-9 h-9 flex-shrink-0">
-              <AvatarFallback className={`${colors.avatar} text-sm font-semibold`}>
-                {initials}
-              </AvatarFallback>
+        <div className="border-t border-border/70 p-3">
+          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+            <Avatar className="h-9 w-9 flex-shrink-0">
+              <AvatarFallback className={`text-sm font-semibold ${colors.avatar}`}>{initials}</AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">
-                {userName || user?.email}
-              </p>
-              <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{userName || user?.email}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
             <Button
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-8 h-8 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+              className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               title="Keluar"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </aside>
 
-      {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-14 bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
-          {/* Mobile: open drawer | Desktop: collapse sidebar */}
-          <button
-            onClick={() => setMobileDrawerOpen(true)}
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Buka menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Toggle sidebar"
-          >
-            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
+      {/* ── Main ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/85 px-4 backdrop-blur-xl md:px-6">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileDrawerOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground md:hidden"
+              aria-label="Buka menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="hidden h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground md:flex"
+              aria-label="Toggle sidebar"
+            >
+              {sidebarOpen ? <PanelLeftClose className="h-4.5 w-4.5" /> : <PanelLeftOpen className="h-4.5 w-4.5" />}
+            </button>
+            <span className="hidden items-center gap-2 text-sm font-semibold text-muted-foreground sm:flex">
+              <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
+              {portalLabel}
+            </span>
+          </div>
 
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100">
-                {userName || user?.email}
-              </p>
-              <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-semibold leading-tight">{userName || user?.email}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className={`${colors.avatar} text-xs font-semibold`}>
-                {initials}
-              </AvatarFallback>
+            <Avatar className={`h-9 w-9 ring-2 ${colors.ring}`}>
+              <AvatarFallback className={`text-xs font-semibold ${colors.avatar}`}>{initials}</AvatarFallback>
             </Avatar>
           </div>
         </header>
 
-        {/* Page Content — extra bottom padding on mobile for the bottom nav */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8">
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 pb-28 md:p-6 md:pb-8 lg:p-8">
+          <div className="mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
 
-        {/* ── Mobile Bottom Navigation Bar ───────────────────────────────────── */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-slate-200 dark:border-gray-700 z-30 safe-bottom">
+        {/* ── Mobile bottom nav ───────────────────────────────────────── */}
+        <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 backdrop-blur-xl md:hidden">
           <div className="flex items-stretch">
             {mobileBottomItems.map(({ href, icon: Icon, label, exact }) => {
               const active = isActive(href, exact)
@@ -409,29 +362,22 @@ export default function SharedDashboardLayout({
                 <Link
                   key={href}
                   href={href}
-                  className={`flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] transition-colors ${
-                    active
-                      ? colors.active
-                      : 'text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200'
+                  className={`flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+                    active ? colors.activeIcon : 'text-muted-foreground'
                   }`}
                 >
-                  <Icon
-                    size={22}
-                    className={active ? colors.activeIcon : 'text-slate-400 dark:text-gray-500'}
-                  />
-                  <span className="text-[10px] font-medium leading-none">{label}</span>
+                  <Icon size={21} />
+                  <span className="text-[10px] font-semibold leading-none">{label}</span>
                 </Link>
               )
             })}
-
-            {/* "More" button opens the full drawer */}
             <button
               onClick={() => setMobileDrawerOpen(true)}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition-colors"
+              className="flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 py-2 text-muted-foreground transition-colors"
               aria-label="Lainnya"
             >
-              <MoreHorizontal size={22} className="text-slate-400 dark:text-gray-500" />
-              <span className="text-[10px] font-medium leading-none">Lainnya</span>
+              <MoreHorizontal size={21} />
+              <span className="text-[10px] font-semibold leading-none">Lainnya</span>
             </button>
           </div>
         </nav>

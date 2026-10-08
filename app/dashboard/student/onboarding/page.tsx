@@ -509,11 +509,11 @@ export default function StudentOnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/3 to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/10">
       {/* Header */}
       <div className="bg-card border-b border-border/30">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
             <span className="text-lg">📚</span>
           </div>
           <span className="font-bold text-foreground text-lg">EduStory</span>
@@ -536,21 +536,21 @@ export default function StudentOnboardingPage() {
                 <div key={s.id} className="flex items-center flex-1 min-w-0">
                   <div className={`flex flex-col items-center gap-1.5 flex-shrink-0 ${active ? 'opacity-100' : done ? 'opacity-100' : 'opacity-50'}`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                      done ? 'bg-green-500 border-green-500 text-white' :
+                      done ? 'bg-success border-success text-white' :
                       active ? 'bg-primary border-primary text-white' :
                       'bg-card border-border text-muted-foreground'
                     }`}>
                       {done ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                     </div>
                     <div className="text-center hidden sm:block">
-                      <p className={`text-xs font-semibold ${active ? 'text-primary' : done ? 'text-green-300' : 'text-muted-foreground'}`}>
+                      <p className={`text-xs font-semibold ${active ? 'text-primary' : done ? 'text-success' : 'text-muted-foreground'}`}>
                         {s.label}
                       </p>
                       <p className="text-xs text-muted-foreground">{s.description}</p>
                     </div>
                   </div>
                   {idx < STEPS.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-2 transition-all ${done ? 'bg-green-400' : 'bg-border'}`} />
+                    <div className={`flex-1 h-0.5 mx-2 transition-all ${done ? 'bg-success' : 'bg-border'}`} />
                   )}
                 </div>
               )
@@ -560,14 +560,14 @@ export default function StudentOnboardingPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm">
             {error}
           </div>
         )}
 
         {/* ========== STEP 1 ========== */}
         {step === 1 && (
-          <Card className="shadow-sm">
+          <Card className="rounded-2xl shadow-soft">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
@@ -602,7 +602,7 @@ export default function StudentOnboardingPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>Nama Lengkap <span className="text-red-500">*</span></Label>
+                      <Label>Nama Lengkap <span className="text-destructive">*</span></Label>
                       <Input
                         value={siswaData.name}
                         onChange={e => setSiswaData(p => ({ ...p, name: e.target.value }))}
@@ -707,7 +707,7 @@ export default function StudentOnboardingPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>Nama Orang Tua / Wali <span className="text-red-500">*</span></Label>
+                      <Label>Nama Orang Tua / Wali <span className="text-destructive">*</span></Label>
                       <Input
                         value={ortuData.parent_name}
                         onChange={e => setOrtuData(p => ({ ...p, parent_name: e.target.value }))}
@@ -759,7 +759,7 @@ export default function StudentOnboardingPage() {
 
         {/* ========== STEP 2 ========== */}
         {step === 2 && (
-          <Card className="shadow-sm">
+          <Card className="rounded-2xl shadow-soft">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
@@ -769,13 +769,13 @@ export default function StudentOnboardingPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-base font-semibold">Tingkat Kelas <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Tingkat Kelas <span className="text-destructive">*</span></Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {GRADE_LEVELS.map(level => (
                     <button
                       key={level}
                       onClick={() => setGradeLevel(level)}
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all text-left ${
+                      className={`px-3 py-2 rounded-xl border text-sm font-medium transition-all text-left ${
                         gradeLevel === level
                           ? 'bg-primary text-white border-primary'
                           : 'bg-card border-border text-foreground hover:border-primary/50'
@@ -790,11 +790,11 @@ export default function StudentOnboardingPage() {
               <Separator />
 
               <div className="space-y-2">
-                <Label className="text-base font-semibold">Mata Pelajaran <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Mata Pelajaran <span className="text-destructive">*</span></Label>
                 <p className="text-xs text-muted-foreground">Pilih satu atau lebih mata pelajaran</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                   {SUBJECTS.map(subject => (
-                    <label key={subject} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
+                    <label key={subject} className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all ${
                       subjects.includes(subject)
                         ? 'bg-primary/10 border-primary text-primary'
                         : 'bg-card border-border text-foreground hover:border-primary/40'
@@ -834,7 +834,7 @@ export default function StudentOnboardingPage() {
 
         {/* ========== STEP 3 ========== */}
         {step === 3 && (
-          <Card className="shadow-sm">
+          <Card className="rounded-2xl shadow-soft">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-primary" />
@@ -844,13 +844,13 @@ export default function StudentOnboardingPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-base font-semibold">Rentang Jadwal Belajar yang Diinginkan <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Rentang Jadwal Belajar yang Diinginkan <span className="text-destructive">*</span></Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SCHEDULE_OPTIONS.map(opt => (
                     <button
                       key={opt}
                       onClick={() => setSchedule(opt)}
-                      className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                      className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all text-left ${
                         schedule === opt
                           ? 'bg-primary text-white border-primary'
                           : 'bg-card border-border text-foreground hover:border-primary/50'
@@ -867,7 +867,7 @@ export default function StudentOnboardingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-base font-semibold">
-                    Budget Belajar per Bulan (Rp) <span className="text-red-500">*</span>
+                    Budget Belajar per Bulan (Rp) <span className="text-destructive">*</span>
                   </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
@@ -886,14 +886,14 @@ export default function StudentOnboardingPage() {
 
                 <div className="space-y-1.5">
                   <Label className="text-base font-semibold">
-                    Jumlah Pertemuan per Bulan <span className="text-red-500">*</span>
+                    Jumlah Pertemuan per Bulan <span className="text-destructive">*</span>
                   </Label>
                   <div className="grid grid-cols-4 gap-2">
                     {SESSION_OPTIONS.map(n => (
                       <button
                         key={n}
                         onClick={() => setSessionsPerMonth(n)}
-                        className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${
+                        className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
                           sessionsPerMonth === n
                             ? 'bg-primary text-white border-primary'
                             : 'bg-card border-border text-foreground hover:border-primary/50'
@@ -907,13 +907,13 @@ export default function StudentOnboardingPage() {
               </div>
 
               {budgetPerMonth && sessionsPerMonth && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm font-semibold text-blue-800 mb-1">Estimasi Biaya per Jam</p>
-                    <p className="text-2xl font-bold text-blue-900">
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                  <p className="text-sm font-semibold text-primary mb-1">Estimasi Biaya per Jam</p>
+                    <p className="text-2xl font-bold text-primary">
                       Rp {Math.round(Number(budgetPerMonth) / Number(sessionsPerMonth)).toLocaleString('id-ID')}
-                      <span className="text-sm font-normal text-blue-700">/jam</span>
+                      <span className="text-sm font-normal text-primary">/jam</span>
                     </p>
-                  <p className="text-xs text-blue-300 mt-1">
+                  <p className="text-xs text-primary mt-1">
                     Total Rp {Number(budgetPerMonth).toLocaleString('id-ID')}/bulan × {sessionsPerMonth} pertemuan
                   </p>
                 </div>
@@ -924,7 +924,7 @@ export default function StudentOnboardingPage() {
 
         {/* ========== STEP 4 ========== */}
         {step === 4 && (
-          <Card className="shadow-sm">
+          <Card className="rounded-2xl shadow-soft">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-primary" />
@@ -936,7 +936,7 @@ export default function StudentOnboardingPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Summary */}
-              <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-2">
+              <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-2">
                 <p className="text-sm font-semibold text-foreground">Ringkasan Rencana Belajar</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
@@ -967,13 +967,13 @@ export default function StudentOnboardingPage() {
 
               {/* Payment Method */}
               <div className="space-y-2">
-                <Label className="text-base font-semibold">Pilih Metode Pembayaran <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Pilih Metode Pembayaran <span className="text-destructive">*</span></Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {PAYMENT_METHODS.map(method => (
                     <button
                       key={method.id}
                       onClick={() => setSelectedPayment(method.id)}
-                      className={`p-3 rounded-lg border text-left transition-all ${
+                      className={`p-3 rounded-xl border text-left transition-all ${
                         selectedPayment === method.id
                           ? 'border-primary bg-primary/5'
                           : 'border-border bg-card hover:border-primary/40'
@@ -987,15 +987,15 @@ export default function StudentOnboardingPage() {
               </div>
 
               {selectedMethod && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-semibold text-green-800 mb-1 flex items-center gap-1">
+                <div className="p-4 bg-success/5 border border-success/20 rounded-xl">
+                  <p className="text-sm font-semibold text-success mb-1 flex items-center gap-1">
                     <CreditCard className="w-4 h-4" /> Instruksi Transfer via {selectedMethod.label}
                   </p>
-                  <p className="text-sm text-green-300">{selectedMethod.account}</p>
-                  <p className="text-lg font-bold text-green-900 mt-2">
+                  <p className="text-sm text-success">{selectedMethod.account}</p>
+                  <p className="text-lg font-bold text-success mt-2">
                     Rp {depositAmount.toLocaleString('id-ID')}
                   </p>
-                  <p className="text-xs text-green-300 mt-2">
+                  <p className="text-xs text-success mt-2">
                     ✓ Dana disimpan di Escrow Account yang aman. Tutor hanya menerima pembayaran setelah sesi belajar selesai.
                   </p>
                 </div>
@@ -1055,8 +1055,8 @@ export default function StudentOnboardingPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex justify-center mb-2">
-              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="w-14 h-14 rounded-full bg-success/10 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-success" />
               </div>
             </div>
             <DialogTitle className="text-center text-xl">
@@ -1068,7 +1068,7 @@ export default function StudentOnboardingPage() {
           </DialogHeader>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm">
               {error}
             </div>
           )}

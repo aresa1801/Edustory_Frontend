@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PageHeader, SectionCard } from '@/components/dashboard/ui'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -263,24 +263,23 @@ export default function TeachingInterestPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Minat Mengajar</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Pilih kelas dan mata pelajaran yang ingin Anda ajarkan
-          </p>
-        </div>
-        {isComplete ? (
-          <Badge className="bg-green-100 text-green-700 border-green-200 gap-1.5 px-3 py-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Sudah Diisi
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground border-border px-3 py-1.5">
-            Belum Diisi
-          </Badge>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Minat Mengajar"
+        description="Pilih kelas dan mata pelajaran yang ingin Anda ajarkan"
+        actions={
+          isComplete ? (
+            <Badge className="bg-secondary/15 text-secondary border-secondary/20 gap-1.5 px-3 py-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Sudah Diisi
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground border-border px-3 py-1.5">
+              Belum Diisi
+            </Badge>
+          )
+        }
+      />
 
       {error && (
         <Alert variant="destructive">
@@ -288,16 +287,16 @@ export default function TeachingInterestPage() {
         </Alert>
       )}
       {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-700 flex items-center gap-2">
+        <Alert className="bg-secondary/10 border-secondary/20">
+          <AlertDescription className="text-secondary flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
             {success}
           </AlertDescription>
         </Alert>
       )}
 
-      <Alert className="bg-blue-500/10 border-blue-500/30">
-        <AlertDescription className="text-blue-300 text-sm flex items-start gap-2">
+      <Alert className="bg-primary/10 border-primary/20">
+        <AlertDescription className="text-primary text-sm flex items-start gap-2">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>
             Pilihan Anda akan digunakan untuk mencocokkan Anda dengan siswa yang sesuai setelah kurasi selesai.
@@ -307,15 +306,16 @@ export default function TeachingInterestPage() {
       </Alert>
 
       {/* Grade Levels */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+      <SectionCard
+        title={
+          <span className="flex items-center gap-2">
             <GraduationCap className="w-4 h-4" />
             Tingkat Kelas yang Ingin Diajarkan
             <span className="text-muted-foreground font-normal">({selectedLevels.length} dipilih)</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
+          </span>
+        }
+        bodyClassName="space-y-5"
+      >
           {GRADE_GROUPS.map(group => {
             const allGroupSelected = group.levels.every(l => selectedLevels.includes(l))
             return (
@@ -336,7 +336,7 @@ export default function TeachingInterestPage() {
                       <button
                         key={level}
                         onClick={() => toggleLevel(level)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                        className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
                           selected
                             ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                             : 'bg-background text-foreground border-border hover:border-primary/50 hover:text-primary'
@@ -351,19 +351,19 @@ export default function TeachingInterestPage() {
               </div>
             )
           })}
-        </CardContent>
-      </Card>
+      </SectionCard>
 
       {/* Subjects - Per Jenjang */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+      <SectionCard
+        title={
+          <span className="flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Mata Pelajaran yang Ingin Diajarkan
             <span className="text-muted-foreground font-normal">({totalSubjects} dipilih)</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+          </span>
+        }
+        bodyClassName="space-y-6"
+      >
           {!hasSD && !hasSMP && !hasSMA ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               Pilih kelas terlebih dahulu untuk melihat mata pelajaran yang tersedia
@@ -389,10 +389,10 @@ export default function TeachingInterestPage() {
                         <button
                           key={subject}
                           onClick={() => toggleSubject('sd', subject)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
                             selected
-                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                              ? 'bg-secondary text-secondary-foreground border-secondary shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-secondary/50 hover:text-secondary'
                           }`}
                         >
                           {selected && <span className="mr-1">✓</span>}
@@ -423,10 +423,10 @@ export default function TeachingInterestPage() {
                         <button
                           key={subject}
                           onClick={() => toggleSubject('smp', subject)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
                             selected
-                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                              ? 'bg-secondary text-secondary-foreground border-secondary shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-secondary/50 hover:text-secondary'
                           }`}
                         >
                           {selected && <span className="mr-1">✓</span>}
@@ -457,10 +457,10 @@ export default function TeachingInterestPage() {
                         <button
                           key={subject}
                           onClick={() => toggleSubject('sma', subject)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
                             selected
-                              ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                              : 'bg-background text-foreground border-border hover:border-green-500/50 hover:text-green-600'
+                              ? 'bg-secondary text-secondary-foreground border-secondary shadow-sm'
+                              : 'bg-background text-foreground border-border hover:border-secondary/50 hover:text-secondary'
                           }`}
                         >
                           {selected && <span className="mr-1">✓</span>}
@@ -473,13 +473,11 @@ export default function TeachingInterestPage() {
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </SectionCard>
 
       {/* Summary */}
       {isComplete && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
+        <SectionCard className="border-primary/20 bg-primary/5">
             <p className="text-xs font-semibold text-primary mb-2">Ringkasan Pilihan Anda</p>
             <div className="space-y-2">
               <div>
@@ -529,8 +527,7 @@ export default function TeachingInterestPage() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+        </SectionCard>
       )}
 
       <Button

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { QrCode, Smartphone, Building2, Save, CheckCircle2, AlertCircle } from 'lucide-react'
+import { PageHeader } from '@/components/dashboard/ui'
 
 // ===== TYPES =====
 type ConfigMap = Record<string, string>
@@ -34,8 +35,8 @@ const CONFIG_GROUPS: ConfigGroup[] = [
     id: 'qris',
     label: 'QRIS',
     icon: QrCode,
-    color: 'text-purple-600',
-    bg: 'bg-purple-50',
+    color: 'text-primary',
+    bg: 'bg-primary/10',
     description: 'Konfigurasi QRIS dinamis. Paste string QRIS statis dari stiker / PDF merchant Anda.',
     fields: [
       {
@@ -51,8 +52,8 @@ const CONFIG_GROUPS: ConfigGroup[] = [
     id: 'emoney',
     label: 'E-Money & Dompet Digital',
     icon: Smartphone,
-    color: 'text-green-600',
-    bg: 'bg-green-50',
+    color: 'text-secondary',
+    bg: 'bg-secondary/10',
     description: 'Nomor dan nama akun e-wallet yang akan ditampilkan kepada siswa saat checkout.',
     fields: [
       { key: 'gopay_number',    label: 'Nomor GoPay',      placeholder: '08xxxxxxxxxx' },
@@ -71,8 +72,8 @@ const CONFIG_GROUPS: ConfigGroup[] = [
     id: 'bank',
     label: 'Transfer Bank',
     icon: Building2,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
+    color: 'text-accent',
+    bg: 'bg-accent/15',
     description: 'Rekening bank tujuan transfer. Kosongkan bank yang tidak digunakan.',
     fields: [
       { key: 'bca_number',     label: 'Nomor Rekening BCA',     placeholder: '1234567890' },
@@ -194,34 +195,33 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground mb-1">Pengaturan Pembayaran</h1>
-        <p className="text-muted-foreground text-sm">
-          Atur konfigurasi QRIS, E-Money, dan rekening bank yang digunakan siswa untuk membayar.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Pengaturan Pembayaran"
+        description="Atur konfigurasi QRIS, E-Money, dan rekening bank yang digunakan siswa untuk membayar."
+      />
 
       {hasQris ? (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-700 text-sm flex items-center gap-2">
+        <Alert className="bg-success/10 border-success/20">
+          <AlertDescription className="text-success text-sm flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" /> QRIS sudah dikonfigurasi. Siswa dapat melakukan top-up.
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <AlertDescription className="text-yellow-700 text-sm flex items-center gap-2">
+        <Alert className="bg-warning/10 border-warning/20">
+          <AlertDescription className="text-warning text-sm flex items-center gap-2">
             <AlertCircle className="w-4 h-4" /> QRIS belum dikonfigurasi. Siswa belum bisa melakukan top-up.
           </AlertDescription>
         </Alert>
       )}
 
-      <Alert className="bg-blue-50 border-blue-200">
-        <AlertDescription className="text-blue-700 text-sm space-y-1">
+      <Alert className="bg-primary/5 border-primary/20">
+        <AlertDescription className="text-primary text-sm space-y-1">
           <p className="font-semibold">Cara penggunaan:</p>
           <ol className="list-decimal list-inside space-y-0.5 text-xs">
             <li>Isi kolom-kolom di bawah sesuai akun merchant Anda.</li>
             <li>Klik <strong>Simpan</strong> per bagian. Perubahan langsung aktif.</li>
-            <li>Untuk QRIS: paste string lengkap dari stiker / aplikasi bank (dimulai <code className="bg-blue-100 px-1 rounded">000201</code>).</li>
+            <li>Untuk QRIS: paste string lengkap dari stiker / aplikasi bank (dimulai <code className="bg-primary/10 px-1 rounded">000201</code>).</li>
             <li>Kosongkan kolom untuk metode yang tidak digunakan.</li>
           </ol>
         </AlertDescription>
@@ -234,10 +234,10 @@ export default async function AdminSettingsPage() {
           const isMultiline = firstField?.multiline || false
 
           return (
-            <Card key={group.id} className="border-slate-200 dark:border-gray-700 mb-6">
+            <Card key={group.id} className="rounded-2xl border-border mb-6 shadow-soft">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-lg ${group.bg} flex items-center justify-center flex-shrink-0`}>
+                  <div className={`w-9 h-9 rounded-xl ${group.bg} flex items-center justify-center flex-shrink-0`}>
                     <Icon className={`w-5 h-5 ${group.color}`} />
                   </div>
                   <div>
@@ -264,7 +264,7 @@ export default async function AdminSettingsPage() {
                             rows={3}
                             defaultValue={value}
                             placeholder={field.placeholder}
-                            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono resize-y"
+                            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono resize-y"
                           />
                         ) : (
                           <input
@@ -273,7 +273,7 @@ export default async function AdminSettingsPage() {
                             type="text"
                             defaultValue={value}
                             placeholder={field.placeholder}
-                            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                            className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
                           />
                         )}
                         {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}

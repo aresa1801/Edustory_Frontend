@@ -6,10 +6,10 @@ import { Clock } from 'lucide-react'
 export default function PaymentPendingPage() {
   return (
     <div className="max-w-md mx-auto mt-16 p-4">
-      <Card>
+      <Card className="rounded-2xl shadow-soft">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Clock className="w-16 h-16 text-yellow-500" />
+            <Clock className="w-16 h-16 text-warning" />
           </div>
           <CardTitle>Pembayaran Tertunda</CardTitle>
         </CardHeader>

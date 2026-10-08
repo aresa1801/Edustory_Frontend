@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { PageHeader, StatCard, EmptyState, SectionCard } from '@/components/dashboard/ui'
 import {
   Dialog,
   DialogContent,
@@ -51,23 +52,23 @@ const DUMMY_STATS = {
 // CREDIT TIERS
 // ============================================================
 const CREDIT_TIERS = [
-  { range: '81-100', label: 'Aman', color: 'bg-green-500', textColor: 'text-green-400', borderColor: 'border-green-500/40', bgColor: 'bg-green-500/10', description: 'Bisa mengakses segala fitur tanpa hambatan.' },
-  { range: '66-80', label: 'Pembatasan', color: 'bg-lime-500', textColor: 'text-lime-400', borderColor: 'border-lime-500/40', bgColor: 'bg-lime-500/10', description: 'Menerima siswa maksimal 5× kemudian refresh katalog siswa dibatasi setiap 10 detik sekali.' },
-  { range: '51-65', label: 'Waspada', color: 'bg-yellow-500', textColor: 'text-yellow-400', borderColor: 'border-yellow-500/40', bgColor: 'bg-yellow-500/10', description: 'Mengubah profil akan mengalami jeda 2 hari sekali dan maksimal memasang pendapatan hanya Rp 150.000 per sesi.' },
-  { range: '26-50', label: 'Hati-hati', color: 'bg-orange-500', textColor: 'text-orange-400', borderColor: 'border-orange-500/40', bgColor: 'bg-orange-500/10', description: 'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.' },
-  { range: '6-25', label: 'Bahaya', color: 'bg-red-500', textColor: 'text-red-400', borderColor: 'border-red-500/40', bgColor: 'bg-red-500/10', description: 'Akun akan otomatis ditahan oleh admin. Tidak bisa menerima siswa baru sama sekali, tidak bisa mengganti profil. Kontrak yang sedang berjalan tetap dilanjutkan sampai selesai.' },
-  { range: '0-5', label: 'Blacklist', color: 'bg-black', textColor: 'text-gray-300', borderColor: 'border-gray-500/40', bgColor: 'bg-gray-900/60', description: 'Akun akan di-banned.' },
+  { range: '81-100', label: 'Aman', color: 'bg-secondary', textColor: 'text-secondary', borderColor: 'border-secondary/20', bgColor: 'bg-secondary/10', description: 'Bisa mengakses segala fitur tanpa hambatan.' },
+  { range: '66-80', label: 'Pembatasan', color: 'bg-primary', textColor: 'text-primary', borderColor: 'border-primary/25', bgColor: 'bg-primary/10', description: 'Menerima siswa maksimal 5× kemudian refresh katalog siswa dibatasi setiap 10 detik sekali.' },
+  { range: '51-65', label: 'Waspada', color: 'bg-accent', textColor: 'text-accent', borderColor: 'border-accent/40', bgColor: 'bg-accent/10', description: 'Mengubah profil akan mengalami jeda 2 hari sekali dan maksimal memasang pendapatan hanya Rp 150.000 per sesi.' },
+  { range: '26-50', label: 'Hati-hati', color: 'bg-warning', textColor: 'text-warning', borderColor: 'border-warning/40', bgColor: 'bg-warning/10', description: 'Katalog siswa dibekukan (tidak bisa mencari siswa sama sekali), biaya admin naik menjadi 20% (dari 10%), dan withdrawal wallet memakan waktu 3 hari sebelum dikirim ke rekening.' },
+  { range: '6-25', label: 'Bahaya', color: 'bg-destructive', textColor: 'text-destructive', borderColor: 'border-destructive/25', bgColor: 'bg-destructive/10', description: 'Akun akan otomatis ditahan oleh admin. Tidak bisa menerima siswa baru sama sekali, tidak bisa mengganti profil. Kontrak yang sedang berjalan tetap dilanjutkan sampai selesai.' },
+  { range: '0-5', label: 'Blacklist', color: 'bg-foreground', textColor: 'text-muted-foreground', borderColor: 'border-border', bgColor: 'bg-muted/40', description: 'Akun akan di-banned.' },
 ]
 
 // ============================================================
 // CREDIT LOG META
 // ============================================================
 const REASON_META: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
-  daily_login: { label: 'Login harian', Icon: LogIn, color: 'text-blue-400', bg: 'bg-blue-500/15' },
-  both_ready: { label: 'Sesi dimulai (kedua pihak siap)', Icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/15' },
-  session_expired: { label: 'Sesi hangus — tidak klik Siap', Icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/15' },
-  unilateral_terminate: { label: 'Hentikan kontrak sepihak', Icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/15' },
-  admin_adjustment: { label: 'Penyesuaian admin', Icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/15' },
+  daily_login: { label: 'Login harian', Icon: LogIn, color: 'text-primary', bg: 'bg-primary/15' },
+  both_ready: { label: 'Sesi dimulai (kedua pihak siap)', Icon: CheckCircle2, color: 'text-secondary', bg: 'bg-secondary/15' },
+  session_expired: { label: 'Sesi hangus — tidak klik Siap', Icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/15' },
+  unilateral_terminate: { label: 'Hentikan kontrak sepihak', Icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/15' },
+  admin_adjustment: { label: 'Penyesuaian admin', Icon: Shield, color: 'text-primary', bg: 'bg-primary/15' },
 }
 
 // ============================================================
@@ -205,23 +206,23 @@ export default function TutorAnalyticsPage() {
   // ===== Credit color =====
   const creditColor =
     stats.creditScore >= 80
-      ? 'text-green-400'
+      ? 'text-secondary'
       : stats.creditScore >= 50
-      ? 'text-yellow-400'
-      : 'text-red-400'
+      ? 'text-accent'
+      : 'text-destructive'
   const creditBg =
     stats.creditScore >= 80
-      ? 'bg-green-500/20'
+      ? 'bg-secondary/10'
       : stats.creditScore >= 50
-      ? 'bg-yellow-500/20'
-      : 'bg-red-500/20'
+      ? 'bg-accent/15'
+      : 'bg-destructive/10'
 
   return (
     <div className="space-y-6">
       {/* ===== BANNER ===== */}
-      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
+      <div className="p-3 rounded-md bg-primary/5 border border-primary/20 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
+          <Sparkles className="w-4 h-4 text-primary" />
           <p className="text-sm text-muted-foreground">
             <strong>Preview Mode</strong> — Credit, Log, Rating, Ulasan, Total Murid, Sesi, & Kontrak Selesai real dari database; Pendapatan & Kontrak Aktif dummy.
           </p>
@@ -237,12 +238,11 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== HEADER ===== */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
-        <p className="text-muted-foreground">
-          Ringkasan performa mengajar Anda di EduStory.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Area Pengajar"
+        title="Analitik Saya"
+        description="Ringkasan performa mengajar Anda di EduStory."
+      />
 
       {/* ===== BANNER SUSPEND ===== */}
       {stats.isSuspended && stats.suspendedUntil && (
@@ -264,11 +264,11 @@ export default function TutorAnalyticsPage() {
       )}
 
       {/* ===== STAT CARDS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Credit Score */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}>
+            <div className={`w-10 h-10 rounded-xl ${creditBg} flex items-center justify-center shrink-0`}>
               <Shield className={`w-5 h-5 ${creditColor}`} />
             </div>
             <div className="flex-1 min-w-0">
@@ -292,86 +292,54 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Rating */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Rating</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.rating.toFixed(1)}
-                <span className="text-sm text-muted-foreground font-normal"> / 5</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.totalReviews} ulasan
-              </p>
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Rating"
+          value={<>{stats.rating.toFixed(1)}<span className="text-sm text-muted-foreground font-normal"> / 5</span></>}
+          hint={`${stats.totalReviews} ulasan`}
+          icon={Star}
+          tone="accent"
+        />
 
         {/* Total Murid — REAL */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Murid</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.totalStudents}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.activeContracts} aktif
-              </p>
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Total Murid"
+          value={stats.totalStudents}
+          hint={`${stats.activeContracts} aktif`}
+          icon={Users}
+          tone="primary"
+        />
 
         {/* Sesi Selesai — REAL */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.sessionsCompleted}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.sessionsMissed} hangus
-              </p>
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Sesi Selesai"
+          value={stats.sessionsCompleted}
+          hint={`${stats.sessionsMissed} hangus`}
+          icon={CheckCircle}
+          tone="secondary"
+        />
       </div>
 
       {/* ===== PENDAPATAN + AKTIVITAS ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Pendapatan — MASIH DUMMY */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-emerald-500" />
-              Pendapatan
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
+        <SectionCard
+          title={<span className="flex items-center gap-2"><Wallet className="w-5 h-5 text-secondary" />Pendapatan</span>}
+          bodyClassName="space-y-4"
+        >
+            <div className="p-4 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20">
               <p className="text-sm text-muted-foreground mb-1">Total Pendapatan</p>
-              <p className="text-3xl font-bold text-emerald-300">
+              <p className="text-3xl font-bold text-secondary">
                 Rp {stats.totalEarnings.toLocaleString('id-ID')}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
+              <div className="p-3 rounded-xl bg-muted/20 border border-border">
                 <p className="text-xs text-muted-foreground mb-1">Bulan Ini</p>
                 <p className="text-lg font-semibold text-foreground">
                   Rp {stats.monthlyEarnings.toLocaleString('id-ID')}
                 </p>
               </div>
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
+              <div className="p-3 rounded-xl bg-muted/20 border border-border">
                 <p className="text-xs text-muted-foreground mb-1">Rata-rata/Kontrak</p>
                 <p className="text-lg font-semibold text-foreground">
                   Rp {stats.avgPerContract.toLocaleString('id-ID')}
@@ -381,39 +349,34 @@ export default function TutorAnalyticsPage() {
             <p className="text-xs text-muted-foreground italic">
               *Data dummy — angka real akan muncul setelah wallet selesai
             </p>
-          </CardContent>
-        </Card>
+        </SectionCard>
 
         {/* Aktivitas — Kontrak Selesai & Sesi REAL, Kontrak Aktif DUMMY */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-500" />
-              Aktivitas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <SectionCard
+          title={<span className="flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />Aktivitas</span>}
+          bodyClassName="space-y-3"
+        >
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Kontrak Selesai</span>
-              <span className="text-sm font-bold text-green-300">
+              <span className="text-sm font-bold text-secondary">
                 {stats.completedContracts}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Kontrak Aktif</span>
-              <span className="text-sm font-bold text-blue-300">
+              <span className="text-sm font-bold text-primary">
                 {stats.dummyActiveContracts}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/30">
               <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
-              <span className="text-sm font-bold text-green-300">
+              <span className="text-sm font-bold text-secondary">
                 {stats.sessionsCompleted}
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Sesi Hangus</span>
-              <span className="text-sm font-bold text-red-300">
+              <span className="text-sm font-bold text-destructive">
                 {stats.sessionsMissed}
               </span>
             </div>
@@ -425,34 +388,32 @@ export default function TutorAnalyticsPage() {
               </div>
               <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+                  className="h-full bg-gradient-to-r from-secondary to-secondary"
                   style={{ width: `${successRate}%` }}
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </SectionCard>
       </div>
 
       {/* ===== CREDIT LOG ===== */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5 text-blue-400" />
+      <SectionCard
+        title={
+          <span className="flex items-center gap-2">
+            <History className="w-5 h-5 text-primary" />
             Riwayat Credit Score
             {creditLog.length > 0 && (
               <Badge variant="outline" className="ml-2">{creditLog.length}</Badge>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </span>
+        }
+      >
           {creditLog.length === 0 ? (
-            <div className="py-8 text-center">
-              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Belum ada riwayat perubahan credit.
-              </p>
-            </div>
+            <EmptyState
+              icon={History}
+              title="Belum ada riwayat"
+              description="Belum ada riwayat perubahan credit."
+            />
           ) : (
             <div className="max-h-[28rem] overflow-y-auto pr-2 divide-y divide-border/30">
               {creditLog.map((entry) => {
@@ -487,7 +448,7 @@ export default function TutorAnalyticsPage() {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className={`text-sm font-bold ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${positive ? 'text-secondary' : 'text-destructive'}`}>
                         {positive ? '+' : ''}{entry.delta}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
@@ -499,28 +460,26 @@ export default function TutorAnalyticsPage() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </SectionCard>
 
       {/* ===== ULASAN ===== */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-yellow-500" />
+      <SectionCard
+        title={
+          <span className="flex items-center gap-2">
+            <ThumbsUp className="w-5 h-5 text-accent" />
             Ulasan dari Murid
             {reviews.length > 0 && (
               <Badge variant="outline" className="ml-2">{reviews.length}</Badge>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </span>
+        }
+      >
           {reviews.length === 0 ? (
-            <div className="py-8 text-center">
-              <ThumbsUp className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Belum ada ulasan dari murid.
-              </p>
-            </div>
+            <EmptyState
+              icon={ThumbsUp}
+              title="Belum ada ulasan"
+              description="Belum ada ulasan dari murid."
+            />
           ) : (
             <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
               {reviews.map((r) => (
@@ -535,8 +494,8 @@ export default function TutorAnalyticsPage() {
                           key={i}
                           className={`w-3.5 h-3.5 ${
                             i <= r.rating
-                              ? 'text-yellow-500 fill-yellow-500'
-                              : 'text-gray-500'
+                              ? 'text-accent fill-current'
+                              : 'text-muted-foreground'
                           }`}
                         />
                       ))}
@@ -562,15 +521,14 @@ export default function TutorAnalyticsPage() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </SectionCard>
 
       {/* ===== DIALOG INFO CREDIT SCORE ===== */}
       <Dialog open={showCreditInfo} onOpenChange={setShowCreditInfo}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-green-500" />
+              <Shield className="w-5 h-5 text-secondary" />
               Tingkatan Credit Score
             </DialogTitle>
             <DialogDescription>

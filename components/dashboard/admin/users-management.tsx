@@ -1,14 +1,11 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/dashboard/ui'
 
 export default function AdminUsersManagement() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Kelola Pengguna</CardTitle>
-      </CardHeader>
-      <CardContent className="py-12 text-center">
+    <SectionCard title="Kelola Pengguna" className="rounded-2xl">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">
           Fitur manajemen pengguna akan segera tersedia. Di sini Anda dapat:
         </p>
@@ -18,7 +15,7 @@ export default function AdminUsersManagement() {
           <li>• Mengelola data pengguna</li>
           <li>• Melihat aktivitas pengguna</li>
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   )
 }

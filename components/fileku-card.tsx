@@ -87,7 +87,7 @@ function formatDate(dateStr: string) {
 }
 
 function getFileIcon(mimeType: string) {
-  if (!mimeType) return <FileIcon className="w-4 h-4 text-slate-400" />
+  if (!mimeType) return <FileIcon className="w-4 h-4 text-muted-foreground" />
   if (mimeType.startsWith('image/'))
     return <ImageIcon className="w-4 h-4 text-blue-400" />
   if (mimeType.startsWith('video/'))
@@ -96,7 +96,7 @@ function getFileIcon(mimeType: string) {
     return <FileArchive className="w-4 h-4 text-yellow-400" />
   if (mimeType === 'application/pdf')
     return <FileText className="w-4 h-4 text-red-400" />
-  return <FileText className="w-4 h-4 text-slate-400" />
+  return <FileText className="w-4 h-4 text-muted-foreground" />
 }
 
 export default function FilekuCard({
@@ -787,8 +787,8 @@ export default function FilekuCard({
                         variant="outline"
                         className={`text-[10px] ${
                           file.uploader_role === 'tutor'
-                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
-                            : 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                            ? 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30'
+                            : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/30'
                         }`}
                       >
                         {file.uploader_role === 'tutor' ? 'Guru' : 'Murid'}

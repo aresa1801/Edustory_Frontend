@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { adjustCredit, DELTA } from '@/lib/credit'
+import { calcSessionFee, PLATFORM_FEE_PERCENT } from '@/lib/fees'
 
 export async function autoCompleteExpiredSessions() {
   try {
@@ -48,8 +49,7 @@ export async function autoCompleteExpiredSessions() {
         const rate = Number(match.tutor_hourly_rate) || 0
         if (rate <= 0) continue
 
-        const fee = Math.round(rate * 0.1)
-        const tutorEarning = rate - fee
+        const { fee, tutorEarning } = calcSessionFee(rate)
 
         // 🔥 CLAIM — conditional UPDATE sebagai mutex
         const { data: claimed, error: claimErr } = await supabase
@@ -119,15 +119,26 @@ export async function autoCompleteExpiredSessions() {
           })
           .then(() => {}, () => {})
 
-        // Atomic credit platform
-        await supabase.rpc('wallet_credit_platform', { p_amount: fee })
-
+        // Credit platform wallet — direct read-modify-write.
+        // CATATAN: sebelumnya pakai RPC `wallet_credit_platform` yang ternyata SELALU
+        // gagal (Postgres 21000 "UPDATE requires a WHERE clause"), sehingga fee platform
+        // tidak pernah masuk. Sekarang ditulis langsung.
         const { data: pw2 } = await supabase
           .from('platform_wallet')
-          .select('balance')
+          .select('id, balance')
           .limit(1)
           .maybeSingle()
-        const newPlatBal = Number(pw2?.balance) || fee
+
+        let newPlatBal = fee
+        if (pw2) {
+          newPlatBal = (Number(pw2.balance) || 0) + fee
+          await supabase
+            .from('platform_wallet')
+            .update({ balance: newPlatBal, updated_at: new Date().toISOString() })
+            .eq('id', pw2.id)
+        } else {
+          await supabase.from('platform_wallet').insert({ balance: fee })
+        }
 
         // Insert log platform fee
         await supabase
@@ -138,7 +149,7 @@ export async function autoCompleteExpiredSessions() {
             type: 'platform_fee',
             status: 'completed',
             reference: session.id,
-            description: `Biaya Platform (10%) - Sesi ${session.id.slice(0, 8)}`,
+            description: `Biaya Platform (${PLATFORM_FEE_PERCENT}%) - Sesi ${session.id.slice(0, 8)}`,
             balance_after: newPlatBal,
           })
           .then(() => {}, () => {})
