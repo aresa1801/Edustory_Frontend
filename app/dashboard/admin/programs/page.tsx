@@ -155,14 +155,14 @@ export default function AdminProgramsPage() {
                 type="number"
                 placeholder="Harga (Rp)"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) || 0 })}
                 className="px-4 py-2 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
               />
               <input
                 type="number"
                 placeholder="Durasi (bulan)"
                 value={formData.duration_months}
-                onChange={(e) => setFormData({ ...formData, duration_months: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, duration_months: Number(e.target.value) || 0 })}
                 className="px-4 py-2 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
               />
             </div>

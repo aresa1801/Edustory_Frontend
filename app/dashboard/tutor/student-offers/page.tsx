@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
+import { createClient } from '@/lib/supabase/client'
 import { PageHeader, EmptyState } from '@/components/dashboard/ui'
 import {
   DollarSign,
@@ -169,9 +170,16 @@ export default function StudentOffersPage() {
         }
       }
 
+      const supabaseClient = createClient()
+      const { data: { session } } = await supabaseClient.auth.getSession()
       const res = await fetch('/api/tutors/students', {
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
       })
       if (!res.ok) throw new Error('Gagal mengambil data siswa')
       const data = await res.json()

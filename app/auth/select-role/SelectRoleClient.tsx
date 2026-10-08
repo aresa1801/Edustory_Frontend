@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GraduationCap, UserCog, Loader2, AlertCircle } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 interface SelectRoleClientProps {
   userEmail: string
@@ -26,10 +27,17 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15000)
 
+      // Token sesi dipakai server untuk memverifikasi identitas pemanggil.
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
       const response = await fetch('/api/auth/set-role', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
         },
         body: JSON.stringify({ 
           userId: userId, 

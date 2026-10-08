@@ -1,13 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-
-// DAFTAR EMAIL YANG DIIZINKAN BYPASS MAINTENANCE
-const ALLOWED_EMAILS = [
-  'gabriel.arelius@gmail.com',
-  'program.struck30@gmail.com',
-  'admin@edustory.com' // <-- tambahkan juga admin utama jika perlu
-]
+import { isAdminEmail, isMaintenanceBypassEmail } from '@/lib/admin'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -57,7 +51,7 @@ export async function middleware(request: NextRequest) {
   // Jika maintenance aktif DAN user belum di halaman maintenance
   if (isMaintenance && !pathname.startsWith('/maintenance')) {
     // Cek apakah user login dan emailnya ada di whitelist
-    const isAllowed = user && !error && ALLOWED_EMAILS.includes(user.email ?? '')
+    const isAllowed = user && !error && isMaintenanceBypassEmail(user.email)
 
     // Jika bukan allowed user, redirect ke maintenance
     if (!isAllowed) {
@@ -82,7 +76,7 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (user.email === 'admin@edustory.com') {
+    if (isAdminEmail(user.email)) {
       return response
     }
 

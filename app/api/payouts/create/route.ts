@@ -11,10 +11,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createIrisPayout, MIDTRANS_IRIS_ENABLED } from '@/lib/payouts';
+import { isAdminEmail } from '@/lib/admin';
 
 export const runtime = 'nodejs';
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@edustory.com';
 
 function admin() {
   return createClient(
@@ -40,7 +39,7 @@ async function authorize(req: NextRequest, supabaseAdmin: ReturnType<typeof admi
     .eq('id', user.id)
     .maybeSingle();
 
-  return profile?.role === 'admin' || profile?.email === ADMIN_EMAIL;
+  return profile?.role === 'admin' || isAdminEmail(profile?.email);
 }
 
 export async function POST(req: NextRequest) {

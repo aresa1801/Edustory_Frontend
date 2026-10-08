@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { getTutorBalances } from '@/lib/payouts'
+import { getTutorBalances, getStudentBalances } from '@/lib/payouts'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +31,36 @@ async function resolveTutor(supabase: SupabaseClient, userId: string) {
   return tutor as { id: string; user_id: string } | null
 }
 
-/** GET /api/withdrawals — riwayat penarikan + saldo pengajar yang login */
+/** Resolve student row (students.id) untuk user yang login. */
+async function resolveStudent(supabase: SupabaseClient, userId: string) {
+  const { data: student } = await supabase
+    .from('students')
+    .select('id, user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return student as { id: string; user_id: string } | null
+}
+
+/**
+ * Seorang user bisa jadi pengajar dan/atau siswa. Ambil saldo dari peran mana
+ * pun yang dimiliki. Siswa hanya bisa menarik saldo yang tidak terikat sesi
+ * (session_hold dikurangi lebih dulu), pengajar menarik hasil mengajar.
+ */
+async function resolveBalances(supabase: SupabaseClient, userId: string) {
+  const tutor = await resolveTutor(supabase, userId)
+  if (tutor) {
+    const balances = await getTutorBalances(supabase, tutor.id)
+    return { role: 'tutor' as const, tutorId: tutor.id, studentId: null, balances }
+  }
+  const student = await resolveStudent(supabase, userId)
+  if (student) {
+    const balances = await getStudentBalances(supabase, student.id)
+    return { role: 'student' as const, tutorId: null, studentId: student.id, balances }
+  }
+  return { role: null, tutorId: null, studentId: null, balances: { balance: 0, hold: 0, available: 0 } }
+}
+
+/** GET /api/withdrawals — riwayat penarikan + saldo user yang login */
 export async function GET(request: NextRequest) {
   const supabase = admin()
   const user = await getAuthUser(supabase, request)
@@ -52,28 +81,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Gagal memuat riwayat penarikan' }, { status: 500 })
   }
 
-  const tutor = await resolveTutor(supabase, user.id)
-  const balances = tutor
-    ? await getTutorBalances(supabase, tutor.id)
-    : { balance: 0, hold: 0, available: 0 }
+  const resolved = await resolveBalances(supabase, user.id)
 
   return NextResponse.json({
     withdrawals: data || [],
-    balances,
+    balances: resolved.balances,
+    role: resolved.role,
     minWithdrawal: MIN_WITHDRAWAL,
   })
 }
 
-/** POST /api/withdrawals — ajukan penarikan saldo */
+/** POST /api/withdrawals — ajukan penarikan saldo (pengajar atau siswa) */
 export async function POST(request: NextRequest) {
   const supabase = admin()
   const user = await getAuthUser(supabase, request)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const tutor = await resolveTutor(supabase, user.id)
-    if (!tutor) {
-      return NextResponse.json({ error: 'Hanya pengajar yang bisa menarik saldo' }, { status: 403 })
+    const resolved = await resolveBalances(supabase, user.id)
+    if (!resolved.role) {
+      return NextResponse.json(
+        { error: 'Hanya pengajar atau siswa yang bisa menarik saldo' },
+        { status: 403 }
+      )
     }
 
     const body = await request.json().catch(() => ({}))
@@ -116,7 +146,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const balances = await getTutorBalances(supabase, tutor.id)
+    const balances = resolved.balances
     if (amount > balances.available) {
       return NextResponse.json(
         {
@@ -127,7 +157,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Buat request penarikan
+    // 1. Buat request penarikan (keyed by user_id, sama untuk pengajar & siswa)
     const { data: withdrawal, error: wErr } = await supabase
       .from('withdrawals')
       .insert({
@@ -144,9 +174,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gagal membuat penarikan: ' + (wErr?.message || '') }, { status: 500 })
     }
 
-    // 2. Tahan saldo (pending hold) — saldo wallets.balance baru dikurangi saat selesai
+    // 2. Tahan saldo (pending hold) — saldo wallets.balance baru dikurangi saat selesai.
+    //    Kolom identitas tergantung peran: tutor_id untuk pengajar, student_id untuk siswa.
+    const ownerColumn =
+      resolved.role === 'tutor'
+        ? { tutor_id: resolved.tutorId }
+        : { student_id: resolved.studentId }
+
     const { error: txErr } = await supabase.from('wallet_transactions').insert({
-      tutor_id: tutor.id,
+      ...ownerColumn,
       amount: -amount,
       type: 'withdrawal',
       status: 'pending',
@@ -165,8 +201,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        role: resolved.role,
         withdrawal,
-        balances: { ...balances, hold: balances.hold + amount, available: Math.max(0, balances.available - amount) },
+        balances: {
+          ...balances,
+          hold: balances.hold + amount,
+          available: Math.max(0, balances.available - amount),
+        },
       },
       { status: 201 }
     )
@@ -202,7 +243,7 @@ export async function PATCH(request: NextRequest) {
   // Buka penahan saldo
   await supabase
     .from('wallet_transactions')
-    .update({ status: 'cancelled', description: 'Penarikan dibatalkan oleh pengajar' })
+    .update({ status: 'cancelled', description: 'Penarikan dibatalkan oleh penarik' })
     .eq('reference', w.id)
     .eq('type', 'withdrawal')
     .in('status', ['pending', 'processing'])

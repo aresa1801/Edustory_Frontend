@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createIrisPayout, MIDTRANS_IRIS_ENABLED } from '@/lib/payouts'
+import { isAdminEmail } from '@/lib/admin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@edustory.com'
 
 function admin() {
   return createClient(
@@ -28,7 +27,7 @@ async function requireAdmin(supabase: SupabaseClient, request: NextRequest) {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.role !== 'admin' && profile?.email !== ADMIN_EMAIL) {
+  if (profile?.role !== 'admin' && !isAdminEmail(profile?.email)) {
     return { ok: false as const, status: 403, error: 'Hanya admin' }
   }
   return { ok: true as const, userId: user.id }
@@ -193,7 +192,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: `Status saat ini "${w.status}", tidak bisa diselesaikan` }, { status: 400 })
     }
 
-    // Cari penahan & saldo tutor
+    // Cari penahan & saldo pemilik (pengajar ATAU siswa)
     const { data: hold } = await supabase
       .from('wallet_transactions')
       .select('id')
@@ -208,9 +207,25 @@ export async function PATCH(request: NextRequest) {
       .eq('user_id', w.user_id)
       .maybeSingle()
 
+    const { data: student } = !tutor
+      ? await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', w.user_id)
+          .maybeSingle()
+      : { data: null as any }
+
+    const ownerColumn = tutor
+      ? { tutor_id: tutor.id }
+      : student
+        ? { student_id: student.id }
+        : null
+
     const { data: wallet } = tutor
       ? await supabase.from('wallets').select('id, balance').eq('tutor_id', tutor.id).maybeSingle()
-      : { data: null as any }
+      : student
+        ? await supabase.from('wallets').select('id, balance').eq('student_id', student.id).maybeSingle()
+        : { data: null as any }
 
     const currentBalance = Number(wallet?.balance) || 0
     const newBalance = Math.max(0, currentBalance - Number(w.amount))
@@ -233,9 +248,9 @@ export async function PATCH(request: NextRequest) {
         .eq('id', hold.id)
     } else {
       // tidak ada penahan (data lama) → catat langsung
-      if (tutor) {
+      if (ownerColumn) {
         await supabase.from('wallet_transactions').insert({
-          tutor_id: tutor.id,
+          ...ownerColumn,
           amount: -Number(w.amount),
           type: 'withdrawal',
           status: 'completed',

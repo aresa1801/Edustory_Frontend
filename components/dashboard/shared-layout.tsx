@@ -65,7 +65,7 @@ const ACCENT: Record<
   },
 }
 
-const ROLE_LABEL: Record<AppRole, string> = {
+const ROLE_LABEL: Record<NonNullable<AppRole>, string> = {
   student: 'Siswa',
   tutor: 'Pengajar',
   admin: 'Administrator',
@@ -95,7 +95,7 @@ export default function SharedDashboardLayout({
       return
     }
     if (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      const roleRedirectMap: Record<AppRole, string> = {
+      const roleRedirectMap: Record<NonNullable<AppRole>, string> = {
         student: '/dashboard/student',
         tutor: '/dashboard/tutor',
         admin: '/dashboard/admin',

@@ -3,7 +3,7 @@
 import { ReactNode } from 'react'
 import {
   LayoutDashboard, Search, Users, BookMarked,
-  Calendar, CreditCard, BarChart3, GraduationCap,
+  Calendar, CreditCard, BarChart3, GraduationCap, Wallet,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
 
@@ -29,6 +29,12 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/student/payment', icon: CreditCard, label: 'Pembayaran' },
       { href: '/dashboard/student/analytics', icon: BarChart3, label: 'Analitik & Nilai' },
       { href: '/dashboard/student/progress', icon: GraduationCap, label: 'Progres' },
+    ],
+  },
+  {
+    label: 'Keuangan',
+    items: [
+      { href: '/dashboard/student/wallet', icon: Wallet, label: 'Saldo & Penarikan' },
     ],
   },
 ]

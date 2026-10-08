@@ -102,8 +102,8 @@ export async function POST(req: NextRequest) {
 
     // Upload images to Supabase Storage
     const [problem1ImageUrl, problem2ImageUrl] = await Promise.all([
-      problem1Image ? uploadImageToStorage(supabase, problem1Image, tutor.id, 'hw1') : Promise.resolve(null),
-      problem2Image ? uploadImageToStorage(supabase, problem2Image, tutor.id, 'hw2') : Promise.resolve(null),
+      problem1Image ? uploadImageToStorage(supabase as any, problem1Image, tutor.id, 'hw1') : Promise.resolve(null),
+      problem2Image ? uploadImageToStorage(supabase as any, problem2Image, tutor.id, 'hw2') : Promise.resolve(null),
     ])
 
     if (problem1Image && problem1Image.size > 0 && !problem1ImageUrl) {

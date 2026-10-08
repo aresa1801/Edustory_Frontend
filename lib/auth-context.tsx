@@ -3,10 +3,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/auth'
+import { isAdminEmail } from '@/lib/admin'
 
-const ADMIN_EMAIL = 'admin@edustory.com'
-
-type AppRole = 'student' | 'tutor' | 'admin' | null
+export type AppRole = 'student' | 'tutor' | 'admin' | null
 
 interface AuthContextType {
   user: User | null
@@ -29,7 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // FETCH USER PROFILE
 // ============================================================
 async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | null; name: string | null }> {
-  if (currentUser.email === ADMIN_EMAIL) {
+  if (isAdminEmail(currentUser.email)) {
     return {
       role: 'admin',
       name: currentUser.user_metadata?.full_name || 'Administrator',
@@ -199,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted.current) return
         clearTimeout(timeoutId)
         
-        if (!role && serverUser.email !== ADMIN_EMAIL) {
+        if (!role && !isAdminEmail(serverUser.email)) {
           console.log('[Auth] 🆕 First time user')
           setIsFirstTimeUser(true)
           setUserRole(null)
@@ -319,7 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 profileTimeoutRef.current = null
               }
               
-              if (!role && currentSession.user.email !== ADMIN_EMAIL) {
+              if (!role && !isAdminEmail(currentSession.user.email)) {
                 setIsFirstTimeUser(true)
                 setUserRole(null)
                 setUserName(name || currentSession.user.email || null)

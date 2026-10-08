@@ -5,13 +5,10 @@ export async function POST(request: NextRequest) {
   console.log('[API] 📥 Received POST request to /api/auth/set-role')
 
   try {
-    const { userId, role, email, name } = await request.json()
-    console.log('[API] 📝 Payload:', { userId, role, email, name })
-
-    if (!userId) {
-      console.error('[API] ❌ Missing userId')
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
-    }
+    const body = await request.json().catch(() => ({}))
+    const { role, email, name } = body
+    let { userId } = body
+    console.log('[API] 📝 Payload role:', role)
 
     if (role !== 'student' && role !== 'tutor') {
       console.error('[API] ❌ Invalid role:', role)
@@ -27,6 +24,46 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    // SECURITY: identitas HARUS berasal dari bearer token yang diverifikasi
+    // server — bukan dari `userId` di body (cegah IDOR / ganti peran orang lain).
+    const token = request.headers
+      .get('authorization')
+      ?.replace(/^Bearer\s+/i, '')
+      .trim()
+    if (!token) {
+      console.error('[API] ❌ Missing bearer token')
+      return NextResponse.json({ error: 'Sesi tidak ditemukan. Silakan login ulang.' }, { status: 401 })
+    }
+
+    const {
+      data: { user: caller },
+      error: callerErr,
+    } = await adminSupabase.auth.getUser(token)
+    if (callerErr || !caller) {
+      console.error('[API] ❌ Invalid token:', callerErr?.message)
+      return NextResponse.json({ error: 'Sesi tidak valid. Silakan login ulang.' }, { status: 401 })
+    }
+
+    // Non-admin hanya boleh mengatur perannya sendiri.
+    if (userId && userId !== caller.id) {
+      const { data: callerProfile } = await adminSupabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', caller.id)
+        .maybeSingle()
+      if (callerProfile?.role !== 'admin') {
+        console.error('[API] ❌ Forbidden: caller mencoba mengubah user lain')
+        return NextResponse.json(
+          { error: 'Tidak boleh mengubah peran pengguna lain' },
+          { status: 403 }
+        )
+      }
+      // admin boleh menetapkan peran user lain, pakai userId dari body
+    } else {
+      // default: peran user yang sedang login
+      userId = caller.id
+    }
+
     // Verifikasi user di auth
     console.log('[API] 🔍 Verifikasi user ID di auth...')
     const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(userId)
@@ -36,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
     console.log('[API] ✅ User verified:', authUser.user?.email)
 
-    const userEmail = email || authUser.user?.email
+    const userEmail = authUser.user?.email || email
     const userName = name || authUser.user?.user_metadata?.full_name || userEmail
 
     if (!userEmail) {

@@ -169,9 +169,9 @@ export default function AdminStudentsPage() {
                           {subject}
                         </Badge>
                       ))}
-                      {student.subjects?.length > 2 && (
+                      {(student.subjects?.length ?? 0) > 2 && (
                         <Badge variant="outline" className="text-xs">
-                          +{student.subjects.length - 2}
+                          +{(student.subjects?.length ?? 0) - 2}
                         </Badge>
                       )}
                     </div>

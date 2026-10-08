@@ -63,7 +63,7 @@ export default function MicroTeachingPage() {
       formData.append('topic', topic)
       formData.append('video', videoFile)
       formData.append('explanation', explanation)
-      formData.append('duration', videoFile.duration?.toString() || '0')
+      formData.append('duration', (videoFile as any).duration?.toString() || '0')
 
       const response = await fetch('/api/assessments/microteaching', {
         method: 'POST',

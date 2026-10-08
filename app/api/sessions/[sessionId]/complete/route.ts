@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { calcSessionFee, PLATFORM_FEE_PERCENT } from '@/lib/fees';
+import { isAdminEmail } from '@/lib/admin';
 
 export const runtime = 'nodejs';
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@edustory.com';
 
 // ============================================================
 // AUTH
@@ -42,7 +41,7 @@ async function callerOwnsSession(
     .eq('id', userId)
     .maybeSingle();
 
-  if (profile?.role === 'admin' || profile?.email === ADMIN_EMAIL) return true;
+  if (profile?.role === 'admin' || isAdminEmail(profile?.email)) return true;
 
   if (profile?.role === 'siswa') {
     const { data: student } = await supabaseAdmin

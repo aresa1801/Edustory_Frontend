@@ -127,6 +127,55 @@ export async function getTutorBalances(
   return { balance, hold, available: Math.max(0, balance - hold) }
 }
 
+// ============================================================
+// Saldo siswa
+// ============================================================
+
+/**
+ * Hitung saldo siswa.
+ * `balance` = wallets.balance. Dana yang tidak bisa ditarik:
+ *   - session_hold  : saldo yang dipesan untuk sesi berjalan / akan datang
+ *   - withdrawal    : penarikan yang sedang diproses (pending/processing)
+ * `available` = balance - (session_hold + withdrawal hold).
+ */
+export async function getStudentBalances(
+  supabase: SupabaseClient,
+  studentId: string
+): Promise<TutorBalances & { frozen: number }> {
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  const balance = Number(wallet?.balance) || 0
+
+  const { data: frozenTx } = await supabase
+    .from('wallet_transactions')
+    .select('amount')
+    .eq('student_id', studentId)
+    .eq('type', 'session_hold')
+    .in('status', ['pending', 'active', 'moved'])
+
+  const frozen = (frozenTx || []).reduce(
+    (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0),
+    0
+  )
+
+  const { data: holds } = await supabase
+    .from('wallet_transactions')
+    .select('amount')
+    .eq('student_id', studentId)
+    .eq('type', 'withdrawal')
+    .in('status', ['pending', 'processing'])
+
+  const hold =
+    (holds || []).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0) +
+    frozen
+
+  return { balance, hold, available: Math.max(0, balance - hold), frozen }
+}
+
 /**
  * Cari withdrawal yang masih menahan saldo untuk sebuah user (tutor).
  */

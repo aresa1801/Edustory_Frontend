@@ -226,7 +226,7 @@ export default function TutorProfile() {
                 id="experience"
                 type="number"
                 value={profile.experience_years || ''}
-                onChange={e => setProfile(prev => ({ ...prev, experience_years: e.target.value }))}
+                onChange={e => setProfile((prev: any) => ({ ...prev, experience_years: e.target.value }))}
                 className="mt-1"
               />
             </div>
@@ -238,7 +238,7 @@ export default function TutorProfile() {
                 type="number"
                 step="1000"
                 value={profile.hourly_rate || ''}
-                onChange={e => setProfile(prev => ({ ...prev, hourly_rate: e.target.value }))}
+                onChange={e => setProfile((prev: any) => ({ ...prev, hourly_rate: e.target.value }))}
                 className="mt-1"
               />
             </div>
@@ -249,7 +249,7 @@ export default function TutorProfile() {
             <textarea
               id="qualifications"
               value={profile.qualifications || ''}
-              onChange={e => setProfile(prev => ({ ...prev, qualifications: e.target.value }))}
+              onChange={e => setProfile((prev: any) => ({ ...prev, qualifications: e.target.value }))}
               className="mt-1 w-full px-3 py-2 border border-input rounded-md text-sm"
               rows={4}
               placeholder="Deskripsikan sertifikasi dan kualifikasi Anda"
