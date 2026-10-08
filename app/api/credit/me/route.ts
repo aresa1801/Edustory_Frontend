@@ -80,6 +80,8 @@ export async function GET(req: NextRequest) {
         maxSessionRate: tier.features.maxSessionRate,
         profileEditLockDays: tier.features.profileEditLockDays,
         lastProfileEditAt: role === 'tutor' ? (data.last_profile_edit_at ?? null) : null,
+        accountHeld: tier.features.accountHeld,   // ⬅️ BARU
+        banned: tier.features.banned,             // ⬅️ BARU
       },
       {
         headers: {

@@ -135,6 +135,12 @@ export default function StudentOffersPage() {
     current: number
   } | null>(null)
 
+  // ⬇️ BARU: Tier block info
+  const [tierBlockedInfo, setTierBlockedInfo] = useState<{
+    tierLabel: string
+    score: number
+  } | null>(null)
+
   // ⬇️ BARU: Cooldown dari tier
   const [catalogCooldown, setCatalogCooldown] = useState(0)
 
@@ -415,6 +421,17 @@ export default function StudentOffersPage() {
           setContractLimitInfo({
             max: err.maxContracts ?? 3,
             current: err.currentContracts ?? 0,
+          })
+          setSending(null)
+          setSelectedStudent(null)
+          return
+        }
+
+        // ⬇️ BARU: Tier blocked (Bahaya/Blacklist)
+        if (err.error === 'TIER_BLOCKED') {
+          setTierBlockedInfo({
+            tierLabel: err.tierLabel ?? 'Bahaya',
+            score: err.score ?? 0,
           })
           setSending(null)
           setSelectedStudent(null)
@@ -710,6 +727,43 @@ export default function StudentOffersPage() {
           </div>
         )}
       </div>
+
+      {/* ===== MODAL TIER BLOCKED ===== */}
+      <Dialog open={!!tierBlockedInfo} onOpenChange={(o) => { if (!o) setTierBlockedInfo(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertTriangle className="w-5 h-5" />
+              Akun Anda Sedang Ditahan
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Credit score Anda terlalu rendah ({tierBlockedInfo?.score}/100, tier{' '}
+              <strong className="text-foreground">{tierBlockedInfo?.tierLabel}</strong>).
+              Anda tidak bisa mengirim penawaran ke siswa baru.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center">
+              <p className="text-xs text-muted-foreground">Credit Score Anda:</p>
+              <p className="text-4xl font-bold text-red-400 mt-1">
+                {tierBlockedInfo?.score}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Tingkatkan credit score Anda minimal 26 untuk bisa menerima murid baru lagi.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTierBlockedInfo(null)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== MODAL LIMIT KONTRAK ===== */}
       <Dialog open={!!contractLimitInfo} onOpenChange={(o) => { if (!o) setContractLimitInfo(null) }}>

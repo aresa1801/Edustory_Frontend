@@ -113,6 +113,22 @@ export async function POST(request: NextRequest) {
     const tier = getCreditTier(tutorScore)
 
     // ============================================================
+    // ⬇️ BARU: CEK 0 — Akun ditahan (tier Bahaya/Blacklist)
+    // ============================================================
+    if (tier.features.accountHeld) {
+      return NextResponse.json(
+        {
+          error: 'ACCOUNT_HELD',
+          message: `Akun Anda sedang ditahan karena credit score rendah (${tutorScore}, tier ${tier.label}). Tidak bisa mengubah profil.`,
+          tier: tier.id,
+          tierLabel: tier.label,
+          score: tutorScore,
+        },
+        { status: 403 }
+      )
+    }
+
+    // ============================================================
     // ⬇️ CEK 1: RATE LIMIT
     // Kalau tier punya maxSessionRate dan user pasang rate lebih tinggi → block
     // ============================================================

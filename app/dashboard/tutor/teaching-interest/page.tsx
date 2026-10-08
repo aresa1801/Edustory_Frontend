@@ -1,13 +1,21 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { CheckCircle2, Save, BookOpen, GraduationCap, Info } from 'lucide-react'
+import { CheckCircle2, Save, BookOpen, GraduationCap, Info, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const GRADE_GROUPS = [
   {
@@ -37,6 +45,11 @@ export default function TeachingInterestPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  // ⬇️ BARU: Tier info
+  const [accountHeld, setAccountHeld] = useState(false)
+  const [tierLabel, setTierLabel] = useState('')
+  const [creditScore, setCreditScore] = useState(0)
+  const [heldPopup, setHeldPopup] = useState(false)
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
   const [selectedSubjects, setSelectedSubjects] = useState<{ sd: string[], smp: string[], sma: string[] }>({
     sd: [],
@@ -71,6 +84,19 @@ export default function TeachingInterestPage() {
           sma: tutorData?.specializations_sma || [],
         })
         setError(null)
+      }
+      // ⬇️ BARU: Fetch tier info
+      const creditRes = await fetch(
+        `/api/credit/me?user_id=${currentUserId}&role=tutor&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      )
+      if (creditRes.ok) {
+        const creditJson = await creditRes.json()
+        if (isMounted.current) {
+          setAccountHeld(creditJson.accountHeld ?? false)
+          setTierLabel(creditJson.tierLabel ?? '')
+          setCreditScore(creditJson.creditScore ?? 0)
+        }
       }
     } catch (err) {
       console.error('[TeachingInterest] Fetch error:', err)
@@ -175,6 +201,12 @@ export default function TeachingInterestPage() {
   const totalSubjects = selectedSubjects.sd.length + selectedSubjects.smp.length + selectedSubjects.sma.length
 
   const handleSave = async () => {
+    // ⬇️ BARU: Cek akun ditahan
+    if (accountHeld) {
+      setHeldPopup(true)
+      return
+    }
+
     if (selectedLevels.length === 0) {
       setError('Pilih minimal satu kelas yang ingin Anda ajarkan')
       return
@@ -214,6 +246,15 @@ export default function TeachingInterestPage() {
 
       if (!response.ok) {
         const result = await response.json().catch(() => ({ error: 'Gagal menyimpan minat mengajar' }))
+        
+        // ⬇️ Handle 403 ACCOUNT_HELD
+        if (response.status === 403 && result.error === 'ACCOUNT_HELD') {
+          setHeldPopup(true)
+          setSaving(false)
+          clearTimeout(forceStopTimeout)
+          return
+        }
+        
         throw new Error(result.error || 'Gagal menyimpan minat mengajar')
       }
 
@@ -262,6 +303,17 @@ export default function TeachingInterestPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {/* ⬇️ BARU: Banner account held */}
+      {accountHeld && (
+        <Alert variant="destructive" className="border-red-500/40 bg-red-500/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Akun Anda sedang <strong>ditahan</strong> karena credit score rendah
+            ({creditScore}/100, tier {tierLabel}). Anda tidak bisa mengubah minat
+            mengajar saat ini. Tingkatkan credit score minimal 26 untuk membuka kembali.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -535,8 +587,9 @@ export default function TeachingInterestPage() {
 
       <Button
         onClick={handleSave}
-        disabled={saving || !isComplete}
+        disabled={saving || !isComplete || accountHeld}
         className="w-full gap-2 h-11"
+        title={accountHeld ? 'Akun Anda sedang ditahan' : undefined}
       >
         {saving ? (
           <>
@@ -550,6 +603,40 @@ export default function TeachingInterestPage() {
           </>
         )}
       </Button>
+      
+      {/* ⬇️ BARU: Popup Akun Ditahan */}
+      <Dialog open={heldPopup} onOpenChange={setHeldPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertTriangle className="w-5 h-5" />
+              Akun Anda Sedang Ditahan
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Credit score Anda terlalu rendah ({creditScore}/100, tier {tierLabel}).
+              Anda tidak bisa mengubah profil atau minat mengajar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center">
+              <p className="text-xs text-muted-foreground">Credit Score Anda:</p>
+              <p className="text-4xl font-bold text-red-400 mt-1">{creditScore}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Tingkatkan credit score minimal 26 untuk membuka kembali fitur ini.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setHeldPopup(false)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
