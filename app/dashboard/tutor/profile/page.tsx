@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +10,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { AlertTriangle } from 'lucide-react'
 import {
   UserCircle,
   Save,
@@ -74,6 +83,16 @@ export default function ProfilePage() {
   const [approvalStatus, setApprovalStatus] = useState<string>('pending')
   const [verified, setVerified] = useState(false)
 
+  // ⬇️ BARU: Tier info
+  const [tierMaxRate, setTierMaxRate] = useState<number | null>(null)
+  const [editLockDays, setEditLockDays] = useState<number>(0)
+  const [nextEditAt, setNextEditAt] = useState<string | null>(null)
+  const [nowTick, setNowTick] = useState(Date.now())
+
+  // ⬇️ BARU: Popup
+  const [ratePopup, setRatePopup] = useState(false)
+  const [cooldownPopup, setCooldownPopup] = useState(false)
+
   const isMounted = useRef(true)
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
   const fetchDone = useRef(false)
@@ -132,6 +151,27 @@ export default function ProfilePage() {
       setApprovalStatus(tutorData?.approval_status || 'pending')
       setVerified(tutorData?.verified || false)
       setError(null)
+      // ⬇️ BARU: Fetch tier info
+      const creditRes = await fetch(
+        `/api/credit/me?user_id=${currentUserId}&role=tutor&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      )
+      if (creditRes.ok) {
+        const creditJson = await creditRes.json()
+        if (isMounted.current) {
+          setTierMaxRate(creditJson.maxSessionRate ?? null)
+          setEditLockDays(creditJson.profileEditLockDays ?? 0)
+
+          // Hitung nextEditAt dari lastProfileEditAt + lock days
+          if (creditJson.lastProfileEditAt && creditJson.profileEditLockDays > 0) {
+            const lastMs = new Date(creditJson.lastProfileEditAt).getTime()
+            const nextMs = lastMs + creditJson.profileEditLockDays * 24 * 60 * 60 * 1000
+            setNextEditAt(new Date(nextMs).toISOString())
+          } else {
+            setNextEditAt(null)
+          }
+        }
+      }
     } catch (err) {
       console.error('[Profile] ❌ Error:', err)
       setError(err instanceof Error ? err.message : 'Gagal memuat profil')
@@ -170,6 +210,30 @@ export default function ProfilePage() {
     }
   }, [authLoading, authUser])
 
+  // Timer countdown edit cooldown
+  useEffect(() => {
+    if (!nextEditAt) return
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [nextEditAt])
+
+  const editCooldownCountdown = useMemo(() => {
+    if (!nextEditAt) return ''
+    const ms = new Date(nextEditAt).getTime() - nowTick
+    if (ms <= 0) return 'Sudah bisa edit'
+    const totalSec = Math.floor(ms / 1000)
+    const days = Math.floor(totalSec / 86400)
+    const hours = Math.floor((totalSec % 86400) / 3600)
+    const minutes = Math.floor((totalSec % 3600) / 60)
+    const seconds = totalSec % 60
+    if (days > 0) return `${days} hari ${hours} jam ${minutes} menit`
+    if (hours > 0) return `${hours} jam ${minutes} menit ${seconds} detik`
+    if (minutes > 0) return `${minutes} menit ${seconds} detik`
+    return `${seconds} detik`
+  }, [nextEditAt, nowTick])
+
+  const isEditLocked = !!nextEditAt && new Date(nextEditAt).getTime() > nowTick
+
   const handleSave = async () => {
     console.log('[Profile] 🔥 handleSave START')
     setSaving(true)
@@ -189,6 +253,23 @@ export default function ProfilePage() {
 
       if (!form.full_name.trim()) {
         throw new Error('Nama lengkap wajib diisi')
+      }
+
+      // ⬇️ CEK RATE LIMIT (frontend guard)
+      const rateNum = parseFloat(form.hourly_rate) || 0
+      if (tierMaxRate !== null && rateNum > tierMaxRate) {
+        setRatePopup(true)
+        setSaving(false)
+        clearTimeout(forceStopTimeout)
+        return
+      }
+
+      // ⬇️ CEK EDIT COOLDOWN (frontend guard)
+      if (isEditLocked) {
+        setCooldownPopup(true)
+        setSaving(false)
+        clearTimeout(forceStopTimeout)
+        return
       }
 
       // 🔥 Ambil lokasi GPS
@@ -228,7 +309,29 @@ export default function ProfilePage() {
       console.log('[Profile] 3. Response body:', result)
 
       if (!response.ok) {
+        // Handle 403 dari backend
+        if (response.status === 403) {
+          if (result.error === 'RATE_LIMIT') {
+            setRatePopup(true)
+            setSaving(false)
+            clearTimeout(forceStopTimeout)
+            return
+          }
+          if (result.error === 'EDIT_COOLDOWN') {
+            setCooldownPopup(true)
+            if (result.nextEditAt) setNextEditAt(result.nextEditAt)
+            setSaving(false)
+            clearTimeout(forceStopTimeout)
+            return
+          }
+        }
         throw new Error(result.error || 'Gagal menyimpan profil')
+      }
+
+      // ⬇️ Set nextEditAt setelah save sukses (biar countdown langsung muncul)
+      if (editLockDays > 0) {
+        const nextMs = Date.now() + editLockDays * 24 * 60 * 60 * 1000
+        setNextEditAt(new Date(nextMs).toISOString())
       }
 
       setSuccess('Profil berhasil disimpan! Mengarahkan ke halaman Minat Mengajar...')
@@ -474,6 +577,77 @@ export default function ProfilePage() {
           </>
         )}
       </Button>
+            {/* ===== POPUP RATE LIMIT ===== */}
+      <Dialog open={ratePopup} onOpenChange={setRatePopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="w-5 h-5" />
+              Tarif Melebihi Batas
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda tidak bisa memasang tarif di atas{' '}
+              <strong className="text-foreground">
+                Rp {tierMaxRate?.toLocaleString('id-ID') ?? '150.000'}/jam
+              </strong>{' '}
+              karena credit score Anda sedang dibatasi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/30 text-center">
+              <p className="text-xs text-muted-foreground">Tarif yang Anda masukkan:</p>
+              <p className="text-2xl font-bold text-amber-400 mt-1">
+                Rp {(parseFloat(form.hourly_rate) || 0).toLocaleString('id-ID')}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Turunkan tarif atau tingkatkan credit score Anda.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRatePopup(false)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== POPUP EDIT COOLDOWN ===== */}
+      <Dialog open={cooldownPopup} onOpenChange={setCooldownPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="w-5 h-5" />
+              Belum Bisa Edit Profil
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda hanya bisa mengedit profil setiap {editLockDays} hari sekali
+              karena credit score Anda sedang dibatasi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-xs text-muted-foreground mb-2">Waktu tunggu tersisa:</p>
+            <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/30 text-center">
+              <p className="text-2xl font-bold font-mono text-amber-400">
+                {editCooldownCountdown}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCooldownPopup(false)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
 
     if (role === 'tutor') {
       const res = await supabase
-        .from('tutors')
-        .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews')
-        .eq('user_id', userId)
-        .maybeSingle()
+    .from('tutors')
+    .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews, last_profile_edit_at')
+    .eq('user_id', userId)
+    .maybeSingle()
       data = res.data
       error = res.error
     } else {
@@ -77,6 +77,9 @@ export async function GET(req: NextRequest) {
         rating: role === 'tutor' ? Number(data.rating ?? 0) : null,
         totalReviews: role === 'tutor' ? Number(data.total_reviews ?? 0) : null,
         catalogCooldownSeconds: tier.features.catalogCooldownSeconds,
+        maxSessionRate: tier.features.maxSessionRate,
+        profileEditLockDays: tier.features.profileEditLockDays,
+        lastProfileEditAt: role === 'tutor' ? (data.last_profile_edit_at ?? null) : null,
       },
       {
         headers: {

@@ -1,10 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCreditTier } from '@/lib/credit'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      global: {
+        fetch: (input, init) =>
+          fetch(input, { ...init, cache: 'no-store' }),
+      },
+    }
   )
 }
 
@@ -19,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabase()
 
-    // Fetch tutor data - tambahkan latitude & longitude
+    // Fetch tutor data (+ credit_score + last_profile_edit_at)
     const { data: tutorData, error: tutorErr } = await supabase
       .from('tutors')
       .select(`
@@ -38,7 +49,9 @@ export async function GET(request: NextRequest) {
         specializations_sma,
         avatar_url,
         latitude,
-        longitude
+        longitude,
+        credit_score,
+        last_profile_edit_at
       `)
       .eq('user_id', userId)
       .maybeSingle()
@@ -87,12 +100,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 })
     }
 
+    // ============================================================
+    // ⬇️ BARU: Ambil data tutor existing (buat cek tier & cooldown)
+    // ============================================================
+    const { data: existingTutor } = await supabase
+      .from('tutors')
+      .select('id, credit_score, last_profile_edit_at')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const tutorScore = Number(existingTutor?.credit_score ?? 99)
+    const tier = getCreditTier(tutorScore)
+
+    // ============================================================
+    // ⬇️ CEK 1: RATE LIMIT
+    // Kalau tier punya maxSessionRate dan user pasang rate lebih tinggi → block
+    // ============================================================
+    const newRate = body.hourly_rate !== undefined ? Number(body.hourly_rate) : null
+    if (
+      newRate !== null &&
+      tier.features.maxSessionRate !== null &&
+      newRate > tier.features.maxSessionRate
+    ) {
+      return NextResponse.json(
+        {
+          error: 'RATE_LIMIT',
+          message: `Tarif maksimal Rp ${tier.features.maxSessionRate.toLocaleString('id-ID')}/jam untuk tier ${tier.label}.`,
+          maxSessionRate: tier.features.maxSessionRate,
+          tierLabel: tier.label,
+          yourRate: newRate,
+        },
+        { status: 403 }
+      )
+    }
+
+    // ============================================================
+    // ⬇️ CEK 2: EDIT COOLDOWN
+    // Kalau tier punya profileEditLockDays dan user pernah edit sebelumnya
+    // ============================================================
+    if (
+      existingTutor?.last_profile_edit_at &&
+      tier.features.profileEditLockDays > 0
+    ) {
+      const lastEditMs = new Date(existingTutor.last_profile_edit_at).getTime()
+      const lockMs = tier.features.profileEditLockDays * 24 * 60 * 60 * 1000
+      const nextEditAt = lastEditMs + lockMs
+
+      if (Date.now() < nextEditAt) {
+        return NextResponse.json(
+          {
+            error: 'EDIT_COOLDOWN',
+            message: `Anda hanya bisa edit profil setiap ${tier.features.profileEditLockDays} hari (tier ${tier.label}).`,
+            nextEditAt: new Date(nextEditAt).toISOString(),
+            tierLabel: tier.label,
+          },
+          { status: 403 }
+        )
+      }
+    }
+
     // --- Buat payload ---
     const payload: Record<string, any> = {
       user_id: userId,
     }
 
-    // Field yang boleh di-update
     const fields = [
       'full_name', 'phone', 'bio',
       'experience_years', 'hourly_rate', 'qualifications',
@@ -131,9 +202,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // ============================================================
+    // ⬇️ BARU: Update last_profile_edit_at (kalau tier punya lock days)
+    // ============================================================
+    if (tier.features.profileEditLockDays > 0) {
+      const { error: tsErr } = await supabase
+        .from('tutors')
+        .update({ last_profile_edit_at: new Date().toISOString() })
+        .eq('user_id', userId)
+
+      if (tsErr) {
+        console.error('[API] Update last_profile_edit_at error:', tsErr)
+      }
+    }
+
     console.log('[API] ✅ Success:', data)
     return NextResponse.json({ success: true, data: data?.[0] || null })
-
   } catch (err) {
     console.error('[API] Unexpected error:', err)
     return NextResponse.json(
