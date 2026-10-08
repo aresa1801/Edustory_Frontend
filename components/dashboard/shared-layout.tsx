@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 
 export interface NavItem {
   href: string
@@ -85,6 +86,12 @@ export default function SharedDashboardLayout({
   const { user, userRole, userName, loading, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  // ⬇️ BARU: Banned state
+  const [bannedInfo, setBannedInfo] = useState<{
+    score: number
+    tierLabel: string
+  } | null>(null)
+  const [checkingBanned, setCheckingBanned] = useState(true)
 
   const colors = ACCENT[accentColor]
 
@@ -106,6 +113,51 @@ export default function SharedDashboardLayout({
       router.push(roleRedirectMap[userRole] ?? redirectPath)
     }
   }, [loading, user, userRole, allowedRoles, redirectPath, router])
+
+    // ⬇️ BARU: Cek banned saat mount
+  useEffect(() => {
+    if (loading) return
+    if (!user?.id || !userRole) {
+      setCheckingBanned(false)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `/api/credit/me?user_id=${user.id}&role=${userRole}&_t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (!cancelled && data.banned) {
+            setBannedInfo({
+              score: data.creditScore ?? 0,
+              tierLabel: data.tierLabel ?? 'Blacklist',
+            })
+            // Auto logout + redirect setelah 6 detik
+            setTimeout(async () => {
+              try {
+                await signOut()
+              } catch (e) {
+                console.error('[SharedLayout] signOut error:', e)
+              }
+              window.location.replace('/')
+            }, 6000)
+          }
+        }
+      } catch (err) {
+        console.error('[SharedLayout] check banned error:', err)
+      } finally {
+        if (!cancelled) setCheckingBanned(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, userRole, loading, signOut])
 
   const handleLogout = async () => {
     try {
@@ -132,12 +184,65 @@ export default function SharedDashboardLayout({
   // First 3 items go in the bottom bar; the rest are accessible via the drawer
   const mobileBottomItems = flatNavItems.slice(0, 3)
 
-  if (loading) {
+    if (loading || checkingBanned) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4" />
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memuat dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ⬇️ BARU: Popup banned — block render children
+  if (bannedInfo) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-red-500/40 p-6 max-w-md w-full shadow-2xl">
+          <div className="flex items-center justify-center mb-3">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+          </div>
+
+          <h3 className="text-xl font-bold text-center text-slate-800 dark:text-gray-100 mb-2">
+            Akun Anda Telah Diblokir
+          </h3>
+
+          <p className="text-sm text-slate-500 dark:text-gray-400 text-center mb-4">
+            Credit score Anda terlalu rendah. Akun Anda tidak bisa diakses
+            sampai admin membuka blokir.
+          </p>
+
+          <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center mb-4">
+            <p className="text-xs text-slate-500 dark:text-gray-400">Credit Score Anda:</p>
+            <p className="text-4xl font-bold text-red-400 mt-1">
+              {bannedInfo.score}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">
+              Tier: <strong className="text-red-400">{bannedInfo.tierLabel}</strong>
+            </p>
+          </div>
+
+          <p className="text-xs text-center text-slate-500 dark:text-gray-400 mb-4">
+            Anda akan otomatis keluar dalam beberapa detik...
+          </p>
+
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              try {
+                await signOut()
+              } catch (e) {
+                console.error(e)
+              }
+              window.location.replace('/')
+            }}
+            className="w-full"
+          >
+            Keluar Sekarang
+          </Button>
         </div>
       </div>
     )

@@ -7,6 +7,14 @@ import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTrian
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 // Helper function to mask email - hanya 3 bintang
 const maskEmail = (email?: string | null): string => {
@@ -26,6 +34,11 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false)
   const [showEmergency, setShowEmergency] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false) // ✅ State untuk dialog logout
+  // ⬇️ BARU: Banned state
+  const [bannedInfo, setBannedInfo] = useState<{
+    score: number
+    tierLabel: string
+  } | null>(null)
   
   const { user, userRole, loading, forceSignOut } = useAuth()
 
@@ -49,8 +62,7 @@ const Header = () => {
     setIsOpen(false)
   }
 
-  // ✅ Navigasi ke dashboard atau select-role
-  const handleDashboardClick = () => {
+    const handleDashboardClick = async () => {
     if (!user) {
       setAuthMode('signin')
       setAuthOpen(true)
@@ -61,6 +73,27 @@ const Header = () => {
       console.log('[Header] User belum pilih role, redirect ke select-role')
       router.push('/auth/select-role')
       return
+    }
+
+    // ⬇️ BARU: Cek banned SEBELUM redirect
+    try {
+      const res = await fetch(
+        `/api/credit/me?user_id=${user.id}&role=${userRole}&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (data.banned) {
+          setBannedInfo({
+            score: data.creditScore ?? 0,
+            tierLabel: data.tierLabel ?? 'Blacklist',
+          })
+          return  // STOP, gak redirect
+        }
+      }
+    } catch (err) {
+      console.error('[Header] check banned error:', err)
+      // Kalau error, biarin lanjut (jangan block user karena network error)
     }
 
     const dashboardPath = userRole === 'student' 
@@ -333,6 +366,39 @@ const Header = () => {
                 Ya, Logout
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* ⬇️ BARU: Modal Banned */}
+      {bannedInfo && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-2xl border border-red-500/40 p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex items-center justify-center mb-3">
+              <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-7 h-7 text-red-500" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-center text-foreground mb-2">
+              Akun Anda Telah Diblokir
+            </h3>
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              Credit score Anda terlalu rendah ({bannedInfo.score}/100, tier{' '}
+              <strong className="text-red-400">{bannedInfo.tierLabel}</strong>).
+              Akun Anda tidak bisa diakses.
+            </p>
+            <div className="p-3 rounded-md bg-red-500/10 border border-red-500/30 text-center mb-4">
+              <p className="text-xs text-muted-foreground">
+                Hubungi admin untuk informasi lebih lanjut.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setBannedInfo(null)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
           </div>
         </div>
       )}
