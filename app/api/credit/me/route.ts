@@ -4,6 +4,8 @@ import { isValidUUID } from '@/lib/security/sanitize'
 import { getCreditTier } from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,14 +22,19 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) =>
+            fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     let data: any = null
     let error: any = null
 
     if (role === 'tutor') {
-      // ⬇️ String literal — biar Supabase bisa infer tipe
       const res = await supabase
         .from('tutors')
         .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews')
@@ -58,18 +65,25 @@ export async function GET(req: NextRequest) {
     const isSuspended =
       !!suspendedUntil && new Date(suspendedUntil).getTime() > Date.now()
 
-    return NextResponse.json({
-      profileId: data.id,
-      creditScore: score,
-      tier: tier.id,
-      tierLabel: tier.label,
-      suspendedUntil,
-      isSuspended,
-      lastLoginRewardAt: data.last_login_reward_at ?? null,
-      rating: role === 'tutor' ? Number(data.rating ?? 0) : null,
-      totalReviews: role === 'tutor' ? Number(data.total_reviews ?? 0) : null,
-      catalogCooldownSeconds: tier.features.catalogCooldownSeconds,   // ⬅️ BARU
-    })
+    return NextResponse.json(
+      {
+        profileId: data.id,
+        creditScore: score,
+        tier: tier.id,
+        tierLabel: tier.label,
+        suspendedUntil,
+        isSuspended,
+        lastLoginRewardAt: data.last_login_reward_at ?? null,
+        rating: role === 'tutor' ? Number(data.rating ?? 0) : null,
+        totalReviews: role === 'tutor' ? Number(data.total_reviews ?? 0) : null,
+        catalogCooldownSeconds: tier.features.catalogCooldownSeconds,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        },
+      }
+    )
   } catch (err) {
     console.error('[credit/me]', err)
     return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 })
