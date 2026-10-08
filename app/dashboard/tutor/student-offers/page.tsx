@@ -126,6 +126,15 @@ export default function StudentOffersPage() {
   }, [suspendInfo, nowTick])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
+  // ⬇️ BARU: Refresh cooldown 10 detik
+  const [refreshCooldown, setRefreshCooldown] = useState(0)
+
+  // ⬇️ BARU: Popup limit kontrak
+  const [contractLimitInfo, setContractLimitInfo] = useState<{
+    max: number
+    current: number
+  } | null>(null)
+
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
   const fetchAbortController = useRef<AbortController | null>(null)
@@ -179,7 +188,20 @@ export default function StudentOffersPage() {
     }
   }, [authUser?.id, authLoading])
 
-  const handleRefresh = () => fetchData()
+  // ⬇️ BARU: Timer cooldown refresh
+  useEffect(() => {
+    if (refreshCooldown <= 0) return
+    const id = setInterval(() => {
+      setRefreshCooldown((prev) => Math.max(0, prev - 1))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [refreshCooldown])
+
+  const handleRefresh = () => {
+    if (refreshCooldown > 0) return
+    fetchData()
+    setRefreshCooldown(10)   // 10 detik cooldown
+  }
 
   const getStudentRate = (student: Student): number => {
     if (student.budget_per_month && student.sessions_per_month && student.sessions_per_month > 0) {
@@ -356,15 +378,29 @@ export default function StudentOffersPage() {
         }),
       })
 
-      // ⬇️ HANDLE SUSPEND
+      // ⬇️ HANDLE 403
       if (res.status === 403) {
         const err = await res.json().catch(() => ({}))
+        
+        // Suspend
         if (err.error === 'SUSPENDED' && err.suspendedUntil) {
           setSuspendInfo({ suspendedUntil: err.suspendedUntil })
           setSending(null)
           setSelectedStudent(null)
           return
         }
+        
+        // ⬇️ BARU: Limit kontrak
+        if (err.error === 'CONTRACT_LIMIT') {
+          setContractLimitInfo({
+            max: err.maxContracts ?? 3,
+            current: err.currentContracts ?? 0,
+          })
+          setSending(null)
+          setSelectedStudent(null)
+          return
+        }
+        
         throw new Error(err.error || 'Akses ditolak')
       }
 
@@ -412,9 +448,15 @@ export default function StudentOffersPage() {
           <h1 className="text-2xl font-bold">Daftar Siswa</h1>
           <p className="text-muted-foreground">Temukan siswa & kirim penawaran.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
-          <RefreshCw className="w-4 h-4" />
-          Refresh Data
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshCooldown > 0}
+          className="gap-1.5"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshCooldown > 0 ? 'opacity-50' : ''}`} />
+          {refreshCooldown > 0 ? `Tunggu ${refreshCooldown}s` : 'Refresh Data'}
         </Button>
       </div>
 
@@ -648,6 +690,41 @@ export default function StudentOffersPage() {
           </div>
         )}
       </div>
+
+      {/* ===== MODAL LIMIT KONTRAK ===== */}
+      <Dialog open={!!contractLimitInfo} onOpenChange={(o) => { if (!o) setContractLimitInfo(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="w-5 h-5" />
+              Batas Kontrak Aktif Tercapai
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda sudah memiliki {contractLimitInfo?.current} kontrak aktif.
+              Maksimal {contractLimitInfo?.max} kontrak aktif dalam satu waktu.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/30 text-center">
+              <p className="text-3xl font-bold text-amber-400">
+                {contractLimitInfo?.current} / {contractLimitInfo?.max}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selesaikan salah satu kontrak aktif dulu untuk bisa menerima murid baru.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setContractLimitInfo(null)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Suspend */}
       <Dialog open={!!suspendInfo} onOpenChange={(o) => { if (!o) setSuspendInfo(null) }}>

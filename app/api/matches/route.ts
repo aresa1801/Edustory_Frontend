@@ -1,6 +1,7 @@
 // app/api/matches/route.ts
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCreditTier } from '@/lib/credit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST – dengan tambahan tutor_avatar_url + cek suspend
+// POST – dengan tambahan tutor_avatar_url + cek suspend + cek limit per tier
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -102,10 +103,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
     }
 
-    // 1. Ambil data tutor (termasuk avatar_url + suspended_until)
+    // 1. Ambil data tutor (+ credit_score, suspended_until)
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
-      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, suspended_until')
+      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, suspended_until, credit_score')
       .eq('id', tutor_id)
       .single()
 
@@ -115,8 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // ⬇️ BARU: Cek suspend tutor
-    // Kalau suspended_until > now → tolak dengan 403 + info countdown
+    // CEK 1: Suspend aktif
     // ============================================================
     if (tutor.suspended_until) {
       const suspendedUntilMs = new Date(tutor.suspended_until).getTime()
@@ -132,7 +132,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Ambil data student
+    // ============================================================
+    // CEK 2: Tier & limit kontrak — ADAPTIF PER TIER (efek bertumpuk)
+    // ============================================================
+    const tutorScore = Number(tutor.credit_score ?? 99)
+    const tier = getCreditTier(tutorScore)
+
+    // 2a. Tier block total (Bahaya/Blacklist — canAcceptNewStudent = false)
+    if (!tier.features.canAcceptNewStudent) {
+      return NextResponse.json(
+        {
+          error: 'TIER_BLOCKED',
+          message: `Credit score Anda (${tutorScore}, tier ${tier.label}) terlalu rendah untuk menerima murid baru.`,
+          tier: tier.id,
+          tierLabel: tier.label,
+          score: tutorScore,
+        },
+        { status: 403 }
+      )
+    }
+
+    // 2b. Limit jumlah kontrak aktif (kalau tier kasih limit)
+    if (tier.features.maxActiveStudents !== null) {
+      const { count: activeContractsCount } = await supabase
+        .from('match_schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('tutor_id', tutor_id)
+        .eq('status', 'active')
+
+      const max = tier.features.maxActiveStudents
+
+      if (max === 0 || (activeContractsCount || 0) >= max) {
+        return NextResponse.json(
+          {
+            error: 'CONTRACT_LIMIT',
+            message: `Anda sudah memiliki ${activeContractsCount || 0} kontrak aktif. Maksimal ${max} untuk tier ${tier.label}.`,
+            maxContracts: max,
+            currentContracts: activeContractsCount || 0,
+            tier: tier.id,
+            tierLabel: tier.label,
+          },
+          { status: 403 }
+        )
+      }
+    }
+
+    // 3. Ambil data student
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online')
@@ -144,11 +189,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // 3. Insert dengan semua kolom statis
+    // 4. Insert match
     const { data, error } = await supabase
       .from('matches')
       .insert({
-        // Kolom wajib
         tutor_id,
         student_id,
         matched_subjects: matched_subjects || [],

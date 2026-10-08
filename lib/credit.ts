@@ -77,7 +77,7 @@ export const TIERS: CreditTier[] = [
   {
     id: 'pembatasan', label: 'Pembatasan', min: 66, max: 80,
     features: {
-      maxActiveStudents: 5, catalogCooldownSeconds: 10,
+      maxActiveStudents: 3, catalogCooldownSeconds: 10,   // ← 5 → 3
       profileEditLockDays: 0, maxSessionRate: null,
       catalogFrozen: false, adminFeePercent: 10,
       withdrawalDelayDays: 0, canAcceptNewStudent: true,
@@ -87,7 +87,7 @@ export const TIERS: CreditTier[] = [
   {
     id: 'waspada', label: 'Waspada', min: 51, max: 65,
     features: {
-      maxActiveStudents: 5, catalogCooldownSeconds: 10,
+      maxActiveStudents: 3, catalogCooldownSeconds: 10,   // ← 5 → 3
       profileEditLockDays: 2, maxSessionRate: 150_000,
       catalogFrozen: false, adminFeePercent: 10,
       withdrawalDelayDays: 0, canAcceptNewStudent: true,
@@ -97,7 +97,7 @@ export const TIERS: CreditTier[] = [
   {
     id: 'hati_hati', label: 'Hati-hati', min: 26, max: 50,
     features: {
-      maxActiveStudents: 5, catalogCooldownSeconds: 10,
+      maxActiveStudents: 3, catalogCooldownSeconds: 10,   // ← 5 → 3
       profileEditLockDays: 2, maxSessionRate: 150_000,
       catalogFrozen: true, adminFeePercent: 20,
       withdrawalDelayDays: 3, canAcceptNewStudent: true,
