@@ -135,6 +135,9 @@ export default function StudentOffersPage() {
     current: number
   } | null>(null)
 
+  // ⬇️ BARU: Cooldown dari tier
+  const [catalogCooldown, setCatalogCooldown] = useState(0)
+
   const listRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(true)
   const fetchAbortController = useRef<AbortController | null>(null)
@@ -152,6 +155,17 @@ export default function StudentOffersPage() {
       if (tutorRes.ok) {
         const result = await tutorRes.json()
         if (isMounted.current) setTutorProfile(result.tutor)
+      }
+
+      const creditRes = await fetch(
+        `/api/credit/me?user_id=${authUser.id}&role=tutor`,
+        { cache: 'no-store' }
+      )
+      if (creditRes.ok) {
+        const creditJson = await creditRes.json()
+        if (isMounted.current) {
+          setCatalogCooldown(creditJson.catalogCooldownSeconds ?? 0)
+        }
       }
 
       const res = await fetch('/api/tutors/students', {
@@ -196,11 +210,17 @@ export default function StudentOffersPage() {
     }, 1000)
     return () => clearInterval(id)
   }, [refreshCooldown])
-
+  
   const handleRefresh = () => {
     if (refreshCooldown > 0) return
+
+    if (catalogCooldown === 0) {
+      fetchData()
+      return
+    }
+
     fetchData()
-    setRefreshCooldown(10)   // 10 detik cooldown
+    setRefreshCooldown(catalogCooldown)
   }
 
   const getStudentRate = (student: Student): number => {

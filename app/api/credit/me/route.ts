@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       lastLoginRewardAt: data.last_login_reward_at ?? null,
       rating: role === 'tutor' ? Number(data.rating ?? 0) : null,
       totalReviews: role === 'tutor' ? Number(data.total_reviews ?? 0) : null,
+      catalogCooldownSeconds: tier.features.catalogCooldownSeconds,   // ⬅️ BARU
     })
   } catch (err) {
     console.error('[credit/me]', err)
