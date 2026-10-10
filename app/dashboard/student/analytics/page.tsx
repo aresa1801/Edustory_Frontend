@@ -127,6 +127,9 @@ export default function StudentAnalyticsPage() {
           }
         }
 
+        // ⬇️ TAMBAH INI — render halaman sekarang (credit udah ready)
+        if (!cancelled) setLoading(false)
+
         // ===== 2. Fetch student + matches (dengan timeout 8 detik) =====
         try {
           const supabase = createClient()
