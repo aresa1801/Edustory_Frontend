@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,7 +11,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
-import { Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info, AlertTriangle } from 'lucide-react'
+import {
+  Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info,
+  AlertTriangle, History, LogIn, CheckCircle2, XCircle
+} from 'lucide-react'
 
 interface TutorRating {
   matchId: string
@@ -20,6 +23,14 @@ interface TutorRating {
   completedSessions: number
   existingRating: number | null
   existingReview: string | null
+}
+
+const REASON_META: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
+  daily_login: { label: 'Login harian', Icon: LogIn, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+  both_ready: { label: 'Sesi dimulai (kedua pihak siap)', Icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/15' },
+  session_expired: { label: 'Sesi hangus — tidak klik Siap', Icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/15' },
+  unilateral_terminate: { label: 'Hentikan kontrak sepihak', Icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/15' },
+  admin_adjustment: { label: 'Penyesuaian admin', Icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/15' },
 }
 
 // ============================================================
@@ -106,6 +117,18 @@ export default function StudentAnalyticsPage() {
     isSuspended: false,
   })
   const [showCreditInfo, setShowCreditInfo] = useState(false)
+
+  // ⬇️ BARU: Credit log
+  const [creditLog, setCreditLog] = useState<
+    Array<{
+      id: string
+      delta: number
+      balanceAfter: number
+      reason: string
+      refId: string | null
+      createdAt: string
+    }>
+  >([])
 
   // Rating dialog
   const [showRatingDialog, setShowRatingDialog] = useState(false)
@@ -211,7 +234,6 @@ export default function StudentAnalyticsPage() {
     }
   }
 
-  // ⬇️ FETCH CREDIT — terpisah, gak ngeblok loading utama
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -220,21 +242,32 @@ export default function StudentAnalyticsPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
+        // 1. Fetch credit score
         const res = await fetch(
-          `/api/credit/me?user_id=${user.id}&role=student`,
+          `/api/credit/me?user_id=${user.id}&role=student&_t=${Date.now()}`,
           { cache: 'no-store' }
         )
-        if (!res.ok) {
-          console.warn('[Analytics] credit fetch failed:', res.status)
-          return
+        if (res.ok) {
+          const json = await res.json()
+          if (!cancelled) {
+            setCredit({
+              creditScore: Number(json.creditScore ?? 99),
+              suspendedUntil: json.suspendedUntil ?? null,
+              isSuspended: Boolean(json.isSuspended),
+            })
+          }
         }
-        const json = await res.json()
-        if (!cancelled) {
-          setCredit({
-            creditScore: Number(json.creditScore ?? 99),
-            suspendedUntil: json.suspendedUntil ?? null,
-            isSuspended: Boolean(json.isSuspended),
-          })
+
+        // 2. Fetch credit log
+        const logRes = await fetch(
+          `/api/credit/log?user_id=${user.id}&role=student&limit=50&_t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        if (logRes.ok) {
+          const logJson = await logRes.json()
+          if (!cancelled && Array.isArray(logJson.logs)) {
+            setCreditLog(logJson.logs)
+          }
         }
       } catch (e) {
         console.error('[Analytics] fetch credit:', e)
@@ -413,6 +446,74 @@ export default function StudentAnalyticsPage() {
           </div>
         </Card>
       </div>
+
+            {/* ⬇️ BARU: RIWAYAT CREDIT SCORE */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="w-5 h-5 text-blue-400" />
+            Riwayat Credit Score
+            {creditLog.length > 0 && (
+              <Badge variant="outline" className="ml-2">{creditLog.length}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {creditLog.length === 0 ? (
+            <div className="py-8 text-center">
+              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Belum ada riwayat perubahan credit.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[28rem] overflow-y-auto pr-2 divide-y divide-border/30">
+              {creditLog.map((entry) => {
+                const meta = REASON_META[entry.reason] ?? {
+                  label: entry.reason,
+                  Icon: Shield,
+                  color: 'text-muted-foreground',
+                  bg: 'bg-muted/20',
+                }
+                const Icon = meta.Icon
+                const positive = entry.delta > 0
+
+                return (
+                  <div key={entry.id} className="flex items-center gap-3 py-3">
+                    <div className={`w-9 h-9 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}>
+                      <Icon className={`w-4 h-4 ${meta.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {meta.label}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '-'}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-bold ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                        {positive ? '+' : ''}{entry.delta}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        → {entry.balanceAfter}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ✅ STATS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
