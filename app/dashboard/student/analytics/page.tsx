@@ -177,7 +177,27 @@ export default function StudentAnalyticsPage() {
     timeoutId.current = setTimeout(() => {
       if (isMounted.current && loading) setLoading(false)
     }, 3000)
-    fetchData()
+
+    // ⬇️ Cek user berulang kali sampai ready
+    let attempts = 0
+    const tryFetch = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        fetchData()
+        return
+      }
+      
+      attempts++
+      if (attempts < 10) {
+        setTimeout(tryFetch, 300)
+      } else {
+        if (isMounted.current) setLoading(false)
+      }
+    }
+    tryFetch()
+
     return () => {
       isMounted.current = false
       if (timeoutId.current) clearTimeout(timeoutId.current)
