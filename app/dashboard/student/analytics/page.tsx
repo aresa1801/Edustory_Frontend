@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -43,6 +43,13 @@ const REASON_META: Record<string, { label: string; Icon: any; color: string; bg:
   admin_adjustment: { label: 'Penyesuaian admin', Icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/15' },
 }
 
+const withTimeout = <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 export default function StudentAnalyticsPage() {
   const { user: authUser, loading: authLoading } = useAuth()
 
@@ -79,42 +86,31 @@ export default function StudentAnalyticsPage() {
   const [reviewText, setReviewText] = useState('')
   const [submittingRating, setSubmittingRating] = useState(false)
 
-  const isMounted = useRef(true)
-  const fetchDone = useRef(false)
-
   // ===== FETCH DATA =====
   useEffect(() => {
-    isMounted.current = true
-
-    // Tunggu auth selesai
     if (authLoading) return
 
-    // Kalau gak ada user, stop loading
     if (!authUser?.id) {
       setLoading(false)
       return
     }
 
-    if (fetchDone.current) return
-    fetchDone.current = true
+    let cancelled = false
 
     ;(async () => {
       try {
         console.log('[Analytics] START — user.id:', authUser.id)
 
-        // ✅ Fetch credit + log PARALEL
-        const [creditRes, logRes] = await Promise.all([
+        // ===== 1. Fetch credit + log (server-side, cepat) =====
+        const [creditRes, logRes] = await Promise.allSettled([
           fetch(`/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' }),
           fetch(`/api/credit/log?user_id=${authUser.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' }),
         ])
 
-        console.log('[Analytics] credit/me status:', creditRes.status)
-        console.log('[Analytics] credit/log status:', logRes.status)
-
-        if (creditRes.ok) {
-          const creditJson = await creditRes.json()
+        if (creditRes.status === 'fulfilled' && creditRes.value.ok) {
+          const creditJson = await creditRes.value.json()
           console.log('[Analytics] creditJson:', creditJson)
-          if (isMounted.current) {
+          if (!cancelled) {
             setCredit({
               creditScore: Number(creditJson.creditScore ?? 99),
               suspendedUntil: creditJson.suspendedUntil ?? null,
@@ -123,82 +119,80 @@ export default function StudentAnalyticsPage() {
           }
         }
 
-        if (logRes.ok) {
-          const logJson = await logRes.json()
+        if (logRes.status === 'fulfilled' && logRes.value.ok) {
+          const logJson = await logRes.value.json()
           console.log('[Analytics] logJson:', logJson)
-          if (isMounted.current && Array.isArray(logJson.logs)) {
+          if (!cancelled && Array.isArray(logJson.logs)) {
             setCreditLog(logJson.logs)
           }
         }
 
-        // ===== Fetch student + matches (pakai Supabase client) =====
-        const supabase = createClient()
-        const { data: studentData, error: studentErr } = await supabase
-          .from('students')
-          .select('id, subjects')
-          .eq('user_id', authUser.id)
-          .maybeSingle()
+        // ===== 2. Fetch student + matches (dengan timeout 8 detik) =====
+        try {
+          const supabase = createClient()
+          const studentRes = await withTimeout(
+            supabase.from('students').select('id, subjects').eq('user_id', authUser.id).maybeSingle(),
+            8000
+          )
 
-        if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
+          const studentData = (studentRes as any)?.data
+          if (studentData) {
+            if (!cancelled) setSubjects(studentData.subjects || [])
 
-        if (!studentData) {
-          console.warn('[Analytics] Student profile not found')
-          if (isMounted.current) setLoading(false)
-          return
+            const matchRes = await withTimeout(
+              supabase
+                .from('matches')
+                .select(`id, status, subject, student_rating, student_review, tutors:tutor_id(user_profiles:user_id(name))`)
+                .eq('student_id', studentData.id)
+                .order('created_at', { ascending: false }),
+              8000
+            )
+
+            const allMatches = ((matchRes as any)?.data) || []
+            const completed = allMatches.filter((m: any) => m.status === 'completed')
+            const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
+            const rated = completed.filter((m: any) => m.student_rating)
+            const avgRating = rated.length > 0
+              ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
+              : 0
+
+            if (!cancelled) {
+              setStats({
+                totalSessions: allMatches.length,
+                completedSessions: completed.length,
+                activeTutors: active.length,
+                completionRate: allMatches.length > 0
+                  ? Math.round((completed.length / allMatches.length) * 100)
+                  : 0,
+                averageRating: avgRating,
+              })
+
+              setTutorRatings(completed.map((m: any) => ({
+                matchId: m.id,
+                tutorName: m.tutors?.user_profiles?.name || 'Tutor',
+                subject: m.subject || '-',
+                completedSessions: 1,
+                existingRating: m.student_rating || null,
+                existingReview: m.student_review || null,
+              })))
+            }
+          }
+        } catch (supabaseErr) {
+          console.warn('[Analytics] supabase query timeout/error:', supabaseErr)
+          // Tetap lanjut — credit tetap tampil
         }
 
-        if (isMounted.current) setSubjects(studentData.subjects || [])
-
-        const { data: matches, error: matchErr } = await supabase
-          .from('matches')
-          .select(`
-            id, status, subject, student_rating, student_review,
-            tutors:tutor_id(user_profiles:user_id(name))
-          `)
-          .eq('student_id', studentData.id)
-          .order('created_at', { ascending: false })
-
-        if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
-
-        const allMatches = matches || []
-        const completed = allMatches.filter((m: any) => m.status === 'completed')
-        const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
-        const rated = completed.filter((m: any) => m.student_rating)
-        const avgRating = rated.length > 0
-          ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
-          : 0
-
-        if (isMounted.current) {
-          setStats({
-            totalSessions: allMatches.length,
-            completedSessions: completed.length,
-            activeTutors: active.length,
-            completionRate: allMatches.length > 0
-              ? Math.round((completed.length / allMatches.length) * 100)
-              : 0,
-            averageRating: avgRating,
-          })
-
-          setTutorRatings(completed.map((m: any) => ({
-            matchId: m.id,
-            tutorName: m.tutors?.user_profiles?.name || 'Tutor',
-            subject: m.subject || '-',
-            completedSessions: 1,
-            existingRating: m.student_rating || null,
-            existingReview: m.student_review || null,
-          })))
-          setError(null)
-        }
+        if (!cancelled) setError(null)
       } catch (err) {
         console.error('[Analytics] error:', err)
-          setError('Gagal memuat data analitik.')
+        if (!cancelled) setError('Gagal memuat sebagian data analitik.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     })()
 
     return () => {
-      isMounted.current = false
+      cancelled = true
     }
   }, [authLoading, authUser?.id]) // eslint-disable-line
 
@@ -227,25 +221,16 @@ export default function StudentAnalyticsPage() {
             .eq('id', matchData.tutor_id)
         }
       }
+
       setShowRatingDialog(false)
       setSelectedMatch(null)
       setRatingValue(0)
       setReviewText('')
-
-      // Refresh: reset fetchDone + re-fetch credit
-      fetchDone.current = false
-      // Trigger re-render untuk refetch (via setState dummy)
-      if (authUser?.id) {
-        const creditRes = await fetch(`/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' })
-        if (creditRes.ok) {
-          const creditJson = await creditRes.json()
-          setCredit({
-            creditScore: Number(creditJson.creditScore ?? 99),
-            suspendedUntil: creditJson.suspendedUntil ?? null,
-            isSuspended: Boolean(creditJson.isSuspended),
-          })
-        }
-      }
+      setTutorRatings(prev => prev.map(r =>
+        r.matchId === selectedMatch.matchId
+          ? { ...r, existingRating: ratingValue, existingReview: reviewText.trim() || null }
+          : r
+      ))
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan penilaian')
     } finally {
