@@ -81,33 +81,37 @@ export default function StudentAnalyticsPage() {
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
   const fetchData = async () => {
-    if (fetchDone.current) return
-    // ⬅️ HAPUS `fetchDone.current = true` dari sini
+  console.log('[Analytics] fetchData DIPANGGIL')              // ⬅️ TITIK 1
+  
+  if (fetchDone.current) {
+    console.log('[Analytics] SKIP: fetchDone udah true')       // ⬅️ TITIK 2
+    return
+  }
 
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-      if (!user) {
-        setLoading(false)
-        return  // ⬅️ Gak set fetchDone → retry bakal jalan
-      }
+    console.log('[Analytics] user:', user?.id ?? 'NULL')       // ⬅️ TITIK 3
 
-      // ⬇️ SET SETELAH USER VERIFIED
-      fetchDone.current = true
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
-      // ✅ Fetch credit + log PARALEL
-      Promise.all([
-        fetch(`/api/credit/me?user_id=${user.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null),
-        fetch(`/api/credit/log?user_id=${user.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null),
-      ])
-        .then(([creditJson, logJson]) => {
-          console.log('[Analytics] creditJson:', creditJson)
-          console.log('[Analytics] logJson:', logJson)
+    fetchDone.current = true
+    console.log('[Analytics] MAU FETCH credit/me & credit/log') // ⬅️ TITIK 4
+
+    Promise.all([
+      fetch(`/api/credit/me?user_id=${user.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null),
+      fetch(`/api/credit/log?user_id=${user.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null),
+    ]).then(([creditJson, logJson]) => {
+      console.log('[Analytics] RESPONSE creditJson:', creditJson)
+      console.log('[Analytics] RESPONSE logJson:', logJson)
 
           // ⬇️ HAPUS guard isMounted — biar setState tetap jalan
           if (creditJson) {
