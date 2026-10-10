@@ -66,8 +66,8 @@ export async function middleware(request: NextRequest) {
     // Jika allowed, biarkan lanjut (tidak di-redirect)
   }
 
-  // ============================================================
-  // 3. PROTEKSI ROUTE DASHBOARD (SESUAI KODE LAMA)
+    // ============================================================
+  // 3. PROTEKSI ROUTE DASHBOARD + ROLE-BASED ROUTING
   // ============================================================
   if (pathname.startsWith('/dashboard')) {
     if (!user || error) {
@@ -76,19 +76,45 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
 
+    // ⬇️ Admin email selalu bypass
+    if (user.email === 'admin@edustory.com') {
+      return response
+    }
+
+    // Ambil role user
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .maybeSingle()
 
-    if (user.email === 'admin@edustory.com') {
-      return response
-    }
-
     if (!profile?.role) {
       const selectRoleUrl = new URL('/auth/select-role', request.url)
       return NextResponse.redirect(selectRoleUrl)
+    }
+
+    // ⬇️ Normalize role: 'siswa' dan 'student' dianggap sama
+    const roleRaw = String(profile.role).toLowerCase()
+    const role =
+      roleRaw === 'siswa' || roleRaw === 'student' ? 'student'
+      : roleRaw === 'tutor' ? 'tutor'
+      : roleRaw === 'admin' ? 'admin'
+      : null
+
+    // ⬇️ CEK ROLE-BASED ACCESS
+    // /dashboard/tutor → hanya untuk tutor
+    if (pathname.startsWith('/dashboard/tutor') && role !== 'tutor') {
+      return NextResponse.redirect(new URL(`/dashboard/${role ?? ''}`, request.url))
+    }
+
+    // /dashboard/student → hanya untuk student
+    if (pathname.startsWith('/dashboard/student') && role !== 'student') {
+      return NextResponse.redirect(new URL(`/dashboard/${role ?? ''}`, request.url))
+    }
+
+    // /dashboard/admin → hanya untuk admin
+    if (pathname.startsWith('/dashboard/admin') && role !== 'admin') {
+      return NextResponse.redirect(new URL(`/dashboard/${role ?? ''}`, request.url))
     }
 
     return response
