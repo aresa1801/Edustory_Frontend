@@ -191,11 +191,9 @@ export default function StudentAnalyticsPage() {
         }
       } catch (err) {
         console.error('[Analytics] error:', err)
-        if (isMounted.current) {
           setError('Gagal memuat data analitik.')
-        }
       } finally {
-        if (isMounted.current) setLoading(false)
+        setLoading(false)
       }
     })()
 
