@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { createClient } from '@/lib/auth'
 import {
   Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info,
-  AlertTriangle, History, LogIn, CheckCircle2, XCircle, CheckCircle
+  AlertTriangle, History, LogIn, CheckCircle2, XCircle
 } from 'lucide-react'
 
 interface TutorRating {
@@ -43,6 +44,8 @@ const REASON_META: Record<string, { label: string; Icon: any; color: string; bg:
 }
 
 export default function StudentAnalyticsPage() {
+  const { user: authUser, loading: authLoading } = useAuth()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({
@@ -78,145 +81,128 @@ export default function StudentAnalyticsPage() {
 
   const isMounted = useRef(true)
   const fetchDone = useRef(false)
-  const timeoutId = useRef<NodeJS.Timeout | null>(null)
 
-  const fetchData = async () => {
-  console.log('[Analytics] fetchData DIPANGGIL')              // ⬅️ TITIK 1
-  
-  if (fetchDone.current) {
-    console.log('[Analytics] SKIP: fetchDone udah true')       // ⬅️ TITIK 2
-    return
-  }
+  // ===== FETCH DATA =====
+  useEffect(() => {
+    isMounted.current = true
 
-  try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Tunggu auth selesai
+    if (authLoading) return
 
-    console.log('[Analytics] user:', user?.id ?? 'NULL')       // ⬅️ TITIK 3
-
-    if (!user) {
+    // Kalau gak ada user, stop loading
+    if (!authUser?.id) {
       setLoading(false)
       return
     }
 
+    if (fetchDone.current) return
     fetchDone.current = true
-    console.log('[Analytics] MAU FETCH credit/me & credit/log') // ⬅️ TITIK 4
 
-    Promise.all([
-      fetch(`/api/credit/me?user_id=${user.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null),
-      fetch(`/api/credit/log?user_id=${user.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null),
-    ]).then(([creditJson, logJson]) => {
-      console.log('[Analytics] RESPONSE creditJson:', creditJson)
-      console.log('[Analytics] RESPONSE logJson:', logJson)
+    ;(async () => {
+      try {
+        console.log('[Analytics] START — user.id:', authUser.id)
 
-          // ⬇️ HAPUS guard isMounted — biar setState tetap jalan
-          if (creditJson) {
+        // ✅ Fetch credit + log PARALEL
+        const [creditRes, logRes] = await Promise.all([
+          fetch(`/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' }),
+          fetch(`/api/credit/log?user_id=${authUser.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' }),
+        ])
+
+        console.log('[Analytics] credit/me status:', creditRes.status)
+        console.log('[Analytics] credit/log status:', logRes.status)
+
+        if (creditRes.ok) {
+          const creditJson = await creditRes.json()
+          console.log('[Analytics] creditJson:', creditJson)
+          if (isMounted.current) {
             setCredit({
               creditScore: Number(creditJson.creditScore ?? 99),
               suspendedUntil: creditJson.suspendedUntil ?? null,
               isSuspended: Boolean(creditJson.isSuspended),
             })
           }
-          if (logJson && Array.isArray(logJson.logs)) {
+        }
+
+        if (logRes.ok) {
+          const logJson = await logRes.json()
+          console.log('[Analytics] logJson:', logJson)
+          if (isMounted.current && Array.isArray(logJson.logs)) {
             setCreditLog(logJson.logs)
           }
-        })
-        .catch(err => {
-          console.error('[Analytics] credit fetch error:', err)
-        })
+        }
 
-      const { data: studentData, error: studentErr } = await supabase
-        .from('students')
-        .select('id, subjects')
-        .eq('user_id', user.id)
-        .maybeSingle()
+        // ===== Fetch student + matches (pakai Supabase client) =====
+        const supabase = createClient()
+        const { data: studentData, error: studentErr } = await supabase
+          .from('students')
+          .select('id, subjects')
+          .eq('user_id', authUser.id)
+          .maybeSingle()
 
-      if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
-      if (!studentData) {
-        setLoading(false)
-        return
-      }
+        if (studentErr && studentErr.code !== 'PGRST116') throw studentErr
 
-      setSubjects(studentData.subjects || [])
+        if (!studentData) {
+          console.warn('[Analytics] Student profile not found')
+          if (isMounted.current) setLoading(false)
+          return
+        }
 
-      const { data: matches, error: matchErr } = await supabase
-        .from('matches')
-        .select(`
-          id, status, subject, student_rating, student_review,
-          tutors:tutor_id(user_profiles:user_id(name))
-        `)
-        .eq('student_id', studentData.id)
-        .order('created_at', { ascending: false })
+        if (isMounted.current) setSubjects(studentData.subjects || [])
 
-      if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
+        const { data: matches, error: matchErr } = await supabase
+          .from('matches')
+          .select(`
+            id, status, subject, student_rating, student_review,
+            tutors:tutor_id(user_profiles:user_id(name))
+          `)
+          .eq('student_id', studentData.id)
+          .order('created_at', { ascending: false })
 
-      const allMatches = matches || []
-      const completed = allMatches.filter((m: any) => m.status === 'completed')
-      const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
-      const rated = completed.filter((m: any) => m.student_rating)
-      const avgRating = rated.length > 0
-        ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
-        : 0
+        if (matchErr && matchErr.code !== 'PGRST116') throw matchErr
 
-      setStats({
-        totalSessions: allMatches.length,
-        completedSessions: completed.length,
-        activeTutors: active.length,
-        completionRate: allMatches.length > 0 ? Math.round((completed.length / allMatches.length) * 100) : 0,
-        averageRating: avgRating,
-      })
+        const allMatches = matches || []
+        const completed = allMatches.filter((m: any) => m.status === 'completed')
+        const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
+        const rated = completed.filter((m: any) => m.student_rating)
+        const avgRating = rated.length > 0
+          ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
+          : 0
 
-      setTutorRatings(completed.map((m: any) => ({
-        matchId: m.id,
-        tutorName: m.tutors?.user_profiles?.name || 'Tutor',
-        subject: m.subject || '-',
-        completedSessions: 1,
-        existingRating: m.student_rating || null,
-        existingReview: m.student_review || null,
-      })))
-      setError(null)
-    } catch (err) {
-      setError('Gagal memuat data analitik.')
-    } finally {
-      if (isMounted.current) setLoading(false)
-    }
-  }
+        if (isMounted.current) {
+          setStats({
+            totalSessions: allMatches.length,
+            completedSessions: completed.length,
+            activeTutors: active.length,
+            completionRate: allMatches.length > 0
+              ? Math.round((completed.length / allMatches.length) * 100)
+              : 0,
+            averageRating: avgRating,
+          })
 
-  useEffect(() => {
-    isMounted.current = true
-    timeoutId.current = setTimeout(() => {
-      if (isMounted.current && loading) setLoading(false)
-    }, 3000)
-
-    // ⬇️ Cek user berulang kali sampai ready
-    let attempts = 0
-    const tryFetch = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (user) {
-        fetchData()
-        return
-      }
-      
-      attempts++
-      if (attempts < 10) {
-        setTimeout(tryFetch, 300)
-      } else {
+          setTutorRatings(completed.map((m: any) => ({
+            matchId: m.id,
+            tutorName: m.tutors?.user_profiles?.name || 'Tutor',
+            subject: m.subject || '-',
+            completedSessions: 1,
+            existingRating: m.student_rating || null,
+            existingReview: m.student_review || null,
+          })))
+          setError(null)
+        }
+      } catch (err) {
+        console.error('[Analytics] error:', err)
+        if (isMounted.current) {
+          setError('Gagal memuat data analitik.')
+        }
+      } finally {
         if (isMounted.current) setLoading(false)
       }
-    }
-    tryFetch()
+    })()
 
     return () => {
       isMounted.current = false
-      if (timeoutId.current) clearTimeout(timeoutId.current)
     }
-  }, []) // eslint-disable-line
+  }, [authLoading, authUser?.id]) // eslint-disable-line
 
   const handleSubmitRating = async () => {
     if (!selectedMatch || ratingValue === 0) return
@@ -247,8 +233,21 @@ export default function StudentAnalyticsPage() {
       setSelectedMatch(null)
       setRatingValue(0)
       setReviewText('')
+
+      // Refresh: reset fetchDone + re-fetch credit
       fetchDone.current = false
-      await fetchData()
+      // Trigger re-render untuk refetch (via setState dummy)
+      if (authUser?.id) {
+        const creditRes = await fetch(`/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' })
+        if (creditRes.ok) {
+          const creditJson = await creditRes.json()
+          setCredit({
+            creditScore: Number(creditJson.creditScore ?? 99),
+            suspendedUntil: creditJson.suspendedUntil ?? null,
+            isSuspended: Boolean(creditJson.isSuspended),
+          })
+        }
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan penilaian')
     } finally {
@@ -261,7 +260,7 @@ export default function StudentAnalyticsPage() {
   const creditBg = credit.creditScore >= 80 ? 'bg-green-500/20'
     : credit.creditScore >= 50 ? 'bg-yellow-500/20' : 'bg-red-500/20'
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10 text-primary" />
@@ -296,9 +295,7 @@ export default function StudentAnalyticsPage() {
         </Alert>
       )}
 
-      {/* ⬇️ ROW 1: Credit + 3 Stats (4 cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {/* Credit Score */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}>
@@ -319,7 +316,6 @@ export default function StudentAnalyticsPage() {
           </div>
         </Card>
 
-        {/* Total Sesi */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -332,7 +328,6 @@ export default function StudentAnalyticsPage() {
           </div>
         </Card>
 
-        {/* Sesi Selesai */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -345,7 +340,6 @@ export default function StudentAnalyticsPage() {
           </div>
         </Card>
 
-        {/* Tutor Aktif */}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -359,7 +353,6 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      {/* ⬇️ ROW 2: Penyelesaian + Rating */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card>
           <CardHeader>
@@ -409,7 +402,6 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      {/* ⬇️ ROW 3: Riwayat Credit Score */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -540,7 +532,6 @@ export default function StudentAnalyticsPage() {
         </div>
       )}
 
-      {/* DIALOG RATING */}
       <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
         <DialogContent>
           <DialogHeader>
@@ -573,7 +564,6 @@ export default function StudentAnalyticsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG INFO CREDIT */}
       <Dialog open={showCreditInfo} onOpenChange={setShowCreditInfo}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
