@@ -104,19 +104,26 @@ export default function StudentAnalyticsPage() {
         fetch(`/api/credit/log?user_id=${user.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' })
           .then(r => r.ok ? r.json() : null)
           .catch(() => null),
-      ]).then(([creditJson, logJson]) => {
-        if (!isMounted.current) return
-        if (creditJson) {
-          setCredit({
-            creditScore: Number(creditJson.creditScore ?? 99),
-            suspendedUntil: creditJson.suspendedUntil ?? null,
-            isSuspended: Boolean(creditJson.isSuspended),
-          })
-        }
-        if (logJson && Array.isArray(logJson.logs)) {
-          setCreditLog(logJson.logs)
-        }
-      })
+      ])
+        .then(([creditJson, logJson]) => {
+          console.log('[Analytics] creditJson:', creditJson)
+          console.log('[Analytics] logJson:', logJson)
+
+          // ⬇️ HAPUS guard isMounted — biar setState tetap jalan
+          if (creditJson) {
+            setCredit({
+              creditScore: Number(creditJson.creditScore ?? 99),
+              suspendedUntil: creditJson.suspendedUntil ?? null,
+              isSuspended: Boolean(creditJson.isSuspended),
+            })
+          }
+          if (logJson && Array.isArray(logJson.logs)) {
+            setCreditLog(logJson.logs)
+          }
+        })
+        .catch(err => {
+          console.error('[Analytics] credit fetch error:', err)
+        })
 
       const { data: studentData, error: studentErr } = await supabase
         .from('students')
