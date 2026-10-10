@@ -114,10 +114,10 @@ export default function SharedDashboardLayout({
     }
   }, [loading, user, userRole, allowedRoles, redirectPath, router])
 
-    // ⬇️ BARU: Cek banned saat mount
+  // ⬇️ BARU: Cek banned saat mount (auto-detect role)
   useEffect(() => {
     if (loading) return
-    if (!user?.id || !userRole) {
+    if (!user?.id) {
       setCheckingBanned(false)
       return
     }
@@ -125,27 +125,40 @@ export default function SharedDashboardLayout({
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(
-          `/api/credit/me?user_id=${user.id}&role=${userRole}&_t=${Date.now()}`,
-          { cache: 'no-store' }
-        )
-        if (res.ok) {
-          const data = await res.json()
-          if (!cancelled && data.banned) {
-            setBannedInfo({
-              score: data.creditScore ?? 0,
-              tierLabel: data.tierLabel ?? 'Blacklist',
-            })
-            // Auto logout + redirect setelah 6 detik
-            setTimeout(async () => {
-              try {
-                await signOut()
-              } catch (e) {
-                console.error('[SharedLayout] signOut error:', e)
-              }
-              window.location.replace('/')
-            }, 6000)
+        const rolesToTry: string[] = userRole
+          ? [userRole, 'tutor', 'student']
+          : ['tutor', 'student']
+
+        let bannedData: any = null
+
+        for (const r of rolesToTry) {
+          const res = await fetch(
+            `/api/credit/me?user_id=${user.id}&role=${r}&_t=${Date.now()}`,
+            { cache: 'no-store' }
+          )
+          if (res.ok) {
+            const data = await res.json()
+            if (data.banned) {
+              bannedData = data
+              break
+            }
+            break
           }
+        }
+
+        if (!cancelled && bannedData) {
+          setBannedInfo({
+            score: bannedData.creditScore ?? 0,
+            tierLabel: bannedData.tierLabel ?? 'Blacklist',
+          })
+          setTimeout(async () => {
+            try {
+              await signOut()
+            } catch (e) {
+              console.error('[SharedLayout] signOut error:', e)
+            }
+            window.location.replace('/')
+          }, 6000)
         }
       } catch (err) {
         console.error('[SharedLayout] check banned error:', err)
