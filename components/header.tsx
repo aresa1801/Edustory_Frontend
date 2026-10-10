@@ -7,23 +7,12 @@ import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTrian
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
 import { useAuth } from '@/lib/auth-context'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
-// Helper function to mask email - hanya 3 bintang
 const maskEmail = (email?: string | null): string => {
   if (!email) return ''
   const [username, domain] = email.split('@')
   if (!username || !domain) return email
-  
-  const maskedUsername = username[0] + '***'
-  return `${maskedUsername}@${domain}`
+  return `${username[0]}***@${domain}`
 }
 
 const Header = () => {
@@ -33,13 +22,12 @@ const Header = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [scrolled, setScrolled] = useState(false)
   const [showEmergency, setShowEmergency] = useState(false)
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false) // ✅ State untuk dialog logout
-  // ⬇️ BARU: Banned state
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [bannedInfo, setBannedInfo] = useState<{
     score: number
     tierLabel: string
   } | null>(null)
-  
+
   const { user, userRole, loading, forceSignOut } = useAuth()
 
   useEffect(() => {
@@ -62,11 +50,38 @@ const Header = () => {
     setIsOpen(false)
   }
 
-    const handleDashboardClick = async () => {
+  const handleDashboardClick = async () => {
     if (!user) {
       setAuthMode('signin')
       setAuthOpen(true)
       return
+    }
+
+    // ⬇️ CEK BANNED DULU (auto-detect role)
+    try {
+      const rolesToTry: string[] = userRole
+        ? [userRole, 'tutor', 'student']
+        : ['tutor', 'student']
+
+      for (const r of rolesToTry) {
+        const res = await fetch(
+          `/api/credit/me?user_id=${user.id}&role=${r}&_t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (data.banned) {
+            setBannedInfo({
+              score: data.creditScore ?? 0,
+              tierLabel: data.tierLabel ?? 'Blacklist',
+            })
+            return
+          }
+          break
+        }
+      }
+    } catch (err) {
+      console.error('[Header] check banned error:', err)
     }
 
     if (!userRole) {
@@ -75,44 +90,19 @@ const Header = () => {
       return
     }
 
-    // ⬇️ BARU: Cek banned SEBELUM redirect
-    try {
-      const res = await fetch(
-        `/api/credit/me?user_id=${user.id}&role=${userRole}&_t=${Date.now()}`,
-        { cache: 'no-store' }
-      )
-      if (res.ok) {
-        const data = await res.json()
-        if (data.banned) {
-          setBannedInfo({
-            score: data.creditScore ?? 0,
-            tierLabel: data.tierLabel ?? 'Blacklist',
-          })
-          return  // STOP, gak redirect
-        }
-      }
-    } catch (err) {
-      console.error('[Header] check banned error:', err)
-      // Kalau error, biarin lanjut (jangan block user karena network error)
-    }
-
-    const dashboardPath = userRole === 'student' 
-      ? '/dashboard/student' 
-      : userRole === 'tutor'
-      ? '/dashboard/tutor'
-      : userRole === 'admin'
-      ? '/dashboard/admin'
+    const dashboardPath =
+      userRole === 'student' ? '/dashboard/student'
+      : userRole === 'tutor' ? '/dashboard/tutor'
+      : userRole === 'admin' ? '/dashboard/admin'
       : '/dashboard'
-    
+
     router.push(dashboardPath)
   }
 
-  // ✅ Buka dialog konfirmasi logout (bukan langsung logout)
   const handleLogoutClick = () => {
     setShowLogoutDialog(true)
   }
 
-  // ✅ Fungsi logout sebenarnya setelah konfirmasi
   const confirmLogout = async () => {
     setShowLogoutDialog(false)
     try {
@@ -123,27 +113,21 @@ const Header = () => {
     }
   }
 
-  // ✅ Batalkan logout
   const cancelLogout = () => {
     setShowLogoutDialog(false)
   }
 
   const handleEmergencyClear = async () => {
-    console.log('[Header] Emergency clear initiated...')
-    
     localStorage.clear()
     sessionStorage.clear()
-    
     if ('caches' in window) {
       try {
         const names = await caches.keys()
         await Promise.all(names.map(name => caches.delete(name)))
-        console.log('[Header] Browser cache cleared')
       } catch (e) {
         console.error('[Header] Failed to clear browser cache:', e)
       }
     }
-    
     window.location.href = '/?emergency_clear=' + Date.now()
   }
 
@@ -166,7 +150,6 @@ const Header = () => {
       >
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
-            {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 font-bold text-xl hover:opacity-90 transition-opacity">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <BookOpen className="w-4 h-4 text-white" />
@@ -176,7 +159,6 @@ const Header = () => {
               </span>
             </Link>
 
-            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-7">
               {menuItems.map((item) => (
                 <a
@@ -189,7 +171,6 @@ const Header = () => {
               ))}
             </nav>
 
-            {/* Desktop CTA Buttons */}
             <div className="hidden md:flex items-center gap-3">
               {user ? (
                 <>
@@ -205,7 +186,6 @@ const Header = () => {
                     <LayoutDashboard className="w-4 h-4" />
                     {loading && !userRole ? 'Memuat...' : 'Dashboard'}
                   </Button>
-                  {/* ✅ Tombol logout sekarang memicu dialog */}
                   <Button
                     onClick={handleLogoutClick}
                     variant="outline"
@@ -238,18 +218,11 @@ const Header = () => {
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="ghost"
-                    onClick={handleSignIn}
-                    className="text-foreground hover:text-primary gap-2"
-                  >
+                  <Button variant="ghost" onClick={handleSignIn} className="text-foreground hover:text-primary gap-2">
                     <LogIn className="w-4 h-4" />
                     Masuk
                   </Button>
-                  <Button
-                    onClick={handleSignUp}
-                    className="bg-primary hover:bg-primary/90 text-white gap-2"
-                  >
+                  <Button onClick={handleSignUp} className="bg-primary hover:bg-primary/90 text-white gap-2">
                     <UserPlus className="w-4 h-4" />
                     Daftar
                   </Button>
@@ -257,7 +230,6 @@ const Header = () => {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={toggleMenu}
               className="md:hidden p-2 rounded-lg hover:bg-white/10 text-foreground"
@@ -267,7 +239,6 @@ const Header = () => {
             </button>
           </div>
 
-          {/* Mobile Navigation */}
           {isOpen && (
             <nav className="md:hidden pb-4 border-t border-border/50">
               <div className="flex flex-col gap-1 py-3">
@@ -299,21 +270,11 @@ const Header = () => {
                         <LayoutDashboard className="w-4 h-4 mr-2" />
                         {loading && !userRole ? 'Memuat...' : 'Dashboard'}
                       </Button>
-                      {/* ✅ Tombol logout mobile juga memicu dialog */}
-                      <Button
-                        onClick={handleLogoutClick}
-                        variant="outline"
-                        className="w-full"
-                      >
+                      <Button onClick={handleLogoutClick} variant="outline" className="w-full">
                         <LogOut className="w-4 h-4 mr-2" />
                         Logout
                       </Button>
-                      <Button
-                        onClick={handleEmergencyClear}
-                        variant="destructive"
-                        size="sm"
-                        className="w-full gap-2"
-                      >
+                      <Button onClick={handleEmergencyClear} variant="destructive" size="sm" className="w-full gap-2">
                         <Trash2 className="w-4 h-4" />
                         Emergency Clear Cache
                       </Button>
@@ -337,14 +298,13 @@ const Header = () => {
         </div>
 
         <AuthModalDialog
-          isOpen={authOpen }
+          isOpen={authOpen}
           onOpenChange={setAuthOpen}
           defaultMode={authMode}
         />
       </header>
 
-      {/* ✅ Modal Konfirmasi Logout */}
-      {showLogoutDialog &&(
+      {showLogoutDialog && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-2xl border border-border/50 p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="text-lg font-semibold text-foreground mb-2">Konfirmasi Logout</h3>
@@ -352,25 +312,15 @@ const Header = () => {
               Apakah Anda yakin ingin keluar dari akun ini?
             </p>
             <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={cancelLogout}
-              >
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmLogout}
-                className="bg-red-600 hover:bg-red-700"
-              >
+              <Button variant="outline" onClick={cancelLogout}>Batal</Button>
+              <Button variant="destructive" onClick={confirmLogout} className="bg-red-600 hover:bg-red-700">
                 Ya, Logout
               </Button>
             </div>
           </div>
         </div>
       )}
-      
-      {/* ⬇️ BARU: Modal Banned */}
+
       {bannedInfo && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-2xl border border-red-500/40 p-6 max-w-sm w-full mx-4 shadow-xl">
