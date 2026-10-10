@@ -82,7 +82,7 @@ export default function StudentAnalyticsPage() {
 
   const fetchData = async () => {
     if (fetchDone.current) return
-    fetchDone.current = true
+    // ⬅️ HAPUS `fetchDone.current = true` dari sini
 
     try {
       const supabase = createClient()
@@ -90,8 +90,11 @@ export default function StudentAnalyticsPage() {
 
       if (!user) {
         setLoading(false)
-        return
+        return  // ⬅️ Gak set fetchDone → retry bakal jalan
       }
+
+      // ⬇️ SET SETELAH USER VERIFIED
+      fetchDone.current = true
 
       // ✅ Fetch credit + log PARALEL
       Promise.all([
