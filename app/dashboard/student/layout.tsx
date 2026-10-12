@@ -6,6 +6,7 @@ import {
   Calendar, CreditCard, BarChart3, GraduationCap,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
+import DailyLoginReward from '@/components/daily-login-reward'
 
 const navGroups: NavGroup[] = [
   {
@@ -35,14 +36,18 @@ const navGroups: NavGroup[] = [
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <SharedDashboardLayout
-      navGroups={navGroups}
-      allowedRoles={['student']}
-      accentColor="blue"
-      portalLabel="Portal Siswa"
-      logoIcon={GraduationCap}
-    >
-      {children}
-    </SharedDashboardLayout>
+    <>
+      <DailyLoginReward />
+
+      <SharedDashboardLayout
+        navGroups={navGroups}
+        allowedRoles={['student']}
+        accentColor="blue"
+        portalLabel="Portal Siswa"
+        logoIcon={GraduationCap}
+      >
+        {children}
+      </SharedDashboardLayout>
+    </>
   )
 }
