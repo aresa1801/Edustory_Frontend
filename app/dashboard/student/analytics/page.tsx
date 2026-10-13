@@ -131,46 +131,60 @@ export default function StudentAnalyticsPage() {
         // ⬇️ TAMBAH INI — render halaman sekarang (credit udah ready)
         if (!cancelled) setLoading(false)
 
-        // ===== 2. Fetch student + matches (dengan timeout 8 detik) =====
+                // ===== 2. Fetch stats student (server-side) =====
+        try {
+          const statsRes = await fetch(
+            `/api/students/analytics?user_id=${authUser.id}&_t=${Date.now()}`,
+            { cache: 'no-store' }
+          )
+          if (statsRes.ok) {
+            const statsJson = await statsRes.json()
+            if (!cancelled && statsJson.stats) {
+              setStats(prev => ({
+                ...prev,
+                totalSessions: statsJson.stats.totalSessions ?? 0,
+                completedSessions: statsJson.stats.completedSessions ?? 0,
+                activeTutors: statsJson.stats.activeTutors ?? 0,
+                completionRate: statsJson.stats.totalSessions > 0
+                  ? Math.round((statsJson.stats.completedSessions / statsJson.stats.totalSessions) * 100)
+                  : 0,
+              }))
+            }
+          }
+        } catch (statsErr) {
+          console.warn('[Analytics] stats fetch error:', statsErr)
+        }
+
+        // ===== 3. Fetch ratings (client-side, existing) =====
         try {
           const supabase = createClient()
-          const studentRes = await withTimeout(
-            supabase.from('students').select('id, subjects').eq('user_id', authUser.id).maybeSingle(),
-            8000
-          )
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('id, subjects')
+            .eq('user_id', authUser.id)
+            .maybeSingle()
 
-          const studentData = (studentRes as any)?.data
           if (studentData) {
             if (!cancelled) setSubjects(studentData.subjects || [])
 
-            const matchRes = await withTimeout(
-              supabase
-                .from('matches')
-                .select(`id, status, subject, student_rating, student_review, tutors:tutor_id(user_profiles:user_id(name))`)
-                .eq('student_id', studentData.id)
-                .order('created_at', { ascending: false }),
-              8000
-            )
+            const { data: matches } = await supabase
+              .from('matches')
+              .select(`
+                id, status, subject, student_rating, student_review,
+                tutors:tutor_id(user_profiles:user_id(name))
+              `)
+              .eq('student_id', studentData.id)
+              .order('created_at', { ascending: false })
 
-            const allMatches = ((matchRes as any)?.data) || []
+            const allMatches = matches || []
             const completed = allMatches.filter((m: any) => m.status === 'completed')
-            const active = allMatches.filter((m: any) => ['matched', 'active'].includes(m.status))
             const rated = completed.filter((m: any) => m.student_rating)
             const avgRating = rated.length > 0
               ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
               : 0
 
             if (!cancelled) {
-              setStats({
-                totalSessions: allMatches.length,
-                completedSessions: completed.length,
-                activeTutors: active.length,
-                completionRate: allMatches.length > 0
-                  ? Math.round((completed.length / allMatches.length) * 100)
-                  : 0,
-                averageRating: avgRating,
-              })
-
+              setStats(prev => ({ ...prev, averageRating: avgRating }))
               setTutorRatings(completed.map((m: any) => ({
                 matchId: m.id,
                 tutorName: m.tutors?.user_profiles?.name || 'Tutor',
@@ -182,8 +196,7 @@ export default function StudentAnalyticsPage() {
             }
           }
         } catch (supabaseErr) {
-          console.warn('[Analytics] supabase query timeout/error:', supabaseErr)
-          // Tetap lanjut — credit tetap tampil
+          console.warn('[Analytics] supabase query error:', supabaseErr)
         }
 
         if (!cancelled) setError(null)
