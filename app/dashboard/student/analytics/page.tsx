@@ -21,7 +21,6 @@ interface TutorRating {
   matchId: string
   tutorName: string
   subject: string
-  completedSessions: number
   existingRating: number | null
   existingReview: string | null
   ratedAt: string | null
@@ -36,20 +35,12 @@ const CREDIT_TIERS = [
   { range: '0-5', label: 'Blacklist', color: 'bg-black', textColor: 'text-gray-300', borderColor: 'border-gray-500/40', bgColor: 'bg-gray-900/60', description: 'Akun akan di-banned.' },
 ]
 
-
 const REASON_META: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
   daily_login: { label: 'Login harian', Icon: LogIn, color: 'text-blue-400', bg: 'bg-blue-500/15' },
   both_ready: { label: 'Sesi dimulai (kedua pihak siap)', Icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/15' },
   session_expired: { label: 'Sesi hangus — tidak klik Siap', Icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/15' },
   unilateral_terminate: { label: 'Hentikan kontrak sepihak', Icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/15' },
   admin_adjustment: { label: 'Penyesuaian admin', Icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/15' },
-}
-
-const withTimeout = <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
-  return Promise.race([
-    Promise.resolve(promise),
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ])
 }
 
 export default function StudentAnalyticsPage() {
@@ -62,7 +53,6 @@ export default function StudentAnalyticsPage() {
     completedSessions: 0,
     activeTutors: 0,
     completionRate: 0,
-    averageRating: 0,
   })
   const [tutorRatings, setTutorRatings] = useState<TutorRating[]>([])
   const [subjects, setSubjects] = useState<string[]>([])
@@ -91,7 +81,6 @@ export default function StudentAnalyticsPage() {
   // ===== FETCH DATA =====
   useEffect(() => {
     if (authLoading) return
-
     if (!authUser?.id) {
       setLoading(false)
       return
@@ -103,7 +92,7 @@ export default function StudentAnalyticsPage() {
       try {
         console.log('[Analytics] START — user.id:', authUser.id)
 
-        // ===== 1. Fetch credit + log (server-side, cepat) =====
+        // ===== 1. Fetch credit + log =====
         const [creditRes, logRes] = await Promise.allSettled([
           fetch(`/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`, { cache: 'no-store' }),
           fetch(`/api/credit/log?user_id=${authUser.id}&role=student&limit=50&_t=${Date.now()}`, { cache: 'no-store' }),
@@ -111,7 +100,6 @@ export default function StudentAnalyticsPage() {
 
         if (creditRes.status === 'fulfilled' && creditRes.value.ok) {
           const creditJson = await creditRes.value.json()
-          console.log('[Analytics] creditJson:', creditJson)
           if (!cancelled) {
             setCredit({
               creditScore: Number(creditJson.creditScore ?? 99),
@@ -123,16 +111,15 @@ export default function StudentAnalyticsPage() {
 
         if (logRes.status === 'fulfilled' && logRes.value.ok) {
           const logJson = await logRes.value.json()
-          console.log('[Analytics] logJson:', logJson)
           if (!cancelled && Array.isArray(logJson.logs)) {
             setCreditLog(logJson.logs)
           }
         }
 
-        // ⬇️ TAMBAH INI — render halaman sekarang (credit udah ready)
+        // Render halaman sekarang
         if (!cancelled) setLoading(false)
 
-                // ===== 2. Fetch stats student (server-side) =====
+        // ===== 2. Fetch stats via API =====
         try {
           const statsRes = await fetch(
             `/api/students/analytics?user_id=${authUser.id}&_t=${Date.now()}`,
@@ -141,22 +128,21 @@ export default function StudentAnalyticsPage() {
           if (statsRes.ok) {
             const statsJson = await statsRes.json()
             if (!cancelled && statsJson.stats) {
-              setStats(prev => ({
-                ...prev,
-                totalSessions: statsJson.stats.totalSessions ?? 0,
-                completedSessions: statsJson.stats.completedSessions ?? 0,
+              const total = statsJson.stats.totalSessions ?? 0
+              const completed = statsJson.stats.completedSessions ?? 0
+              setStats({
+                totalSessions: total,
+                completedSessions: completed,
                 activeTutors: statsJson.stats.activeTutors ?? 0,
-                completionRate: statsJson.stats.totalSessions > 0
-                  ? Math.round((statsJson.stats.completedSessions / statsJson.stats.totalSessions) * 100)
-                  : 0,
-              }))
+                completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+              })
             }
           }
-        } catch (statsErr) {
-          console.warn('[Analytics] stats fetch error:', statsErr)
+        } catch (e) {
+          console.warn('[Analytics] stats fetch error:', e)
         }
 
-        // ===== 3. Fetch ratings (client-side, existing) =====
+        // ===== 3. Fetch ratings + subjects =====
         try {
           const supabase = createClient()
           const { data: studentData } = await supabase
@@ -175,30 +161,24 @@ export default function StudentAnalyticsPage() {
                 tutors:tutor_id(user_profiles:user_id(name))
               `)
               .eq('student_id', studentData.id)
-              .order('created_at', { ascending: false })
+              .order('updated_at', { ascending: false })
 
             const allMatches = matches || []
             const completed = allMatches.filter((m: any) => m.status === 'completed')
-            const rated = completed.filter((m: any) => m.student_rating)
-            const avgRating = rated.length > 0
-              ? rated.reduce((sum: number, m: any) => sum + (m.student_rating || 0), 0) / rated.length
-              : 0
 
             if (!cancelled) {
-              setStats(prev => ({ ...prev, averageRating: avgRating }))
               setTutorRatings(completed.map((m: any) => ({
                 matchId: m.id,
                 tutorName: m.tutors?.user_profiles?.name || 'Tutor',
                 subject: m.subject || '-',
-                completedSessions: 1,
                 existingRating: m.student_rating || null,
                 existingReview: m.student_review || null,
                 ratedAt: m.updated_at || null,
               })))
             }
           }
-        } catch (supabaseErr) {
-          console.warn('[Analytics] supabase query error:', supabaseErr)
+        } catch (e) {
+          console.warn('[Analytics] ratings fetch error:', e)
         }
 
         if (!cancelled) setError(null)
@@ -222,7 +202,11 @@ export default function StudentAnalyticsPage() {
       const supabase = createClient()
       const { error: updateErr } = await supabase
         .from('matches')
-        .update({ student_rating: ratingValue, student_review: reviewText.trim() || null })
+        .update({
+          student_rating: ratingValue,
+          student_review: reviewText.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', selectedMatch.matchId)
       if (updateErr) throw updateErr
 
@@ -247,7 +231,7 @@ export default function StudentAnalyticsPage() {
       setReviewText('')
       setTutorRatings(prev => prev.map(r =>
         r.matchId === selectedMatch.matchId
-          ? { ...r, existingRating: ratingValue, existingReview: reviewText.trim() || null }
+          ? { ...r, existingRating: ratingValue, existingReview: reviewText.trim() || null, ratedAt: new Date().toISOString() }
           : r
       ))
     } catch (err) {
@@ -297,6 +281,7 @@ export default function StudentAnalyticsPage() {
         </Alert>
       )}
 
+      {/* ROW 1: Credit + 3 Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card className="p-5">
           <div className="flex items-center gap-3">
@@ -355,7 +340,7 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-            {/* Tingkat Penyelesaian Sesi (full width) */}
+      {/* Tingkat Penyelesaian */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -373,7 +358,7 @@ export default function StudentAnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Riwayat Rating yang Anda Berikan */}
+      {/* Riwayat Rating */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -393,7 +378,7 @@ export default function StudentAnalyticsPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="max-h-[28rem] overflow-y-auto pr-2 space-y-3">
               {ratedMatches.map((item) => (
                 <div
                   key={item.matchId}
@@ -446,6 +431,62 @@ export default function StudentAnalyticsPage() {
         </CardContent>
       </Card>
 
+      {/* Riwayat Credit Score */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="w-5 h-5 text-blue-400" />
+            Riwayat Credit Score
+            {creditLog.length > 0 && (
+              <Badge variant="outline" className="ml-2">{creditLog.length}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {creditLog.length === 0 ? (
+            <div className="py-8 text-center">
+              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Belum ada riwayat perubahan credit.</p>
+            </div>
+          ) : (
+            <div className="max-h-[28rem] overflow-y-auto pr-2 divide-y divide-border/30">
+              {creditLog.map((entry) => {
+                const meta = REASON_META[entry.reason] ?? {
+                  label: entry.reason, Icon: Shield, color: 'text-muted-foreground', bg: 'bg-muted/20',
+                }
+                const Icon = meta.Icon
+                const positive = entry.delta > 0
+                return (
+                  <div key={entry.id} className="flex items-center gap-3 py-3">
+                    <div className={`w-9 h-9 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}>
+                      <Icon className={`w-4 h-4 ${meta.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{meta.label}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleString('id-ID', {
+                              day: 'numeric', month: 'short', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })
+                          : '-'}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-bold ${positive ? 'text-green-400' : entry.delta === 0 ? 'text-muted-foreground' : 'text-red-400'}`}>
+                        {positive ? '+' : ''}{entry.delta}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">→ {entry.balanceAfter}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Subjects */}
       {subjects.length > 0 && (
         <Card className="mb-8">
           <CardHeader>
@@ -462,6 +503,7 @@ export default function StudentAnalyticsPage() {
         </Card>
       )}
 
+      {/* Berikan Penilaian (unrated) */}
       {unratedMatches.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -490,38 +532,7 @@ export default function StudentAnalyticsPage() {
         </div>
       )}
 
-      {ratedMatches.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Riwayat Penilaian</h2>
-          <div className="space-y-3">
-            {ratedMatches.map(item => (
-              <Card key={item.matchId}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <p className="font-semibold text-foreground">{item.tutorName}</p>
-                      <p className="text-sm text-muted-foreground mb-2">{item.subject}</p>
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <Star key={star} className={`w-4 h-4 ${star <= (item.existingRating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
-                        ))}
-                        <span className="text-sm font-medium text-foreground ml-1">{item.existingRating}/5</span>
-                      </div>
-                      {item.existingReview && (
-                        <p className="text-sm text-muted-foreground mt-1 italic">&ldquo;{item.existingReview}&rdquo;</p>
-                      )}
-                    </div>
-                    <Badge className="bg-green-500/20 text-green-700 border border-green-200 text-xs">
-                      Sudah Dinilai
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Dialog Rating */}
       <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
         <DialogContent>
           <DialogHeader>
@@ -554,6 +565,7 @@ export default function StudentAnalyticsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Info Credit */}
       <Dialog open={showCreditInfo} onOpenChange={setShowCreditInfo}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
