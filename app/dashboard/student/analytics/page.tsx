@@ -24,6 +24,7 @@ interface TutorRating {
   completedSessions: number
   existingRating: number | null
   existingReview: string | null
+  ratedAt: string | null
 }
 
 const CREDIT_TIERS = [
@@ -170,7 +171,7 @@ export default function StudentAnalyticsPage() {
             const { data: matches } = await supabase
               .from('matches')
               .select(`
-                id, status, subject, student_rating, student_review,
+                id, status, subject, student_rating, student_review, updated_at,
                 tutors:tutor_id(user_profiles:user_id(name))
               `)
               .eq('student_id', studentData.id)
@@ -192,6 +193,7 @@ export default function StudentAnalyticsPage() {
                 completedSessions: 1,
                 existingRating: m.student_rating || null,
                 existingReview: m.student_review || null,
+                ratedAt: m.updated_at || null,
               })))
             }
           }
@@ -353,104 +355,92 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Tingkat Penyelesaian Sesi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Sesi selesai vs total</span>
-              <span className="font-medium">{stats.completedSessions}/{stats.totalSessions}</span>
-            </div>
-            <Progress value={stats.completionRate} className="h-3" />
-            <p className="text-sm text-muted-foreground">{stats.completionRate}% sesi berhasil diselesaikan</p>
-          </CardContent>
-        </Card>
+            {/* Tingkat Penyelesaian Sesi (full width) */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Tingkat Penyelesaian Sesi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Sesi selesai vs total</span>
+            <span className="font-medium">{stats.completedSessions}/{stats.totalSessions}</span>
+          </div>
+          <Progress value={stats.completionRate} className="h-3" />
+          <p className="text-sm text-muted-foreground">{stats.completionRate}% sesi berhasil diselesaikan</p>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Star className="w-4 h-4" />
-              Rating Rata-rata yang Anda Berikan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats.averageRating > 0 ? (
-              <div className="space-y-3">
-                <div className="flex items-end gap-2">
-                  <span className="text-4xl font-bold text-foreground">{stats.averageRating.toFixed(1)}</span>
-                  <span className="text-muted-foreground text-sm mb-1">/ 5.0</span>
-                </div>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <Star key={star} className={`w-6 h-6 ${star <= Math.round(stats.averageRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
-                  ))}
-                </div>
-                <p className="text-sm text-muted-foreground">Berdasarkan {ratedMatches.length} penilaian</p>
-              </div>
-            ) : (
-              <div className="py-4 text-center">
-                <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Belum ada penilaian yang diberikan</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* Riwayat Rating yang Anda Berikan */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5 text-blue-400" />
-            Riwayat Credit Score
-            {creditLog.length > 0 && (
-              <Badge variant="outline" className="ml-2">{creditLog.length}</Badge>
+            <Star className="w-5 h-5 text-yellow-500" />
+            Riwayat Rating yang Anda Berikan
+            {ratedMatches.length > 0 && (
+              <Badge variant="outline" className="ml-2">{ratedMatches.length}</Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {creditLog.length === 0 ? (
+          {ratedMatches.length === 0 ? (
             <div className="py-8 text-center">
-              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Belum ada riwayat perubahan credit.</p>
+              <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Belum ada rating yang Anda berikan ke tutor.
+              </p>
             </div>
           ) : (
-            <div className="max-h-[28rem] overflow-y-auto pr-2 divide-y divide-border/30">
-              {creditLog.map((entry) => {
-                const meta = REASON_META[entry.reason] ?? {
-                  label: entry.reason, Icon: Shield, color: 'text-muted-foreground', bg: 'bg-muted/20',
-                }
-                const Icon = meta.Icon
-                const positive = entry.delta > 0
-                return (
-                  <div key={entry.id} className="flex items-center gap-3 py-3">
-                    <div className={`w-9 h-9 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}>
-                      <Icon className={`w-4 h-4 ${meta.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{meta.label}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {entry.createdAt
-                          ? new Date(entry.createdAt).toLocaleString('id-ID', {
-                              day: 'numeric', month: 'short', year: 'numeric',
-                              hour: '2-digit', minute: '2-digit',
-                            })
-                          : '-'}
+            <div className="space-y-3">
+              {ratedMatches.map((item) => (
+                <div
+                  key={item.matchId}
+                  className="p-3 rounded-md border border-border bg-muted/10"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">
+                        {item.tutorName}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {item.subject}
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-sm font-bold ${positive ? 'text-green-400' : entry.delta === 0 ? 'text-muted-foreground' : 'text-red-400'}`}>
-                        {positive ? '+' : ''}{entry.delta}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">→ {entry.balanceAfter}</p>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3.5 h-3.5 ${
+                            star <= (item.existingRating || 0)
+                              ? 'text-yellow-500 fill-yellow-500'
+                              : 'text-gray-500'
+                          }`}
+                        />
+                      ))}
                     </div>
                   </div>
-                )
-              })}
+                  {item.existingReview ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      &ldquo;{item.existingReview}&rdquo;
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/60 italic">
+                      (tanpa komentar)
+                    </p>
+                  )}
+                  {item.ratedAt && (
+                    <p className="text-[11px] text-muted-foreground/60 mt-2">
+                      {new Date(item.ratedAt).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
