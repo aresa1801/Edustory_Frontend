@@ -142,40 +142,36 @@ export default function StudentAnalyticsPage() {
           console.warn('[Analytics] stats fetch error:', e)
         }
 
-        // ===== 3. Fetch ratings + subjects =====
+                // ===== 3. Fetch ratings + subjects =====
         try {
+          // Ratings via endpoint server-side
+          const ratingsRes = await fetch(
+            `/api/students/ratings?user_id=${authUser.id}&_t=${Date.now()}`,
+            { cache: 'no-store' }
+          )
+          if (ratingsRes.ok) {
+            const ratingsJson = await ratingsRes.json()
+            if (!cancelled && Array.isArray(ratingsJson.ratings)) {
+              setTutorRatings(ratingsJson.ratings.map((r: any) => ({
+                matchId: r.matchId,
+                tutorName: r.tutorName,
+                subject: r.subject,
+                existingRating: r.rating,
+                existingReview: r.review,
+                ratedAt: r.ratedAt,
+              })))
+            }
+          }
+
+          // Subjects via Supabase (tetap client-side)
           const supabase = createClient()
           const { data: studentData } = await supabase
             .from('students')
             .select('id, subjects')
             .eq('user_id', authUser.id)
             .maybeSingle()
-
-          if (studentData) {
-            if (!cancelled) setSubjects(studentData.subjects || [])
-
-            const { data: matches } = await supabase
-              .from('matches')
-              .select(`
-                id, status, subject, student_rating, student_review, updated_at,
-                tutors:tutor_id(user_profiles:user_id(name))
-              `)
-              .eq('student_id', studentData.id)
-              .order('updated_at', { ascending: false })
-
-            const allMatches = matches || []
-            const completed = allMatches.filter((m: any) => m.status === 'completed')
-
-            if (!cancelled) {
-              setTutorRatings(completed.map((m: any) => ({
-                matchId: m.id,
-                tutorName: m.tutors?.user_profiles?.name || 'Tutor',
-                subject: m.subject || '-',
-                existingRating: m.student_rating || null,
-                existingReview: m.student_review || null,
-                ratedAt: m.updated_at || null,
-              })))
-            }
+          if (studentData && !cancelled) {
+            setSubjects(studentData.subjects || [])
           }
         } catch (e) {
           console.warn('[Analytics] ratings fetch error:', e)
@@ -340,96 +336,97 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      {/* Tingkat Penyelesaian */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Tingkat Penyelesaian Sesi
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Sesi selesai vs total</span>
-            <span className="font-medium">{stats.completedSessions}/{stats.totalSessions}</span>
-          </div>
-          <Progress value={stats.completionRate} className="h-3" />
-          <p className="text-sm text-muted-foreground">{stats.completionRate}% sesi berhasil diselesaikan</p>
-        </CardContent>
-      </Card>
+            {/* ROW 2: Tingkat Penyelesaian + Riwayat Rating */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Tingkat Penyelesaian Sesi
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Sesi selesai vs total</span>
+              <span className="font-medium">{stats.completedSessions}/{stats.totalSessions}</span>
+            </div>
+            <Progress value={stats.completionRate} className="h-3" />
+            <p className="text-sm text-muted-foreground">{stats.completionRate}% sesi berhasil diselesaikan</p>
+          </CardContent>
+        </Card>
 
-      {/* Riwayat Rating */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500" />
-            Riwayat Rating yang Anda Berikan
-            {ratedMatches.length > 0 && (
-              <Badge variant="outline" className="ml-2">{ratedMatches.length}</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {ratedMatches.length === 0 ? (
-            <div className="py-8 text-center">
-              <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Belum ada rating yang Anda berikan ke tutor.
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-[28rem] overflow-y-auto pr-2 space-y-3">
-              {ratedMatches.map((item) => (
-                <div
-                  key={item.matchId}
-                  className="p-3 rounded-md border border-border bg-muted/10"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">
-                        {item.tutorName}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {item.subject}
-                      </p>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-500" />
+              Riwayat Rating yang Anda Berikan
+              {ratedMatches.length > 0 && (
+                <Badge variant="outline" className="ml-2">{ratedMatches.length}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {ratedMatches.length === 0 ? (
+              <div className="py-6 text-center">
+                <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Belum ada rating yang Anda berikan ke tutor.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto pr-2 space-y-3">
+                {ratedMatches.map((item) => (
+                  <div
+                    key={item.matchId}
+                    className="p-3 rounded-md border border-border bg-muted/10"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate">
+                          {item.tutorName}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {item.subject}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3.5 h-3.5 ${
+                              star <= (item.existingRating || 0)
+                                ? 'text-yellow-500 fill-yellow-500'
+                                : 'text-gray-500'
+                            }`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          className={`w-3.5 h-3.5 ${
-                            star <= (item.existingRating || 0)
-                              ? 'text-yellow-500 fill-yellow-500'
-                              : 'text-gray-500'
-                          }`}
-                        />
-                      ))}
-                    </div>
+                    {item.existingReview ? (
+                      <p className="text-sm text-muted-foreground italic">
+                        &ldquo;{item.existingReview}&rdquo;
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/60 italic">
+                        (tanpa komentar)
+                      </p>
+                    )}
+                    {item.ratedAt && (
+                      <p className="text-[11px] text-muted-foreground/60 mt-2">
+                        {new Date(item.ratedAt).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    )}
                   </div>
-                  {item.existingReview ? (
-                    <p className="text-sm text-muted-foreground italic">
-                      &ldquo;{item.existingReview}&rdquo;
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground/60 italic">
-                      (tanpa komentar)
-                    </p>
-                  )}
-                  {item.ratedAt && (
-                    <p className="text-[11px] text-muted-foreground/60 mt-2">
-                      {new Date(item.ratedAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Riwayat Credit Score */}
       <Card className="mb-8">
