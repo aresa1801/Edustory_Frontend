@@ -2,8 +2,9 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 /* ============================================================
-   Shared dashboard UI primitives — EduStory redesign v2
-   Presentational only. Safe to use in server or client components.
+   Shared dashboard UI primitives — EduStory redesign v3
+   Theme: "Soft · Scholarly · Institutional"
+   Presentational only. Safe in server or client components.
    ============================================================ */
 
 export function PageHeader({
@@ -27,10 +28,15 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h1 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+        {eyebrow ? (
+          <p className="eyebrow">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            {eyebrow}
+          </p>
+        ) : null}
+        <h1 className="mt-2 truncate text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
         {description ? (
-          <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
@@ -54,19 +60,19 @@ export function StatCard({
   className?: string
 }) {
   const toneMap: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    secondary: 'bg-secondary/10 text-secondary',
-    accent: 'bg-accent/15 text-accent',
-    muted: 'bg-muted text-muted-foreground',
+    primary: 'bg-gradient-to-br from-primary/15 to-primary/5 text-primary ring-primary/15',
+    secondary: 'bg-gradient-to-br from-secondary/15 to-secondary/5 text-secondary ring-secondary/15',
+    accent: 'bg-gradient-to-br from-accent/20 to-accent/5 text-accent-foreground ring-accent/20',
+    muted: 'bg-muted text-muted-foreground ring-border/60',
   }
   return (
-    <div className={cn('surface p-4 sm:p-5', className)}>
+    <div className={cn('surface hover-card p-4 sm:p-5', className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         {Icon ? (
           <span
             className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset',
               toneMap[tone]
             )}
           >
@@ -74,7 +80,7 @@ export function StatCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">{value}</p>
+      <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums sm:text-3xl">{value}</p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
@@ -98,7 +104,7 @@ export function SectionCard({
   return (
     <section className={cn('surface overflow-hidden', className)}>
       {title || actions ? (
-        <div className="flex flex-col gap-2 border-b border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex flex-col gap-2 border-b border-border/60 bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
             {title ? <h2 className="text-base font-semibold sm:text-lg">{title}</h2> : null}
             {description ? (
@@ -129,7 +135,7 @@ export function EmptyState({
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-12 text-center', className)}>
       {Icon ? (
-        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/12 to-accent/12 text-primary ring-1 ring-inset ring-primary/10">
           <Icon className="h-6 w-6" />
         </span>
       ) : null}
@@ -154,7 +160,7 @@ export function TonePill({
   const toneMap: Record<string, string> = {
     primary: 'bg-primary/10 text-primary border-primary/20',
     secondary: 'bg-secondary/10 text-secondary border-secondary/20',
-    accent: 'bg-accent/15 text-accent border-accent/25',
+    accent: 'bg-accent/18 text-accent-foreground border-accent/30',
     danger: 'bg-destructive/10 text-destructive border-destructive/25',
     muted: 'bg-muted text-muted-foreground border-border',
   }

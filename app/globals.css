@@ -14,63 +14,63 @@
   --font-inter: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-jakarta: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 
-  /* Surfaces */
-  --background: #FBFBFE;
-  --foreground: #0C1324;
+  /* Surfaces — soft scholarly paper */
+  --background: #F6F7FB;
+  --foreground: #0E1726;
 
   --card: #FFFFFF;
-  --card-foreground: #0C1324;
+  --card-foreground: #0E1726;
 
   --popover: #FFFFFF;
-  --popover-foreground: #0C1324;
+  --popover-foreground: #0E1726;
 
-  /* Brand — indigo-violet */
-  --primary: #5B4BF5;
+  /* Brand — institutional indigo */
+  --primary: #3A5BE0;
   --primary-foreground: #FFFFFF;
 
-  /* Secondary — emerald */
-  --secondary: #10B981;
+  /* Secondary — scholarly teal / sage */
+  --secondary: #12A594;
   --secondary-foreground: #FFFFFF;
 
-  /* Accent — warm amber */
-  --accent: #FFB020;
-  --accent-foreground: #3B2400;
+  /* Accent — soft academic gold */
+  --accent: #EBB24B;
+  --accent-foreground: #4A3208;
 
-  --muted: #F1F3F9;
-  --muted-foreground: #5C6784;
+  --muted: #EEF1F8;
+  --muted-foreground: #5A667E;
 
   --destructive: #E5484D;
   --destructive-foreground: #FFFFFF;
 
-  --border: #E6E8F2;
-  --input: #EEF0F7;
-  --ring: #5B4BF5;
+  --border: #E4E8F2;
+  --input: #EDF1F8;
+  --ring: #3A5BE0;
 
-  --success: #10B981;
-  --warning: #F59E0B;
+  --success: #12A594;
+  --warning: #E0A32A;
 
   /* Data viz */
-  --chart-1: #5B4BF5;
-  --chart-2: #10B981;
-  --chart-3: #FFB020;
-  --chart-4: #2A7FFF;
+  --chart-1: #3A5BE0;
+  --chart-2: #12A594;
+  --chart-3: #EBB24B;
+  --chart-4: #6E8BFF;
   --chart-5: #8A94B0;
 
-  /* Shape & depth */
-  --radius: 1rem;
-  --shadow-color: 222 47% 11%;
-  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 24px -12px hsl(var(--shadow-color) / 0.14);
-  --shadow-lifted: 0 2px 4px hsl(var(--shadow-color) / 0.05), 0 24px 48px -20px hsl(var(--shadow-color) / 0.22);
+  /* Shape & depth — soft and layered, never stiff */
+  --radius: 1.15rem;
+  --shadow-color: 222 45% 12%;
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 10px 26px -14px hsl(var(--shadow-color) / 0.16);
+  --shadow-lifted: 0 2px 6px hsl(var(--shadow-color) / 0.05), 0 26px 52px -22px hsl(var(--shadow-color) / 0.24);
 
   /* Sidebar */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #0C1324;
-  --sidebar-primary: #5B4BF5;
+  --sidebar-foreground: #0E1726;
+  --sidebar-primary: #3A5BE0;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F1F3F9;
-  --sidebar-accent-foreground: #0C1324;
-  --sidebar-border: #E6E8F2;
-  --sidebar-ring: #5B4BF5;
+  --sidebar-accent: #EEF1F8;
+  --sidebar-accent-foreground: #0E1726;
+  --sidebar-border: #E4E8F2;
+  --sidebar-ring: #3A5BE0;
 }
 
 .dark {
@@ -83,13 +83,13 @@
   --popover: #121A2C;
   --popover-foreground: #EAEFF9;
 
-  --primary: #8B7DFF;
-  --primary-foreground: #0A0F1E;
+  --primary: #8FA6FF;
+  --primary-foreground: #08122E;
 
-  --secondary: #34D399;
+  --secondary: #2FD3BE;
   --secondary-foreground: #04140D;
 
-  --accent: #FFC24D;
+  --accent: #F3C765;
   --accent-foreground: #2A1A00;
 
   --muted: #161E30;
@@ -100,29 +100,29 @@
 
   --border: #1E2840;
   --input: #131B2C;
-  --ring: #8B7DFF;
+  --ring: #8FA6FF;
 
-  --success: #34D399;
+  --success: #2FD3BE;
   --warning: #FBBF24;
 
-  --chart-1: #8B7DFF;
-  --chart-2: #34D399;
-  --chart-3: #FFC24D;
+  --chart-1: #8FA6FF;
+  --chart-2: #2FD3BE;
+  --chart-3: #F3C765;
   --chart-4: #5EA8FF;
   --chart-5: #7C88A6;
 
   --shadow-color: 220 60% 2%;
-  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 10px 30px -16px hsl(var(--shadow-color) / 0.8);
-  --shadow-lifted: 0 2px 6px hsl(var(--shadow-color) / 0.55), 0 28px 60px -24px hsl(var(--shadow-color) / 0.9);
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 12px 32px -18px hsl(var(--shadow-color) / 0.85);
+  --shadow-lifted: 0 2px 6px hsl(var(--shadow-color) / 0.55), 0 30px 64px -26px hsl(var(--shadow-color) / 0.95);
 
   --sidebar: #0C121F;
   --sidebar-foreground: #EAEFF9;
-  --sidebar-primary: #8B7DFF;
-  --sidebar-primary-foreground: #0A0F1E;
+  --sidebar-primary: #8FA6FF;
+  --sidebar-primary-foreground: #08122E;
   --sidebar-accent: #161E30;
   --sidebar-accent-foreground: #EAEFF9;
   --sidebar-border: #1E2840;
-  --sidebar-ring: #8B7DFF;
+  --sidebar-ring: #8FA6FF;
 }
 
 @theme inline {
@@ -250,8 +250,10 @@
 
   /* Small uppercase eyebrow label */
   .eyebrow {
-    @apply inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-3 py-1
-           text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground shadow-xs;
+    @apply inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1
+           text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+    background: color-mix(in oklab, var(--card) 78%, transparent);
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), inset 0 1px 0 color-mix(in oklab, #fff 65%, transparent);
   }
 
   /* Display headline */
@@ -262,13 +264,30 @@
 
   /* Cards */
   .surface {
-    @apply rounded-2xl border border-border/80 bg-card shadow-soft;
+    @apply rounded-2xl border border-border/70 bg-card shadow-soft;
   }
   .hover-card {
-    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lifted;
+    @apply transition-[transform,box-shadow,border-color] duration-200 ease-out
+           hover:-translate-y-1 hover:border-primary/20 hover:shadow-lifted;
   }
   .card-hover {
-    @apply transition-all duration-300 ease-out hover:border-primary/40 hover:shadow-soft;
+    @apply transition-[transform,box-shadow,border-color] duration-200 ease-out
+           hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-soft;
+  }
+  /* Premium card with a soft gradient hairline (use sparingly) */
+  .surface-gradient {
+    @apply relative rounded-2xl border border-transparent bg-card shadow-soft;
+  }
+  .surface-gradient::before {
+    content: "";
+    position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+    background: linear-gradient(150deg,
+      color-mix(in oklab, var(--primary) 40%, transparent),
+      color-mix(in oklab, var(--accent) 28%, transparent) 46%,
+      transparent 74%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
   }
 
   /* Gradient helpers (kept subtle, no neon) */
@@ -287,7 +306,7 @@
   /* Brand gradient text */
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(120deg, var(--primary), color-mix(in oklab, var(--primary) 45%, var(--accent)));
+    background-image: linear-gradient(120deg, var(--primary), color-mix(in oklab, var(--secondary) 55%, var(--primary)));
   }
 
   /* Animations */
