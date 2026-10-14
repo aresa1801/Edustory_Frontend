@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCreditTier } from '@/lib/credit'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 // === GET: Ambil data student berdasarkan user_id ===
 export async function GET(request: NextRequest) {
@@ -13,7 +18,12 @@ export async function GET(request: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const { data: student, error } = await supabase
@@ -22,14 +32,21 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    console.log('[API GET] Student found:', student ? 'YES' : 'NO', student)
+    console.log('[API GET] Student found:', student ? 'YES' : 'NO')
 
     if (error) {
       console.error('[API GET] Error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ student: student || null })
+    return NextResponse.json(
+      { student: student || null },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        },
+      }
+    )
   } catch (err) {
     console.error('[API] Unexpected error:', err)
     return NextResponse.json(
@@ -46,11 +63,15 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+        },
+      }
     )
 
     const body = await request.json()
-    console.log('[API] Body:', body)
 
     const userId = body.user_id
     if (!userId) {
@@ -62,6 +83,44 @@ export async function POST(request: NextRequest) {
     if (userError || !user) {
       console.error('[API] Invalid user_id:', userError)
       return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 })
+    }
+
+    // ⬇️ Cek apakah ini "first time onboarding" atau "edit profil"
+    // Kalau student belum ada di DB → first time → gak ada cooldown check
+    const { data: existingStudent } = await supabase
+      .from('students')
+      .select('id, credit_score, last_profile_edit_at, onboarding_complete')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const isFinishingOnboarding = body.onboarding_complete === true
+    const isEditProfile = existingStudent?.onboarding_complete === true
+
+    // ⬇️ CEK COOLDOWN (cuma saat edit profil, bukan first-time onboarding)
+    if (isEditProfile && isFinishingOnboarding && existingStudent) {
+      const studentScore = Number(existingStudent.credit_score ?? 99)
+      const tier = getCreditTier(studentScore)
+
+      if (
+        tier.features.profileEditLockDays > 0 &&
+        existingStudent.last_profile_edit_at
+      ) {
+        const lastEditMs = new Date(existingStudent.last_profile_edit_at).getTime()
+        const lockMs = tier.features.profileEditLockDays * 24 * 60 * 60 * 1000
+        const nextEditAt = lastEditMs + lockMs
+
+        if (Date.now() < nextEditAt) {
+          return NextResponse.json(
+            {
+              error: 'EDIT_COOLDOWN',
+              message: `Anda hanya bisa edit profil setiap ${tier.features.profileEditLockDays} hari (tier ${tier.label}).`,
+              nextEditAt: new Date(nextEditAt).toISOString(),
+              tierLabel: tier.label,
+            },
+            { status: 403 }
+          )
+        }
+      }
     }
 
     // --- Buat payload ---
@@ -83,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     // Step 2 – Minat Belajar
     if (body.grade_level !== undefined) payload.grade_level = body.grade_level || null
-    if (body.subjects !== undefined) payload.subjects = body.subjects // array
+    if (body.subjects !== undefined) payload.subjects = body.subjects
     if (body.learning_goals !== undefined) payload.learning_goals = body.learning_goals?.trim() || null
 
     // Step 3 – Rencana Belajar
@@ -100,18 +159,30 @@ export async function POST(request: NextRequest) {
     if (body.status !== undefined) payload.status = body.status || 'active'
     if (body.onboarding_complete !== undefined) payload.onboarding_complete = body.onboarding_complete ?? false
 
-    // 🔥 AMBIL KOORDINAT DARI BODY (dikirim dari frontend GPS)
+    // Koordinat GPS
     if (body.latitude !== undefined) payload.latitude = body.latitude
     if (body.longitude !== undefined) payload.longitude = body.longitude
 
-    // Hapus null/undefined, tapi jangan hapus array kosong
+    // Hapus null/undefined
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined) {
         delete payload[key]
       }
     })
 
-    console.log('[API] 📦 Final payload:', payload)
+    // ⬇️ SET `last_profile_edit_at` — cuma saat onboarding complete (bukan tiap step)
+    if (isFinishingOnboarding) {
+      const studentScore = existingStudent
+        ? Number(existingStudent.credit_score ?? 99)
+        : 99
+      const tier = getCreditTier(studentScore)
+
+      if (tier.features.profileEditLockDays > 0) {
+        payload.last_profile_edit_at = new Date().toISOString()
+      }
+    }
+
+    console.log('[API] 📦 Final payload keys:', Object.keys(payload))
 
     const { data, error } = await supabase
       .from('students')
@@ -123,8 +194,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
-    console.log('[API] ✅ Success:', data)
-    return NextResponse.json({ success: true, data: data?.[0] || null })
+    console.log('[API] ✅ Success')
+    return NextResponse.json(
+      { success: true, data: data?.[0] || null },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        },
+      }
+    )
   } catch (err) {
     console.error('[API] Unexpected error:', err)
     return NextResponse.json(

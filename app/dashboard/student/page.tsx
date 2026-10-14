@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -13,6 +14,15 @@ import {
   UserCircle, School, BookMarked, MapPin, DollarSign,
   Camera
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { AlertTriangle } from 'lucide-react'
 import { AvatarUploader } from '@/components/AvatarUploader'
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -63,6 +73,69 @@ export default function StudentDashboard() {
   const [tutorOffers, setTutorOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
+  const router = useRouter()
+
+  // ⬇️ BARU: Edit profile cooldown
+  const [editCooldownInfo, setEditCooldownInfo] = useState<{
+    nextEditAt: string
+    lockDays: number
+  } | null>(null)
+  const [nowTick, setNowTick] = useState(Date.now())
+
+  // Timer countdown
+  useEffect(() => {
+    if (!editCooldownInfo) return
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [editCooldownInfo])
+
+  const editCooldownCountdown = (() => {
+    if (!editCooldownInfo) return ''
+    const ms = new Date(editCooldownInfo.nextEditAt).getTime() - nowTick
+    if (ms <= 0) return 'Sudah bisa edit'
+    const totalSec = Math.floor(ms / 1000)
+    const days = Math.floor(totalSec / 86400)
+    const hours = Math.floor((totalSec % 86400) / 3600)
+    const minutes = Math.floor((totalSec % 3600) / 60)
+    const seconds = totalSec % 60
+    if (days > 0) return `${days} hari ${hours} jam ${minutes} menit`
+    if (hours > 0) return `${hours} jam ${minutes} menit ${seconds} detik`
+    if (minutes > 0) return `${minutes} menit ${seconds} detik`
+    return `${seconds} detik`
+  })()
+
+  // Handler klik Edit Profil
+  const handleEditProfileClick = async () => {
+    if (!authUser) return
+    try {
+      const res = await fetch(
+        `/api/credit/me?user_id=${authUser.id}&role=student&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const lockDays = data.profileEditLockDays ?? 0
+        const lastEdit = data.lastProfileEditAt
+
+        // Kalau tier punya lock days + udah pernah edit
+        if (lockDays > 0 && lastEdit) {
+          const nextEditMs = new Date(lastEdit).getTime() + lockDays * 24 * 60 * 60 * 1000
+          if (nextEditMs > Date.now()) {
+            setEditCooldownInfo({
+              nextEditAt: new Date(nextEditMs).toISOString(),
+              lockDays,
+            })
+            return
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Dashboard] check edit cooldown error:', e)
+    }
+
+    // Lanjut ke onboarding
+    router.push('/dashboard/student/onboarding')
+  }
 
   // 🔥 State untuk mode belajar (default Online)
   const [isOnline, setIsOnline] = useState(true)
@@ -466,11 +539,14 @@ export default function StudentDashboard() {
               <span className="text-xs text-muted-foreground bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
                 Namecard untuk ditampilkan ke tutor
               </span>
-              <Link href="/dashboard/student/onboarding">
-                <Button size="sm" variant="outline" className="h-7 text-xs">
-                  <Edit className="w-3 h-3 mr-1" /> Edit Profil
-                </Button>
-              </Link>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={handleEditProfileClick}
+              >
+                <Edit className="w-3 h-3 mr-1" /> Edit Profil
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -592,6 +668,39 @@ export default function StudentDashboard() {
         userId={authUser?.id || ''}
         role="student"
       />
+
+            {/* ⬇️ BARU: Popup Edit Cooldown */}
+      <Dialog open={!!editCooldownInfo} onOpenChange={(o) => { if (!o) setEditCooldownInfo(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="w-5 h-5" />
+              Belum Bisa Edit Profil
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Anda hanya bisa mengedit profil setiap {editCooldownInfo?.lockDays} hari sekali
+              karena credit score Anda sedang dibatasi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-xs text-muted-foreground mb-2">Waktu tunggu tersisa:</p>
+            <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/30 text-center">
+              <p className="text-2xl font-bold font-mono text-amber-400">
+                {editCooldownCountdown}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditCooldownInfo(null)}
+              className="w-full"
+            >
+              Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

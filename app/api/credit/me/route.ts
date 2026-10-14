@@ -36,16 +36,16 @@ export async function GET(req: NextRequest) {
 
     if (role === 'tutor') {
       const res = await supabase
-    .from('tutors')
-    .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews, last_profile_edit_at')
-    .eq('user_id', userId)
-    .maybeSingle()
+        .from('tutors')
+        .select('id, credit_score, suspended_until, last_login_reward_at, rating, total_reviews, last_profile_edit_at')
+        .eq('user_id', userId)
+        .maybeSingle()
       data = res.data
       error = res.error
     } else {
       const res = await supabase
         .from('students')
-        .select('id, credit_score, suspended_until, last_login_reward_at')
+        .select('id, credit_score, suspended_until, last_login_reward_at, last_profile_edit_at')
         .eq('user_id', userId)
         .maybeSingle()
       data = res.data
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         catalogCooldownSeconds: tier.features.catalogCooldownSeconds,
         maxSessionRate: tier.features.maxSessionRate,
         profileEditLockDays: tier.features.profileEditLockDays,
-        lastProfileEditAt: role === 'tutor' ? (data.last_profile_edit_at ?? null) : null,
+        lastProfileEditAt: data.last_profile_edit_at ?? null,
         accountHeld: tier.features.accountHeld,   // ⬅️ BARU
         banned: tier.features.banned,             // ⬅️ BARU
       },
