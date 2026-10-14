@@ -131,9 +131,9 @@ export default function AuthCallback() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4" />
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
           <h1 className="text-xl font-semibold text-foreground">Sedang memproses...</h1>
           <p className="text-muted-foreground mt-2">Silakan tunggu sebentar</p>
         </div>
@@ -143,17 +143,17 @@ export default function AuthCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/5 p-4">
-        <div className="bg-card rounded-2xl border border-border/50 p-8 max-w-md w-full text-center">
-          <h1 className="text-xl font-semibold text-foreground mb-2">Terjadi Kesalahan</h1>
-          <p className="text-muted-foreground mb-6">{error}</p>
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="surface w-full max-w-md p-8 text-center">
+          <h1 className="mb-2 font-display text-xl font-extrabold tracking-tight text-foreground">Terjadi Kesalahan</h1>
+          <p className="mb-6 text-muted-foreground">{error}</p>
           <button
             onClick={() => {
               localStorage.clear()
               sessionStorage.clear()
               window.location.href = '/?error_cleared=1'
             }}
-            className="inline-block px-6 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors"
+            className="inline-block rounded-xl bg-primary px-6 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Clear Cache & Kembali
           </button>

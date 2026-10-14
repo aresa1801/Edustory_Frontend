@@ -7,12 +7,11 @@ import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
+import { TonePill } from '@/components/dashboard/ui'
 import {
   User, School, Users, BookOpen, Calendar, Wallet, CreditCard,
   CheckCircle, ArrowRight, ArrowLeft, ChevronRight
@@ -521,7 +520,7 @@ export default function StudentOnboardingPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-10">
+      <div className="max-w-4xl mx-auto px-6 py-10 animate-fade-in">
         {/* Progress Roadmap */}
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-foreground mb-1">Mulai Perjalanan Belajar Anda</h1>
@@ -567,15 +566,15 @@ export default function StudentOnboardingPage() {
 
         {/* ========== STEP 1 ========== */}
         {step === 1 && (
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl flex items-center gap-2">
+          <div className="surface p-5 sm:p-6">
+            <div className="pb-4">
+              <h3 className="text-xl flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
                 Profil Siswa
-              </CardTitle>
+              </h3>
               <p className="text-sm text-muted-foreground">Lengkapi data diri, informasi sekolah, dan data orang tua / wali</p>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div>
               {/* Tabs */}
               <div className="flex gap-1 border-b border-border mb-6">
                 {PROFILE_TABS.map(tab => {
@@ -753,21 +752,21 @@ export default function StudentOnboardingPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* ========== STEP 2 ========== */}
         {step === 2 && (
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl flex items-center gap-2">
+          <div className="surface p-5 sm:p-6">
+            <div className="pb-4">
+              <h3 className="text-xl flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
                 Form Minat Belajar
-              </CardTitle>
+              </h3>
               <p className="text-sm text-muted-foreground">Pilih tingkat kelas dan mata pelajaran yang ingin dipelajari</p>
-            </CardHeader>
-            <CardContent className="space-y-6">
+            </div>
+            <div className="space-y-6">
               <div className="space-y-2">
                 <Label className="text-base font-semibold">Tingkat Kelas <span className="text-destructive">*</span></Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -811,7 +810,7 @@ export default function StudentOnboardingPage() {
                 {subjects.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {subjects.map(s => (
-                      <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                      <TonePill key={s} tone="secondary">{s}</TonePill>
                     ))}
                   </div>
                 )}
@@ -828,21 +827,21 @@ export default function StudentOnboardingPage() {
                   rows={3}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* ========== STEP 3 ========== */}
         {step === 3 && (
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl flex items-center gap-2">
+          <div className="surface p-5 sm:p-6">
+            <div className="pb-4">
+              <h3 className="text-xl flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-primary" />
                 Rencana Belajar
-              </CardTitle>
+              </h3>
               <p className="text-sm text-muted-foreground">Tentukan jadwal, anggaran, dan frekuensi belajar Anda per bulan</p>
-            </CardHeader>
-            <CardContent className="space-y-6">
+            </div>
+            <div className="space-y-6">
               <div className="space-y-2">
                 <Label className="text-base font-semibold">Rentang Jadwal Belajar yang Diinginkan <span className="text-destructive">*</span></Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -918,23 +917,23 @@ export default function StudentOnboardingPage() {
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* ========== STEP 4 ========== */}
         {step === 4 && (
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl flex items-center gap-2">
+          <div className="surface p-5 sm:p-6">
+            <div className="pb-4">
+              <h3 className="text-xl flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-primary" />
                 Form Deposit Biaya Belajar
-              </CardTitle>
+              </h3>
               <p className="text-sm text-muted-foreground">
                 Dana Anda akan disimpan di <strong>Escrow Account EduStory</strong> dan hanya dicairkan setelah sesi belajar selesai
               </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
+            </div>
+            <div className="space-y-6">
               {/* Summary */}
               <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-2">
                 <p className="text-sm font-semibold text-foreground">Ringkasan Rencana Belajar</p>
@@ -1010,8 +1009,8 @@ export default function StudentOnboardingPage() {
                   rows={2}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Navigation Buttons */}

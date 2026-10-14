@@ -146,7 +146,7 @@ export default function TutorMatchRequests() {
         const student = match.students
 
         return (
-          <Card key={match.id} className="overflow-hidden rounded-2xl border border-border/80 border-l-4 border-l-accent shadow-soft transition hover:shadow-lifted">
+          <Card key={match.id} className="surface overflow-hidden rounded-2xl border-l-4 border-l-accent shadow-soft hover-card">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>

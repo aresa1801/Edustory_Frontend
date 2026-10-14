@@ -281,27 +281,27 @@ export default function AdminTutorsPage() {
       </div>
 
       {/* Tutors Table */}
-      <Card className="overflow-hidden rounded-2xl shadow-soft">
+      <Card className="surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px]">
-            <thead className="border-b border-border/30 bg-primary/5">
+            <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/40 backdrop-blur">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Nama</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Email</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Mata Pelajaran</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Pengalaman</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Rating</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Tarif/Jam</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Aksi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nama</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mata Pelajaran</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pengalaman</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rating</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tarif/Jam</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/30">
+            <tbody className="divide-y divide-border/40">
               {filteredTutors.map((tutor) => (
-                <tr key={tutor.id} className="hover:bg-primary/5 transition-colors">
-                  <td className="px-6 py-4 text-sm text-foreground">{tutor.full_name}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{tutor.email}</td>
-                  <td className="px-6 py-4 text-sm">
+                <tr key={tutor.id} className="transition-colors hover:bg-muted/40">
+                  <td className="px-4 py-3.5 text-sm text-foreground">{tutor.full_name}</td>
+                  <td className="px-4 py-3.5 text-sm text-muted-foreground">{tutor.email}</td>
+                  <td className="px-4 py-3.5 text-sm">
                     <div className="flex gap-1 flex-wrap">
                       {(tutor.specializations || tutor.subjects)?.slice(0, 2).map((subject, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
@@ -315,11 +315,11 @@ export default function AdminTutorsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-foreground">{tutor.experience_years} tahun</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{tutor.rating?.toFixed(1)}/5</td>
-                  <td className="px-6 py-4 text-sm text-foreground">Rp {tutor.hourly_rate?.toLocaleString('id-ID')}</td>
-                  <td className="px-6 py-4 text-sm">{getStatusBadge(tutor.approval_status || tutor.status)}</td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className="px-4 py-3.5 text-sm text-foreground">{tutor.experience_years} tahun</td>
+                  <td className="px-4 py-3.5 text-sm text-foreground">{tutor.rating?.toFixed(1)}/5</td>
+                  <td className="px-4 py-3.5 text-sm text-foreground">Rp {tutor.hourly_rate?.toLocaleString('id-ID')}</td>
+                  <td className="px-4 py-3.5 text-sm">{getStatusBadge(tutor.approval_status || tutor.status)}</td>
+                  <td className="px-4 py-3.5 text-sm">
                     <button
                       onClick={() => openDetail(tutor)}
                       className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"

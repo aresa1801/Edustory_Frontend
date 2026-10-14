@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader, TonePill } from '@/components/dashboard/ui'
 
 const HANDWRITING_PROBLEMS = [
   {
@@ -110,8 +111,8 @@ export default function HandwritingPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-2xl p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4">
+        <Card className="surface rounded-2xl w-full max-w-2xl p-8 text-center shadow-soft">
           <div className="text-6xl mb-4">✍️</div>
           <h2 className="text-3xl font-bold mb-4">Jawaban Berhasil Dikirim</h2>
           <p className="text-lg text-muted-foreground mb-6">
@@ -124,23 +125,17 @@ export default function HandwritingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+    <div className="min-h-screen py-8 px-4 sm:py-10">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Badge variant="outline" className="text-primary border-primary">
-              Tahap 4 dari 5
-            </Badge>
-            <Badge className="bg-secondary/15 text-secondary border-secondary/30">✍️ Tulisan Tangan</Badge>
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Tes Tulisan Tangan & Penjelasan
-          </h1>
-          <p className="text-muted-foreground">
-            Selesaikan soal-soal di bawah ini dengan tulisan tangan yang jelas. Foto jawaban Anda
-            dan unggah bersama penjelasan metode pengajaran yang akan Anda gunakan.
-          </p>
-        </div>
+        <PageHeader
+          className="mb-8"
+          eyebrow="Tahap 4 dari 5"
+          title="Tes Tulisan Tangan & Penjelasan"
+          description="Selesaikan soal-soal di bawah ini dengan tulisan tangan yang jelas. Foto jawaban Anda dan unggah bersama penjelasan metode pengajaran yang akan Anda gunakan."
+          actions={
+            <TonePill tone="secondary">✍️ Tulisan Tangan</TonePill>
+          }
+        />
 
         <Alert className="mb-8 bg-primary/10 border-primary/30">
           <AlertDescription className="text-primary">
@@ -155,10 +150,10 @@ export default function HandwritingPage() {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {HANDWRITING_PROBLEMS.map((problem, index) => (
-            <Card key={problem.id} className="p-8">
+            <Card key={problem.id} className="surface rounded-2xl p-8 shadow-soft">
               <h2 className="text-xl font-bold text-foreground mb-2">{problem.title}</h2>
 
-              <div className="bg-muted/50 rounded-lg p-4 mb-6 whitespace-pre-line text-sm text-foreground border border-border">
+              <div className="bg-muted/50 rounded-2xl p-4 mb-6 whitespace-pre-line text-sm text-foreground ring-1 ring-inset ring-border/60">
                 {problem.problem}
               </div>
 
@@ -172,10 +167,10 @@ export default function HandwritingPage() {
                   Foto Jawaban Tulisan Tangan *
                 </Label>
                 <div
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors ${
                     problems[index].imageFile
                       ? 'border-success/50 bg-success/10'
-                      : 'border-border hover:border-primary/50'
+                      : 'border-border/70 hover:border-primary/50'
                   }`}
                 >
                   <Input
@@ -190,7 +185,7 @@ export default function HandwritingPage() {
                       <img
                         src={problems[index].imagePreview}
                         alt={`Preview soal ${index + 1}`}
-                        className="mx-auto max-h-64 rounded-lg object-contain border border-border"
+                        className="mx-auto max-h-64 rounded-2xl object-contain ring-1 ring-inset ring-border/60"
                       />
                     ) : (
                       <div>

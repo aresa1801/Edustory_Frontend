@@ -7,16 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
-import { EmptyState } from '@/components/dashboard/ui'
+import { EmptyState, TonePill } from '@/components/dashboard/ui'
 import { Handshake } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu', color: 'bg-warning/10 text-warning border-warning/20' },
-  matched: { label: '✓ Dikonfirmasi', color: 'bg-secondary/10 text-secondary border-secondary/20' },
-  active: { label: 'Aktif Mengajar', color: 'bg-primary/10 text-primary border-primary/20' },
-  completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
-  cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/25' },
-}
+  pending: { label: 'Menunggu', tone: 'accent' },
+  matched: { label: '✓ Dikonfirmasi', tone: 'secondary' },
+  active: { label: 'Aktif Mengajar', tone: 'primary' },
+  completed: { label: 'Selesai', tone: 'muted' },
+  cancelled: { label: 'Dibatalkan', tone: 'danger' },
+} as const
 
 export default function TutorMyMatches() {
   const [matches, setMatches] = useState<any[]>([])
@@ -107,7 +107,7 @@ export default function TutorMyMatches() {
         const student = match.students
 
         return (
-          <Card key={match.id} className="overflow-hidden rounded-2xl shadow-soft transition hover:shadow-lifted">
+          <Card key={match.id} className="surface overflow-hidden rounded-2xl shadow-soft hover-card">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -115,9 +115,9 @@ export default function TutorMyMatches() {
                   <p className="text-sm text-muted-foreground mt-1">Mata Pelajaran: {match.subject}</p>
                   <p className="text-sm text-muted-foreground">Tingkat: {student?.grade_level}</p>
                 </div>
-                <Badge variant="outline" className={`${statusConfig.color} border`}>
+                <TonePill tone={statusConfig.tone}>
                   {statusConfig.label}
-                </Badge>
+                </TonePill>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

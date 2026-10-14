@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader, TonePill } from '@/components/dashboard/ui'
 
 // -----------------------------------------------------------------------
 // Comprehensive question bank: SD kelas 1–6, SMP kelas 7–9, SMA kelas 10–12
@@ -616,7 +617,7 @@ export default function AcademicTestPage() {
   // ── Loading questions screen ──────────────────────────────────────────
   if (loadingQuestions) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Spinner className="h-8 w-8 mx-auto mb-4" />
           <p className="text-muted-foreground">Mempersiapkan soal {selectedLevel} dengan AI...</p>
@@ -628,15 +629,19 @@ export default function AcademicTestPage() {
   // ── Level selector ──────────────────────────────────────────────────
   if (!selectedLevel) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+      <div className="min-h-screen py-8 px-4 sm:py-10">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Tes Kemampuan Akademik</h1>
-            <p className="text-muted-foreground">
-              Pilih jenjang kelas yang ingin Anda uji. Soal hanya mencakup mata pelajaran
-              sesuai <strong>bidang ilmu yang Anda ampu</strong> (Kurikulum Merdeka / K-13).
-            </p>
-          </div>
+          <PageHeader
+            className="mb-8"
+            eyebrow="Tahap 1 dari 5"
+            title="Tes Kemampuan Akademik"
+            description={
+              <>
+                Pilih jenjang kelas yang ingin Anda uji. Soal hanya mencakup mata pelajaran
+                sesuai <strong>bidang ilmu yang Anda ampu</strong> (Kurikulum Merdeka / K-13).
+              </>
+            }
+          />
 
           {startError && (
             <Alert variant="destructive" className="mb-6">
@@ -669,7 +674,7 @@ export default function AcademicTestPage() {
               return (
                 <Card
                   key={level}
-                  className="p-5 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                  className="surface rounded-2xl p-5 cursor-pointer shadow-soft hover-card hover:border-primary/50"
                   onClick={() => handleStartTest(level)}
                 >
                   <div className="flex items-center gap-3 mb-2">
@@ -685,7 +690,7 @@ export default function AcademicTestPage() {
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {subjects.map(s => (
-                      <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                      <TonePill key={s} tone="muted" className="text-xs">{s}</TonePill>
                     ))}
                   </div>
                   <Button size="sm" className="w-full mt-3 bg-primary hover:bg-primary/90">
@@ -703,8 +708,8 @@ export default function AcademicTestPage() {
   // ── Result screen ──────────────────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-2xl p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4">
+        <Card className="surface rounded-2xl w-full max-w-2xl p-8 text-center shadow-soft">
           <h2 className="text-3xl font-bold mb-2">Hasil Tes Kemampuan Akademik</h2>
           <p className="text-muted-foreground mb-6">{selectedLevel}</p>
           <div className="my-6">
@@ -750,17 +755,20 @@ export default function AcademicTestPage() {
   const seconds = timeRemaining % 60
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+    <div className="min-h-screen py-8 px-4 sm:py-10">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Tes Kemampuan Akademik</h1>
-              <p className="text-sm text-muted-foreground">{selectedLevel}</p>
+          <div className="flex justify-between items-center mb-4 gap-4">
+            <div className="min-w-0">
+              <p className="eyebrow">Tes Kemampuan Akademik</p>
+              <h1 className="mt-2 truncate text-2xl font-bold tracking-tight">{selectedLevel}</h1>
             </div>
-            <div className={`text-2xl font-bold ${timeRemaining < 300 ? 'text-destructive' : 'text-primary'}`}>
+            <TonePill
+              tone={timeRemaining < 300 ? 'danger' : 'primary'}
+              className="text-lg font-bold tabular-nums shrink-0"
+            >
               {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
+            </TonePill>
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
@@ -768,14 +776,14 @@ export default function AcademicTestPage() {
           </p>
         </div>
 
-        <Card className="p-8 mb-8">
-          <div className="mb-4 flex gap-2">
-            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
+        <Card className="surface rounded-2xl p-8 mb-8 shadow-soft hover-card">
+          <div className="mb-4 flex gap-2 flex-wrap">
+            <TonePill tone="secondary">
               {question.level}
-            </Badge>
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            </TonePill>
+            <TonePill tone="primary">
               {question.subject}
-            </Badge>
+            </TonePill>
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-6">{question.question}</h2>
 

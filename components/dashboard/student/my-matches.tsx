@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
+import { User } from 'lucide-react'
+import { EmptyState, TonePill } from '@/components/dashboard/ui'
 
 const STATUS_CONFIG = {
   pending: { label: 'Menunggu Konfirmasi', color: 'bg-warning/10 text-warning border-warning/20' },
@@ -13,6 +13,14 @@ const STATUS_CONFIG = {
   active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
   completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
   cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/20' },
+}
+
+const STATUS_TONE: Record<string, 'primary' | 'secondary' | 'accent' | 'danger' | 'muted'> = {
+  pending: 'accent',
+  matched: 'secondary',
+  active: 'primary',
+  completed: 'muted',
+  cancelled: 'danger',
 }
 
 export default function StudentMyMatches() {
@@ -146,13 +154,12 @@ export default function StudentMyMatches() {
 
   if (matches.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">
-            Anda belum memiliki pengajar. Mulai cari pengajar sekarang!
-          </p>
-        </CardContent>
-      </Card>
+      <div className="surface">
+        <EmptyState
+          icon={User}
+          title="Anda belum memiliki pengajar. Mulai cari pengajar sekarang!"
+        />
+      </div>
     )
   }
 
@@ -163,19 +170,17 @@ export default function StudentMyMatches() {
         const tutor = match.tutors
 
         return (
-          <Card key={match.id} className="overflow-hidden rounded-2xl shadow-soft hover:shadow-lifted transition">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{tutor?.user_profiles?.name || 'Tutor'}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">Mata Pelajaran: {match.subject || '-'}</p>
-                </div>
-                <Badge variant="outline" className={`${statusConfig.color} border`}>
-                  {statusConfig.label}
-                </Badge>
+          <div key={match.id} className="surface hover-card overflow-hidden">
+            <div className="flex items-start justify-between gap-3 border-b border-border/60 bg-muted/25 p-4 pb-3 sm:p-5 sm:pb-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-lg font-semibold">{tutor?.user_profiles?.name || 'Tutor'}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Mata Pelajaran: {match.subject || '-'}</p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              <TonePill tone={STATUS_TONE[match.status] || 'muted'} className="flex-shrink-0">
+                {statusConfig.label}
+              </TonePill>
+            </div>
+            <div className="space-y-3 p-4 sm:p-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Frekuensi Pembelajaran</p>
@@ -205,7 +210,7 @@ export default function StudentMyMatches() {
               </div>
 
               {tutor?.user_profiles?.bio && (
-                <div className="pt-2 border-t">
+                <div className="border-t border-border/60 pt-2">
                   <p className="text-xs text-muted-foreground mb-1">Tentang Pengajar</p>
                   <p className="text-sm text-foreground line-clamp-2">
                     {tutor.user_profiles.bio}
@@ -234,8 +239,8 @@ export default function StudentMyMatches() {
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )
       })}
     </div>

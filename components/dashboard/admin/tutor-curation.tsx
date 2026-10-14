@@ -181,7 +181,7 @@ export default function AdminTutorCuration() {
         const user = tutor?.users_profile
 
         return (
-          <Card key={app.id} className="overflow-hidden rounded-2xl border-l-4 border-l-primary shadow-soft transition hover:shadow-lifted">
+          <Card key={app.id} className="surface hover-card overflow-hidden border-l-4 border-l-primary">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>

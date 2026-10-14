@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { PageHeader, TonePill } from '@/components/dashboard/ui'
 
 // Static fallback questions — used when AI generation is unavailable
 const PSYCHOLOGY_QUESTIONS = [
@@ -313,7 +314,7 @@ export default function PsychologyTestPage() {
 
   if (questionsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Spinner className="h-8 w-8 mx-auto mb-4" />
           <p className="text-muted-foreground">Mempersiapkan soal dengan AI...</p>
@@ -324,8 +325,8 @@ export default function PsychologyTestPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-2xl p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4">
+        <Card className="surface rounded-2xl w-full max-w-2xl p-8 text-center shadow-soft">
           <h2 className="text-3xl font-bold mb-4">Hasil Tes Psikologi</h2>
           <div className="my-8">
             <div className="text-6xl font-bold text-primary mb-4">{score}</div>
@@ -377,26 +378,26 @@ export default function PsychologyTestPage() {
   const seconds = timeRemaining % 60
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+    <div className="min-h-screen py-8 px-4 sm:py-10">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-foreground">Tes Psikologi Tutor</h1>
-            <div className="text-2xl font-bold text-primary">
+        <PageHeader
+          className="mb-8"
+          eyebrow="Tahap 2 dari 5"
+          title="Tes Psikologi Tutor"
+          description={`Pertanyaan ${currentQuestion + 1} dari ${questions.length}`}
+          actions={
+            <TonePill tone="primary" className="text-base font-bold tabular-nums">
               {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
-          </div>
-          <Progress value={progress} className="h-2" />
-          <p className="text-sm text-muted-foreground mt-2">
-            Pertanyaan {currentQuestion + 1} dari {questions.length}
-          </p>
-        </div>
+            </TonePill>
+          }
+        />
+        <Progress value={progress} className="h-2 mb-8" />
 
-        <Card className="p-8 mb-8">
+        <Card className="surface rounded-2xl p-8 mb-8 shadow-soft hover-card">
           <div className="mb-4">
-            <span className="inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold mb-4">
+            <TonePill tone="primary" className="mb-4">
               {question.category}
-            </span>
+            </TonePill>
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-6">
             {question.question}

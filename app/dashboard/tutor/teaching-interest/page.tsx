@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { PageHeader, SectionCard } from '@/components/dashboard/ui'
+import { PageHeader, SectionCard, TonePill } from '@/components/dashboard/ui'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -269,14 +269,14 @@ export default function TeachingInterestPage() {
         description="Pilih kelas dan mata pelajaran yang ingin Anda ajarkan"
         actions={
           isComplete ? (
-            <Badge className="bg-secondary/15 text-secondary border-secondary/20 gap-1.5 px-3 py-1.5">
+            <TonePill tone="secondary" className="gap-1.5 px-3 py-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Sudah Diisi
-            </Badge>
+            </TonePill>
           ) : (
-            <Badge variant="outline" className="text-muted-foreground border-border px-3 py-1.5">
+            <TonePill tone="muted" className="px-3 py-1.5">
               Belum Diisi
-            </Badge>
+            </TonePill>
           )
         }
       />
@@ -484,9 +484,9 @@ export default function TeachingInterestPage() {
                 <p className="text-xs text-muted-foreground mb-1">Kelas ({selectedLevels.length}):</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedLevels.sort().map(l => (
-                    <Badge key={l} variant="secondary" className="text-[10px]">
+                    <TonePill key={l} tone="primary" className="text-[10px]">
                       {l}
-                    </Badge>
+                    </TonePill>
                   ))}
                 </div>
               </div>
@@ -495,9 +495,9 @@ export default function TeachingInterestPage() {
                   <p className="text-xs text-muted-foreground mb-1">SD ({selectedSubjects.sd.length}):</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedSubjects.sd.sort().map(s => (
-                      <Badge key={s} variant="secondary" className="text-[10px]">
+                      <TonePill key={s} tone="muted" className="text-[10px]">
                         {s}
-                      </Badge>
+                      </TonePill>
                     ))}
                   </div>
                 </div>
@@ -507,9 +507,9 @@ export default function TeachingInterestPage() {
                   <p className="text-xs text-muted-foreground mb-1">SMP ({selectedSubjects.smp.length}):</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedSubjects.smp.sort().map(s => (
-                      <Badge key={s} variant="secondary" className="text-[10px]">
+                      <TonePill key={s} tone="muted" className="text-[10px]">
                         {s}
-                      </Badge>
+                      </TonePill>
                     ))}
                   </div>
                 </div>
@@ -519,9 +519,9 @@ export default function TeachingInterestPage() {
                   <p className="text-xs text-muted-foreground mb-1">SMA ({selectedSubjects.sma.length}):</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedSubjects.sma.sort().map(s => (
-                      <Badge key={s} variant="secondary" className="text-[10px]">
+                      <TonePill key={s} tone="muted" className="text-[10px]">
                         {s}
-                      </Badge>
+                      </TonePill>
                     ))}
                   </div>
                 </div>

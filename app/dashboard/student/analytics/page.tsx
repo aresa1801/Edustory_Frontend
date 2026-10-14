@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
@@ -12,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
 import { Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info, AlertTriangle } from 'lucide-react'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, SectionCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 
 interface TutorRating {
   matchId: string
@@ -350,7 +348,7 @@ export default function StudentAnalyticsPage() {
   const ratedMatches = tutorRatings.filter(r => r.existingRating !== null)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       <PageHeader
         eyebrow="Analitik"
         title="Analitik & Performa"
@@ -384,7 +382,7 @@ export default function StudentAnalyticsPage() {
 
       {/* ⬇️ CREDIT SCORE CARD — dipindah ke atas, full-width-ish */}
       <div className="mb-6">
-        <Card className="rounded-2xl p-5 shadow-soft">
+        <div className="surface-gradient p-5">
           <div className="flex items-center gap-3">
             <div
               className={`w-12 h-12 rounded-lg ${creditBg} flex items-center justify-center shrink-0`}
@@ -411,7 +409,7 @@ export default function StudentAnalyticsPage() {
               </p>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* ✅ STATS */}
@@ -422,31 +420,33 @@ export default function StudentAnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+        <SectionCard
+          title={
+            <span className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
               Tingkat Penyelesaian Sesi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+            </span>
+          }
+        >
+          <div className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Sesi selesai vs total</span>
               <span className="font-medium">{stats.completedSessions}/{stats.totalSessions}</span>
             </div>
             <Progress value={stats.completionRate} className="h-3" />
             <p className="text-sm text-muted-foreground">{stats.completionRate}% sesi berhasil diselesaikan</p>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+        <SectionCard
+          title={
+            <span className="flex items-center gap-2">
               <Star className="w-4 h-4" />
               Rating Rata-rata yang Anda Berikan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </span>
+          }
+        >
+          <div>
             {stats.averageRating > 0 ? (
               <div className="space-y-3">
                 <div className="flex items-end gap-2">
@@ -466,31 +466,32 @@ export default function StudentAnalyticsPage() {
                 </p>
               </div>
             ) : (
-              <div className="py-4 text-center">
-                <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Belum ada penilaian yang diberikan</p>
-              </div>
+              <EmptyState
+                icon={Star}
+                title="Belum ada penilaian yang diberikan"
+                className="py-4"
+              />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       </div>
 
       {subjects.length > 0 && (
-        <Card className="rounded-2xl shadow-soft mb-8">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+        <SectionCard
+          className="mb-8"
+          title={
+            <span className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               Mata Pelajaran yang Dipelajari
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {subjects.map((s: string) => (
-                <Badge key={s} variant="secondary">{s}</Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+            </span>
+          }
+        >
+          <div className="flex flex-wrap gap-2">
+            {subjects.map((s: string) => (
+              <TonePill key={s} tone="secondary">{s}</TonePill>
+            ))}
+          </div>
+        </SectionCard>
       )}
 
       {unratedMatches.length > 0 && (
@@ -506,8 +507,8 @@ export default function StudentAnalyticsPage() {
           </Alert>
           <div className="space-y-3">
             {unratedMatches.map(item => (
-              <Card key={item.matchId} className="rounded-2xl shadow-soft border-l-4 border-l-primary/40">
-                <CardContent className="p-4">
+              <div key={item.matchId} className="surface hover-card border-l-4 border-l-primary/40">
+                <div className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="font-semibold text-foreground">{item.tutorName}</p>
@@ -525,8 +526,8 @@ export default function StudentAnalyticsPage() {
                       <Star className="w-3 h-3 mr-1" /> Beri Nilai
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -537,8 +538,8 @@ export default function StudentAnalyticsPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Riwayat Penilaian</h2>
           <div className="space-y-3">
             {ratedMatches.map(item => (
-              <Card key={item.matchId} className="rounded-2xl shadow-soft">
-                <CardContent className="p-4">
+              <div key={item.matchId} className="surface hover-card">
+                <div className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <p className="font-semibold text-foreground">{item.tutorName}</p>
@@ -556,12 +557,10 @@ export default function StudentAnalyticsPage() {
                         <p className="text-sm text-muted-foreground mt-1 italic">&ldquo;{item.existingReview}&rdquo;</p>
                       )}
                     </div>
-                    <Badge className="bg-success/10 text-success border border-success/20 text-xs">
-                      Sudah Dinilai
-                    </Badge>
+                    <TonePill tone="secondary">Sudah Dinilai</TonePill>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         </div>

@@ -2,9 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
@@ -22,6 +20,7 @@ import {
   Copy,
   Sparkles,
 } from 'lucide-react'
+import { TonePill } from '@/components/dashboard/ui'
 
 // ============================================================
 // KONSTANTA
@@ -618,7 +617,7 @@ function ExtendContractContent() {
   // RENDER
   // ============================================================
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={handleBack}>
@@ -683,17 +682,17 @@ function ExtendContractContent() {
 
       {/* ============ STEP 1: RENCANA BELAJAR ============ */}
       {step === 1 && (
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <div className="surface p-5 sm:p-6">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg">
               <Calendar className="w-5 h-5 text-primary" />
               Rencana Belajar Baru
-            </CardTitle>
+            </h3>
             <p className="text-sm text-muted-foreground">
               Tentukan rentang jadwal, anggaran, dan frekuensi belajar untuk kontrak perpanjangan.
             </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
+          </div>
+          <div className="space-y-6">
             {/* Info fixed */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-muted/30 border">
@@ -724,7 +723,7 @@ function ExtendContractContent() {
                   className={`px-4 py-3 rounded-xl border text-left transition-all ${
                     !useOldSchedule
                       ? 'bg-primary text-white border-primary'
-                      : 'bg-card border-border hover:border-primary/50'
+                      : 'bg-card border-border/70 hover:border-primary/50'
                   }`}
                 >
                   <div className="flex items-start gap-2">
@@ -743,7 +742,7 @@ function ExtendContractContent() {
                   className={`px-4 py-3 rounded-xl border text-left transition-all ${
                     useOldSchedule
                       ? 'bg-primary text-white border-primary'
-                      : 'bg-card border-border hover:border-primary/50'
+                      : 'bg-card border-border/70 hover:border-primary/50'
                   } ${oldSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-start gap-2">
@@ -794,7 +793,7 @@ function ExtendContractContent() {
                         className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all text-left ${
                           scheduleRange === opt
                             ? 'bg-primary text-white border-primary'
-                            : 'bg-card border-border hover:border-primary/50'
+                            : 'bg-card border-border/70 hover:border-primary/50'
                         }`}
                       >
                         {opt}
@@ -842,7 +841,7 @@ function ExtendContractContent() {
                       className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
                         sessionsPerMonth === n
                           ? 'bg-primary text-white border-primary'
-                          : 'bg-card border-border hover:border-primary/50'
+                          : 'bg-card border-border/70 hover:border-primary/50'
                       }`}
                     >
                       {n}×
@@ -866,8 +865,8 @@ function ExtendContractContent() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* ============ STEP 2: PILIH JADWAL ============ */}
@@ -875,15 +874,15 @@ function ExtendContractContent() {
         <>
           {/* Subject picker */}
           {matchedSubjects.length > 0 && (
-            <Card className="rounded-2xl shadow-soft">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Mata Pelajaran Aktif</CardTitle>
+            <div className="surface p-5 sm:p-6">
+              <div className="pb-3">
+                <h3 className="text-base">Mata Pelajaran Aktif</h3>
                 <p className="text-xs text-muted-foreground">
                   Pilih mapel aktif, lalu klik slot di kalender. Setiap klik akan
                   mengisi {slotsPerKlik} slot untuk hari yang sama.
                 </p>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div>
                 <div className="flex flex-wrap gap-2">
                   {matchedSubjects.map((subj) => {
                     const used = Object.values(schedule).filter((s) => s === subj).length
@@ -942,33 +941,31 @@ function ExtendContractContent() {
                     )
                   })}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Grid */}
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{monthName}</CardTitle>
-              <Badge variant="outline">
-                {totalSelected} / {maxSessions} sesi dipilih
-              </Badge>
-            </CardHeader>
-            <CardContent>
+          <div className="surface p-5 sm:p-6">
+            <div className="flex flex-row items-center justify-between">
+              <h3>{monthName}</h3>
+              <TonePill tone="primary">{totalSelected} / {maxSessions} sesi dipilih</TonePill>
+            </div>
+            <div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
-                      <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-foreground z-10 border-r-2 font-semibold text-background">
+                      <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-muted z-10 border-r-2 font-semibold text-foreground">
                         Jam
                       </th>
                       {visibleDates.map((date, idx) => (
                         <th
                           key={idx}
-                          className="border p-1 text-center min-w-[44px] bg-foreground text-background"
+                          className="border p-1 text-center min-w-[44px] bg-muted text-foreground"
                         >
                           <div>{date.getDate()}</div>
-                          <div className="text-xs text-background/70">
+                          <div className="text-xs text-muted-foreground">
                             {date.toLocaleDateString('id-ID', {
                               weekday: 'short',
                             })}
@@ -980,7 +977,7 @@ function ExtendContractContent() {
                   <tbody>
                     {TIME_SLOTS.map((slot, rowIdx) => (
                       <tr key={rowIdx}>
-                        <td className="border p-1 font-medium text-xs sticky left-0 bg-foreground z-10 border-r-2 text-background">
+                        <td className="border p-1 font-medium text-xs sticky left-0 bg-muted z-10 border-r-2 text-foreground">
                           {slot.label}
                         </td>
                         {visibleDates.map((date, colIdx) => {
@@ -1012,24 +1009,24 @@ function ExtendContractContent() {
               <p className="text-xs text-muted-foreground mt-3 italic">
                 * Grid menyesuaikan rentang jadwal yang dipilih di step sebelumnya.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </>
       )}
 
       {/* ============ STEP 3: KONFIRMASI ============ */}
       {step === 3 && (
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <div className="surface p-5 sm:p-6">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg">
               <CheckCircle className="w-5 h-5 text-success" />
               Konfirmasi Pengajuan
-            </CardTitle>
+            </h3>
             <p className="text-sm text-muted-foreground">
               Periksa kembali detail perpanjangan sebelum mengirim ke tutor.
             </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </div>
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Tutor</p>
@@ -1073,9 +1070,7 @@ function ExtendContractContent() {
                 <ul className="space-y-1">
                   {(generateSummary() || []).map((item: any, idx: number) => (
                     <li key={idx} className="text-sm flex items-start gap-2">
-                      <Badge variant="outline" className="shrink-0">
-                        {item.subject}
-                      </Badge>
+                      <TonePill tone="secondary" className="shrink-0">{item.subject}</TonePill>
                       <span className="text-muted-foreground">
                         {item.day}, {item.time} ({item.count} sesi)
                       </span>
@@ -1092,8 +1087,8 @@ function ExtendContractContent() {
                 tidak direspons, pengajuan otomatis <strong>ditolak</strong>.
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Navigation */}

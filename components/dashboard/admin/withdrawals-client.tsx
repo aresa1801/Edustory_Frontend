@@ -320,7 +320,7 @@ export default function AdminWithdrawalsClient({
               return (
                 <div
                   key={w.id}
-                  className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+                  className="surface hover-card p-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     {/* Info */}

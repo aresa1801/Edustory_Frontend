@@ -239,7 +239,7 @@ export default function AdminDashboard() {
       >
           <Link
             href="/dashboard/admin/tutors"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Users className="w-4 h-4 text-primary" />
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/dashboard/admin/students"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <GraduationCap className="w-4 h-4 text-primary" />
@@ -267,7 +267,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/dashboard/admin/programs"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <DollarSign className="w-4 h-4 text-primary" />
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/dashboard/admin/analytics"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <TrendingUp className="w-4 h-4 text-primary" />
@@ -295,7 +295,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/dashboard/admin/payments"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <CreditCard className="w-4 h-4 text-primary" />
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/dashboard/admin/settings"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/5 hover:shadow-soft"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <CreditCard className="w-4 h-4 text-primary" />
@@ -338,7 +338,7 @@ export default function AdminDashboard() {
             {recentTutors.map(tutor => (
               <div
                 key={tutor.id}
-                className="flex items-center justify-between p-3 rounded-xl border border-border/60 hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between rounded-xl border border-border/60 p-3 transition-colors hover:bg-muted/40"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">

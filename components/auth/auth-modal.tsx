@@ -162,7 +162,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
 
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90"
+              className="w-full rounded-xl"
               disabled={loading}
             >
               {loading ? (
@@ -187,10 +187,10 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
                     key={r}
                     type="button"
                     onClick={() => setRole(r)}
-                    className={`py-2 px-3 rounded-lg border-2 transition-all ${
+                    className={`rounded-xl border px-3 py-2 transition duration-200 ease-out ${
                       role === r
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:border-primary/50'
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border hover:border-primary/30 hover:bg-muted'
                     }`}
                   >
                     {r === 'student' ? 'Siswa' : 'Tutor'}
@@ -250,7 +250,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
 
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90"
+              className="w-full rounded-xl"
               disabled={loading}
             >
               {loading ? (
@@ -280,7 +280,7 @@ export function AuthModal({ onSuccess, initialMode = 'signin' }: AuthModalProps)
       <Button
         type="button"
         variant="outline"
-        className="w-full"
+        className="w-full rounded-xl"
         onClick={handleGoogleSignIn}
         disabled={loading}
       >

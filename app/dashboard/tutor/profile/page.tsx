@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { PageHeader, SectionCard } from '@/components/dashboard/ui'
+import { PageHeader, SectionCard, TonePill } from '@/components/dashboard/ui'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -289,15 +289,15 @@ export default function ProfilePage() {
         description="Lengkapi profil Anda untuk memulai proses menjadi pengajar"
         actions={
           isProfileComplete ? (
-            <Badge className="bg-secondary/10 text-secondary border-secondary/20 gap-1.5 px-3 py-1.5">
+            <TonePill tone="secondary" className="gap-1.5 px-3 py-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Profil Lengkap
-            </Badge>
+            </TonePill>
           ) : (
-            <Badge variant="outline" className="text-warning border-warning/20 bg-warning/10 gap-1.5 px-3 py-1.5">
+            <TonePill tone="accent" className="gap-1.5 px-3 py-1.5">
               <Clock className="w-3.5 h-3.5" />
               Belum Lengkap
-            </Badge>
+            </TonePill>
           )
         }
       />
@@ -325,9 +325,9 @@ export default function ProfilePage() {
               </div>
             </div>
             {verified && (
-              <Badge className="bg-primary/5 text-primary border-primary/20">
+              <TonePill tone="primary">
                 ✓ Terverifikasi
-              </Badge>
+              </TonePill>
             )}
           </div>
       </SectionCard>
@@ -425,11 +425,11 @@ export default function ProfilePage() {
           {form.specializations.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Mata Pelajaran yang Diajarkan</Label>
-              <div className="flex flex-wrap gap-2 p-3 bg-muted rounded-xl border border-border">
+              <div className="flex flex-wrap gap-2 p-3 bg-muted/60 rounded-2xl ring-1 ring-inset ring-border/60">
                 {form.specializations.map((s: string) => (
-                  <Badge key={s} variant="secondary" className="text-xs">
+                  <TonePill key={s} tone="primary" className="text-xs">
                     {s}
-                  </Badge>
+                  </TonePill>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">

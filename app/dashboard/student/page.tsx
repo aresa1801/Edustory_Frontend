@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
@@ -14,7 +13,7 @@ import {
   Camera
 } from 'lucide-react'
 import { AvatarUploader } from '@/components/AvatarUploader'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, SectionCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Menunggu', color: 'bg-warning/10 text-warning border border-warning/20' },
@@ -250,11 +249,15 @@ export default function StudentDashboard() {
 
   if (!authUser) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <p className="text-muted-foreground">Silakan login untuk mengakses dashboard.</p>
-        <Link href="/auth/login">
-          <Button className="mt-4">Login</Button>
-        </Link>
+      <div className="surface mx-auto max-w-md">
+        <EmptyState
+          title="Silakan login untuk mengakses dashboard."
+          action={
+            <Link href="/auth/login">
+              <Button>Login</Button>
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -279,9 +282,9 @@ export default function StudentDashboard() {
   const profileComplete = isProfileComplete(profile)
 
   return (
-    <div className="space-y-6 relative">
+    <div className="relative space-y-6 animate-fade-in">
       {showNotification && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white px-6 py-3 rounded-lg shadow-lg text-center transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-5">
+        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full border border-border/70 bg-card/95 px-6 py-3 text-center text-foreground shadow-lifted backdrop-blur transition-all duration-300 ease-in-out">
           <p className="text-sm font-medium">{notificationMessage}</p>
         </div>
       )}
@@ -297,28 +300,28 @@ export default function StudentDashboard() {
       />
 
       {!profileComplete && (
-        <div className="rounded-2xl border border-warning/20 bg-warning/10 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-warning">⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
-            <Link href="/dashboard/student/onboarding">
-              <Button size="sm" className="bg-warning text-white hover:bg-warning/90">
-                Lengkapi Sekarang <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+        <div className="surface-gradient flex flex-wrap items-center justify-between gap-2 p-4">
+          <div className="flex items-center gap-2 text-warning">
+            <span>⚡ Lengkapi profil onboarding Anda untuk mulai mencari tutor terbaik!</span>
           </div>
+          <Link href="/dashboard/student/onboarding">
+            <Button size="sm" className="bg-warning text-white hover:bg-warning/90">
+              Lengkapi Sekarang <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       )}
 
       {tutorOffers.length > 0 && (
-        <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-primary">🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
-            <Link href="/dashboard/student/tutor-offers">
-              <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                Lihat Penawaran <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+        <div className="surface-gradient flex flex-wrap items-center justify-between gap-2 p-4">
+          <div className="flex items-center gap-2 text-primary">
+            <span>🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
           </div>
+          <Link href="/dashboard/student/tutor-offers">
+            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Lihat Penawaran <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       )}
 
@@ -333,12 +336,12 @@ export default function StudentDashboard() {
       {/* Namecard + Aksi Cepat */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Kartu Pelajar */}
-        <Card className="rounded-2xl border shadow-soft hover:shadow-lifted transition h-full relative overflow-hidden">
-          <CardHeader className="pb-1 pt-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-              <UserCircle className="w-5 h-5 text-primary" />
+        <div className="surface-gradient hover-card relative h-full overflow-hidden">
+          <div className="flex flex-row items-center justify-between p-5 pb-1">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-foreground">
+              <UserCircle className="h-5 w-5 text-primary" />
               Kartu Pelajar
-            </CardTitle>
+            </h2>
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium ${!isOnline ? 'text-muted-foreground' : 'text-primary'}`}>
                 Online
@@ -361,12 +364,12 @@ export default function StudentDashboard() {
                 Offline
               </span>
             </div>
-          </CardHeader>
+          </div>
 
-          <CardContent className="p-5 pt-2">
+          <div className="p-5 pt-2">
             <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+                className="group relative flex h-16 w-16 flex-shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-2xl font-bold text-white shadow-soft"
                 onClick={() => setIsAvatarModalOpen(true)}
               >
                 {profile?.avatar_url ? (
@@ -427,126 +430,119 @@ export default function StudentDashboard() {
             </div>
 
             <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2">
-              <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+              <TonePill tone="primary">
                 Namecard untuk ditampilkan ke tutor
-              </span>
+              </TonePill>
               <Link href="/dashboard/student/onboarding">
                 <Button size="sm" variant="outline" className="h-7 text-xs">
-                  <Edit className="w-3 h-3 mr-1" /> Edit Profil
+                  <Edit className="mr-1 h-3 w-3" /> Edit Profil
                 </Button>
               </Link>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Aksi Cepat */}
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-base">Aksi Cepat</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Link href="/dashboard/student/tutor-offers" className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
-                <Star className="w-4 h-4 text-accent" />
+        <SectionCard title="Aksi Cepat" bodyClassName="space-y-2">
+            <Link href="/dashboard/student/tutor-offers" className="card-hover flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card p-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-accent/15 ring-1 ring-inset ring-accent/20">
+                <Star className="h-4 w-4 text-accent-foreground" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-sm">Penawaran Tutor</p>
+                <p className="text-sm font-medium">Penawaran Tutor</p>
                 <p className="text-xs text-muted-foreground">
                   {tutorOffers.length > 0 ? `${tutorOffers.length} tutor menawarkan diri` : 'Lihat tutor yang tertarik mengajar Anda'}
                 </p>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Link>
-            <Link href="/dashboard/student/find-tutors" className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Search className="w-4 h-4 text-primary" />
+            <Link href="/dashboard/student/find-tutors" className="card-hover flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card p-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-inset ring-primary/15">
+                <Search className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-sm">Cari Pengajar</p>
+                <p className="text-sm font-medium">Cari Pengajar</p>
                 <p className="text-xs text-muted-foreground">Temukan pengajar sesuai kebutuhan</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Link>
-            <Link href="/dashboard/student/schedule" className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-4 h-4 text-primary" />
+            <Link href="/dashboard/student/schedule" className="card-hover flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card p-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-inset ring-primary/15">
+                <Calendar className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-sm">Jadwal Belajar</p>
+                <p className="text-sm font-medium">Jadwal Belajar</p>
                 <p className="text-xs text-muted-foreground">Lihat jadwal sesi belajar Anda</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Link>
-            <Link href="/dashboard/student/analytics" className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-4 h-4 text-success" />
+            <Link href="/dashboard/student/analytics" className="card-hover flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card p-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-success/10 ring-1 ring-inset ring-success/15">
+                <CheckCircle className="h-4 w-4 text-success" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-sm">Analitik & Nilai</p>
+                <p className="text-sm font-medium">Analitik & Nilai</p>
                 <p className="text-xs text-muted-foreground">Beri penilaian kepada tutor Anda</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Link>
-          </CardContent>
-        </Card>
+        </SectionCard>
       </div>
 
       {matches.length > 0 && (
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Aktivitas Terbaru</CardTitle>
+        <SectionCard
+          title="Aktivitas Terbaru"
+          bodyClassName="space-y-2"
+          actions={
             <Link href="/dashboard/student/matches">
               <Button variant="ghost" size="sm" className="text-xs text-primary">
                 Lihat semua
               </Button>
             </Link>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {matches.slice(0, 4).map(match => {
-              const statusCfg = STATUS_LABEL[match.status] || { label: match.status, color: 'bg-muted text-muted-foreground border border-border' }
-              return (
-                <div key={match.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 transition-colors">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{match.subject}</p>
-                    <p className="text-xs text-muted-foreground">Pengajar: {match.tutors?.user_profiles?.name || '—'}</p>
-                    {match.start_date && (
-                      <p className="text-xs text-muted-foreground">
-                        Mulai: {new Date(match.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    )}
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-3 ${statusCfg.color}`}>
-                    {statusCfg.label}
-                  </span>
+          }
+        >
+          {matches.slice(0, 4).map(match => {
+            const statusCfg = STATUS_LABEL[match.status] || { label: match.status, color: 'bg-muted text-muted-foreground border border-border' }
+            return (
+              <div key={match.id} className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-3 transition-colors hover:bg-muted/30">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{match.subject}</p>
+                  <p className="text-xs text-muted-foreground">Pengajar: {match.tutors?.user_profiles?.name || '—'}</p>
+                  {match.start_date && (
+                    <p className="text-xs text-muted-foreground">
+                      Mulai: {new Date(match.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  )}
                 </div>
-              )
-            })}
-          </CardContent>
-        </Card>
+                <span className={`ml-3 flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                  {statusCfg.label}
+                </span>
+              </div>
+            )
+          })}
+        </SectionCard>
       )}
 
       {matches.length === 0 && (
-        <Card className="rounded-2xl shadow-soft">
-          <CardContent className="py-10 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <Search className="w-7 h-7 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium">Belum ada pengajar terdaftar</p>
-              <p className="text-sm text-muted-foreground">Mulai cari pengajar atau tunggu penawaran dari tutor</p>
-            </div>
-            <div className="flex gap-3 justify-center">
-              <Link href="/dashboard/student/find-tutors">
-                <Button className="bg-primary hover:bg-primary/90">
-                  Cari Pengajar
-                </Button>
-              </Link>
-              <Link href="/dashboard/student/tutor-offers">
-                <Button variant="outline">Lihat Penawaran Tutor</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="surface">
+          <EmptyState
+            icon={Search}
+            title="Belum ada pengajar terdaftar"
+            description="Mulai cari pengajar atau tunggu penawaran dari tutor"
+            action={
+              <div className="flex gap-3 justify-center">
+                <Link href="/dashboard/student/find-tutors">
+                  <Button className="bg-primary hover:bg-primary/90">
+                    Cari Pengajar
+                  </Button>
+                </Link>
+                <Link href="/dashboard/student/tutor-offers">
+                  <Button variant="outline">Lihat Penawaran Tutor</Button>
+                </Link>
+              </div>
+            }
+          />
+        </div>
       )}
 
       <AvatarUploader

@@ -8,7 +8,7 @@ export default function BlogArticlePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border/70 bg-card">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-10">
           <Link href="/">
             <Button variant="ghost" className="text-muted-foreground hover:text-foreground mb-6 -ml-3">
@@ -16,7 +16,7 @@ export default function BlogArticlePage() {
               Kembali ke Beranda
             </Button>
           </Link>
-          <h1 className="text-3xl md:text-5xl font-bold mb-5 text-foreground tracking-tight leading-tight">
+          <h1 className="mb-5 text-3xl font-display font-extrabold tracking-tight leading-tight text-foreground md:text-5xl">
             Pentingnya Komunikasi dalam Pembelajaran Online
           </h1>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-muted-foreground text-sm">
@@ -38,7 +38,7 @@ export default function BlogArticlePage() {
 
       {/* Content */}
       <article className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-14">
-        <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-soft">
+        <div className="surface p-6 md:p-10">
           <div className="prose max-w-none dark:prose-invert">
             {/* Category Badge */}
             <div className="mb-8">
@@ -53,7 +53,7 @@ export default function BlogArticlePage() {
             </p>
 
             {/* Section 1 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">1. Komunikasi adalah Fondasi Pembelajaran Efektif</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">1. Komunikasi adalah Fondasi Pembelajaran Efektif</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Dalam pembelajaran online, komunikasi yang baik antara guru dan siswa menjadi semakin penting. Tanpa kemampuan untuk bertanya secara langsung, siswa rentan merasa bingung atau tertinggal. Guru harus memastikan bahwa pesan mereka jelas dan mudah dipahami.
             </p>
@@ -65,7 +65,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 2 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">2. Bangun Hubungan yang Kuat dengan Siswa</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">2. Bangun Hubungan yang Kuat dengan Siswa</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Hubungan personal antara guru dan siswa sangat mempengaruhi motivasi belajar. Dalam pembelajaran online, bangun koneksi melalui komunikasi yang konsisten dan personal, bukan hanya transaksional.
             </p>
@@ -77,7 +77,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 3 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">3. Gunakan Berbagai Saluran Komunikasi</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">3. Gunakan Berbagai Saluran Komunikasi</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Tidak semua siswa nyaman dengan satu saluran komunikasi saja. Tawarkan berbagai pilihan seperti forum diskusi, email, video call, atau chat untuk mengakomodasi preferensi yang berbeda.
             </p>
@@ -89,7 +89,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 4 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">4. Libatkan Orang Tua dalam Proses Pembelajaran</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">4. Libatkan Orang Tua dalam Proses Pembelajaran</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Orang tua adalah mitra penting dalam pendidikan anak. Komunikasi reguler dengan orang tua membantu mereka mendukung pembelajaran anaknya di rumah dan mengidentifikasi masalah lebih awal.
             </p>
@@ -101,7 +101,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 5 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">5. Ciptakan Komunitas Belajar yang Positif</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">5. Ciptakan Komunitas Belajar yang Positif</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Siswa belajar tidak hanya dari guru tetapi juga dari sesama siswa. Fasilitasi diskusi peer-to-peer untuk menciptakan komunitas belajar yang supportif dan kolaboratif.
             </p>
@@ -113,7 +113,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 6 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">6. Jadilah Responsif dan Konsisten</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">6. Jadilah Responsif dan Konsisten</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Respons time yang cepat dan konsisten menunjukkan kepada siswa bahwa Anda peduli. Tetapkan ekspektasi yang jelas tentang kapan Anda akan merespons pertanyaan dan usahakan untuk memenuhi komitmen tersebut.
             </p>
@@ -125,7 +125,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Conclusion */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">Kesimpulan</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">Kesimpulan</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Pembelajaran online tidak harus terasa impersonal atau terisolasi. Dengan prioritas pada komunikasi yang efektif, kita dapat menciptakan pengalaman belajar yang bermakna dan mendukung untuk semua siswa. Investasi dalam hubungan dan komunikasi yang baik adalah investasi dalam kesuksesan akademik dan kesejahteraan emosional siswa Anda.
             </p>
@@ -136,7 +136,7 @@ export default function BlogArticlePage() {
                 Ingin mengoptimalkan pengalaman belajar online Anda? Tim tutor profesional kami siap membantu dengan komunikasi yang personal dan efektif.
               </p>
               <Link href="/">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button className="rounded-xl">
                   Hubungi Kami Hari Ini
                 </Button>
               </Link>

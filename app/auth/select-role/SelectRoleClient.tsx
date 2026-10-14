@@ -78,13 +78,14 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
-      <div className="max-w-5xl w-full">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-3">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-16">
+      <div className="w-full max-w-5xl">
+        <div className="mb-12 text-center">
+          <span className="eyebrow mb-5">Satu langkah lagi</span>
+          <h1 className="text-gradient font-display text-4xl font-extrabold tracking-tight md:text-5xl">
             Pilih Peran Anda
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
             Tentukan bagaimana Anda ingin menggunakan EduStory. Pilihan ini dapat diubah kapan saja melalui pengaturan akun.
           </p>
           {userEmail && (
@@ -95,38 +96,38 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/50 rounded-lg text-destructive text-center flex items-center justify-center gap-2">
+          <div className="mb-6 flex items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center text-destructive">
             <AlertCircle className="w-5 h-5" />
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
           {/* Student Card - SAMA SEPERTI SEBELUMNYA */}
           <Card 
-            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
-              ${isLoading === 'student' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
+            className={`surface hover-card relative cursor-pointer overflow-hidden
+              ${isLoading === 'student' ? 'pointer-events-none opacity-70' : ''}
             `}
             onClick={() => !isLoading && handleSelectRole('student')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary" />
-            <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <GraduationCap className="w-10 h-10 text-primary" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary/70 to-accent/50" />
+            <CardHeader className="pt-8 text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10">
+                <GraduationCap className="h-10 w-10 text-primary" />
               </div>
-              <CardTitle className="text-2xl font-bold">Saya Student</CardTitle>
+              <CardTitle className="font-display text-2xl font-extrabold tracking-tight">Saya Student</CardTitle>
               <CardDescription className="text-base">
                 Saya ingin belajar dan menemukan tutor yang tepat
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center pb-8">
-              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
+            <CardContent className="pb-8 text-center">
+              <ul className="mx-auto mb-6 max-w-xs space-y-2 text-left text-sm text-muted-foreground">
                 <li>✓ Temukan tutor profesional di berbagai bidang</li>
                 <li>✓ Belajar dengan metode yang personal dan efektif</li>
                 <li>✓ Raih prestasi akademik bersama mentor terbaik</li>
               </ul>
               <Button 
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="w-full rounded-xl"
                 disabled={isLoading === 'student'}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -144,29 +145,30 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
           {/* Tutor Card - SEKARANG AKTIF */}
           <Card 
-            className={`relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer
-              ${isLoading === 'tutor' ? 'opacity-70 pointer-events-none' : 'hover:border-primary/50'}
+            className={`surface hover-card relative cursor-pointer overflow-hidden
+              ${isLoading === 'tutor' ? 'pointer-events-none opacity-70' : ''}
             `}
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary to-accent" />
-            <CardHeader className="text-center pt-8">
-              <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mx-auto mb-4">
-                <UserCog className="w-10 h-10 text-secondary" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-secondary/70 to-accent/50" />
+            <CardHeader className="pt-8 text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-secondary/10">
+                <UserCog className="h-10 w-10 text-secondary" />
               </div>
-              <CardTitle className="text-2xl font-bold">Saya Tutor</CardTitle>
+              <CardTitle className="font-display text-2xl font-extrabold tracking-tight">Saya Tutor</CardTitle>
               <CardDescription className="text-base">
                 Saya ingin mengajar dan berbagi ilmu dengan siswa
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center pb-8">
-              <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left max-w-xs mx-auto">
+            <CardContent className="pb-8 text-center">
+              <ul className="mx-auto mb-6 max-w-xs space-y-2 text-left text-sm text-muted-foreground">
                 <li>✓ Temukan siswa yang cocok dengan keahlian Anda</li>
                 <li>✓ Atur jadwal dan pilih student sendiri</li>
                 <li>✓ Dapatkan penghasilan tambahan</li>
               </ul>
               <Button 
-                className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                variant="secondary"
+                className="w-full rounded-xl"
                 disabled={isLoading === 'tutor'}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -183,7 +185,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
           </Card>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-8">
+        <p className="mt-8 text-center text-xs text-muted-foreground">
           Pilihan ini dapat diubah kapan saja di pengaturan akun Anda.
         </p>
       </div>

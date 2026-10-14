@@ -105,10 +105,10 @@ export default function SelectRolePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-      <div className="max-w-2xl w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-16">
+      <div className="w-full max-w-2xl">
+        <div className="mb-8 text-center">
+          <h1 className="mb-3 font-display text-3xl font-extrabold tracking-tight md:text-4xl">
             Pilih Peran Anda
           </h1>
           <p className="text-muted-foreground text-lg">
@@ -117,21 +117,21 @@ export default function SelectRolePage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/50 rounded-lg text-destructive text-center">
+          <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center text-destructive">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lifted"
+            className="surface hover-card cursor-pointer"
             onClick={() => !isLoading && handleSelectRole('student')}
           >
             <CardHeader>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <GraduationCap className="w-6 h-6 text-primary" />
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+                <GraduationCap className="h-6 w-6 text-primary" />
               </div>
-              <CardTitle className="text-xl">Saya Siswa</CardTitle>
+              <CardTitle className="font-display text-xl font-extrabold tracking-tight">Saya Siswa</CardTitle>
               <CardDescription>
                 Saya ingin mencari pengajar privat untuk membantu pembelajaran
               </CardDescription>
@@ -148,14 +148,14 @@ export default function SelectRolePage() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lifted"
+            className="surface hover-card cursor-pointer"
             onClick={() => !isLoading && handleSelectRole('tutor')}
           >
             <CardHeader>
-              <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
-                <UserCog className="w-6 h-6 text-secondary" />
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10">
+                <UserCog className="h-6 w-6 text-secondary" />
               </div>
-              <CardTitle className="text-xl">Saya Pengajar</CardTitle>
+              <CardTitle className="font-display text-xl font-extrabold tracking-tight">Saya Pengajar</CardTitle>
               <CardDescription>
                 Saya ingin mengajar dan membantu siswa mencapai potensi terbaik
               </CardDescription>
@@ -173,7 +173,7 @@ export default function SelectRolePage() {
           </Card>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-8">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Pilihan ini tidak dapat diubah setelah disimpan
         </p>
       </div>

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase/client'
-import { PageHeader, EmptyState } from '@/components/dashboard/ui'
+import { PageHeader, EmptyState, TonePill } from '@/components/dashboard/ui'
 import {
   DollarSign,
   MapPin,
@@ -610,7 +610,7 @@ export default function StudentOffersPage() {
               const showDistance = mode === 'offline' && distance !== null && distance <= MAX_DISTANCE
 
               return (
-                <Card key={student.id} className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
+                <Card key={student.id} className="surface overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card">
                   {showDistance && (
                     <div className="absolute top-3 right-3 z-10 bg-card/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-soft border border-border text-foreground">
                       {distance! < 1 ? '< 1' : distance!.toFixed(1)} km
@@ -639,14 +639,10 @@ export default function StudentOffersPage() {
                       <div>
                         <h3 className="font-semibold">{student.name || 'Siswa'}</h3>
                         {student.grade_level && (
-                          <Badge variant="secondary" className={`text-xs ${gradeMatched ? 'bg-warning/15 text-warning border-warning/30 font-semibold shadow-sm ring-1 ring-warning/50' : 'bg-muted text-foreground border-border'}`}>
-                            {student.grade_level}
-                          </Badge>
+                          <TonePill tone={gradeMatched ? 'accent' : 'muted'} className="text-xs">{student.grade_level}</TonePill>
                         )}
                         {tutorProfile && matchCount > 0 && (
-                          <Badge variant="outline" className="ml-1 text-xs border-secondary/30 text-secondary">
-                            {matchCount} kesamaan
-                          </Badge>
+                          <TonePill tone="secondary" className="ml-1 text-xs">{matchCount} kesamaan</TonePill>
                         )}
                       </div>
                     </div>
@@ -736,7 +732,7 @@ export default function StudentOffersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/30 text-center">
+            <div className="p-4 rounded-2xl bg-amber-500/10 ring-1 ring-inset ring-amber-500/30 text-center">
               <p className="text-3xl font-bold text-amber-400">
                 {contractLimitInfo?.current} / {contractLimitInfo?.max}
               </p>
@@ -772,7 +768,7 @@ export default function StudentOffersPage() {
           </DialogHeader>
           <div className="py-4">
             <p className="text-xs text-muted-foreground mb-2">Sisa hukuman:</p>
-            <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center">
+            <div className="p-4 rounded-2xl bg-red-500/10 ring-1 ring-inset ring-red-500/30 text-center">
               <p className="text-2xl font-bold font-mono text-red-400">
                 {suspendCountdown}
               </p>

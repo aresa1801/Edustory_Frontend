@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
@@ -37,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 
 interface Match {
   id: string
@@ -362,16 +360,14 @@ useEffect(() => {
   const renderActiveCards = () => {
     if (activeMatches.length === 0) {
       return (
-        <Card className="rounded-2xl shadow-soft">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada pencocokan yang dikonfirmasi.
-          </CardContent>
-        </Card>
+        <div className="surface">
+          <EmptyState icon={Users} title="Belum ada pencocokan yang dikonfirmasi" />
+        </div>
       )
     }
-    const statusMap: Record<string, { label: string; color: string }> = {
-      matched: { label: 'Dikonfirmasi', color: 'bg-success/10 text-success border-success/20' },
-      active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
+    const statusMap: Record<string, { label: string; tone: 'primary' | 'secondary' | 'accent' | 'danger' | 'muted' }> = {
+      matched: { label: 'Dikonfirmasi', tone: 'secondary' },
+      active: { label: 'Aktif', tone: 'primary' },
     }
 
     return (
@@ -383,7 +379,7 @@ useEffect(() => {
           const subjects = match.matched_subjects?.join(', ') || match.subject || 'Tidak ada'
           const status = match.status
           const avatar = match.tutor_avatar_url
-          const statusConfig = statusMap[status] || { label: status, color: 'bg-muted text-muted-foreground' }
+          const statusConfig = statusMap[status] || { label: status, tone: 'muted' as const }
 
           let daysLeft = null
           if (match.contract_end_date) {
@@ -393,8 +389,8 @@ useEffect(() => {
           }
 
           return (
-            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
-              <CardContent className="p-5">
+            <div key={match.id} className="surface hover-card relative overflow-hidden">
+              <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
@@ -407,13 +403,11 @@ useEffect(() => {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
-                          {grade}
-                        </Badge>
+                        <TonePill tone="muted" className="capitalize">{grade}</TonePill>
                       )}
                     </div>
                   </div>
-                  <Badge className={`${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+                  <TonePill tone={statusConfig.tone}>{statusConfig.label}</TonePill>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -485,8 +479,8 @@ useEffect(() => {
                     Hentikan Kontrak
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )
         })}
       </div>
@@ -497,11 +491,9 @@ useEffect(() => {
   const renderTutorPendingCards = () => {
     if (tutorPendingMatches.length === 0) {
       return (
-        <Card className="rounded-2xl shadow-soft">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan masuk dari tutor.
-          </CardContent>
-        </Card>
+        <div className="surface">
+          <EmptyState icon={MessageCircle} title="Belum ada permintaan masuk dari tutor" />
+        </div>
       )
     }
     return (
@@ -515,8 +507,8 @@ useEffect(() => {
           const avatar = match.tutor_avatar_url
 
           return (
-            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
-              <CardContent className="p-5">
+            <div key={match.id} className="surface hover-card relative overflow-hidden">
+              <div className="p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                     {avatar ? (
@@ -528,14 +520,10 @@ useEffect(() => {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
-                        {grade}
-                      </Badge>
+                      <TonePill tone="muted" className="capitalize">{grade}</TonePill>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-warning/10 text-warning border-warning/20 text-xs">
-                    Menunggu
-                  </Badge>
+                  <TonePill tone="accent" className="ml-auto">Menunggu</TonePill>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -594,8 +582,8 @@ useEffect(() => {
                     Tolak
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )
         })}
       </div>
@@ -606,11 +594,9 @@ useEffect(() => {
   const renderStudentPendingCards = () => {
     if (studentPendingMatches.length === 0) {
       return (
-        <Card className="rounded-2xl shadow-soft">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada permintaan jadwal yang Anda kirim.
-          </CardContent>
-        </Card>
+        <div className="surface">
+          <EmptyState icon={Clock} title="Belum ada permintaan jadwal yang Anda kirim" />
+        </div>
       )
     }
     return (
@@ -630,8 +616,8 @@ useEffect(() => {
           const timeLeft = timeLeftMap[match.id] || ''
 
           return (
-            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
-              <CardContent className="p-5">
+            <div key={match.id} className="surface hover-card relative overflow-hidden">
+              <div className="p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
                     {avatar ? (
@@ -643,14 +629,10 @@ useEffect(() => {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
-                        {grade}
-                      </Badge>
+                      <TonePill tone="muted" className="capitalize">{grade}</TonePill>
                     )}
                   </div>
-                  <Badge className="ml-auto bg-primary/10 text-primary border-primary/20 text-xs">
-                    Menunggu
-                  </Badge>
+                  <TonePill tone="primary" className="ml-auto">Menunggu</TonePill>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -707,8 +689,8 @@ useEffect(() => {
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )
         })}
       </div>
@@ -719,11 +701,9 @@ useEffect(() => {
   const renderRejectedCards = () => {
     if (rejectedMatches.length === 0) {
       return (
-        <Card className="rounded-2xl shadow-soft">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada penolakan.
-          </CardContent>
-        </Card>
+        <div className="surface">
+          <EmptyState icon={XCircle} title="Belum ada penolakan" />
+        </div>
       )
     }
     return (
@@ -743,8 +723,8 @@ useEffect(() => {
             : 'Belum ditentukan'
 
           return (
-            <Card key={match.id} className="rounded-2xl border shadow-soft hover:shadow-lifted transition relative overflow-hidden">
-              <CardContent className="p-5">
+            <div key={match.id} className="surface hover-card relative overflow-hidden">
+              <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
@@ -757,14 +737,12 @@ useEffect(() => {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground border-border">
-                          {grade}
-                        </Badge>
+                        <TonePill tone="muted" className="capitalize">{grade}</TonePill>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">Ditolak</Badge>
+                    <TonePill tone="danger">Ditolak</TonePill>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -835,8 +813,8 @@ useEffect(() => {
                     <p className="text-xs font-medium text-destructive">✗ Penawaran dibatalkan</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )
         })}
       </div>
@@ -845,7 +823,7 @@ useEffect(() => {
 
   // ===== MAIN RENDER =====
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6 animate-fade-in">
       <PageHeader
         eyebrow="Tutor"
         title="Penawaran Tutor"
@@ -867,7 +845,7 @@ useEffect(() => {
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 mb-6">
+        <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1 sm:grid-cols-4">
           <TabsTrigger value="active">
             Pencocokan Aktif
             {activeCount > 0 && (

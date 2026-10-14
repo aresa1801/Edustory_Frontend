@@ -38,9 +38,9 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-card border border-border rounded-2xl shadow-soft p-8">
+      <div className="surface p-8">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Selamat Datang</h1>
+          <h1 className="mb-2 font-display text-3xl font-extrabold tracking-tight text-foreground">Selamat Datang</h1>
           <p className="text-muted-foreground">Masuk ke akun EduStory Anda</p>
         </div>
 
@@ -87,7 +87,7 @@ export function LoginForm() {
 
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary/90"
+            className="w-full rounded-xl"
             disabled={loading}
           >
             {loading ? (

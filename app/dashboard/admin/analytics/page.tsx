@@ -162,7 +162,7 @@ export default function TutorAnalyticsPage() {
       {/* ===== STAT CARDS ===== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Credit Score */}
-        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
+        <Card className="surface hover-card p-5">
           <div className="flex items-center gap-3">
             <div
               className={`w-10 h-10 rounded-xl ${creditBg} flex items-center justify-center`}
@@ -182,7 +182,7 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Rating */}
-        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
+        <Card className="surface hover-card p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
               <Star className="w-5 h-5 text-accent fill-accent" />
@@ -204,7 +204,7 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Total Murid */}
-        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
+        <Card className="surface hover-card p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Users className="w-5 h-5 text-primary" />
@@ -222,7 +222,7 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Sesi Selesai */}
-        <Card className="rounded-2xl p-5 shadow-soft transition hover:shadow-lifted">
+        <Card className="surface hover-card p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-secondary" />
@@ -243,7 +243,7 @@ export default function TutorAnalyticsPage() {
       {/* ===== PENDAPATAN + AKTIVITAS ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pendapatan */}
-        <Card className="rounded-2xl shadow-soft">
+        <Card className="surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wallet className="w-5 h-5 text-secondary" />
@@ -260,13 +260,13 @@ export default function TutorAnalyticsPage() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground mb-1">Bulan Ini</p>
                 <p className="text-lg font-semibold text-foreground">
                   Rp {stats.monthlyEarnings.toLocaleString('id-ID')}
                 </p>
               </div>
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground mb-1">
                   Rata-rata/Kontrak
                 </p>
@@ -282,7 +282,7 @@ export default function TutorAnalyticsPage() {
         </Card>
 
         {/* Aktivitas */}
-        <Card className="rounded-2xl shadow-soft">
+        <Card className="surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -290,7 +290,7 @@ export default function TutorAnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
+            <div className="flex items-center justify-between py-2 border-b border-border/40">
               <span className="text-sm text-muted-foreground">
                 Kontrak Selesai
               </span>
@@ -298,7 +298,7 @@ export default function TutorAnalyticsPage() {
                 {stats.completedContracts}
               </span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
+            <div className="flex items-center justify-between py-2 border-b border-border/40">
               <span className="text-sm text-muted-foreground">
                 Kontrak Aktif
               </span>
@@ -306,7 +306,7 @@ export default function TutorAnalyticsPage() {
                 {stats.activeStudents}
               </span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
+            <div className="flex items-center justify-between py-2 border-b border-border/40">
               <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
               <span className="text-sm font-bold text-success">
                 {stats.sessionsCompleted}
@@ -350,7 +350,7 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== ULASAN ===== */}
-      <Card className="rounded-2xl shadow-soft">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ThumbsUp className="w-5 h-5 text-accent" />
@@ -367,7 +367,7 @@ export default function TutorAnalyticsPage() {
             {reviews.map((r) => (
               <div
                 key={r.id}
-                className="p-3 rounded-md border border-border bg-muted/10"
+                className="rounded-xl border border-border/60 bg-muted/30 p-3"
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="font-semibold text-sm truncate">

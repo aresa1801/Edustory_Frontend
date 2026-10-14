@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/auth'
@@ -17,7 +15,7 @@ import {
   Receipt,
   History,
 } from 'lucide-react'
-import { PageHeader } from '@/components/dashboard/ui'
+import { PageHeader, EmptyState, TonePill } from '@/components/dashboard/ui'
 
 // ============================================================
 // TYPES
@@ -49,12 +47,12 @@ interface WalletTransaction {
 // ============================================================
 // KONSTANTA
 // ============================================================
-const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  pending: { label: 'Menunggu Pembayaran', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
-  paid: { label: 'Berhasil', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
-  rejected: { label: 'Ditolak', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: XCircle },
-  expired: { label: 'Kedaluwarsa', color: 'bg-muted text-muted-foreground border-border', icon: Clock },
-  refunded: { label: 'Dikembalikan', color: 'bg-primary/10 text-primary border-primary/20', icon: RefreshCw },
+const STATUS_MAP: Record<string, { label: string; tone: 'primary' | 'secondary' | 'accent' | 'danger' | 'muted'; icon: React.ElementType }> = {
+  pending: { label: 'Menunggu Pembayaran', tone: 'accent', icon: Clock },
+  paid: { label: 'Berhasil', tone: 'secondary', icon: CheckCircle2 },
+  rejected: { label: 'Ditolak', tone: 'danger', icon: XCircle },
+  expired: { label: 'Kedaluwarsa', tone: 'muted', icon: Clock },
+  refunded: { label: 'Dikembalikan', tone: 'primary', icon: RefreshCw },
 }
 
 const QUICK_AMOUNTS = [20000, 50000, 100000, 250000, 500000]
@@ -428,7 +426,7 @@ export default function WalletClient({
   const available = Math.max(0, balance - frozen)
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6 animate-fade-in">
       {/* Header */}
       <PageHeader
         eyebrow="Dompet"
@@ -444,13 +442,13 @@ export default function WalletClient({
             <h2 className="text-lg font-semibold text-foreground">Deposit dan Penarikan</h2>
           </div>
 
-          <Card className="rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+          <div className="surface-gradient p-6">
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">
                 Saldo Saat Ini
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </h3>
+            </div>
+            <div>
               <p className="text-4xl font-bold text-primary">
                 Rp {balance.toLocaleString('id-ID')}
               </p>
@@ -467,14 +465,14 @@ export default function WalletClient({
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="rounded-2xl shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-base">Isi Saldo</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="surface p-6">
+            <div>
+              <h3 className="text-base">Isi Saldo</h3>
+            </div>
+            <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Nominal (Rp)</label>
                 <input
@@ -518,15 +516,15 @@ export default function WalletClient({
               <p className="text-xs text-muted-foreground text-center">
                 Metode: QRIS, Virtual Account, E-Wallet, Kartu Kredit (via Midtrans)
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {history.length > 0 && (
-            <Card className="rounded-2xl shadow-soft">
-              <CardHeader>
-                <CardTitle className="text-base">Riwayat Isi Saldo</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <div className="surface p-6">
+              <div>
+                <h3 className="text-base">Riwayat Isi Saldo</h3>
+              </div>
+              <div className="space-y-2">
                 {history.map((item) => {
                   const cfg = STATUS_MAP[item.payment_status] || STATUS_MAP.pending
                   const Icon = cfg.icon
@@ -550,14 +548,14 @@ export default function WalletClient({
                           })}
                         </p>
                       </div>
-                      <Badge className={`${cfg.color} text-xs flex items-center gap-1`}>
+                      <TonePill tone={cfg.tone} className="flex items-center gap-1">
                         <Icon className="w-3 h-3" /> {cfg.label}
-                      </Badge>
+                      </TonePill>
                     </div>
                   )
                 })}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </div>
 
@@ -568,23 +566,19 @@ export default function WalletClient({
             <h2 className="text-lg font-semibold text-foreground">Log Transaksi</h2>
           </div>
 
-          <Card className="rounded-2xl shadow-soft flex-1 flex flex-col">
-            <CardContent className="pt-6 flex-1 flex flex-col">
+          <div className="surface flex-1 flex flex-col">
+            <div className="p-6 flex-1 flex flex-col">
               {txLoading ? (
                 <div className="flex flex-col items-center py-10">
                   <Spinner className="h-6 w-6" />
                   <p className="mt-2 text-xs text-muted-foreground">Memuat log...</p>
                 </div>
               ) : visibleTransactions.length === 0 ? (
-                <div className="py-10 text-center">
-                  <div className="w-12 h-12 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-3">
-                    <History className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Belum ada transaksi</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Transaksi akan muncul di sini setelah Anda melakukan top-up atau pembayaran sesi.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={History}
+                  title="Belum ada transaksi"
+                  description="Transaksi akan muncul di sini setelah Anda melakukan top-up atau pembayaran sesi."
+                />
               ) : (
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                   {visibleTransactions.map((tx: any) => {
@@ -636,8 +630,8 @@ export default function WalletClient({
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     </div>

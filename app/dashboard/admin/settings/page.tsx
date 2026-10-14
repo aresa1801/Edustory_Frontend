@@ -234,7 +234,7 @@ export default async function AdminSettingsPage() {
           const isMultiline = firstField?.multiline || false
 
           return (
-            <Card key={group.id} className="rounded-2xl border-border mb-6 shadow-soft">
+            <Card key={group.id} className="surface mb-6">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-xl ${group.bg} flex items-center justify-center flex-shrink-0`}>

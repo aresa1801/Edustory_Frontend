@@ -8,7 +8,7 @@ export default function BlogArticlePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border/70 bg-card">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-10">
           <Link href="/">
             <Button variant="ghost" className="text-muted-foreground hover:text-foreground mb-6 -ml-3">
@@ -16,7 +16,7 @@ export default function BlogArticlePage() {
               Kembali ke Beranda
             </Button>
           </Link>
-          <h1 className="text-3xl md:text-5xl font-bold mb-5 text-foreground tracking-tight leading-tight">
+          <h1 className="mb-5 text-3xl font-display font-extrabold tracking-tight leading-tight text-foreground md:text-5xl">
             Cara Mempersiapkan Diri untuk UTBK dengan Tepat
           </h1>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-muted-foreground text-sm">
@@ -38,7 +38,7 @@ export default function BlogArticlePage() {
 
       {/* Content */}
       <article className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-14">
-        <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-soft">
+        <div className="surface p-6 md:p-10">
           <div className="prose max-w-none dark:prose-invert">
             {/* Category Badge */}
             <div className="mb-8">
@@ -53,7 +53,7 @@ export default function BlogArticlePage() {
             </p>
 
             {/* Section 1 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">1. Mulai Persiapan Jauh-jauh Hari</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">1. Mulai Persiapan Jauh-jauh Hari</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Jangan menunggu semester akhir untuk mulai persiapan. Ideally, mulai persiapan 6-12 bulan sebelum ujian UTBK. Ini memberikan Anda cukup waktu untuk menguasai materi dan mengidentifikasi area yang memerlukan perbaikan.
             </p>
@@ -65,7 +65,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 2 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">2. Kuasai Materi UTBK secara Mendalam</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">2. Kuasai Materi UTBK secara Mendalam</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               UTBK menguji kemampuan berpikir dan penalaran, bukan hanya hafalan. Pahami konsep dasar dengan baik dan latih cara mengaplikasikannya dalam soal-soal yang kompleks.
             </p>
@@ -77,7 +77,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 3 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">3. Latihan Soal Secara Intensif</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">3. Latihan Soal Secara Intensif</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Latihan soal adalah kunci untuk memahami pola-pola pertanyaan UTBK. Kerjakan ribuan soal dari berbagai sumber untuk mengasah kecepatan dan akurasi Anda.
             </p>
@@ -89,7 +89,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 4 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">4. Kelola Waktu dengan Efisien</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">4. Kelola Waktu dengan Efisien</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               UTBK dibatasi waktu, jadi kemampuan manajemen waktu sangat penting. Latih diri Anda untuk menyelesaikan soal dalam waktu yang ditentukan tanpa mengorbankan akurasi.
             </p>
@@ -101,7 +101,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 5 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">5. Bersiap Fisik dan Mental</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">5. Bersiap Fisik dan Mental</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               UTBK adalah marathon mental. Pastikan Anda dalam kondisi fisik dan mental yang prima saat menghadapi ujian. Stress dan kecemasan adalah musuh nyata yang dapat menurunkan performa Anda.
             </p>
@@ -113,7 +113,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 6 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">6. Ikuti Bimbingan Belajar atau Les Privat</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">6. Ikuti Bimbingan Belajar atau Les Privat</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Les privat dengan tutor berpengalaman dapat memberikan bimbingan yang personal dan strategi yang telah terbukti. Seorang tutor dapat mengidentifikasi kelemahan spesifik Anda dan memberikan solusi yang tepat.
             </p>
@@ -125,7 +125,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Section 7 */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">7. Simulasi Ujian Sebelumnya</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">7. Simulasi Ujian Sebelumnya</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Semakin dekat dengan tanggal ujian, intensifkan simulasi full-test untuk membiasakan diri dengan format dan ritme ujian sebenarnya.
             </p>
@@ -137,7 +137,7 @@ export default function BlogArticlePage() {
             </ul>
 
             {/* Conclusion */}
-            <h2 className="text-2xl md:text-3xl font-bold mt-8 mb-4 text-foreground">Kesimpulan</h2>
+            <h2 className="mt-8 mb-4 font-display text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">Kesimpulan</h2>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Persiapan UTBK memerlukan dedikasi, strategi yang tepat, dan konsistensi. Dengan mengikuti panduan ini dan bekerja keras, Anda dapat meraih skor yang Anda targetkan. Ingat, kesuksesan bukan hanya tentang hasil akhir tetapi juga proses pembelajaran yang Anda lalui. Percayalah pada diri Anda dan tetap fokus pada tujuan Anda!
             </p>
@@ -148,7 +148,7 @@ export default function BlogArticlePage() {
                 Ingin bimbingan khusus untuk persiapan UTBK Anda? Hubungi kami untuk konsultasi gratis dengan tutor profesional kami.
               </p>
               <Link href="/">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button className="rounded-xl">
                   Dapatkan Konsultasi Gratis
                 </Button>
               </Link>

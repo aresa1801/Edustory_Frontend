@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader, TonePill } from '@/components/dashboard/ui'
 
 const TEACHING_TOPICS = [
   'Aljabar Dasar (SMP)',
@@ -87,8 +88,8 @@ export default function MicroTeachingPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-2xl p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4">
+        <Card className="surface rounded-2xl w-full max-w-2xl p-8 text-center shadow-soft">
           <h2 className="text-3xl font-bold mb-4">Video Berhasil Diunggah</h2>
           <p className="text-lg text-muted-foreground mb-6">
             Tim kami akan meninjau video Anda dalam 24-48 jam. Terima kasih telah menunggu!
@@ -100,18 +101,17 @@ export default function MicroTeachingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+    <div className="min-h-screen py-8 px-4 sm:py-10">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Micro Teaching: Penjelasan Video
-          </h1>
-          <p className="text-muted-foreground">
-            Rekam video penjelasan Anda mengajar tentang topik yang dipilih. Durasi ideal: 5-10 menit.
-          </p>
-        </div>
+        <PageHeader
+          className="mb-8"
+          eyebrow="Tahap 3 dari 5"
+          title="Micro Teaching: Penjelasan Video"
+          description="Rekam video penjelasan Anda mengajar tentang topik yang dipilih. Durasi ideal: 5-10 menit."
+          actions={<TonePill tone="primary">🎥 Micro Teaching</TonePill>}
+        />
 
-        <Card className="p-8">
+        <Card className="surface rounded-2xl p-8 shadow-soft">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Topic Selection */}
             <div>
@@ -137,7 +137,7 @@ export default function MicroTeachingPage() {
               <Label htmlFor="video" className="text-base font-semibold mb-2 block">
                 Upload Video Penjelasan *
               </Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:bg-accent/5 transition">
+              <div className="border-2 border-dashed border-border/70 rounded-2xl p-8 text-center cursor-pointer hover:bg-accent/5 transition">
                 <Input
                   id="video"
                   type="file"
@@ -166,7 +166,7 @@ export default function MicroTeachingPage() {
                   <video
                     src={videoPreview}
                     controls
-                    className="w-full rounded-lg border border-border"
+                    className="w-full rounded-2xl border border-border object-contain"
                     style={{ maxHeight: '300px' }}
                   />
                 </div>

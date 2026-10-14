@@ -134,7 +134,7 @@ export default function AdminProgramsPage() {
 
       {/* Add Program Form */}
       {showAddForm && (
-        <Card className="rounded-2xl border border-primary/20 p-6 shadow-soft">
+        <Card className="surface p-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Tambah Program Baru</h3>
           <div className="space-y-4">
             <input
@@ -193,7 +193,7 @@ export default function AdminProgramsPage() {
       {/* Programs Grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {programs.map((program) => (
-          <Card key={program.id} className="flex flex-col rounded-2xl p-6 shadow-soft transition hover:shadow-lifted">
+          <Card key={program.id} className="surface hover-card flex flex-col p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">{program.name}</h3>
@@ -239,7 +239,7 @@ export default function AdminProgramsPage() {
       </div>
 
       {programs.length === 0 && (
-        <Card className="rounded-2xl p-2 shadow-soft">
+        <Card className="surface p-2">
           <EmptyState
             icon={DollarSign}
             title="Tidak ada program yang terdaftar"

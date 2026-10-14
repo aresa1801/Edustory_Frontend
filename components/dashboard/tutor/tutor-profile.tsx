@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { createClient } from '@/lib/auth'
+import { TonePill } from '@/components/dashboard/ui'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Menunggu Verifikasi', color: 'bg-warning/10 text-warning' },
-  approved: { label: 'Terverifikasi', color: 'bg-secondary/10 text-secondary' },
-  rejected: { label: 'Ditolak', color: 'bg-destructive/10 text-destructive' },
-  suspended: { label: 'Ditangguhkan', color: 'bg-muted text-muted-foreground' },
-}
+  pending: { label: 'Menunggu Verifikasi', tone: 'accent' },
+  approved: { label: 'Terverifikasi', tone: 'secondary' },
+  rejected: { label: 'Ditolak', tone: 'danger' },
+  suspended: { label: 'Ditangguhkan', tone: 'muted' },
+} as const
 
 export default function TutorProfile() {
   const [loading, setLoading] = useState(true)
@@ -135,15 +136,15 @@ export default function TutorProfile() {
         </Alert>
       )}
 
-      <Card>
+      <Card className="surface rounded-2xl shadow-soft">
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
               <CardTitle>Status Verifikasi</CardTitle>
             </div>
-            <Badge className={`${statusConfig?.color} border-0`}>
+            <TonePill tone={statusConfig?.tone ?? 'muted'}>
               {statusConfig?.label}
-            </Badge>
+            </TonePill>
           </div>
         </CardHeader>
         <CardContent>
@@ -158,14 +159,14 @@ export default function TutorProfile() {
             </p>
           )}
           {profile.verified && (
-            <Badge variant="outline" className="mt-2 border-secondary/20 bg-secondary/10 text-secondary">
+            <TonePill tone="secondary" className="mt-2">
               ✓ Terverifikasi
-            </Badge>
+            </TonePill>
           )}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="surface rounded-2xl shadow-soft">
         <CardHeader>
           <CardTitle>Informasi Pribadi</CardTitle>
         </CardHeader>
@@ -203,7 +204,7 @@ export default function TutorProfile() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="surface rounded-2xl shadow-soft">
         <CardHeader>
           <CardTitle>Informasi Profesional</CardTitle>
         </CardHeader>
@@ -212,9 +213,9 @@ export default function TutorProfile() {
             <Label>Spesialisasi</Label>
             <div className="mt-2 flex flex-wrap gap-2">
               {profile.specializations?.map((spec: string) => (
-                <Badge key={spec} variant="secondary" className="text-sm">
+                <TonePill key={spec} tone="primary" className="text-sm">
                   {spec}
-                </Badge>
+                </TonePill>
               ))}
             </div>
           </div>
@@ -257,7 +258,7 @@ export default function TutorProfile() {
           </div>
 
           {profile.rating > 0 && (
-            <div className="rounded-xl bg-muted p-3">
+            <div className="rounded-2xl bg-muted/60 p-3 ring-1 ring-inset ring-border/60">
               <p className="text-sm text-muted-foreground">Rating Rata-rata</p>
               <p className="text-lg font-bold text-accent">
                 ★ {profile.rating} ({profile.total_reviews} ulasan)

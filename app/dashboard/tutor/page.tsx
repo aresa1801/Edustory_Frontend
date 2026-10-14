@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Camera } from 'lucide-react'
 import { AvatarUploader } from '@/components/AvatarUploader'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, TonePill } from '@/components/dashboard/ui'
 import {
   UserCircle,
   BookOpen,
@@ -293,14 +293,12 @@ const renderNameCard = () => {
   })
 
   return (
-    <Card className="relative h-full overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
+    <Card className="surface relative h-full overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card">
       {/* Badge status kurasi - pojok kanan atas */}
       <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
-        <Badge 
-          className={`${isCurationComplete ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 'bg-accent text-accent-foreground hover:bg-accent/90'} text-xs px-2 py-0.5`}
-        >
+        <TonePill tone={isCurationComplete ? 'secondary' : 'accent'} className="text-xs">
           {isCurationComplete ? 'Sudah Kurasi' : 'Belum Kurasi'}
-        </Badge>
+        </TonePill>
         <button
           onClick={() => setShowCurationInfo(!showCurationInfo)}
           className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -449,7 +447,7 @@ const renderNameCard = () => {
     })
 
     return (
-      <Card className="h-full rounded-2xl border shadow-soft">
+      <Card className="surface h-full rounded-2xl border-border/70 shadow-soft">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ClipboardList className="w-5 h-5" />
@@ -467,7 +465,7 @@ const renderNameCard = () => {
           </div>
 
           {isComplete ? (
-            <Badge className="bg-secondary hover:bg-secondary/90">✓ Kurasi Selesai</Badge>
+            <TonePill tone="secondary">✓ Kurasi Selesai</TonePill>
           ) : (
             <Link href="/dashboard/tutor/curation/progress">
               <Button size="sm" variant="outline" className="mt-1">
@@ -716,7 +714,7 @@ const renderNameCard = () => {
                 { label: 'Sesi Selesai', value: stats.completedSessions, icon: CheckCircle2, color: 'text-secondary', bg: 'bg-secondary/10' },
                 { label: 'Rating', value: stats.rating > 0 ? `★ ${stats.rating.toFixed(1)}` : '—', icon: Star, color: 'text-primary', bg: 'bg-primary/10' },
               ].map(({ label, value, icon: Icon, color, bg }) => (
-                <Card key={label} className="border-0 shadow-sm">
+                <Card key={label} className="surface rounded-2xl border-border/70 shadow-soft hover-card">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
                       <Icon className={`w-5 h-5 ${color}`} />
@@ -771,12 +769,12 @@ const renderNameCard = () => {
                     </div>
 
                     <Card
-                      className={`mb-3 flex-1 rounded-2xl border shadow-soft transition-all ${
+                      className={`mb-3 flex-1 rounded-2xl shadow-soft ${
                         isCompleted
-                          ? 'border-secondary/20 bg-secondary/10'
+                          ? 'surface border-secondary/20 bg-secondary/10'
                           : isActive
-                          ? 'border-primary/20 bg-primary/10 hover:border-primary/50 hover:shadow-lifted'
-                          : 'border-border/30 bg-card/50 opacity-60'
+                          ? 'surface border-primary/20 bg-primary/10 hover-card'
+                          : 'surface border-border/30 bg-card/50 opacity-60'
                       }`}
                     >
                       <CardContent className="p-4">
@@ -803,14 +801,10 @@ const renderNameCard = () => {
                                   {step.title}
                                 </h3>
                                 {isCompleted && (
-                                  <Badge className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 hover:bg-secondary/10">
-                                    ✓ Selesai
-                                  </Badge>
+                                  <TonePill tone="secondary" className="text-[10px]">✓ Selesai</TonePill>
                                 )}
                                 {isLocked && (
-                                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
-                                    Terkunci
-                                  </Badge>
+                                  <TonePill tone="muted" className="text-[10px]">Terkunci</TonePill>
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>

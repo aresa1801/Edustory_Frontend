@@ -813,7 +813,7 @@ export default function TutorWalletClient({
                   className="py-8"
                 />
               ) : (
-                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border/60">
+                <ul className="divide-y divide-border overflow-hidden rounded-2xl border-border/70">
                   {accounts.map((a) => (
                     <li
                       key={a.id}
@@ -877,7 +877,7 @@ export default function TutorWalletClient({
               {/* Add form */}
               <form
                 onSubmit={addAccount}
-                className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4"
+                className="space-y-3 rounded-2xl border-border/70 bg-muted/20 p-3 sm:p-4"
               >
                 <p className="text-sm font-medium">Tambah Rekening</p>
 
@@ -1018,7 +1018,7 @@ export default function TutorWalletClient({
               return (
                 <li
                   key={w.id}
-                  className="rounded-xl border border-border/60 p-3 transition-colors hover:bg-muted/20 sm:p-4"
+                  className="rounded-2xl border-border/70 p-3 transition-colors hover:bg-muted/20 sm:p-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-1">
@@ -1102,7 +1102,7 @@ export default function TutorWalletClient({
               return (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between rounded-xl border border-border/40 p-3 transition-colors hover:bg-muted/20"
+                  className="flex items-center justify-between rounded-2xl border-border/70 p-3 transition-colors hover:bg-muted/20"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div

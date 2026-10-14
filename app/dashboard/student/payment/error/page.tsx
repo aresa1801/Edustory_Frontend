@@ -1,27 +1,26 @@
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { XCircle } from 'lucide-react'
 
 export default function PaymentErrorPage() {
   return (
-    <div className="max-w-md mx-auto mt-16 p-4">
-      <Card className="rounded-2xl shadow-soft">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <XCircle className="w-16 h-16 text-destructive" />
+    <div className="mx-auto mt-16 max-w-md p-4 animate-fade-in">
+      <div className="surface-gradient p-6 text-center">
+        <div className="mb-3 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 ring-1 ring-inset ring-destructive/20">
+            <XCircle className="h-8 w-8 text-destructive" />
           </div>
-          <CardTitle>Pembayaran Gagal</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center space-y-4">
+        </div>
+        <h3 className="text-lg font-semibold text-foreground">Pembayaran Gagal</h3>
+        <div className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
             Pembayaran gagal diproses. Silakan coba lagi dengan metode pembayaran lain.
           </p>
           <Link href="/dashboard/student/payment">
             <Button className="w-full">Coba Lagi</Button>
           </Link>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

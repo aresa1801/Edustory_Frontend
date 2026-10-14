@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PageHeader, StatCard, EmptyState } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 import {
   DollarSign,
   MapPin,
@@ -112,7 +112,7 @@ function StudentPendingCard({
   const hasCoords = lat != null && lng != null && address
 
   return (
-    <Card className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted">
+    <Card className="surface overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card">
       <CardContent className="p-5">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -129,18 +129,11 @@ function StudentPendingCard({
           <div>
             <h3 className="font-semibold">{fullName}</h3>
             {grade && (
-              <Badge
-                variant="secondary"
-                className="text-xs bg-muted text-foreground border-border"
-              >
-                {grade}
-              </Badge>
+              <TonePill tone="muted" className="text-xs">{grade}</TonePill>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
-              Menunggu
-            </Badge>
+            <TonePill tone="primary" className="text-xs">Menunggu</TonePill>
             <div className="flex items-center gap-1 text-xs">
               <Circle
                 className={`h-2.5 w-2.5 fill-current ${
@@ -533,7 +526,7 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
+              className="surface overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card"
             >
               <CardContent className="p-5">
                 <div className="flex items-center gap-3 mb-3">
@@ -551,18 +544,11 @@ export default function MyStudentsPage() {
                   <div>
                     <h3 className="font-semibold">{fullName}</h3>
                     {grade && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-muted text-foreground border-border"
-                      >
-                        {grade}
-                      </Badge>
+                      <TonePill tone="muted" className="text-xs">{grade}</TonePill>
                     )}
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <Badge className="bg-accent/15 text-accent border-accent/25 text-xs">
-                      Menunggu
-                    </Badge>
+                    <TonePill tone="accent" className="text-xs">Menunggu</TonePill>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
@@ -717,14 +703,14 @@ export default function MyStudentsPage() {
         <EmptyState title="Belum ada pencocokan yang dikonfirmasi." />
       )
     }
-    const statusMap: Record<string, { label: string; color: string }> = {
+    const statusMap: Record<string, { label: string; tone: 'secondary' | 'primary' }> = {
       matched: {
         label: 'Dikonfirmasi',
-        color: 'bg-secondary/10 text-secondary border-secondary/20',
+        tone: 'secondary',
       },
       active: {
         label: 'Aktif',
-        color: 'bg-primary/10 text-primary border-primary/20',
+        tone: 'primary',
       },
     }
 
@@ -753,7 +739,7 @@ export default function MyStudentsPage() {
               : 'Tidak ada mata pelajaran yang cocok'
           const isNoMatch = matchedSubjects.length === 0
 
-          const statusConfig = statusMap[status] || { label: status, color: 'bg-muted' }
+          const statusConfig = statusMap[status] || { label: status, tone: 'muted' as const }
 
           const lat = match.student_latitude
           const lng = match.student_longitude
@@ -762,7 +748,7 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
+              className="surface overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card"
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -781,19 +767,12 @@ export default function MyStudentsPage() {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs bg-muted text-foreground border-border"
-                        >
-                          {grade}
-                        </Badge>
+                        <TonePill tone="muted" className="text-xs">{grade}</TonePill>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={`${statusConfig.color} text-xs`}>
-                      {statusConfig.label}
-                    </Badge>
+                    <TonePill tone={statusConfig.tone} className="text-xs">{statusConfig.label}</TonePill>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
@@ -958,7 +937,7 @@ export default function MyStudentsPage() {
           return (
             <Card
               key={match.id}
-              className="relative overflow-hidden rounded-2xl border shadow-soft transition hover:shadow-lifted"
+              className="surface overflow-hidden rounded-2xl border-border/70 shadow-soft hover-card"
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -977,19 +956,12 @@ export default function MyStudentsPage() {
                     <div>
                       <h3 className="font-semibold">{fullName}</h3>
                       {grade && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs bg-muted text-foreground border-border"
-                        >
-                          {grade}
-                        </Badge>
+                        <TonePill tone="muted" className="text-xs">{grade}</TonePill>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-destructive/10 text-destructive border-destructive/25 text-xs">
-                      Ditolak
-                    </Badge>
+                    <TonePill tone="danger" className="text-xs">Ditolak</TonePill>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${

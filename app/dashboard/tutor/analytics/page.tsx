@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { PageHeader, StatCard, EmptyState, SectionCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, EmptyState, SectionCard, TonePill } from '@/components/dashboard/ui'
 import {
   Dialog,
   DialogContent,
@@ -220,7 +220,7 @@ export default function TutorAnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* ===== BANNER ===== */}
-      <div className="p-3 rounded-md bg-primary/5 border border-primary/20 flex items-center justify-between gap-3 flex-wrap">
+      <div className="surface rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-primary" />
           <p className="text-sm text-muted-foreground">
@@ -266,7 +266,7 @@ export default function TutorAnalyticsPage() {
       {/* ===== STAT CARDS ===== */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Credit Score */}
-        <Card className="p-5">
+        <Card className="surface hover-card rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl ${creditBg} flex items-center justify-center shrink-0`}>
               <Shield className={`w-5 h-5 ${creditColor}`} />
@@ -326,20 +326,20 @@ export default function TutorAnalyticsPage() {
           title={<span className="flex items-center gap-2"><Wallet className="w-5 h-5 text-secondary" />Pendapatan</span>}
           bodyClassName="space-y-4"
         >
-            <div className="p-4 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-secondary/10 to-secondary/5 ring-1 ring-inset ring-secondary/20">
               <p className="text-sm text-muted-foreground mb-1">Total Pendapatan</p>
               <p className="text-3xl font-bold text-secondary">
                 Rp {stats.totalEarnings.toLocaleString('id-ID')}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-muted/20 border border-border">
+              <div className="p-3 rounded-2xl bg-muted/20 ring-1 ring-inset ring-border/60">
                 <p className="text-xs text-muted-foreground mb-1">Bulan Ini</p>
                 <p className="text-lg font-semibold text-foreground">
                   Rp {stats.monthlyEarnings.toLocaleString('id-ID')}
                 </p>
               </div>
-              <div className="p-3 rounded-xl bg-muted/20 border border-border">
+              <div className="p-3 rounded-2xl bg-muted/20 ring-1 ring-inset ring-border/60">
                 <p className="text-xs text-muted-foreground mb-1">Rata-rata/Kontrak</p>
                 <p className="text-lg font-semibold text-foreground">
                   Rp {stats.avgPerContract.toLocaleString('id-ID')}
@@ -403,7 +403,7 @@ export default function TutorAnalyticsPage() {
             <History className="w-5 h-5 text-primary" />
             Riwayat Credit Score
             {creditLog.length > 0 && (
-              <Badge variant="outline" className="ml-2">{creditLog.length}</Badge>
+              <TonePill tone="muted" className="ml-2">{creditLog.length}</TonePill>
             )}
           </span>
         }
@@ -469,7 +469,7 @@ export default function TutorAnalyticsPage() {
             <ThumbsUp className="w-5 h-5 text-accent" />
             Ulasan dari Murid
             {reviews.length > 0 && (
-              <Badge variant="outline" className="ml-2">{reviews.length}</Badge>
+              <TonePill tone="muted" className="ml-2">{reviews.length}</TonePill>
             )}
           </span>
         }
@@ -483,7 +483,7 @@ export default function TutorAnalyticsPage() {
           ) : (
             <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
               {reviews.map((r) => (
-                <div key={r.id} className="p-3 rounded-md border border-border bg-muted/10">
+                <div key={r.id} className="p-3 rounded-2xl bg-muted/10 ring-1 ring-inset ring-border/60">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-semibold text-sm truncate">
                       {r.studentName}
@@ -541,7 +541,7 @@ export default function TutorAnalyticsPage() {
             {CREDIT_TIERS.map((tier) => (
               <div
                 key={tier.range}
-                className={`p-3 rounded-md border ${tier.borderColor} ${tier.bgColor}`}
+                className={`p-3 rounded-2xl ring-1 ring-inset ${tier.borderColor} ${tier.bgColor}`}
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className={`w-3 h-3 rounded-full ${tier.color}`} />
@@ -557,7 +557,7 @@ export default function TutorAnalyticsPage() {
             ))}
           </div>
 
-          <div className="p-3 rounded-md bg-muted/20 border border-border mt-2">
+          <div className="p-3 rounded-2xl bg-muted/20 ring-1 ring-inset ring-border/60 mt-2">
             <p className="text-xs text-muted-foreground">
               💡 <strong>Cara menaikkan credit:</strong> Login harian (+1),
               menyelesaikan sesi belajar (+2).

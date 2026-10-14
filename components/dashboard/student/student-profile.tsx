@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
@@ -14,6 +12,7 @@ import {
   Target, Calendar, Wallet, CheckCircle2, Users, School, Edit
 } from 'lucide-react'
 import Link from 'next/link'
+import { SectionCard, TonePill } from '@/components/dashboard/ui'
 
 export default function StudentProfile() {
   const [loading, setLoading] = useState(true)
@@ -65,7 +64,7 @@ export default function StudentProfile() {
     return (
       <div className="flex flex-wrap gap-1.5">
         {subjects.map(s => (
-          <Badge key={s} variant="secondary">{s}</Badge>
+          <TonePill key={s} tone="primary">{s}</TonePill>
         ))}
       </div>
     )
@@ -188,12 +187,12 @@ export default function StudentProfile() {
 
   // --- Tampilan read-only ---
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6 animate-fade-in">
       {/* Header Profile Card */}
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardContent className="pt-6 pb-5">
+      <div className="surface-gradient">
+        <div className="p-5 pt-6 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0 ring-2 ring-primary/20">
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 text-2xl font-bold text-primary ring-1 ring-inset ring-primary/20">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
@@ -216,7 +215,7 @@ export default function StudentProfile() {
             {/* Tombol Ubah Data → redirect ke onboarding */}
             <Link href="/dashboard/student/onboarding">
               <Button variant="outline" size="sm" className="gap-1">
-                <Edit className="w-4 h-4" /> Ubah Data
+                <Edit className="h-4 w-4" /> Ubah Data
               </Button>
             </Link>
           </div>
@@ -235,12 +234,12 @@ export default function StudentProfile() {
               </p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* ===== TABS ===== */}
       <div>
-        <div className="flex gap-1 border-b border-border mb-6">
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border/70">
           {[
             { id: 'siswa', label: 'Data Siswa', icon: User },
             { id: 'sekolah', label: 'Data Sekolah', icon: School },
@@ -251,13 +250,13 @@ export default function StudentProfile() {
               <button
                 key={tab.id}
                 onClick={() => setActiveProfileTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+                className={`flex items-center gap-2 whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-200 ${
                   activeProfileTab === tab.id
-                    ? 'border-primary text-primary bg-primary/5'
+                    ? 'border-primary bg-primary/5 text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="h-4 w-4" />
                 {tab.label}
               </button>
             )
@@ -268,13 +267,10 @@ export default function StudentProfile() {
         {activeProfileTab === 'siswa' && (
           <div className="space-y-6">
             {/* Informasi Pribadi */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <User className="w-4 h-4 text-primary" /> Informasi Pribadi
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <SectionCard
+              title={<span className="flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Informasi Pribadi</span>}
+              bodyClassName="space-y-4"
+            >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Nama Lengkap</p>
@@ -297,19 +293,15 @@ export default function StudentProfile() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Tentang Saya</p>
-                  <p className="font-medium whitespace-pre-wrap">{displayValue(studentData.bio)}</p>
+                  <p className="whitespace-pre-wrap font-medium">{displayValue(studentData.bio)}</p>
                 </div>
-              </CardContent>
-            </Card>
+            </SectionCard>
 
             {/* Informasi Pembelajaran */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <BookOpen className="w-4 h-4 text-primary" /> Informasi Pembelajaran
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-5">
+            <SectionCard
+              title={<span className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" /> Informasi Pembelajaran</span>}
+              bodyClassName="space-y-5"
+            >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Tingkat Kelas</p>
@@ -340,17 +332,13 @@ export default function StudentProfile() {
                     </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+            </SectionCard>
 
             {/* Lokasi */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <MapPin className="w-4 h-4 text-primary" /> Lokasi
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <SectionCard
+              title={<span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> Lokasi</span>}
+              bodyClassName="space-y-4"
+            >
                 <div>
                   <p className="text-sm text-muted-foreground">Alamat Lengkap</p>
                   <p className="font-medium">{displayValue(studentData.address)}</p>
@@ -359,20 +347,16 @@ export default function StudentProfile() {
                   <p className="text-sm text-muted-foreground">Kota / Kabupaten</p>
                   <p className="font-medium">{displayValue(studentData.city)}</p>
                 </div>
-              </CardContent>
-            </Card>
+            </SectionCard>
           </div>
         )}
 
         {/* ===== TAB: Data Sekolah ===== */}
         {activeProfileTab === 'sekolah' && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <School className="w-4 h-4 text-primary" /> Data Sekolah
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <SectionCard
+            title={<span className="flex items-center gap-2"><School className="h-4 w-4 text-primary" /> Data Sekolah</span>}
+            bodyClassName="space-y-4"
+          >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Nama Sekolah</p>
@@ -393,19 +377,15 @@ export default function StudentProfile() {
                   <p className="font-medium">{displayValue(studentData.school_address)}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </SectionCard>
         )}
 
         {/* ===== TAB: Data Orang Tua ===== */}
         {activeProfileTab === 'ortu' && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="w-4 h-4 text-primary" /> Informasi Orang Tua / Wali
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <SectionCard
+            title={<span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Informasi Orang Tua / Wali</span>}
+            bodyClassName="space-y-4"
+          >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Nama</p>
@@ -426,8 +406,7 @@ export default function StudentProfile() {
                   <p className="font-medium">{displayValue(studentData.parent_phone)}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </SectionCard>
         )}
       </div>
 

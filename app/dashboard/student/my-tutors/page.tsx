@@ -7,7 +7,7 @@ import StudentMyMatches from '@/components/dashboard/student/my-matches'
 
 export default function MyTutorsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       <PageHeader
         eyebrow="Pengajar"
         title="Pengajar Saya"

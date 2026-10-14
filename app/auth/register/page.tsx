@@ -164,9 +164,9 @@ export default function RegisterPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto mb-4"></div>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
           <h1 className="text-xl font-semibold text-foreground">Sedang memproses...</h1>
         </div>
       </div>
@@ -174,11 +174,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <div className="bg-card rounded-2xl border border-border/50 p-8 shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+        <div className="surface p-8">
+          <div className="mb-8 text-center">
+            <h1 className="mb-2 font-display text-3xl font-extrabold tracking-tight text-foreground">
               {isGoogleAuth ? 'Lengkapi Profil Anda' : 'Bergabung dengan EduStory'}
             </h1>
             <p className="text-muted-foreground">
@@ -187,14 +187,14 @@ export default function RegisterPage() {
           </div>
 
           {error && (
-            <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg mb-6 text-sm">
+            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
           {/* Info badge untuk Google auth */}
           {isGoogleAuth && (
-            <div className="bg-primary/10 border border-primary/30 text-primary px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-2">
+            <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
               <Chrome className="w-4 h-4" />
               Anda terhubung dengan Google
             </div>
@@ -278,7 +278,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="h-12 w-full rounded-xl"
             >
               {loading ? 'Sedang memproses...' : isGoogleAuth ? 'Lanjutkan' : 'Daftar'}
             </Button>
@@ -288,9 +288,9 @@ export default function RegisterPage() {
           {!isGoogleAuth && (
             <>
               <div className="flex items-center gap-4 my-6">
-                <div className="flex-1 h-px bg-border/30"></div>
-                <span className="text-xs text-muted-foreground uppercase">atau</span>
-                <div className="flex-1 h-px bg-border/30"></div>
+                <div className="h-px flex-1 bg-border"></div>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">atau</span>
+                <div className="h-px flex-1 bg-border"></div>
               </div>
 
               <Button
@@ -298,7 +298,7 @@ export default function RegisterPage() {
                 variant="outline"
                 onClick={handleGoogleSignUp}
                 disabled={loading}
-                className="w-full h-12 flex items-center justify-center gap-3"
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl"
               >
                 <Chrome className="w-5 h-5" />
                 {loading ? 'Sedang mendaftar...' : 'Daftar dengan Google'}
@@ -307,12 +307,12 @@ export default function RegisterPage() {
           )}
 
           {/* Login Link */}
-          <div className="text-center mt-6">
+          <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               Sudah punya akun?{' '}
               <Link
                 href="/auth/login"
-                className="text-primary hover:text-primary/80 font-medium transition-colors"
+                className="font-semibold text-primary transition-colors hover:underline"
               >
                 Masuk di sini
               </Link>

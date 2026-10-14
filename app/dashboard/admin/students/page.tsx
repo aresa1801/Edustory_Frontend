@@ -139,30 +139,30 @@ export default function AdminStudentsPage() {
       </div>
 
       {/* Students Table */}
-      <Card className="overflow-hidden rounded-2xl shadow-soft">
+      <Card className="surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px]">
-            <thead className="border-b border-border/30 bg-primary/5">
+            <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/40 backdrop-blur">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Nama</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Email</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Telepon</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Tingkat Pendidikan</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Lokasi</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Mata Pelajaran</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Aksi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nama</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telepon</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tingkat Pendidikan</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lokasi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mata Pelajaran</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/30">
+            <tbody className="divide-y divide-border/40">
               {filteredStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-primary/5 transition-colors">
-                  <td className="px-6 py-4 text-sm text-foreground">{student.name}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{student.email}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{student.phone}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{student.grade_level}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">{student.city}</td>
-                  <td className="px-6 py-4 text-sm">
+                <tr key={student.id} className="transition-colors hover:bg-muted/40">
+                  <td className="px-4 py-3.5 text-sm text-foreground">{student.name}</td>
+                  <td className="px-4 py-3.5 text-sm text-muted-foreground">{student.email}</td>
+                  <td className="px-4 py-3.5 text-sm text-foreground">{student.phone}</td>
+                  <td className="px-4 py-3.5 text-sm text-foreground">{student.grade_level}</td>
+                  <td className="px-4 py-3.5 text-sm text-foreground">{student.city}</td>
+                  <td className="px-4 py-3.5 text-sm">
                     <div className="flex gap-1 flex-wrap">
                       {student.subjects?.slice(0, 2).map((subject, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
@@ -176,8 +176,8 @@ export default function AdminStudentsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm">{getStatusBadge(student.status)}</td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className="px-4 py-3.5 text-sm">{getStatusBadge(student.status)}</td>
+                  <td className="px-4 py-3.5 text-sm">
                     <button
                       onClick={() => setSelectedStudent(student)}
                       className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"

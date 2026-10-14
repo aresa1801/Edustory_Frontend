@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { TonePill } from '@/components/dashboard/ui'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -293,7 +294,7 @@ export default function InterviewPage() {
 
   if (phase === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Spinner className="h-10 w-10 mx-auto mb-4" />
           <p className="text-lg font-medium mb-1">Mempersiapkan AI Interviewer...</p>
@@ -314,7 +315,7 @@ export default function InterviewPage() {
 
   if (phase === 'completing') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Spinner className="h-10 w-10 mx-auto mb-4" />
           <p className="text-lg font-semibold mb-1">Menganalisis Wawancara...</p>
@@ -332,10 +333,10 @@ export default function InterviewPage() {
 
   if (phase === 'result' && result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+      <div className="min-h-screen py-8 px-4 sm:py-10">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Score summary */}
-          <Card className="p-8 text-center">
+          <Card className="surface rounded-2xl p-8 text-center shadow-soft">
             <div className="text-6xl mb-4">💬</div>
             <h2 className="text-3xl font-bold mb-2">AI Interview Selesai!</h2>
             <p className="text-muted-foreground mb-6">
@@ -345,15 +346,12 @@ export default function InterviewPage() {
             <div className="text-7xl font-bold text-primary mb-2">{result.overallScore}</div>
             <p className="text-xl text-muted-foreground mb-4">Skor Interview dari 100</p>
 
-            <Badge
-              className={
-                result.passed
-                  ? 'bg-success/10 text-success border-success/20 hover:bg-success/15 mb-4'
-                  : 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/15 mb-4'
-              }
+            <TonePill
+              tone={result.passed ? 'secondary' : 'accent'}
+              className="mb-4"
             >
               {result.recommendation}
-            </Badge>
+            </TonePill>
 
             {result.passed ? (
               <Alert className="bg-success/10 border-success/20 mb-4">
@@ -375,7 +373,7 @@ export default function InterviewPage() {
           </Card>
 
           {/* Dimension breakdown */}
-          <Card className="p-6">
+          <Card className="surface rounded-2xl p-6 shadow-soft">
             <h3 className="font-semibold text-lg mb-4">Penilaian per Dimensi</h3>
             <div className="space-y-4">
               {Object.entries(result.dimensions).map(([key, dim]) => (
@@ -414,18 +412,18 @@ export default function InterviewPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Sticky header */}
-      <div className="bg-background/95 backdrop-blur border-b px-4 py-3 sticky top-0 z-10">
+      <div className="bg-background/95 backdrop-blur border-b border-border/70 px-4 py-3 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className="text-primary border-primary text-xs">
+              <TonePill tone="muted" className="text-xs">
                 Tahap 5 dari 5
-              </Badge>
-              <Badge className="bg-primary/10 text-primary border-primary/30 text-xs">
+              </TonePill>
+              <TonePill tone="primary" className="text-xs">
                 💬 AI Interview
-              </Badge>
+              </TonePill>
             </div>
             <div
               className={`text-xl font-bold font-mono ${
@@ -531,7 +529,7 @@ export default function InterviewPage() {
       )}
 
       {/* Input area */}
-      <div className="bg-background/95 backdrop-blur border-t px-4 py-3">
+      <div className="bg-background/95 backdrop-blur border-t border-border/70 px-4 py-3">
         <div className="max-w-3xl mx-auto">
           <div className="flex gap-2">
             <Textarea

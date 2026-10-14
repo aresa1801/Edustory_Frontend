@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/auth'
 import { BookOpen, TrendingUp, Users, Calendar } from 'lucide-react'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, SectionCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 
 export default function StudentProgressPage() {
   const [loading, setLoading] = useState(true)
@@ -146,7 +144,7 @@ export default function StudentProgressPage() {
   const subjects = profile?.subjects || []
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       <PageHeader
         eyebrow="Progres"
         title="Progres Belajar"
@@ -169,79 +167,72 @@ export default function StudentProgressPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Completion Rate */}
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle>Tingkat Penyelesaian</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <SectionCard title="Tingkat Penyelesaian">
+          <div className="space-y-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Sesi selesai vs total</span>
               <span className="font-medium">{completedMatches.length}/{totalMatches}</span>
             </div>
             <Progress value={completionRate} className="h-3" />
             <p className="text-sm text-muted-foreground">{completionRate}% sesi berhasil diselesaikan</p>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
         {/* Subjects */}
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle>Mata Pelajaran</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <SectionCard title="Mata Pelajaran">
+          <div>
             {subjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Belum ada mata pelajaran terdaftar.</p>
+              <EmptyState title="Belum ada mata pelajaran terdaftar" className="py-6" />
             ) : (
               <div className="flex flex-wrap gap-2">
                 {subjects.map((subject: string) => (
-                  <Badge key={subject} variant="secondary">
+                  <TonePill key={subject} tone="secondary">
                     {subject}
-                  </Badge>
+                  </TonePill>
                 ))}
               </div>
             )}
             {profile?.grade_level && (
-              <div className="mt-4 pt-4 border-t">
+              <div className="mt-4 border-t border-border/60 pt-4">
                 <p className="text-sm text-muted-foreground">Tingkat Kelas</p>
                 <p className="text-sm font-medium mt-1">{profile.grade_level}</p>
               </div>
             )}
             {profile?.learning_goals && (
-              <div className="mt-4 pt-4 border-t">
+              <div className="mt-4 border-t border-border/60 pt-4">
                 <p className="text-sm text-muted-foreground">Tujuan Belajar</p>
                 <p className="text-sm mt-1">{profile.learning_goals}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       </div>
 
       {/* Match History */}
-      <Card className="rounded-2xl shadow-soft">
-        <CardHeader>
-          <CardTitle>Histori Pencocokan</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SectionCard title="Histori Pencocokan">
+        <div>
           {matches.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Belum ada histori pencocokan. Mulai cari pengajar sekarang!
-            </p>
+            <EmptyState
+              icon={BookOpen}
+              title="Belum ada histori pencocokan"
+              description="Mulai cari pengajar sekarang!"
+            />
           ) : (
             <div className="space-y-3">
               {matches.map(match => {
-                const statusMap: Record<string, { label: string; color: string }> = {
-                  pending: { label: 'Menunggu', color: 'bg-warning/10 text-warning border-warning/20' },
-                  matched: { label: 'Dikonfirmasi', color: 'bg-success/10 text-success border-success/20' },
-                  active: { label: 'Aktif', color: 'bg-primary/10 text-primary border-primary/20' },
-                  completed: { label: 'Selesai', color: 'bg-muted text-muted-foreground border-border' },
-                  cancelled: { label: 'Dibatalkan', color: 'bg-destructive/10 text-destructive border-destructive/20' },
+                const statusMap: Record<string, { label: string; tone: 'primary' | 'secondary' | 'accent' | 'danger' | 'muted' }> = {
+                  pending: { label: 'Menunggu', tone: 'accent' },
+                  matched: { label: 'Dikonfirmasi', tone: 'secondary' },
+                  active: { label: 'Aktif', tone: 'primary' },
+                  completed: { label: 'Selesai', tone: 'muted' },
+                  cancelled: { label: 'Dibatalkan', tone: 'danger' },
                 }
-                const status = statusMap[match.status] || { label: match.status, color: '' }
+                const status = statusMap[match.status] || { label: match.status, tone: 'muted' as const }
 
                 return (
                   <div
                     key={match.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-border/30 hover:bg-muted/30 transition-colors"
+                    className="surface hover-card flex items-center justify-between p-4"
                   >
                     <div>
                       <p className="font-medium text-foreground">{match.subject}</p>
@@ -258,16 +249,16 @@ export default function StudentProgressPage() {
                         </p>
                       )}
                     </div>
-                    <Badge variant="outline" className={`${status.color} border text-xs`}>
+                    <TonePill tone={status.tone}>
                       {status.label}
-                    </Badge>
+                    </TonePill>
                   </div>
                 )
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
     </div>
   )
 }

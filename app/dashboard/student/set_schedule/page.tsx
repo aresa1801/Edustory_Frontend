@@ -2,12 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { PageHeader } from '@/components/dashboard/ui'
+import { PageHeader, SectionCard, TonePill } from '@/components/dashboard/ui'
 
 // ========== HELPER ==========
 const getNext37Days = () => {
@@ -504,9 +502,11 @@ function SetScheduleContent() {
     return (
       <ul className="space-y-1">
         {Object.values(grouped).map((item, idx) => (
-          <li key={idx} className="text-sm">
-            <Badge variant="outline" className="mr-2">{item.subject}</Badge>
-            {item.day}, {item.time} ({item.count} sesi)
+          <li key={idx} className="flex items-center gap-2 text-sm">
+            <TonePill tone="muted" className="capitalize">{item.subject}</TonePill>
+            <span className="text-muted-foreground">
+              {item.day}, {item.time} ({item.count} sesi)
+            </span>
           </li>
         ))}
       </ul>
@@ -619,7 +619,7 @@ function SetScheduleContent() {
   ]
 
   return (
-    <div className="max-w-7xl mx-auto p-4 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 space-y-6 animate-fade-in">
       <PageHeader
         eyebrow="Jadwal"
         title="Atur Jadwal Belajar"
@@ -631,10 +631,10 @@ function SetScheduleContent() {
         }
       />
 
-      <Card className="rounded-2xl shadow-soft">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Pilih Mata Pelajaran (maks 2)</CardTitle>
-          <Badge variant="outline" className="text-sm font-normal">
+      <SectionCard
+        title="Pilih Mata Pelajaran (maks 2)"
+        actions={
+          <TonePill tone="muted">
             📊 Sesi tersisa:{' '}
             <span className={`font-bold ${
               remainingSessions <= 0 ? 'text-destructive' :
@@ -645,9 +645,10 @@ function SetScheduleContent() {
             </span>
             {' / '}
             {maxSessions}
-          </Badge>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+          </TonePill>
+        }
+      >
+        <div className="flex flex-col gap-3">
           <div className="flex gap-3 flex-wrap">
             {availableSubjects.map((subj: string) => {
               const isSelected = selectedSubjects.includes(subj)
@@ -707,15 +708,12 @@ function SetScheduleContent() {
               {step === 0 && " (hanya 1 mata pelajaran yang dapat dipilih)"}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
       {selectedSubjects.length >= 2 && (
-        <Card className="rounded-2xl shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-lg">Pilih Mata Pelajaran Aktif</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
+        <SectionCard title="Pilih Mata Pelajaran Aktif">
+          <div className="flex flex-wrap gap-3">
             {selectedSubjects.map(subj => {
               const used = Object.values(schedule).filter(s => s === subj).length
               const allocated = allocation[subj] || 0
@@ -757,29 +755,29 @@ function SetScheduleContent() {
                 Aktif: {activeSubject}
               </span>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       )}
 
-      <Card className="rounded-2xl shadow-soft">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{monthName}</CardTitle>
+      <SectionCard
+        title={monthName}
+        actions={
           <span className="text-sm text-muted-foreground">
             {totalSelected} sesi dipilih
           </span>
-        </CardHeader>
-        <CardContent>
+        }
+      >
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 min-w-[100px] text-left sticky left-0 bg-foreground z-10 border-r-2 font-semibold text-background">
+                  <th className="border border-border/60 p-1 min-w-[100px] text-left sticky left-0 bg-muted z-10 border-r-2 font-semibold text-foreground">
                     Jam
                   </th>
                   {visibleDates.map((date, idx) => (
-                    <th key={idx} className="border p-1 text-center min-w-[44px] bg-foreground text-background">
+                    <th key={idx} className="border border-border/60 p-1 text-center min-w-[44px] bg-muted text-foreground">
                       <div>{date.getDate()}</div>
-                      <div className="text-xs text-background/70">
+                      <div className="text-xs text-muted-foreground">
                         {date.toLocaleDateString('id-ID', { weekday: 'short' })}
                       </div>
                     </th>
@@ -789,7 +787,7 @@ function SetScheduleContent() {
               <tbody>
                 {TIME_SLOTS.map((slot, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 font-medium text-xs sticky left-0 bg-foreground z-10 border-r-2 text-background">
+                    <td className="border border-border/60 p-1 font-medium text-xs sticky left-0 bg-muted z-10 border-r-2 text-foreground">
                       {slot.label}
                     </td>
                     {visibleDates.map((date, colIdx) => {
@@ -822,16 +820,11 @@ function SetScheduleContent() {
           <p className="text-xs text-muted-foreground mt-3 italic">
             * Jadwal ini bersifat sementara, dapat diubah saat menemukan tutor.
           </p>
-        </CardContent>
-      </Card>
+      </SectionCard>
 
-      <Card className="rounded-2xl shadow-soft">
-        <CardHeader>
-          {/* 👇 Judul diubah jadi lebih ringkas 👇 */}
-          <CardTitle className="text-lg">Ringkasan Jadwal</CardTitle>
-        </CardHeader>
-        <CardContent>{generateSummary()}</CardContent>
-      </Card>
+      <SectionCard title="Ringkasan Jadwal">
+        {generateSummary()}
+      </SectionCard>
 
       {saveMessage && (
         <Alert variant={saveMessage.type === 'success' ? 'default' : 'destructive'}>

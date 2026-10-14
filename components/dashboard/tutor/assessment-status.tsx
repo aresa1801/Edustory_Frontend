@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { TonePill } from '@/components/dashboard/ui'
 
 interface CurationStep {
   key: string
@@ -153,7 +154,7 @@ export default function TutorAssessmentStatus() {
   return (
     <div className="space-y-6">
       {/* Overall Progress Card */}
-      <Card className="rounded-2xl border-2 border-primary/20 p-5 shadow-soft sm:p-6">
+      <Card className="surface rounded-2xl border-border/70 p-5 shadow-soft sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-muted-foreground mb-1">Skor Keseluruhan</p>
@@ -177,12 +178,12 @@ export default function TutorAssessmentStatus() {
         {steps.map(step => (
           <Card
             key={step.key}
-            className={`rounded-2xl p-5 shadow-soft transition hover:shadow-lifted ${
+            className={`surface rounded-2xl p-5 shadow-soft hover-card ${
               step.completed
                 ? 'border-secondary/20 bg-secondary/10'
                 : step.href
-                ? 'border-primary/20 hover:border-primary/50'
-                : 'border-border opacity-60'
+                ? 'border-primary/20 hover:border-primary/40'
+                : 'border-border/70 opacity-70'
             }`}
           >
             <div className="flex items-center justify-between">
@@ -196,7 +197,7 @@ export default function TutorAssessmentStatus() {
               <div className="flex items-center gap-3">
                 {step.completed ? (
                   <div className="text-right">
-                    <Badge className="mb-1 bg-secondary text-secondary-foreground hover:bg-secondary/90">✓ Selesai</Badge>
+                    <TonePill tone="secondary" className="mb-1">✓ Selesai</TonePill>
                     {step.score !== undefined && (
                       <p className="text-xl font-bold text-secondary">{step.score}</p>
                     )}
@@ -209,9 +210,7 @@ export default function TutorAssessmentStatus() {
                     Mulai
                   </Button>
                 ) : (
-                  <Badge variant="outline" className="text-muted-foreground">
-                    🔒 Terkunci
-                  </Badge>
+                  <TonePill tone="muted">🔒 Terkunci</TonePill>
                 )}
               </div>
             </div>

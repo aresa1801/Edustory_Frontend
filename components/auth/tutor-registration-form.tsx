@@ -309,7 +309,7 @@ export default function TutorRegistrationForm() {
               value={formData.qualifications}
               onChange={handleInputChange}
               placeholder="Sebutkan sertifikat atau kualifikasi Anda"
-              className="mt-1 w-full px-3 py-2 border border-input rounded-lg text-sm"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:border-primary/50 focus-visible:outline-none"
               rows={3}
             />
           </div>
@@ -322,7 +322,7 @@ export default function TutorRegistrationForm() {
               value={formData.educationBackground}
               onChange={handleInputChange}
               placeholder="Jelaskan pendidikan dan gelar Anda"
-              className="mt-1 w-full px-3 py-2 border border-input rounded-lg text-sm"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:border-primary/50 focus-visible:outline-none"
               rows={3}
             />
           </div>
@@ -335,7 +335,7 @@ export default function TutorRegistrationForm() {
               value={formData.whyTeach}
               onChange={handleInputChange}
               placeholder="Ceritakan motivasi Anda mengajar"
-              className="mt-1 w-full px-3 py-2 border border-input rounded-lg text-sm"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:border-primary/50 focus-visible:outline-none"
               rows={3}
             />
           </div>
@@ -348,7 +348,7 @@ export default function TutorRegistrationForm() {
               value={formData.tutorReferences}
               onChange={handleInputChange}
               placeholder="Sebutkan referensi atau pengalaman mengajar sebelumnya"
-              className="mt-1 w-full px-3 py-2 border border-input rounded-lg text-sm"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:border-primary/50 focus-visible:outline-none"
               rows={3}
             />
           </div>
@@ -379,7 +379,7 @@ export default function TutorRegistrationForm() {
         )}
         <Button
           type="submit"
-          className="flex-1 bg-primary hover:bg-primary/90"
+          className="flex-1 rounded-xl"
           disabled={loading}
         >
           {loading ? (

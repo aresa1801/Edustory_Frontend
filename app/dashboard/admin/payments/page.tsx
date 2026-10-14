@@ -203,7 +203,7 @@ export default function AdminPaymentsPage() {
 
       {/* Revenue by method */}
       {Object.keys(stats.revenueByMethod).length > 0 && (
-        <Card className="rounded-2xl border-border shadow-soft">
+        <Card className="surface">
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-foreground">Pendapatan per Metode</CardTitle>
           </CardHeader>
@@ -232,7 +232,7 @@ export default function AdminPaymentsPage() {
       )}
 
       {/* Filters */}
-      <Card className="rounded-2xl border-border shadow-soft">
+      <Card className="surface">
         <CardContent className="pt-4 pb-3">
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export default function AdminPaymentsPage() {
       )}
 
       {/* Payment list */}
-      <Card className="rounded-2xl border-border shadow-soft">
+      <Card className="surface">
         <CardHeader className="pb-3">
           <CardTitle className="text-base text-foreground">
             Daftar Pembayaran ({filtered.length})

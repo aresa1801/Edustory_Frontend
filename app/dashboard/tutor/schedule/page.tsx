@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent } from '@/components/ui/card'
-import { PageHeader, StatCard, EmptyState } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
@@ -269,7 +269,7 @@ export default function TutorSchedulePage() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto p-4">
-        <Card>
+        <Card className="surface rounded-2xl shadow-soft">
           <CardContent className="py-12 text-center">
             <p className="text-destructive font-medium">❌ {error}</p>
             <Button variant="outline" onClick={handleRefresh} className="mt-4">
@@ -347,7 +347,7 @@ export default function TutorSchedulePage() {
               return (
                 <Card
                   key={schedule.id}
-                  className="rounded-2xl border shadow-soft transition hover:shadow-lifted"
+                  className="surface rounded-2xl border-border/70 shadow-soft hover-card"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -450,7 +450,7 @@ export default function TutorSchedulePage() {
               return (
                 <Card
                   key={schedule.id}
-                  className="rounded-2xl border border-border bg-muted/50 shadow-soft transition hover:shadow-lifted"
+                  className="surface rounded-2xl border-border/70 bg-muted/50 shadow-soft hover-card"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -576,9 +576,7 @@ export default function TutorSchedulePage() {
                 <div>
                   <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {selectedStudent.grade}
-                    </Badge>
+                    <TonePill tone="muted" className="text-xs">{selectedStudent.grade}</TonePill>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
@@ -596,7 +594,7 @@ export default function TutorSchedulePage() {
               {/* GRID 3 KOLOM */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* KOLOM 1: DATA SISWA */}
-                <Card className="rounded-2xl border shadow-soft">
+                <Card className="surface rounded-2xl border-border/70 shadow-soft">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <User className="w-4 h-4 text-primary" />
@@ -628,7 +626,7 @@ export default function TutorSchedulePage() {
                 </Card>
 
                 {/* KOLOM 2: DATA SEKOLAH */}
-                <Card className="rounded-2xl border shadow-soft">
+                <Card className="surface rounded-2xl border-border/70 shadow-soft">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <School className="w-4 h-4 text-primary" />
@@ -662,7 +660,7 @@ export default function TutorSchedulePage() {
                 </Card>
 
                 {/* KOLOM 3: DATA ORANG TUA */}
-                <Card className="rounded-2xl border shadow-soft">
+                <Card className="surface rounded-2xl border-border/70 shadow-soft">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <UsersRound className="w-4 h-4 text-secondary" />
@@ -693,7 +691,7 @@ export default function TutorSchedulePage() {
               </div>
 
               {/* TUJUAN BELAJAR (placeholder sementara) */}
-              <Card className="rounded-2xl border bg-primary/5 shadow-soft">
+              <Card className="surface rounded-2xl border-border/70 bg-primary/5 shadow-soft">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Target className="w-4 h-4 text-primary" />
@@ -707,7 +705,7 @@ export default function TutorSchedulePage() {
 
               {/* JADWAL: TERKINI & KUSTOM */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="rounded-2xl border shadow-soft">
+                <Card className="surface rounded-2xl border-border/70 shadow-soft">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <Calendar className="w-4 h-4 text-accent" />
@@ -719,7 +717,7 @@ export default function TutorSchedulePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-2xl border shadow-soft">
+                <Card className="surface rounded-2xl border-border/70 shadow-soft">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <RotateCw className="w-4 h-4 text-secondary" />
@@ -739,7 +737,7 @@ export default function TutorSchedulePage() {
               </div>
 
               {/* KONTRAK */}
-              <Card className="rounded-2xl border bg-muted/30 shadow-soft">
+              <Card className="surface rounded-2xl border-border/70 bg-muted/30 shadow-soft">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 pb-2 border-b mb-3">
                     <GraduationCap className="w-4 h-4 text-primary" />
@@ -808,14 +806,14 @@ export default function TutorSchedulePage() {
                 <p className="text-sm font-medium mb-2">
                   Jadwal yang Diajukan ({extActionSchedule.extensionRequest.proposed_slots?.length || 0} sesi)
                 </p>
-                <div className="max-h-60 overflow-y-auto border rounded-md">
+                <div className="max-h-60 overflow-y-auto border border-border/70 rounded-2xl">
                   <ul className="divide-y">
                     {(extActionSchedule.extensionRequest.proposed_slots || [])
                       .slice()
                       .sort((a: any, b: any) => a.date.localeCompare(b.date))
                       .map((slot: any, idx: number) => (
                         <li key={idx} className="p-2 text-xs flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] shrink-0">{slot.subject}</Badge>
+                          <TonePill tone="muted" className="text-[10px] shrink-0">{slot.subject}</TonePill>
                           <span className="text-muted-foreground">
                             {new Date(`${slot.date}T00:00:00Z`).toLocaleDateString('id-ID', {
                               weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
@@ -827,7 +825,7 @@ export default function TutorSchedulePage() {
                 </div>
               </div>
 
-              <div className="p-3 rounded-md bg-warning/5 border border-warning/20">
+              <div className="p-3 rounded-2xl bg-warning/5 ring-1 ring-inset ring-warning/20">
                 <p className="text-xs text-muted-foreground">
                   Kalau disetujui: kontrak diperpanjang <strong>75 hari</strong>, semua sesi lama diganti dengan jadwal baru, dan status kontrak kembali <strong>aktif</strong>.
                 </p>

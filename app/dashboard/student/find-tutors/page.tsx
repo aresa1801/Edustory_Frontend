@@ -7,7 +7,7 @@ import StudentBrowseTutors from '@/components/dashboard/student/browse-tutors'
 
 export default function FindTutorsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       <PageHeader
         eyebrow="Pengajar"
         title="Cari Pengajar"

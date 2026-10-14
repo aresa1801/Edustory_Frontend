@@ -3,12 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
-import { PageHeader, StatCard } from '@/components/dashboard/ui'
+import { PageHeader, StatCard, EmptyState, TonePill } from '@/components/dashboard/ui'
 import {
   Calendar,
   Clock,
@@ -368,7 +366,7 @@ export default function StudentSchedulePage() {
 
   // ========== RENDER ==========
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6 animate-fade-in">
       {/* Header */}
       <PageHeader
         eyebrow="Jadwal"
@@ -418,13 +416,16 @@ export default function StudentSchedulePage() {
           Aktif ({filteredActive.length})
         </h2>
         {filteredActive.length === 0 ? (
-          <Card className="rounded-2xl shadow-soft">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              {mode === 'all'
-                ? 'Belum ada tutor aktif.'
-                : `Tidak ada tutor aktif dengan status ${getModeLabel().toLowerCase()}.`}
-            </CardContent>
-          </Card>
+          <div className="surface">
+            <EmptyState
+              icon={Circle}
+              title={
+                mode === 'all'
+                  ? 'Belum ada tutor aktif.'
+                  : `Tidak ada tutor aktif dengan status ${getModeLabel().toLowerCase()}.`
+              }
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             {filteredActive.map((schedule) => {
@@ -433,11 +434,11 @@ export default function StudentSchedulePage() {
               const daysLeft = getDaysLeft(schedule.contractEndDate)
 
               return (
-                <Card
+                <div
                   key={schedule.id}
-                  className="rounded-2xl border shadow-soft hover:shadow-lifted transition"
+                  className="surface hover-card"
                 >
-                  <CardContent className="p-4">
+                  <div className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
@@ -515,8 +516,8 @@ export default function StudentSchedulePage() {
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -530,24 +531,27 @@ export default function StudentSchedulePage() {
           Kontrak Selesai ({filteredCompleted.length})
         </h2>
         {filteredCompleted.length === 0 ? (
-          <Card className="rounded-2xl shadow-soft">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              {mode === 'all'
-                ? 'Belum ada kontrak yang selesai.'
-                : `Tidak ada kontrak selesai dengan status ${getModeLabel().toLowerCase()}.`}
-            </CardContent>
-          </Card>
+          <div className="surface">
+            <EmptyState
+              icon={CheckCircle}
+              title={
+                mode === 'all'
+                  ? 'Belum ada kontrak yang selesai.'
+                  : `Tidak ada kontrak selesai dengan status ${getModeLabel().toLowerCase()}.`
+              }
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             {filteredCompleted.map((schedule) => {
               const tutor = schedule.tutor
               if (!tutor) return null
               return (
-                <Card
+                <div
                   key={schedule.id}
-                  className="rounded-2xl border shadow-soft hover:shadow-lifted transition border-border bg-muted/40"
+                  className="surface hover-card border-border/60 bg-muted/40"
                 >
-                  <CardContent className="p-4">
+                  <div className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
@@ -655,8 +659,8 @@ export default function StudentSchedulePage() {
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -693,12 +697,7 @@ export default function StudentSchedulePage() {
                     {selectedSchedule.tutor.fullName}
                   </h3>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-success/10 text-success border-success/20"
-                    >
-                      Tutor
-                    </Badge>
+                    <TonePill tone="secondary">Tutor</TonePill>
                     <div className="flex items-center gap-1 text-xs">
                       <Circle
                         className={`h-2.5 w-2.5 fill-current ${
@@ -718,8 +717,8 @@ export default function StudentSchedulePage() {
               {/* ===== GRID 3 KOLOM ===== */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* KOLOM 1: INFORMASI PRIBADI */}
-                <Card className="rounded-2xl border shadow-soft">
-                  <CardContent className="p-4 space-y-3">
+                <div className="surface">
+                  <div className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <User className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">Informasi Pribadi</h4>
@@ -762,12 +761,12 @@ export default function StudentSchedulePage() {
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* KOLOM 2: INFORMASI PROFESIONAL */}
-                <Card className="rounded-2xl border shadow-soft">
-                  <CardContent className="p-4 space-y-3">
+                <div className="surface">
+                  <div className="p-4 space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <Briefcase className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">
@@ -806,20 +805,17 @@ export default function StudentSchedulePage() {
                         <p className="text-xs text-muted-foreground">
                           Status Verifikasi
                         </p>
-                        <Badge
-                          variant="outline"
-                          className="mt-1 text-xs bg-success/10 text-success border-success/20"
-                        >
+                        <TonePill tone="secondary" className="mt-1">
                           ✓ Terverifikasi
-                        </Badge>
+                        </TonePill>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* KOLOM 3: RATING & ULASAN (FIXED HEIGHT) */}
-                <Card className="rounded-2xl border shadow-soft flex flex-col h-[420px]">
-                  <CardContent className="p-4 flex flex-col h-full min-h-0">
+                <div className="surface flex flex-col h-[420px]">
+                  <div className="p-4 flex flex-col h-full min-h-0">
                     <div className="flex items-center gap-2 pb-2 border-b shrink-0">
                       <Star className="w-4 h-4 text-accent" />
                       <h4 className="font-semibold text-sm">Rating & Ulasan</h4>
@@ -856,12 +852,9 @@ export default function StudentSchedulePage() {
                           Ulasan Terbaru
                         </p>
                         {tutorReviews.length > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-muted/50 border-border"
-                          >
+                          <TonePill tone="muted" className="text-[10px]">
                             {tutorReviews.length} ulasan
-                          </Badge>
+                          </TonePill>
                         )}
                       </div>
 
@@ -919,20 +912,20 @@ export default function StudentSchedulePage() {
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
 
               {/* ===== BERIKAN RATING ===== */}
               {(() => {
                 if (checkingReview) {
                   return (
-                    <Card className="rounded-2xl border shadow-soft">
-                      <CardContent className="p-4 flex items-center justify-center">
+                    <div className="surface">
+                      <div className="p-4 flex items-center justify-center">
                         <Spinner className="w-4 h-4 mr-2" />
                         <span className="text-sm text-muted-foreground">Memeriksa status ulasan...</span>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   )
                 }
                 const isCompleted =
@@ -953,31 +946,28 @@ export default function StudentSchedulePage() {
 
                 if (!isCompleted) {
                   return (
-                    <Card className="rounded-2xl border shadow-soft bg-muted/50 border-border">
-                      <CardContent className="p-4 space-y-2">
+                    <div className="surface bg-muted/50 border-border">
+                      <div className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
                           <Lock className="w-4 h-4 text-muted-foreground" />
                           <h4 className="font-semibold text-sm text-muted-foreground">
                             Berikan Rating
                           </h4>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-muted text-muted-foreground border-border"
-                          >
+                          <TonePill tone="muted" className="text-[10px]">
                             🔒 Terkunci
-                          </Badge>
+                          </TonePill>
                         </div>
                         <p className="text-sm text-muted-foreground italic">
                           Rating akan terbuka setelah kontrak belajar selesai.
                         </p>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   )
                 }
 
                 return (
-                  <Card className="rounded-2xl border shadow-soft bg-warning/5 border-warning/20">
-                    <CardContent className="p-4 space-y-3">
+                  <div className="surface bg-warning/5 border-warning/20">
+                    <div className="p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <Star className="w-4 h-4 text-accent" />
                         <h4 className="font-semibold text-sm">Berikan Rating</h4>
@@ -1044,15 +1034,15 @@ export default function StudentSchedulePage() {
                           </div>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )
               })()}
 
               {/* ===== JADWAL TERKINI & KUSTOM ===== */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="rounded-2xl border shadow-soft">
-                  <CardContent className="p-4 space-y-2">
+                <div className="surface">
+                  <div className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <Calendar className="w-4 h-4 text-accent" />
                       <h4 className="font-semibold text-sm">Jadwal Terkini</h4>
@@ -1080,11 +1070,11 @@ export default function StudentSchedulePage() {
                         </p>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                <Card className="rounded-2xl border shadow-soft">
-                  <CardContent className="p-4 space-y-2">
+                <div className="surface">
+                  <div className="p-4 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <RotateCw className="w-4 h-4 text-primary" />
                       <h4 className="font-semibold text-sm">Jadwal Kustom</h4>
@@ -1114,13 +1104,13 @@ export default function StudentSchedulePage() {
                         </p>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
 
               {/* ===== INFORMASI KONTRAK ===== */}
-              <Card className="rounded-2xl border shadow-soft bg-muted/30">
-                <CardContent className="p-4">
+              <div className="surface bg-muted/30">
+                <div className="p-4">
                   <div className="flex items-center gap-2 pb-2 border-b mb-3">
                     <GraduationCap className="w-4 h-4 text-primary" />
                     <h4 className="font-semibold text-sm">Informasi Kontrak</h4>
@@ -1143,8 +1133,8 @@ export default function StudentSchedulePage() {
                       </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
           )}
 

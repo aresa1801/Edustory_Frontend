@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
+import { PageHeader, StatCard, TonePill } from '@/components/dashboard/ui'
 
 interface CurationStep {
   name: string
@@ -111,19 +112,17 @@ export default function CurationProgressPage() {
   const overallProgress = (completedCount / steps.length) * 100
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+    <div className="min-h-screen py-8 px-4 sm:py-10">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
-            Status Kurasi Tutor
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Lacak kemajuan aplikasi Anda melalui setiap tahap verifikasi
-          </p>
-        </div>
+        <PageHeader
+          className="mb-8"
+          eyebrow="Area Pengajar"
+          title="Status Kurasi Tutor"
+          description="Lacak kemajuan aplikasi Anda melalui setiap tahap verifikasi"
+        />
 
         {/* Overall Progress Card */}
-        <Card className="p-8 mb-8 border-2 border-primary/20">
+        <Card className="surface rounded-2xl border-border/70 p-8 mb-8 shadow-soft">
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-muted-foreground mb-2">Skor Keseluruhan</p>
@@ -150,12 +149,12 @@ export default function CurationProgressPage() {
           {steps.map((step, index) => (
             <Card
               key={index}
-              className={`p-6 transition-all ${
+              className={`surface rounded-2xl p-6 shadow-soft ${
                 step.completed
                   ? 'border-success/30 bg-success/10'
                   : step.href
-                  ? 'border-primary/20 hover:border-primary/50'
-                  : 'border-border opacity-50'
+                  ? 'border-primary/20 hover-card'
+                  : 'border-border/70 opacity-70'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -174,9 +173,9 @@ export default function CurationProgressPage() {
                 <div className="flex items-center gap-4">
                   {step.completed ? (
                     <div className="text-right">
-                      <Badge className="bg-success/10 text-success border-success/20 mb-2">
+                      <TonePill tone="secondary" className="mb-2">
                         Selesai
-                      </Badge>
+                      </TonePill>
                       <p className="text-2xl font-bold text-success">
                         {step.score}
                       </p>
@@ -189,9 +188,9 @@ export default function CurationProgressPage() {
                       Mulai
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="text-muted-foreground">
+                    <TonePill tone="muted">
                       Terkunci
-                    </Badge>
+                    </TonePill>
                   )}
                 </div>
               </div>
@@ -200,7 +199,7 @@ export default function CurationProgressPage() {
         </div>
 
         {/* Summary */}
-        <Card className="p-8 mt-8 border-primary/30 bg-primary/10">
+        <Card className="surface rounded-2xl p-8 mt-8 border-primary/30 bg-primary/10 shadow-soft">
           <h3 className="font-semibold text-primary mb-3">Informasi Penting:</h3>
           <ul className="text-sm text-muted-foreground space-y-2">
             <li>
