@@ -41,6 +41,23 @@ function determineCompletionType(schedule: any): 'natural' | 'unilateral' | 'mut
 }
 
 // ============================================================
+// HELPER — Cancel extension_hold by reference (idempotent)
+// ============================================================
+async function cancelExtensionHold(
+  supabaseAdmin: any,
+  reference: string | undefined | null,
+  description: string
+) {
+  if (!reference) return
+  await supabaseAdmin
+    .from('wallet_transactions')
+    .update({ status: 'cancelled', description })
+    .eq('reference', reference)
+    .eq('type', 'extension_hold')
+    .eq('status', 'pending')
+}
+
+// ============================================================
 // POST — Student ajukan perpanjangan
 // ============================================================
 export async function POST(
@@ -130,14 +147,13 @@ export async function POST(
       )
     }
 
-        // ===== Cek tipe berakhirnya kontrak =====
+    // ===== Cek tipe berakhirnya kontrak =====
     const { data: matchCheck } = await supabaseAdmin
       .from('matches')
       .select('termination_request')
       .eq('id', matchId)
       .single()
 
-    // Ambil termination dari match_schedules (yang utama)
     const tr = schedule.termination_request || matchCheck?.termination_request
 
     if (tr?.type === 'unilateral') {
@@ -179,6 +195,76 @@ export async function POST(
       }
     }
 
+    // ============================================================
+    // 🔥 HITUNG BIAYA & CEK WALLET (BARU)
+    // rate = budget / sessions (versi siswa, BUKAN rate tutor)
+    // ============================================================
+    const ratePerSession = budget / sessions
+    const totalCost = proposed_slots.length * ratePerSession
+    const requestId = crypto.randomUUID()
+
+    const { data: walletRow } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('student_id', student.id)
+      .maybeSingle()
+
+    const balance = Number(walletRow?.balance) || 0
+
+    const { data: activeHolds } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('student_id', student.id)
+      .in('type', ['session_hold', 'extension_hold'])
+      .in('status', ['pending', 'active', 'moved'])
+
+    const frozen = (activeHolds || []).reduce(
+      (sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0
+    )
+    const available = balance - frozen
+
+    console.log(
+      '[extend POST] balance:', balance,
+      'frozen:', frozen,
+      'available:', available,
+      'need:', totalCost
+    )
+
+    if (available < totalCost) {
+      return NextResponse.json(
+        {
+          error: 'INSUFFICIENT_BALANCE',
+          message: 'Saldo tersedia tidak cukup untuk mengajukan perpanjangan',
+          needed: totalCost,
+          current: available,
+          shortfall: totalCost - available,
+          rate_per_session: ratePerSession,
+        },
+        { status: 402 }
+      )
+    }
+
+    // ===== INSERT extension_hold (freeze sementara 3 hari) =====
+    const { error: holdErr } = await supabaseAdmin
+      .from('wallet_transactions')
+      .insert({
+        student_id: student.id,
+        tutor_id: schedule.tutor_id,
+        match_id: matchId,
+        amount: -totalCost,
+        type: 'extension_hold',
+        status: 'pending',
+        reference: requestId,
+        description: 'Penahanan Dana Perpanjangan Kontrak',
+        balance_after: balance,
+      })
+
+    if (holdErr) {
+      console.error('[extend POST] insert extension_hold:', holdErr)
+      return NextResponse.json({ error: 'Gagal menahan dana' }, { status: 500 })
+    }
+
+    // ===== Build request payload =====
     const sortedDates = proposed_slots.map((s: any) => s.date).sort()
     const startDate = sortedDates[0]
     const proposedSummary = groupSlotsToSummary(proposed_slots)
@@ -187,7 +273,7 @@ export async function POST(
     const deadline = new Date(now.getTime() + EXTENSION_WINDOW_HOURS * 60 * 60 * 1000)
 
     const requestPayload = {
-      request_id: crypto.randomUUID(),
+      request_id: requestId,
       requested_by: 'student',
       requested_at: now.toISOString(),
       deadline: deadline.toISOString(),
@@ -197,6 +283,8 @@ export async function POST(
       duration_days: EXTENSION_DURATION_DAYS,
       new_budget_per_month: budget,
       new_sessions_per_month: sessions,
+      rate_per_session: ratePerSession,
+      total_cost: totalCost,
       start_date: startDate,
       proposed_slots: proposed_slots.map((s: any) => ({
         date: s.date,
@@ -213,6 +301,12 @@ export async function POST(
 
     if (updErr) {
       console.error('[extend POST]', updErr)
+      // Rollback: cancel hold karena penyimpanan gagal
+      await cancelExtensionHold(
+        supabaseAdmin,
+        requestId,
+        'Rollback — gagal menyimpan pengajuan perpanjangan'
+      )
       return NextResponse.json({ error: 'Gagal menyimpan pengajuan' }, { status: 500 })
     }
 
@@ -260,7 +354,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'user_id tidak valid' }, { status: 400 })
     }
 
-    // ===== Acknowledge notif =====
     if (action === 'acknowledge-notification') {
       const { error } = await supabaseAdmin
         .from('match_schedules')
@@ -308,8 +401,9 @@ export async function PATCH(
     }
 
     const now = new Date()
+    const extHoldRef: string | undefined = currentReq.request_id
 
-    // ===== CANCEL =====
+    // ===== CANCEL (student) =====
     if (action === 'cancel') {
       if (role !== 'student') {
         return NextResponse.json({ error: 'Hanya student yang bisa cancel' }, { status: 403 })
@@ -317,6 +411,14 @@ export async function PATCH(
       if (currentReq.status !== 'pending') {
         return NextResponse.json({ error: 'Tidak dalam status pending' }, { status: 400 })
       }
+
+      // Cancel extension_hold → dana bebas lagi
+      await cancelExtensionHold(
+        supabaseAdmin,
+        extHoldRef,
+        'Perpanjangan dibatalkan siswa — dana dilepas'
+      )
+
       const { error } = await supabaseAdmin
         .from('match_schedules')
         .update({ extension_request: null })
@@ -328,7 +430,7 @@ export async function PATCH(
       return NextResponse.json({ success: true, action: 'cancelled' })
     }
 
-    // ===== APPROVE / REJECT =====
+    // ===== APPROVE / REJECT (tutor only) =====
     if (role !== 'tutor') {
       return NextResponse.json({ error: 'Hanya tutor yang bisa approve/reject' }, { status: 403 })
     }
@@ -338,6 +440,12 @@ export async function PATCH(
 
     // ===== REJECT =====
     if (action === 'reject') {
+      await cancelExtensionHold(
+        supabaseAdmin,
+        extHoldRef,
+        'Perpanjangan ditolak tutor — dana dilepas'
+      )
+
       const { error } = await supabaseAdmin
         .from('match_schedules')
         .update({
@@ -355,12 +463,76 @@ export async function PATCH(
       return NextResponse.json({ success: true, action: 'rejected' })
     }
 
+    // ============================================================
     // ===== APPROVE =====
+    // ============================================================
     const slots = currentReq.proposed_slots as Array<{ date: string; timeSlot: string; subject: string }>
     if (!Array.isArray(slots) || slots.length === 0) {
       return NextResponse.json({ error: 'Data slot tidak valid' }, { status: 400 })
     }
 
+    const ratePerSession =
+      Number(currentReq.rate_per_session) ||
+      (Number(currentReq.new_budget_per_month) / Number(currentReq.new_sessions_per_month))
+    const totalCost = Number(currentReq.total_cost) || ratePerSession * slots.length
+
+    // ===== RE-CHECK balance (race condition guard) =====
+    const { data: walletRow } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('student_id', schedule.student_id)
+      .maybeSingle()
+
+    const balance = Number(walletRow?.balance) || 0
+
+    const { data: otherHolds } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('student_id', schedule.student_id)
+      .in('type', ['session_hold', 'extension_hold'])
+      .in('status', ['pending', 'active', 'moved'])
+      .neq('reference', extHoldRef || '__none__')
+
+    const frozenOthers = (otherHolds || []).reduce(
+      (sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0
+    )
+    const availableWithoutThis = balance - frozenOthers
+
+    if (availableWithoutThis < totalCost) {
+      console.warn('[extend approve] insufficient balance on approve')
+
+      // Cancel extension_hold + reset request
+      await cancelExtensionHold(
+        supabaseAdmin,
+        extHoldRef,
+        'Perpanjangan gagal — saldo siswa tidak cukup saat approve'
+      )
+
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({
+          extension_request: null,
+          extension_notification: {
+            type: 'failed_insufficient_balance',
+            at: now.toISOString(),
+            needed: totalCost,
+            current: availableWithoutThis,
+          },
+        })
+        .eq('id', schedule.id)
+
+      return NextResponse.json(
+        {
+          error: 'INSUFFICIENT_BALANCE',
+          message: `Saldo siswa tidak cukup. Dibutuhkan Rp ${totalCost.toLocaleString('id-ID')}, tersedia Rp ${availableWithoutThis.toLocaleString('id-ID')}. Minta siswa top-up lalu ajukan ulang.`,
+          needed: totalCost,
+          current: availableWithoutThis,
+        },
+        { status: 402 }
+      )
+    }
+
+    // ===== Tanggal kontrak baru =====
     const sortedDates = slots.map((s) => s.date).sort()
     const firstSlotDate = new Date(`${sortedDates[0]}T00:00:00Z`)
 
@@ -431,38 +603,76 @@ export async function PATCH(
 
     // ===== 2. Insert sessions baru =====
     const newSessions = slots.map((slot) => {
-    const timeMatch = slot.timeSlot.match(/(\d{1,2})\.(\d{2})/)
-    const hour = timeMatch ? parseInt(timeMatch[1]) : 12
-    const minute = timeMatch ? parseInt(timeMatch[2]) : 0
+      const timeMatch = slot.timeSlot.match(/(\d{1,2})\.(\d{2})/)
+      const hour = timeMatch ? parseInt(timeMatch[1]) : 12
+      const minute = timeMatch ? parseInt(timeMatch[2]) : 0
 
-    const hh = String(hour).padStart(2, '0')
-    const mm = String(minute).padStart(2, '0')
-    const scheduledAt = new Date(`${slot.date}T${hh}:${mm}:00+07:00`)
+      const hh = String(hour).padStart(2, '0')
+      const mm = String(minute).padStart(2, '0')
+      const scheduledAt = new Date(`${slot.date}T${hh}:${mm}:00+07:00`)
 
-    return {
-      match_id: matchId,
-      tutor_id: schedule.tutor_id,
-      student_id: schedule.student_id,
-      scheduled_at: scheduledAt.toISOString(),
-      duration_minutes: 60,
-      status: 'scheduled',
-    }
-  })
+      return {
+        match_id: matchId,
+        tutor_id: schedule.tutor_id,
+        student_id: schedule.student_id,
+        scheduled_at: scheduledAt.toISOString(),
+        duration_minutes: 60,
+        status: 'scheduled',
+      }
+    })
 
-    const { error: insSessionsErr } = await supabaseAdmin
+    const { data: insertedSessions, error: insSessionsErr } = await supabaseAdmin
       .from('sessions')
       .insert(newSessions)
+      .select('id')
 
-    if (insSessionsErr) {
+    if (insSessionsErr || !insertedSessions) {
       console.error('[extend approve] insert sessions:', insSessionsErr)
       return NextResponse.json({ error: 'Gagal membuat sesi baru' }, { status: 500 })
     }
 
-    // ===== 3. Regen schedules_summary_fix =====
+    // ============================================================
+    // 🔥 3. KONVERSI HOLD (BARU)
+    // Cancel extension_hold → insert N session_hold
+    // ============================================================
+
+    // 3a. Cancel extension_hold
+    await cancelExtensionHold(
+      supabaseAdmin,
+      extHoldRef,
+      'Perpanjangan disetujui — dikonversi ke hold per sesi'
+    )
+
+    // 3b. Insert N session_hold (1 per sesi baru)
+    const holdsData = insertedSessions.map((s: { id: string }) => ({
+      student_id: schedule.student_id,
+      tutor_id: schedule.tutor_id,
+      match_id: matchId,
+      amount: -ratePerSession,
+      type: 'session_hold',
+      status: 'pending',
+      reference: s.id,
+      description: `Penahanan Dana Sesi Perpanjangan Kontrak`,
+      balance_after: balance,
+    }))
+
+    const { error: holdErr } = await supabaseAdmin
+      .from('wallet_transactions')
+      .insert(holdsData)
+
+    if (holdErr) {
+      console.error('[extend approve] insert session_hold:', holdErr)
+      return NextResponse.json(
+        { error: 'Gagal membuat hold sesi. Hubungi admin.' },
+        { status: 500 }
+      )
+    }
+
+    // ===== 4. Regen schedules_summary_fix =====
     const newSummaryFix =
       currentReq.proposed_summary || groupSlotsToSummary(slots)
 
-    // ===== 4. Update match_schedules =====
+    // ===== 5. Update match_schedules =====
     const { error: updSchedErr } = await supabaseAdmin
       .from('match_schedules')
       .update({
@@ -489,7 +699,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Gagal update jadwal' }, { status: 500 })
     }
 
-    // ===== 5. Update matches =====
+    // ===== 6. Update matches =====
     const { error: updMatchErr } = await supabaseAdmin
       .from('matches')
       .update({
@@ -514,6 +724,8 @@ export async function PATCH(
       success: true,
       action: 'approved',
       new_contract_end: contractEnd.toISOString(),
+      sessions_created: insertedSessions.length,
+      total_frozen: totalCost,
     })
   } catch (err) {
     console.error('[extend PATCH]', err)

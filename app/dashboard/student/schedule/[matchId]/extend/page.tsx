@@ -188,6 +188,12 @@ function ExtendContractContent() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [insufficientBalance, setInsufficientBalance] = useState<{
+    needed: number
+    current: number
+    shortfall: number
+    tutorName: string
+  } | null>(null)
   const [scheduleData, setScheduleData] = useState<any>(null)
 
   // ===== STEP 1: Rencana Belajar =====
@@ -554,26 +560,40 @@ function ExtendContractContent() {
         return
       }
 
-      const res = await fetch(
-        `/api/match-schedules/${matchId}/extend`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: authUser.id,
-            budget_per_month: Number(budgetPerMonth),
-            sessions_per_month: Number(sessionsPerMonth),
-            proposed_slots: slots,
-          }),
-        }
-      )
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Gagal mengirim pengajuan')
+    const res = await fetch(
+      `/api/match-schedules/${matchId}/extend`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: authUser.id,
+          budget_per_month: Number(budgetPerMonth),
+          sessions_per_month: Number(sessionsPerMonth),
+          proposed_slots: slots,
+        }),
+      }
+    )
 
-      alert(
-        '✅ Pengajuan perpanjangan terkirim. Menunggu respons tutor (maks 3 hari).'
-      )
-      router.push('/dashboard/student/schedule')
+    // Handle saldo kurang
+    if (res.status === 402) {
+      const errData = await res.json()
+      setInsufficientBalance({
+        needed: Number(errData.needed) || 0,
+        current: Number(errData.current) || 0,
+        shortfall: Number(errData.shortfall) || 0,
+        tutorName: counterpartName,
+      })
+      setSubmitting(false)
+      return
+    }
+
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Gagal mengirim pengajuan')
+
+    alert(
+      '✅ Pengajuan perpanjangan terkirim. Menunggu respons tutor (maks 3 hari).'
+    )
+    router.push('/dashboard/student/schedule')
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -1123,6 +1143,62 @@ function ExtendContractContent() {
           </Button>
         )}
       </div>
+      
+      {insufficientBalance && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+          <div className="flex justify-center">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-amber-400" />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-center">Deposit Tidak Cukup</h2>
+          <p className="text-sm text-muted-foreground text-center">
+            Mohon maaf, deposit Anda di wallet tidak cukup. Isi deposit Anda terlebih
+            dahulu sebanyak{' '}
+            <strong>Rp {insufficientBalance.shortfall.toLocaleString('id-ID')}</strong>{' '}
+            untuk mengajukan perpanjangan kontrak dengan tutor{' '}
+            <strong>{insufficientBalance.tutorName}</strong>.
+          </p>
+          <div className="p-3 rounded-lg bg-slate-800/50 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Saldo Anda saat ini</span>
+              <span>Rp {insufficientBalance.current.toLocaleString('id-ID')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total dibutuhkan</span>
+              <span className="text-amber-400">
+                Rp {insufficientBalance.needed.toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Kekurangan</span>
+              <span className="text-red-400">
+                Rp {insufficientBalance.shortfall.toLocaleString('id-ID')}
+              </span>
+            </div>
+          </div>
+          <Button
+            className="w-full bg-cyan-500 hover:bg-cyan-600 text-white"
+            onClick={() => {
+              router.push(
+                `/dashboard/student/payment?amount=${insufficientBalance.shortfall}`
+              )
+            }}
+          >
+            <Wallet className="w-4 h-4 mr-2" />
+            Isi Deposit Wallet
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setInsufficientBalance(null)}
+          >
+            Kembali
+          </Button>
+        </div>
+      </div>
+    )}
     </div>
   )
 }

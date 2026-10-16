@@ -199,6 +199,20 @@ export async function GET(
       schedule.extension_request?.status === 'pending' &&
       new Date(schedule.extension_request.deadline) < now
     ) {
+      // Cancel extension_hold → dana bebas
+      const extHoldRef = schedule.extension_request.request_id
+      if (extHoldRef) {
+        await supabaseAdmin
+          .from('wallet_transactions')
+          .update({
+            status: 'cancelled',
+            description: 'Perpanjangan expired — tutor tidak merespons dalam 3 hari',
+          })
+          .eq('reference', extHoldRef)
+          .eq('type', 'extension_hold')
+          .eq('status', 'pending')
+      }
+
       schedule.extension_request = null
       schedule.extension_notification = {
         type: 'expired',
