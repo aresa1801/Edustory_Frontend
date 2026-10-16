@@ -91,7 +91,7 @@ export async function POST(
     const budget = Number(budget_per_month)
     const sessions = Number(sessions_per_month)
 
-    if (!Number.isFinite(budget) || budget < 0) {
+    if (!Number.isFinite(budget) || budget < 50000) {
       return NextResponse.json({ error: 'Budget minimal Rp 50.000' }, { status: 400 })
     }
     if (!Number.isInteger(sessions) || sessions < 2 || sessions > 100) {
