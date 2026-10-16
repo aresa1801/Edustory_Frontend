@@ -7,6 +7,10 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
+// Konstanta
+const MAX_PENDING_OFFERS = 5
+const AMAN_THRESHOLD = 81
+
 // GET (tidak berubah)
 export async function GET(request: NextRequest) {
   try {
@@ -82,7 +86,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST – dengan tambahan tutor_avatar_url + cek suspend + cek limit per tier
+// POST – dengan cek suspend + limit kontrak tutor + limit penawaran student
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
     }
 
-    // 1. Ambil data tutor (+ credit_score, suspended_until)
+    // 1. Ambil data tutor
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
       .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, suspended_until, credit_score')
@@ -116,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // CEK 1: Suspend aktif
+    // CEK 1: Suspend aktif (TUTOR)
     // ============================================================
     if (tutor.suspended_until) {
       const suspendedUntilMs = new Date(tutor.suspended_until).getTime()
@@ -133,12 +137,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // CEK 2: Tier & limit kontrak — ADAPTIF PER TIER (efek bertumpuk)
+    // CEK 2: Tier & limit kontrak TUTOR (efek bertumpuk)
     // ============================================================
     const tutorScore = Number(tutor.credit_score ?? 99)
     const tier = getCreditTier(tutorScore)
 
-    // 2a. Tier block total (Bahaya/Blacklist — canAcceptNewStudent = false)
     if (!tier.features.canAcceptNewStudent) {
       return NextResponse.json(
         {
@@ -152,7 +155,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2b. Limit jumlah kontrak aktif (kalau tier kasih limit)
     if (tier.features.maxActiveStudents !== null) {
       const { count: activeContractsCount } = await supabase
         .from('match_schedules')
@@ -177,16 +179,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Ambil data student
+    // 3. Ambil data student (+ credit_score untuk cek tier student)
     const { data: student, error: studentError } = await supabase
       .from('students')
-      .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online')
+      .select('name, grade_level, subjects, budget_per_month, sessions_per_month, preferred_schedule, address, avatar_url, phone, latitude, longitude, is_online, credit_score')
       .eq('id', student_id)
       .single()
 
     if (studentError || !student) {
       console.error('[API] Student error:', studentError)
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    }
+
+    // ============================================================
+    // ⬇️ CEK 3 (BARU): Limit 5 penawaran untuk STUDENT (tier 26-80)
+    // Tier Aman (81-100) = unlimited
+    // ============================================================
+    const studentScore = Number(student.credit_score ?? 99)
+
+    if (studentScore < AMAN_THRESHOLD) {
+      const { count: pendingCount } = await supabase
+        .from('matches')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', student_id)
+        .eq('status', 'pending')
+
+      if ((pendingCount || 0) >= MAX_PENDING_OFFERS) {
+        return NextResponse.json(
+          {
+            error: 'STUDENT_OFFER_LIMIT',
+            message: `Siswa ini sudah menerima maksimal ${MAX_PENDING_OFFERS} penawaran. Tidak bisa mengirim penawaran baru.`,
+            maxOffers: MAX_PENDING_OFFERS,
+            currentOffers: pendingCount || 0,
+          },
+          { status: 403 }
+        )
+      }
     }
 
     // 4. Insert match
@@ -201,7 +229,6 @@ export async function POST(request: NextRequest) {
         lesson_frequency: lesson_frequency || 'flexible',
         start_date: start_date || new Date().toISOString().split('T')[0],
 
-        // Statis student
         student_full_name: student.name,
         student_grade: student.grade_level,
         student_budget_per_month: student.budget_per_month,
@@ -214,7 +241,6 @@ export async function POST(request: NextRequest) {
         student_longitude: student.longitude,
         student_is_online: student.is_online ?? true,
 
-        // Statis tutor
         tutor_full_name: tutor.full_name,
         tutor_bio: tutor.bio,
         tutor_experience_years: tutor.experience_years,
