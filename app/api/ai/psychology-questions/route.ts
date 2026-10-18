@@ -111,3 +111,5 @@ Soal harus relevan untuk konteks tutor privat Indonesia (SD, SMP, SMA).`
     return NextResponse.json({ questions: [], fallback: true })
   }
 }
+
+export const dynamic = 'force-dynamic'

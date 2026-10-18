@@ -50,3 +50,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ balance: 0, frozen: 0, available: 0 })
   }
 }
+
+export const dynamic = 'force-dynamic'

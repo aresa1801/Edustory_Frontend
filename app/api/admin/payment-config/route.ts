@@ -105,3 +105,5 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+export const dynamic = 'force-dynamic'

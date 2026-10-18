@@ -118,3 +118,5 @@ Berikan:
     return NextResponse.json({ error: 'Failed to score interview' }, { status: 500 })
   }
 }
+
+export const dynamic = 'force-dynamic'

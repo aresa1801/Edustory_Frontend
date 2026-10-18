@@ -357,3 +357,5 @@ export async function PATCH(
     )
   }
 }
+
+export const dynamic = 'force-dynamic'

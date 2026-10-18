@@ -66,3 +66,5 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: 'Failed to start interview' }, { status: 500 })
   }
 }
+
+export const dynamic = 'force-dynamic'

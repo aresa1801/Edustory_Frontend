@@ -125,3 +125,5 @@ Pastikan:
     return NextResponse.json({ questions: [], fallback: true })
   }
 }
+
+export const dynamic = 'force-dynamic'

@@ -154,3 +154,5 @@ Fokus pada kekuatan utama, area perbaikan, dan rekomendasi tindak lanjut.`
     return NextResponse.json({ error: 'Failed to compute curation score' }, { status: 500 })
   }
 }
+
+export const dynamic = 'force-dynamic'
