@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getRequestUser } from '@/lib/api-auth';
 
 export async function POST(
   req: NextRequest,
@@ -32,6 +33,19 @@ export async function POST(
 
     if (matchError || !match) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
+    // Only the student or the tutor involved may confirm/reject this match.
+    const sessionUser = await getRequestUser(req);
+    if (!sessionUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const [{ data: studentRow }, { data: tutorRow }] = await Promise.all([
+      supabaseAdmin.from('students').select('user_id').eq('id', match.student_id).maybeSingle(),
+      supabaseAdmin.from('tutors').select('user_id').eq('id', match.tutor_id).maybeSingle(),
+    ]);
+    if (sessionUser.id !== studentRow?.user_id && sessionUser.id !== tutorRow?.user_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // ===== HANDLE ACCEPT =====
