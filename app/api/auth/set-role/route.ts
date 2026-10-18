@@ -1,17 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/api-auth'
 
 export async function POST(request: NextRequest) {
-  console.log('[API] 📥 Received POST request to /api/auth/set-role')
 
   try {
     const { userId, role, email, name } = await request.json()
-    console.log('[API] 📝 Payload:', { userId, role, email, name })
 
     if (!userId) {
       console.error('[API] ❌ Missing userId')
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
+
+    // Only the signed-in user may set their own role.
+    const { user: sessionUser, response: authResponse } = await requireUser(request, userId)
+    if (authResponse) return authResponse
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     if (role !== 'student' && role !== 'tutor') {
       console.error('[API] ❌ Invalid role:', role)
@@ -20,7 +24,6 @@ export async function POST(request: NextRequest) {
 
     // Mapping: student → 'siswa', tutor → 'tutor'
     const dbRole = role === 'student' ? 'siswa' : role
-    console.log('[API] 📝 Mapping role to dbRole:', dbRole)
 
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,13 +31,11 @@ export async function POST(request: NextRequest) {
     )
 
     // Verifikasi user di auth
-    console.log('[API] 🔍 Verifikasi user ID di auth...')
     const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(userId)
     if (authError || !authUser) {
       console.error('[API] ❌ User not found in auth:', authError?.message)
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    console.log('[API] ✅ User verified:', authUser.user?.email)
 
     const userEmail = email || authUser.user?.email
     const userName = name || authUser.user?.user_metadata?.full_name || userEmail
@@ -46,8 +47,21 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
 
+    // Role is permanent once chosen (prevents privilege changes after onboarding).
+    const { data: existingProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (existingProfile?.role && existingProfile.role !== dbRole) {
+      return NextResponse.json(
+        { error: 'Role sudah ditetapkan dan tidak dapat diubah' },
+        { status: 409 }
+      )
+    }
+
     // 1. Upsert ke user_profiles
-    console.log('[API] 💾 Upserting to user_profiles...')
     const { error: upsertError } = await adminSupabase
       .from('user_profiles')
       .upsert({
@@ -63,11 +77,9 @@ export async function POST(request: NextRequest) {
       console.error('[API] ❌ Upsert failed:', upsertError)
       return NextResponse.json({ error: upsertError.message }, { status: 500 })
     }
-    console.log('[API] ✅ user_profiles upsert succeeded')
 
     // 2. Jika role = tutor, pastikan ada baris di tabel tutors
     if (role === 'tutor') {
-      console.log('[API] 👨‍🏫 Checking tutors table for user_id:', userId)
 
       // Cek apakah sudah ada
       const { data: existingTutor, error: checkError } = await adminSupabase
@@ -82,7 +94,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (!existingTutor) {
-        console.log('[API] 📝 Creating new tutor record...')
         const { error: insertError } = await adminSupabase
           .from('tutors')
           .insert({
@@ -106,13 +117,10 @@ export async function POST(request: NextRequest) {
           console.error('[API] ❌ Insert tutor failed:', insertError)
           return NextResponse.json({ error: insertError.message }, { status: 500 })
         }
-        console.log('[API] ✅ Tutor record created')
       } else {
-        console.log('[API] ℹ️ Tutor record already exists, skipping insert')
       }
     }
 
-    console.log('[API] 🎉 Role saved successfully')
     return NextResponse.json({ success: true, role: dbRole })
   } catch (error) {
     console.error('[API] ❌ Unexpected error:', error)

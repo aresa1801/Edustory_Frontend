@@ -5,7 +5,6 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  console.log('🚀 [SCHEDULES] POST', { matchId: params.matchId });
 
   try {
     const { matchId } = params;
@@ -75,8 +74,6 @@ export async function POST(
     );
 
     const available = balance - frozen;
-
-    console.log('[FREEZE] balance:', balance, 'frozen:', frozen, 'available:', available, 'need:', totalFreeze);
 
     if (available < totalFreeze) {
       return NextResponse.json({

@@ -124,7 +124,6 @@ export default function ProfilePage() {
     fetchDone.current = true
 
     try {
-      console.log('[Profile] 🔄 Fetching profile for user:', currentUserId)
 
       setUserId(currentUserId)
 
@@ -235,7 +234,6 @@ export default function ProfilePage() {
   const isEditLocked = !!nextEditAt && new Date(nextEditAt).getTime() > nowTick
 
   const handleSave = async () => {
-    console.log('[Profile] 🔥 handleSave START')
     setSaving(true)
     setError(null)
     setSuccess(null)
@@ -278,13 +276,10 @@ export default function ProfilePage() {
         const pos = await getCurrentLocation()
         lat = pos.lat
         lng = pos.lng
-        console.log('[Profile] 📍 Lokasi GPS didapat:', lat, lng)
       } catch (locErr) {
         console.warn('[Profile] ⚠️ Gagal mendapat lokasi GPS:', locErr)
         // Lanjut tanpa koordinat
       }
-
-      console.log('[Profile] 1. Mengirim ke API /api/tutors/profile... userId:', currentUserId)
 
       const response = await fetch('/api/tutors/profile', {
         method: 'POST',
@@ -304,9 +299,7 @@ export default function ProfilePage() {
         }),
       })
 
-      console.log('[Profile] 2. Response status:', response.status)
       const result = await response.json()
-      console.log('[Profile] 3. Response body:', result)
 
       if (!response.ok) {
         // Handle 403 dari backend
@@ -347,7 +340,6 @@ export default function ProfilePage() {
     } finally {
       clearTimeout(forceStopTimeout)
       setSaving(false)
-      console.log('[Profile] 🏁 Selesai')
     }
   }
 

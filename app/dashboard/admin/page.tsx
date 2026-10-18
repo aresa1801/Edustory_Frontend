@@ -19,6 +19,9 @@ import {
   XCircle,
   TrendingUp,
   CreditCard,
+  Activity,
+  CalendarDays,
+  UserPlus,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -33,6 +36,11 @@ interface Stats {
   activeMatches: number
   completedMatches: number
   totalPrograms: number
+  onlineStudents: number
+  onlineTutors: number
+  revenueToday: number
+  newUsersToday: number
+  sessionsToday: number
 }
 
 interface RecentTutor {
@@ -51,60 +59,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const supabase = createClient()
+        const res = await fetch('/api/admin/stats', { cache: 'no-store' })
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}))
+          throw new Error(payload.error || `HTTP ${res.status}`)
+        }
+        const payload = await res.json()
+        setStats(payload.stats)
+        setRecentTutors(payload.recentTutors || [])
 
-        const [
-          { count: totalUsers },
-          { count: totalStudents },
-          { count: totalTutors },
-          { count: pendingTutors },
-          { count: approvedTutors },
-          { count: rejectedTutors },
-          { count: totalMatches },
-          { count: activeMatches },
-          { count: completedMatches },
-          { count: totalPrograms },
-          { data: recentTutorData },
-        ] = await Promise.all([
-          supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-          supabase.from('students').select('*', { count: 'exact', head: true }),
-          supabase.from('tutors').select('*', { count: 'exact', head: true }),
-          supabase.from('tutors').select('*', { count: 'exact', head: true }).eq('approval_status', 'pending'),
-          supabase.from('tutors').select('*', { count: 'exact', head: true }).eq('approval_status', 'approved'),
-          supabase.from('tutors').select('*', { count: 'exact', head: true }).eq('approval_status', 'rejected'),
-          supabase.from('matches').select('*', { count: 'exact', head: true }),
-          supabase.from('matches').select('*', { count: 'exact', head: true }).in('status', ['matched', 'active']),
-          supabase.from('matches').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-          supabase.from('programs').select('*', { count: 'exact', head: true }),
-          supabase
-            .from('tutors')
-            .select('id, approval_status, created_at, user_profiles:user_id(name, email)')
-            .order('created_at', { ascending: false })
-            .limit(5),
-        ])
-
-        setStats({
-          totalUsers: totalUsers || 0,
-          totalStudents: totalStudents || 0,
-          totalTutors: totalTutors || 0,
-          pendingTutors: pendingTutors || 0,
-          approvedTutors: approvedTutors || 0,
-          rejectedTutors: rejectedTutors || 0,
-          totalMatches: totalMatches || 0,
-          activeMatches: activeMatches || 0,
-          completedMatches: completedMatches || 0,
-          totalPrograms: totalPrograms || 0,
-        })
-
-        const mapped = (recentTutorData || []).map((t: any) => ({
-          id: t.id,
-          name: t.user_profiles?.name || 'Unknown',
-          email: t.user_profiles?.email || '',
-          // approval_status is set by the curation flow; fall back to status for legacy rows
-          status: t.approval_status || t.status || 'pending',
-          created_at: t.created_at,
-        }))
-        setRecentTutors(mapped)
       } catch (error) {
         console.error('Failed to fetch admin dashboard data:', error)
       } finally {
@@ -151,6 +114,34 @@ export default function AdminDashboard() {
       icon: Handshake,
       color: 'text-orange-600 dark:text-orange-400',
       bg: 'bg-orange-50 dark:bg-orange-900/20',
+    },
+    {
+      label: 'Online Sekarang',
+      value: stats?.onlineStudents ?? 0,
+      icon: Activity,
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    },
+    {
+      label: 'Pendapatan Hari Ini',
+      value: `Rp ${(stats?.revenueToday ?? 0).toLocaleString('id-ID')}`,
+      icon: DollarSign,
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-900/20',
+    },
+    {
+      label: 'Pengguna Baru',
+      value: stats?.newUsersToday ?? 0,
+      icon: UserPlus,
+      color: 'text-indigo-600 dark:text-indigo-400',
+      bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+    },
+    {
+      label: 'Sesi Hari Ini',
+      value: stats?.sessionsToday ?? 0,
+      icon: CalendarDays,
+      color: 'text-rose-600 dark:text-rose-400',
+      bg: 'bg-rose-50 dark:bg-rose-900/20',
     },
   ]
 

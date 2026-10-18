@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
+import { WithdrawDialog } from '@/components/wallet/withdraw-dialog'
 import {
   Wallet,
   ArrowUp,
@@ -161,16 +162,14 @@ export default function TutorWalletClient({
               <CardTitle className="text-base">Penarikan Saldo</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-blue-800 leading-relaxed">
-                  Fitur penarikan saldo ke rekening bank akan segera hadir. Sementara ini,
-                  hubungi admin untuk proses penarikan manual.
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-800">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  Penarikan saat ini berstatus <strong>dummy</strong>: permintaan dicatat untuk validasi admin.
+                  Transfer nyata akan memakai Flip setelah kunci API tersedia.
                 </div>
               </div>
-              <Button disabled className="w-full" variant="outline">
-                Tarik Saldo (Coming Soon)
-              </Button>
+              <WithdrawDialog available={balance} />
             </CardContent>
           </Card>
         </div>

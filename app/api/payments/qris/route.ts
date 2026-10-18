@@ -44,13 +44,11 @@ export async function POST(request: NextRequest) {
     }
 
     const staticQris = config.config_value.trim()
-    console.log('[QRIS] Static QRIS length:', staticQris.length)
 
     // 2. Generate dinamis
     let dynamicQris: string
     try {
       dynamicQris = convertToDynamic(staticQris, Math.round(amount))
-      console.log('[QRIS] Dynamic generated, length:', dynamicQris.length)
     } catch (conversionError) {
       console.error('[QRIS] Conversion error:', conversionError)
       return NextResponse.json({ error: 'Gagal mengkonversi QRIS' }, { status: 500 })
@@ -93,8 +91,6 @@ export async function POST(request: NextRequest) {
         warning: 'Transaksi pending gagal disimpan, tapi QRIS tetap valid.',
       })
     }
-
-    console.log('[QRIS] Pending transaction created:', inserted.id)
 
     return NextResponse.json({
       dynamicQris,

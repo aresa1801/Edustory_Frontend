@@ -305,7 +305,6 @@ export async function PATCH(
         console.error('[reschedule approve] repoint hold error:', repointErr)
         // Tidak return error — sesi tetap jalan, tapi log
       } else {
-        console.log(`✅ Hold repointed: ${oldSession.id} → ${newSession.id}`)
       }
 
       // ===== UPDATE match_schedules =====

@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
 
     // 3. Idempotency — kalau sudah paid, jangan proses lagi
     if (payment.payment_status === 'paid') {
-      console.log('[webhook] Already paid, skip:', order_id);
       return NextResponse.json({ status: 'OK' });
     }
 
@@ -70,7 +69,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (!newStatus) {
-      console.log('[webhook] Unhandled status:', transaction_status);
       return NextResponse.json({ status: 'OK' });
     }
 
@@ -92,7 +90,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Trigger handle_payment_deposit_topup() otomatis nambah saldo wallet
-    console.log(`[webhook] ${order_id} → ${newStatus}`);
     return NextResponse.json({ status: 'OK' });
   } catch (error) {
     console.error('[webhook] error:', error);

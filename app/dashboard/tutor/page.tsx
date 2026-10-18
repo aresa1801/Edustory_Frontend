@@ -137,7 +137,6 @@ export default function TutorDashboard() {
     fetchDone.current = true
 
     try {
-      console.log('[Dashboard] Fetching data for user:', userId)
 
       // Ambil data tutor via API route
       const params = new URLSearchParams({ user_id: userId })
@@ -148,7 +147,6 @@ export default function TutorDashboard() {
       }
 
       const { tutor: tutorData, email } = await response.json()
-      console.log('[Dashboard] tutorData:', tutorData)
 
       if (!tutorData) {
         setError('Data tutor tidak ditemukan. Silakan lengkapi profil Anda.')

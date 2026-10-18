@@ -402,7 +402,6 @@ export default function MyStudentsPage() {
   }
 
   const handleAccept = async (matchId: string) => {
-    console.log('🚀 handleAccept called for matchId:', matchId)
     setProcessingAction(true)
 
     try {
@@ -423,13 +422,11 @@ export default function MyStudentsPage() {
   }
 
   const openRejectDialog = (matchId: string) => {
-    console.log('📌 openRejectDialog called with matchId:', matchId)
     setSelectedMatchId(matchId)
     setShowRejectDialog(true)
   }
 
   const handleReject = async () => {
-    console.log('🚨 handleReject called, selectedMatchId:', selectedMatchId)
     if (!selectedMatchId) return
 
     setProcessingAction(true)
@@ -1281,7 +1278,6 @@ export default function MyStudentsPage() {
             <Button
               variant="destructive"
               onClick={() => {
-                console.log('🔄 Tombol Ya, Tolak diklik')
                 handleReject()
               }}
               disabled={processingAction}

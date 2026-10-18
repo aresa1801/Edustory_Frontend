@@ -158,7 +158,6 @@ export async function GET(
     }
 
         if (completedIds.length > 0) {
-      console.log('[AUTO-COMPLETE] Sessions completed:', completedIds)
 
       for (const id of completedIds) {
         const s = processedSessions.find((p: any) => p.id === id)
@@ -274,7 +273,6 @@ export async function GET(
       schedule.status = 'completed'
       schedule.completion_notification = completionNotif
 
-      console.log('[API] Auto-natural-complete:', matchId)
     }
 
     // ===== 8. Compose response =====

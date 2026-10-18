@@ -16,12 +16,10 @@ export default function DashboardRouter() {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError || !session) {
-          console.log('No session, redirecting to login')
           router.replace('/auth/login')
           return
         }
         
-        console.log('Session found for:', session.user.email)
         
         // 2. Cek profile dan role
         const { data: profile, error: profileError } = await supabase
@@ -38,12 +36,10 @@ export default function DashboardRouter() {
 
         // 3. Jika belum punya role, ke select-role
         if (!profile?.role) {
-          console.log('No role found, redirecting to select-role')
           router.replace('/auth/select-role')
           return
         }
 
-        console.log('Role found:', profile.role)
         
         // 4. Map role ke dashboard path
         const roleMap: Record<string, string> = {
@@ -55,7 +51,6 @@ export default function DashboardRouter() {
         const dashboardPath = roleMap[profile.role]
         
         if (dashboardPath) {
-          console.log('Redirecting to:', dashboardPath)
           router.replace(dashboardPath)
         } else {
           console.warn('Unknown role:', profile.role)

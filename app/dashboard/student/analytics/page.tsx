@@ -90,7 +90,6 @@ export default function StudentAnalyticsPage() {
 
     ;(async () => {
       try {
-        console.log('[Analytics] START — user.id:', authUser.id)
 
         // ===== 1. Fetch credit + log =====
         const [creditRes, logRes] = await Promise.allSettled([

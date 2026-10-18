@@ -23,11 +23,8 @@ export default async function SelectRolePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    console.log('[SelectRole] ❌ No user found, redirect to home')
     redirect('/?no_session=1')
   }
-
-  console.log('[SelectRole] ✅ Server: User found:', user.email, 'ID:', user.id)
 
   // Cek apakah user sudah punya role
   const { data: profile } = await supabase
@@ -42,7 +39,6 @@ export default async function SelectRolePage() {
       : profile.role === 'tutor'
       ? '/dashboard/tutor'
       : '/dashboard/admin'
-    console.log('[SelectRole] ✅ User already has role, redirect to:', dashboardPath)
     redirect(dashboardPath)
   }
 

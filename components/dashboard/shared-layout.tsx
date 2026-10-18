@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth, AppRole } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
+import { BrandMark } from '@/components/brand/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
@@ -44,25 +45,25 @@ const ACCENT: Record<AccentColor, {
   avatar: string
 }> = {
   blue: {
-    logo: 'bg-blue-600',
-    active: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    activeIcon: 'text-blue-600 dark:text-blue-400',
-    chevron: 'text-blue-400 dark:text-blue-500',
-    avatar: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+    logo: 'bg-primary',
+    active: 'bg-primary/10 text-primary',
+    activeIcon: 'text-primary',
+    chevron: 'text-primary',
+    avatar: 'bg-primary/12 text-primary',
   },
   purple: {
-    logo: 'bg-purple-600',
-    active: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-    activeIcon: 'text-purple-600 dark:text-purple-400',
-    chevron: 'text-purple-400 dark:text-purple-500',
-    avatar: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
+    logo: 'bg-primary',
+    active: 'bg-primary/10 text-primary',
+    activeIcon: 'text-primary',
+    chevron: 'text-primary',
+    avatar: 'bg-primary/12 text-primary',
   },
   green: {
-    logo: 'bg-green-600',
-    active: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-    activeIcon: 'text-green-600 dark:text-green-400',
-    chevron: 'text-green-400 dark:text-green-500',
-    avatar: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+    logo: 'bg-primary',
+    active: 'bg-primary/10 text-primary',
+    activeIcon: 'text-primary',
+    chevron: 'text-primary',
+    avatar: 'bg-primary/12 text-primary',
   },
 }
 
@@ -79,7 +80,6 @@ export default function SharedDashboardLayout({
   redirectPath = '/auth/login',
   accentColor,
   portalLabel,
-  logoIcon: LogoIcon,
 }: SharedDashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -117,7 +117,7 @@ export default function SharedDashboardLayout({
   // ⬇️ BARU: Cek banned saat mount (auto-detect role)
   useEffect(() => {
     if (loading) return
-    if (!user?.id) {
+    if (!user?.id || !userRole) {
       setCheckingBanned(false)
       return
     }
@@ -125,17 +125,17 @@ export default function SharedDashboardLayout({
     let cancelled = false
     ;(async () => {
       try {
-        const rolesToTry: string[] = userRole
-          ? [userRole, 'tutor', 'student']
-          : ['tutor', 'student']
+        const rolesToTry: string[] = [userRole]
 
         let bannedData: any = null
 
         for (const r of rolesToTry) {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 3000)
           const res = await fetch(
             `/api/credit/me?user_id=${user.id}&role=${r}&_t=${Date.now()}`,
-            { cache: 'no-store' }
-          )
+            { cache: 'no-store', signal: controller.signal }
+          ).finally(() => clearTimeout(timer))
           if (res.ok) {
             const data = await res.json()
             if (data.banned) {
@@ -195,14 +195,14 @@ export default function SharedDashboardLayout({
   // Flat list of all nav items for mobile
   const flatNavItems = navGroups.flatMap(g => g.items)
   // First 3 items go in the bottom bar; the rest are accessible via the drawer
-  const mobileBottomItems = flatNavItems.slice(0, 3)
+  const mobileBottomItems = flatNavItems.slice(0, 4)
 
-    if (loading || checkingBanned) {
+    if (loading && !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memuat dashboard...</p>
+          <p className="text-muted-foreground dark:text-muted-foreground text-sm font-medium">Memuat dashboard...</p>
         </div>
       </div>
     )
@@ -211,34 +211,34 @@ export default function SharedDashboardLayout({
   // ⬇️ BARU: Popup banned — block render children
   if (bannedInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950 p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-red-500/40 p-6 max-w-md w-full shadow-2xl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="bg-card rounded-2xl border border-red-500/40 p-6 max-w-md w-full shadow-2xl">
           <div className="flex items-center justify-center mb-3">
             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
           </div>
 
-          <h3 className="text-xl font-bold text-center text-slate-800 dark:text-gray-100 mb-2">
+          <h3 className="text-xl font-bold text-center text-foreground mb-2">
             Akun Anda Telah Diblokir
           </h3>
 
-          <p className="text-sm text-slate-500 dark:text-gray-400 text-center mb-4">
+          <p className="text-sm text-muted-foreground text-center mb-4">
             Credit score Anda terlalu rendah. Akun Anda tidak bisa diakses
             sampai admin membuka blokir.
           </p>
 
           <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-center mb-4">
-            <p className="text-xs text-slate-500 dark:text-gray-400">Credit Score Anda:</p>
+            <p className="text-xs text-muted-foreground">Credit Score Anda:</p>
             <p className="text-4xl font-bold text-red-400 mt-1">
               {bannedInfo.score}
             </p>
-            <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Tier: <strong className="text-red-400">{bannedInfo.tierLabel}</strong>
             </p>
           </div>
 
-          <p className="text-xs text-center text-slate-500 dark:text-gray-400 mb-4">
+          <p className="text-xs text-center text-muted-foreground mb-4">
             Anda akan otomatis keluar dalam beberapa detik...
           </p>
 
@@ -267,22 +267,20 @@ export default function SharedDashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-gray-950 font-sans">
+    <div className="flex h-screen bg-background font-sans">
       {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────────── */}
       <aside
         className={`hidden md:flex ${
           sidebarOpen ? 'w-64' : 'w-[72px]'
-        } bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 transition-all duration-300 flex-col shadow-sm z-20`}
+        } bg-card border-r border-border transition-all duration-300 flex-col shadow-sm z-20`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-gray-800 gap-3">
-          <div className={`w-9 h-9 rounded-xl ${colors.logo} flex items-center justify-center flex-shrink-0`}>
-            <LogoIcon className="w-5 h-5 text-white" />
-          </div>
+        <div className="h-16 flex items-center px-4 border-b border-border gap-3">
+          <BrandMark className="h-9 w-9 flex-shrink-0" />
           {sidebarOpen && (
             <div>
-              <p className="font-bold text-slate-800 dark:text-gray-100 leading-none">EduStory</p>
-              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wider">
+              <p className="font-bold text-foreground leading-none">Edustory</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider">
                 {portalLabel}
               </p>
             </div>
@@ -294,7 +292,7 @@ export default function SharedDashboardLayout({
           {navGroups.map(group => (
             <div key={group.label}>
               {sidebarOpen && (
-                <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 px-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-2">
                   {group.label}
                 </p>
               )}
@@ -309,14 +307,14 @@ export default function SharedDashboardLayout({
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium group ${
                         active
                           ? colors.active
-                          : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                     >
                       <Icon
                         className={`flex-shrink-0 ${
                           active
                             ? colors.activeIcon
-                            : 'text-slate-400 dark:text-gray-500 group-hover:text-slate-600 dark:group-hover:text-gray-300'
+                            : 'text-muted-foreground group-hover:text-muted-foreground dark:group-hover:text-gray-300'
                         }`}
                         size={18}
                       />
@@ -333,7 +331,7 @@ export default function SharedDashboardLayout({
         </nav>
 
         {/* User section & Logout */}
-        <div className="p-3 border-t border-slate-100 dark:border-gray-800">
+        <div className="p-3 border-t border-border">
           {sidebarOpen ? (
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               <Avatar className="w-8 h-8 flex-shrink-0">
@@ -342,16 +340,16 @@ export default function SharedDashboardLayout({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">
+                <p className="text-sm font-semibold text-foreground truncate">
                   {userName || user?.email}
                 </p>
-                <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+                <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
               <Button
                 onClick={handleLogout}
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+                className="w-8 h-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
                 title="Keluar"
               >
                 <LogOut className="w-4 h-4" />
@@ -362,7 +360,7 @@ export default function SharedDashboardLayout({
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-full text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+              className="w-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
               title="Keluar"
             >
               <LogOut className="w-4 h-4" />
@@ -382,27 +380,25 @@ export default function SharedDashboardLayout({
 
       {/* ── Mobile Slide-in Drawer ───────────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-700 flex flex-col shadow-xl z-50 md:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 w-72 bg-card border-r border-border flex flex-col shadow-xl z-50 md:hidden transition-transform duration-300 ease-in-out ${
           mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Mobile navigation"
       >
         {/* Drawer Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100 dark:border-gray-800">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${colors.logo} flex items-center justify-center flex-shrink-0`}>
-              <LogoIcon className="w-5 h-5 text-white" />
-            </div>
+            <BrandMark className="h-9 w-9 flex-shrink-0" />
             <div>
-              <p className="font-bold text-slate-800 dark:text-gray-100 leading-none">EduStory</p>
-              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wider">
+              <p className="font-bold text-foreground leading-none">Edustory</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider">
                 {portalLabel}
               </p>
             </div>
           </div>
           <button
             onClick={() => setMobileDrawerOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
             aria-label="Tutup menu"
           >
             <X className="w-4 h-4" />
@@ -413,7 +409,7 @@ export default function SharedDashboardLayout({
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
           {navGroups.map(group => (
             <div key={group.label}>
-              <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 px-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-2">
                 {group.label}
               </p>
               <div className="space-y-0.5">
@@ -427,14 +423,14 @@ export default function SharedDashboardLayout({
                       className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-sm font-medium group ${
                         active
                           ? colors.active
-                          : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                     >
                       <Icon
                         className={`flex-shrink-0 ${
                           active
                             ? colors.activeIcon
-                            : 'text-slate-400 dark:text-gray-500 group-hover:text-slate-600 dark:group-hover:text-gray-300'
+                            : 'text-muted-foreground group-hover:text-muted-foreground dark:group-hover:text-gray-300'
                         }`}
                         size={20}
                       />
@@ -451,7 +447,7 @@ export default function SharedDashboardLayout({
         </nav>
 
         {/* Drawer User & Logout */}
-        <div className="p-3 border-t border-slate-100 dark:border-gray-800">
+        <div className="p-3 border-t border-border">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
             <Avatar className="w-9 h-9 flex-shrink-0">
               <AvatarFallback className={`${colors.avatar} text-sm font-semibold`}>
@@ -459,16 +455,16 @@ export default function SharedDashboardLayout({
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 truncate">
+              <p className="text-sm font-semibold text-foreground truncate">
                 {userName || user?.email}
               </p>
-              <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
             <Button
               onClick={handleLogout}
               variant="ghost"
               size="icon"
-              className="w-8 h-8 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-500/10"
+              className="w-8 h-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
               title="Keluar"
             >
               <LogOut className="w-4 h-4" />
@@ -480,18 +476,18 @@ export default function SharedDashboardLayout({
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-14 bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
+        <header className="h-14 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 flex-shrink-0">
           {/* Mobile: open drawer | Desktop: collapse sidebar */}
           <button
             onClick={() => setMobileDrawerOpen(true)}
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Buka menu"
           >
             <Menu className="w-5 h-5" />
           </button>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Toggle sidebar"
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -500,10 +496,10 @@ export default function SharedDashboardLayout({
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100">
+              <p className="text-sm font-semibold text-foreground">
                 {userName || user?.email}
               </p>
-              <p className="text-xs text-slate-400 dark:text-gray-500">{roleLabel}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
             <Avatar className="w-8 h-8">
               <AvatarFallback className={`${colors.avatar} text-xs font-semibold`}>
@@ -519,7 +515,7 @@ export default function SharedDashboardLayout({
         </main>
 
         {/* ── Mobile Bottom Navigation Bar ───────────────────────────────────── */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-slate-200 dark:border-gray-700 z-30 safe-bottom">
+        <nav className="md:hidden fixed bottom-0 inset-x-0 border-t border-border bg-card/95 backdrop-blur z-30 safe-bottom">
           <div className="flex items-stretch">
             {mobileBottomItems.map(({ href, icon: Icon, label, exact }) => {
               const active = isActive(href, exact)
@@ -527,17 +523,13 @@ export default function SharedDashboardLayout({
                 <Link
                   key={href}
                   href={href}
-                  className={`flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] transition-colors ${
-                    active
-                      ? colors.active
-                      : 'text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200'
+                  className={`relative flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[58px] transition-colors ${
+                    active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <Icon
-                    size={22}
-                    className={active ? colors.activeIcon : 'text-slate-400 dark:text-gray-500'}
-                  />
-                  <span className="text-[10px] font-medium leading-none">{label}</span>
+                  <Icon size={22} className={active ? 'text-primary' : 'text-muted-foreground'} />
+                  <span className={`w-full truncate px-1 text-center text-[10px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+                  {active ? <span className="absolute -top-px h-0.5 w-8 rounded-full bg-primary" /> : null}
                 </Link>
               )
             })}
@@ -545,10 +537,10 @@ export default function SharedDashboardLayout({
             {/* "More" button opens the full drawer */}
             <button
               onClick={() => setMobileDrawerOpen(true)}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition-colors"
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-1 min-h-[56px] text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Lainnya"
             >
-              <MoreHorizontal size={22} className="text-slate-400 dark:text-gray-500" />
+              <MoreHorizontal size={22} className="text-muted-foreground" />
               <span className="text-[10px] font-medium leading-none">Lainnya</span>
             </button>
           </div>

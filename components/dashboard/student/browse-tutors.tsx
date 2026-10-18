@@ -56,7 +56,6 @@ export default function StudentBrowseTutors() {
   const fetchTutors = useCallback(async () => {
     // Cegah fetch ganda
     if (fetchDone.current) {
-      console.log('[BrowseTutors] ⏭️ Sudah pernah fetch, skip')
       return
     }
     fetchDone.current = true
@@ -65,7 +64,6 @@ export default function StudentBrowseTutors() {
     setError(null)
 
     try {
-      console.log('[BrowseTutors] 🔄 Fetching tutors...')
       const supabase = createClient()
       const { data, error: fetchError } = await supabase
         .from('tutors')
@@ -110,7 +108,6 @@ export default function StudentBrowseTutors() {
       if (isMounted.current) {
         setTutors(filtered)
         setError(null)
-        console.log('[BrowseTutors] ✅ Tutors loaded:', filtered.length)
       }
     } catch (err: any) {
       console.error('[BrowseTutors] ❌ Error:', err)
@@ -121,7 +118,6 @@ export default function StudentBrowseTutors() {
     } finally {
       if (isMounted.current) {
         setLoading(false)
-        console.log('[BrowseTutors] 🏁 Loading selesai')
       }
     }
   }, [searchSubject, genderFilter, maxRate, minExperience])

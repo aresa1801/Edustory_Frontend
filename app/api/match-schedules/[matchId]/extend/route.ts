@@ -223,13 +223,6 @@ export async function POST(
     )
     const available = balance - frozen
 
-    console.log(
-      '[extend POST] balance:', balance,
-      'frozen:', frozen,
-      'available:', available,
-      'need:', totalCost
-    )
-
     if (available < totalCost) {
       return NextResponse.json(
         {
@@ -587,8 +580,6 @@ export async function PATCH(
         { status: 500 }
       )
     }
-
-    console.log(`[extend approve] Snapshot v${nextVersion} tersimpan`)
 
     // ===== 1. Delete sessions lama =====
     const { error: delSessionsErr } = await supabaseAdmin

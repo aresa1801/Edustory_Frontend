@@ -18,11 +18,9 @@ export default function AuthCallback() {
 
   useEffect(() => {
     if (hasProcessed.current) {
-      console.log('[Callback] Already processed, skipping...')
       return
     }
     hasProcessed.current = true
-    console.log('[Callback] 🚀 Starting callback processing...')
 
     const handleCallback = async () => {
       try {
@@ -33,15 +31,12 @@ export default function AuthCallback() {
         const access_token = searchParams.get('access_token')
         const refresh_token = searchParams.get('refresh_token')
         if (access_token && refresh_token) {
-          console.log('[Callback] Setting session from tokens...')
           await supabase.auth.setSession({ access_token, refresh_token })
         }
 
         // Get session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('[Callback] Session:', session?.user?.email)
         if (sessionError || !session) {
-          console.log('[Callback] ❌ No session found')
           window.location.href = '/auth/login'
           return
         }
@@ -57,17 +52,13 @@ export default function AuthCallback() {
           return
         }
 
-        console.log('[Callback] ✅ User validated:', currentUser.email)
-
         // Admin
         if (currentUser.email === ADMIN_EMAIL) {
-          console.log('[Callback] 👑 Admin detected')
           window.location.href = '/dashboard/admin'
           return
         }
 
         // Cek profile dengan try-catch untuk menghindari error RLS
-        console.log('[Callback] 🔍 Checking user profile in database...')
         let userProfile = null
         let profileError = null
         try {
@@ -86,28 +77,22 @@ export default function AuthCallback() {
         if (profileError) {
           console.error('[Callback] Profile error:', profileError)
           // Jika error karena RLS, anggap user baru
-          console.log('[Callback] ⚠️ Profile error, treating as new user')
           window.location.href = '/auth/select-role'
           return
         }
 
-        console.log('[Callback] Profile data:', userProfile)
-
         if (!userProfile || !userProfile.role) {
-          console.log('[Callback] 🆕 New user → redirect to select-role')
           await new Promise(resolve => setTimeout(resolve, 500))
           window.location.href = '/auth/select-role'
           return
         }
 
         const role = userProfile.role as string
-        console.log('[Callback] ✅ User has role:', role)
         const dashboardPath = ROLE_TO_DASHBOARD[role]
         if (!dashboardPath) {
           console.warn('[Callback] ⚠️ Unknown role:', role)
           window.location.href = '/auth/select-role'
         } else {
-          console.log('[Callback] 🎯 Redirecting to dashboard:', dashboardPath)
           window.location.href = `/dashboard/${dashboardPath}`
         }
       } catch (err) {

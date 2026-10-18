@@ -171,8 +171,6 @@ function SetScheduleContent() {
         const params = new URLSearchParams(window.location.search)
         const matchIdFromUrl = params.get('matchId')
 
-        console.log('[set_schedule] 📍 matchId dari URL:', matchIdFromUrl)
-
         if (!matchIdFromUrl) {
           setError('Tidak ada ID match di URL.')
           setLoading(false)
@@ -186,7 +184,6 @@ function SetScheduleContent() {
             const data = JSON.parse(stored)
             // Jika matchId di sessionStorage SAMA dengan matchId di URL, pakai data tersebut
             if (data.id === matchIdFromUrl) {
-              console.log('[set_schedule] ✅ Data dari sessionStorage (cocok)')
               if (isMounted) {
                 setMatchData(data)
                 const subjects = data.matched_subjects?.slice(0, 2) || []
@@ -209,14 +206,12 @@ function SetScheduleContent() {
         }
 
         // Jika tidak ada sessionStorage atau matchId berbeda, fetch dari API
-        console.log('[set_schedule] 🔄 Fetch dari API untuk matchId:', matchIdFromUrl)
         
         const res = await fetch(`/api/matches/${matchIdFromUrl}`)
         if (!res.ok) {
           throw new Error(`Gagal fetch match (${res.status})`)
         }
         const data = await res.json()
-        console.log('[set_schedule] ✅ Data dari API:', data)
 
         if (isMounted) {
           setMatchData(data)
@@ -514,7 +509,6 @@ function SetScheduleContent() {
 
   // ========== HANDLE SAVE ==========
   const handleSave = async () => {
-    console.log('🚀 handleSave START');
 
     const entries = Object.entries(schedule);
     if (entries.length === 0) {
@@ -544,9 +538,7 @@ function SetScheduleContent() {
         body: JSON.stringify({ sessions }),
       });
 
-      console.log('📥 Response status:', res.status);
       const result = await res.json();
-      console.log('📥 Response body:', result);
 
       if (!res.ok) {
         const errorMsg = result.error || result.message || `HTTP ${res.status}`;
@@ -841,9 +833,6 @@ function SetScheduleContent() {
         <Button
           className="bg-green-600 hover:bg-green-700 text-white"
           onClick={() => {
-            console.log('>>> Tombol Simpan diklik!');
-            console.log('📊 totalSelected:', totalSelected);
-            console.log('📋 schedule:', schedule);
             handleSave();
           }}
           disabled={isSaving || totalSelected === 0}

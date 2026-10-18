@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/auth-context'
@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import {
   User, School, Users, BookOpen, Calendar, Wallet, CreditCard,
-  CheckCircle, ArrowRight, ArrowLeft, ChevronRight
+  CheckCircle, ArrowRight, ArrowLeft, ChevronRight, MapPin
 } from 'lucide-react'
 import {
   Dialog,
@@ -54,15 +54,6 @@ const SCHEDULE_OPTIONS = [
 
 const SESSION_OPTIONS = ['2', '4', '6', '8', '10', '12', '16', '20']
 
-const PAYMENT_METHODS = [
-  { id: 'bca', label: 'Transfer BCA', icon: '🏦', account: '1234567890 a/n EduStory Escrow' },
-  { id: 'bni', label: 'Transfer BNI', icon: '🏦', account: '0987654321 a/n EduStory Escrow' },
-  { id: 'mandiri', label: 'Transfer Mandiri', icon: '🏦', account: '1122334455 a/n EduStory Escrow' },
-  { id: 'gopay', label: 'GoPay', icon: '💚', account: '0895-1370-0000' },
-  { id: 'ovo', label: 'OVO', icon: '💜', account: '0812-3456-7890' },
-  { id: 'dana', label: 'DANA', icon: '💙', account: '0822-3456-7890' },
-]
-
 const STEPS = [
   { id: 1, label: 'Profil Siswa', icon: User, description: 'Data pribadi, sekolah & orang tua' },
   { id: 2, label: 'Minat Belajar', icon: BookOpen, description: 'Kelas & mata pelajaran' },
@@ -84,6 +75,8 @@ export default function StudentOnboardingPage() {
   const { user: authUser } = useAuth()
   const [step, setStep] = useState(1)
   const [showCompletionModal, setShowCompletionModal] = useState(false)
+  const [showGeoDialog, setShowGeoDialog] = useState(false)
+  const [geoAsked, setGeoAsked] = useState(false)
   const [profileTab, setProfileTab] = useState('siswa')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -111,7 +104,15 @@ export default function StudentOnboardingPage() {
 
   // Step 4 – Deposit
   const [selectedPayment, setSelectedPayment] = useState('')
-  const [transferProof, setTransferProof] = useState('')
+
+  const gradeOptions = useMemo(() => {
+    const jenjang = (sekolahData.school_type || '').toUpperCase()
+    if (jenjang === 'SD') return GRADE_LEVELS.filter(g => g.startsWith('SD '))
+    if (jenjang === 'SMP') return GRADE_LEVELS.filter(g => g.startsWith('SMP '))
+    if (jenjang === 'SMA') return GRADE_LEVELS.filter(g => g.startsWith('SMA '))
+    if (jenjang === 'PT') return ['Mahasiswa']
+    return GRADE_LEVELS
+  }, [sekolahData.school_type])
 
   // 🔥 Fungsi untuk mengambil lokasi GPS (sama seperti di profil tutor)
   const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
@@ -139,7 +140,6 @@ export default function StudentOnboardingPage() {
   // LOAD DATA – DARI TABEL students
   // ============================================================
   const loadStudentData = async (uid: string) => {
-    console.log('[ONBOARDING] 🔍 loadStudentData dipanggil untuk uid:', uid)
     try {
       const response = await fetch(`/api/students/onboarding?user_id=${uid}`)
       if (!response.ok) {
@@ -147,7 +147,6 @@ export default function StudentOnboardingPage() {
         throw new Error(errData.error || 'Gagal memuat data')
       }
       const { student } = await response.json()
-      console.log('[ONBOARDING] ✅ Data dari API:', student)
 
       if (student) {
         // Step 1 – Profil Siswa
@@ -182,9 +181,7 @@ export default function StudentOnboardingPage() {
 
         // Step 4 – Deposit / Payment
         if (student.payment_method) setSelectedPayment(student.payment_method)
-        if (student.transfer_notes) setTransferProof(student.transfer_notes)
       } else {
-        console.log('[ONBOARDING] ℹ️ Tidak ada data untuk user ini')
       }
     } catch (err) {
       console.error('[ONBOARDING] ❌ Load data error:', err)
@@ -212,7 +209,6 @@ export default function StudentOnboardingPage() {
         return
       }
 
-      console.log('[ONBOARDING] 🔄 Memuat data untuk user:', currentUser.id)
       await loadStudentData(currentUser.id)
     }
 
@@ -236,6 +232,7 @@ export default function StudentOnboardingPage() {
     }
     if (step === 2) {
       if (!gradeLevel) { setError('Pilih tingkat kelas'); return false }
+      if (!gradeOptions.includes(gradeLevel)) { setError('Tingkat kelas tidak sesuai jenjang sekolah'); return false }
       if (subjects.length === 0) { setError('Pilih minimal 1 mata pelajaran'); return false }
     }
     if (step === 3) {
@@ -243,28 +240,25 @@ export default function StudentOnboardingPage() {
       if (!budgetPerMonth || Number(budgetPerMonth) < 50000) { setError('Budget minimum Rp 50.000'); return false }
       if (!sessionsPerMonth) { setError('Pilih jumlah pertemuan per bulan'); return false }
     }
-    if (step === 4) {
-      if (!selectedPayment) { setError('Pilih metode pembayaran'); return false }
-    }
     return true
   }
 
   // ============================================================
   // SAVE STEP 1 – DENGAN GPS
   // ============================================================
-  const saveStep1Data = async () => {
+  const saveStep1Data = async (allowGeo = false) => {
     if (!authUser) throw new Error('User tidak ditemukan di context')
 
-    // 🔥 Ambil lokasi GPS
+    // GPS hanya diambil bila alamat terisi dan siswa menyetujui.
     let lat = null, lng = null
-    try {
-      const pos = await getCurrentLocation()
-      lat = pos.lat
-      lng = pos.lng
-      console.log('[Onboarding] 📍 Lokasi GPS didapat:', lat, lng)
-    } catch (err) {
-      console.warn('[Onboarding] ⚠️ Gagal mendapat lokasi GPS:', err)
-      // Lanjut tanpa koordinat
+    if (allowGeo && siswaData.address.trim()) {
+      try {
+        const pos = await getCurrentLocation()
+        lat = pos.lat
+        lng = pos.lng
+      } catch {
+        // Lanjut tanpa koordinat bila izin ditolak / tidak tersedia.
+      }
     }
 
     const payload = {
@@ -300,7 +294,6 @@ export default function StudentOnboardingPage() {
     })
 
     const result = await response.json()
-    console.log('[Onboarding] Response:', result)
 
     if (!response.ok) {
       throw new Error(result.error || `HTTP ${response.status}`)
@@ -382,15 +375,13 @@ export default function StudentOnboardingPage() {
   // ============================================================
   const saveStep4Data = async () => {
   if (!authUser) throw new Error('User tidak ditemukan di context')
-  if (!selectedPayment) throw new Error('Metode pembayaran wajib dipilih')
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     user_id: authUser.id,
-    payment_method: selectedPayment,
-    transfer_notes: transferProof.trim() || null,
     deposit_amount: budgetPerMonth ? Number(budgetPerMonth) : null,
-    onboarding_complete: true, // 🔥 gabung di sini
+    onboarding_complete: true,
   }
+  if (selectedPayment) payload.payment_method = selectedPayment
 
   Object.keys(payload).forEach(key => {
     const k = key as keyof typeof payload
@@ -415,10 +406,13 @@ export default function StudentOnboardingPage() {
   // HANDLE NEXT
   // ============================================================
   const handleNext = async () => {
-    console.log('[Onboarding] handleNext triggered', { step, saving })
 
     if (!validateStep()) {
-      console.log('[Onboarding] Validasi gagal')
+      return
+    }
+
+    if (step === 1 && siswaData.address.trim() && !geoAsked) {
+      setShowGeoDialog(true)
       return
     }
 
@@ -427,25 +421,35 @@ export default function StudentOnboardingPage() {
 
     try {
       if (step === 1) {
-        console.log('[Onboarding] Menyimpan step 1...')
-        await saveStep1Data()
-        console.log('[Onboarding] Step 1 tersimpan, pindah ke step 2')
+        await saveStep1Data(geoAsked)
         setStep(2)
       } else if (step === 2) {
-        console.log('[Onboarding] Menyimpan step 2...')
         await saveStep2Data()
         setStep(3)
       } else if (step === 3) {
-        console.log('[Onboarding] Menyimpan step 3...')
         await saveStep3Data()
         setStep(4)
       } else if (step === 4) {
-        console.log('[Onboarding] Step 4 valid, tampilkan modal pilihan...')
         setShowCompletionModal(true)
       }
     } catch (err: any) {
       console.error('[Onboarding] Error:', err)
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const proceedStep1 = async (allowGeo: boolean) => {
+    setGeoAsked(true)
+    setShowGeoDialog(false)
+    setSaving(true)
+    setError(null)
+    try {
+      await saveStep1Data(allowGeo)
+      setStep(2)
+    } catch (err: any) {
+      setError(err.message || 'Gagal menyimpan data siswa')
     } finally {
       setSaving(false)
     }
@@ -471,8 +475,6 @@ export default function StudentOnboardingPage() {
         ? `/dashboard/student/payment?amount=${depositAmount}`
         : '/dashboard/student'
 
-    console.log('[Onboarding] ▶️ Finishing, destination:', destination)
-
     // 1. Langsung close modal + set saving
     setShowCompletionModal(false)
     setSaving(true)
@@ -481,12 +483,10 @@ export default function StudentOnboardingPage() {
     try {
       // 2. Save step 4 + onboarding_complete (satu API call)
       await saveStep4Data()
-      console.log('[Onboarding] ✅ All data saved')
 
       // 3. Redirect HARD setelah delay 1.5s
       //    window.location.replace = tidak bisa di-back, lebih clean
       setTimeout(() => {
-        console.log('[Onboarding] 🚀 Redirecting to:', targetUrl)
         window.location.replace(targetUrl)
       }, 1500)
     } catch (err: any) {
@@ -502,7 +502,6 @@ export default function StudentOnboardingPage() {
   // RENDER
   // ============================================================
   const depositAmount = budgetPerMonth ? Number(budgetPerMonth) : 0
-  const selectedMethod = PAYMENT_METHODS.find(m => m.id === selectedPayment)
 
   const toggleSubject = (s: string) => {
     setSubjects(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -669,7 +668,7 @@ export default function StudentOnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Jenjang Sekolah</Label>
-                      <Select value={sekolahData.school_type} onValueChange={v => setSekolahData(p => ({ ...p, school_type: v }))}>
+                      <Select value={sekolahData.school_type} onValueChange={v => { setSekolahData(p => ({ ...p, school_type: v })); setGradeLevel('') }}>
                         <SelectTrigger><SelectValue placeholder="Pilih jenjang" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="SD">SD (Sekolah Dasar)</SelectItem>
@@ -771,7 +770,7 @@ export default function StudentOnboardingPage() {
               <div className="space-y-2">
                 <Label className="text-base font-semibold">Tingkat Kelas <span className="text-red-500">*</span></Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {GRADE_LEVELS.map(level => (
+                  {gradeOptions.map(level => (
                     <button
                       key={level}
                       onClick={() => setGradeLevel(level)}
@@ -965,50 +964,14 @@ export default function StudentOnboardingPage() {
                 </div>
               </div>
 
-              {/* Payment Method */}
-              <div className="space-y-2">
-                <Label className="text-base font-semibold">Pilih Metode Pembayaran <span className="text-red-500">*</span></Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {PAYMENT_METHODS.map(method => (
-                    <button
-                      key={method.id}
-                      onClick={() => setSelectedPayment(method.id)}
-                      className={`p-3 rounded-lg border text-left transition-all ${
-                        selectedPayment === method.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-card hover:border-primary/40'
-                      }`}
-                    >
-                      <span className="text-xl block mb-1">{method.icon}</span>
-                      <p className="text-sm font-semibold text-foreground">{method.label}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedMethod && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-semibold text-green-800 mb-1 flex items-center gap-1">
-                    <CreditCard className="w-4 h-4" /> Instruksi Transfer via {selectedMethod.label}
-                  </p>
-                  <p className="text-sm text-green-300">{selectedMethod.account}</p>
-                  <p className="text-lg font-bold text-green-900 mt-2">
-                    Rp {depositAmount.toLocaleString('id-ID')}
-                  </p>
-                  <p className="text-xs text-green-300 mt-2">
-                    ✓ Dana disimpan di Escrow Account yang aman. Tutor hanya menerima pembayaran setelah sesi belajar selesai.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label>Catatan / Konfirmasi Transfer (opsional)</Label>
-                <Textarea
-                  value={transferProof}
-                  onChange={e => setTransferProof(e.target.value)}
-                  placeholder="Contoh: Sudah transfer via BCA tanggal 22 April 2026 jam 10:00..."
-                  rows={2}
-                />
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <CreditCard className="h-4 w-4" /> Pembayaran dilakukan di halaman Pembayaran
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  Onboarding ini hanya menyimpan ringkasan rencana belajar. Setelah selesai, kamu akan diarahkan ke
+                  halaman Pembayaran untuk memilih metode pembayaran resmi (Flip).
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -1049,6 +1012,32 @@ export default function StudentOnboardingPage() {
           Anda bisa melengkapi atau mengubah data ini kapan saja di halaman Profil
         </p>
       </div>
+
+      {/* ===== DIALOG IZIN LOKASI ===== */}
+      <Dialog open={showGeoDialog} onOpenChange={setShowGeoDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex justify-center mb-2">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <MapPin className="w-7 h-7 text-primary" />
+              </div>
+            </div>
+            <DialogTitle className="text-center text-xl">Simpan lokasi rumah?</DialogTitle>
+            <DialogDescription className="text-center pt-1">
+              Alamat rumah kamu sudah terisi. Izinkan Edustory menyimpan titik lokasi (lat/lon) supaya sistem bisa
+              mencocokkan tutor terdekat. Lokasi tidak ditampilkan ke publik.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+            <Button variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => proceedStep1(false)}>
+              Lewati
+            </Button>
+            <Button className="w-full sm:w-auto" disabled={saving} onClick={() => proceedStep1(true)}>
+              {saving ? 'Menyimpan...' : 'Setujui & Simpan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== MODAL SELESAI ONBOARDING ===== */}
       <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>

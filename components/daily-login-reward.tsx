@@ -28,9 +28,7 @@ export default function DailyLoginReward() {
 
         const json = await res.json()
         if (json.claimed) {
-          console.log(`[daily-login] ✅ +1 credit! Skor baru: ${json.newScore}`)
         } else {
-          console.log('[daily-login] ⏭️ sudah claim hari ini, skip.')
         }
 
         // ⬇️ BARU: broadcast supaya komponen lain (analytics, dll) re-fetch

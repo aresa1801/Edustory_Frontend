@@ -30,8 +30,6 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(rawBody);
     const { reference_no, status, error_message } = body;
 
-    console.log(`[payouts/webhook] Payout ${reference_no} status: ${status}`);
-
     // 2. Cari withdrawal berdasarkan reference_no
     const { data: withdrawal, error } = await supabase
       .from('withdrawals')

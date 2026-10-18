@@ -19,10 +19,7 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
     setIsLoading(role)
     setError('')
 
-    console.log(`[SelectRole] 📝 Memilih ${role}, User ID:`, userId)
-
     try {
-      console.log('[SelectRole] 🔍 Mengirim request ke API...')
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15000)
 
@@ -42,20 +39,14 @@ export default function SelectRoleClient({ userEmail, userId, userName }: Select
 
       clearTimeout(timeout)
 
-      console.log('[SelectRole] 📡 Response status:', response.status)
-
       const result = await response.json()
-      console.log('[SelectRole] 📦 Response body:', result)
 
       if (!response.ok) {
         throw new Error(result.error || `Gagal menyimpan role (status ${response.status})`)
       }
 
-      console.log('[SelectRole] ✅ Role berhasil disimpan via API:', result)
-
       // Redirect sesuai role
       const dashboardPath = role === 'student' ? '/dashboard/student' : '/dashboard/tutor'
-      console.log(`[SelectRole] 🎯 Redirecting ke ${dashboardPath}`)
       window.location.replace(dashboardPath)
 
     } catch (err) {

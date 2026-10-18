@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCreditTier } from '@/lib/credit'
+import { requireUser } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -82,16 +83,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('[API] Received POST /api/tutors/profile')
   try {
     const supabase = getSupabase()
     const body = await request.json()
-    console.log('[API] Body:', body)
 
     const userId = body.user_id
     if (!userId) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
     }
+
+    const { response: authResponse } = await requireUser(request, userId)
+    if (authResponse) return authResponse
 
     // Validasi user_id
     const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId)
@@ -206,8 +208,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('[API] Upsert payload:', payload)
-
     const { data, error } = await supabase
       .from('tutors')
       .upsert(payload, { onConflict: 'user_id' })
@@ -232,7 +232,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('[API] ✅ Success:', data)
     return NextResponse.json({ success: true, data: data?.[0] || null })
   } catch (err) {
     console.error('[API] Unexpected error:', err)

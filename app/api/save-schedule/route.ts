@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
-  console.log('🚀 API save-schedule called');
 
   try {
     // 1. Ambil user
@@ -16,7 +15,6 @@ export async function POST(req: NextRequest) {
     // 2. Parse body
     const body = await req.json();
     const { matchId, sessions } = body;
-    console.log('📥 Received:', { matchId, sessionsCount: sessions?.length });
 
     if (!matchId) {
       return NextResponse.json({ error: 'matchId required' }, { status: 400 });
@@ -65,8 +63,6 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    console.log('📝 Inserting sessions:', insertData.length);
-
     const { data: insertedSessions, error: insertError } = await supabase
       .from('sessions')
       .insert(insertData)
@@ -79,8 +75,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Sessions inserted:', insertedSessions.length);
 
     // 5. Generate schedules_summary
     const summaryArray: any[] = [];
@@ -104,8 +98,6 @@ export async function POST(req: NextRequest) {
       Object.values(summaryMap).forEach(item => summaryArray.push(item));
     }
 
-    console.log('📝 Summary JSON:', JSON.stringify(summaryArray, null, 2));
-
     // 6. Update match dengan admin client (bypass RLS)
     const adminSupabase = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -117,8 +109,6 @@ export async function POST(req: NextRequest) {
       initiated_by: 'student',
       schedules_summary: summaryArray,
     };
-
-    console.log('🔄 Updating match:', matchId, 'with payload:', updatePayload);
 
     const { error: updateError } = await adminSupabase
       .from('matches')
@@ -132,8 +122,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Match updated successfully');
 
     return NextResponse.json({
       success: true,

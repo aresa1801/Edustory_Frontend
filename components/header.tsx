@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, X, BookOpen, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTriangle, Trash2 } from 'lucide-react'
+import { Menu, X, LogIn, UserPlus, LayoutDashboard, LogOut, AlertTriangle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthModalDialog } from '@/components/auth/auth-modal-dialog'
+import { BrandLogo } from '@/components/brand/logo'
 import { useAuth } from '@/lib/auth-context'
 
 const maskEmail = (email?: string | null): string => {
@@ -85,7 +86,6 @@ const Header = () => {
     }
 
     if (!userRole) {
-      console.log('[Header] User belum pilih role, redirect ke select-role')
       router.push('/auth/select-role')
       return
     }
@@ -132,10 +132,10 @@ const Header = () => {
   }
 
   const menuItems = [
-    { label: 'Layanan', href: '#layanan' },
+    { label: 'Kurasi', href: '#kurasi' },
     { label: 'Program', href: '#program' },
-    { label: 'Testimoni', href: '#testimoni' },
-    { label: 'Blog', href: '#blog' },
+    { label: 'Cara kerja', href: '#cara-kerja' },
+    { label: 'FAQ', href: '#faq' },
     { label: 'Kontak', href: '#kontak' },
   ]
 
@@ -150,14 +150,7 @@ const Header = () => {
       >
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
-            <Link href="/" className="flex items-center gap-2.5 font-bold text-xl hover:opacity-90 transition-opacity">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <BookOpen className="w-4 h-4 text-white" />
-              </div>
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70">
-                EduStory
-              </span>
-            </Link>
+            <BrandLogo size="sm" />
 
             <nav className="hidden md:flex items-center gap-7">
               {menuItems.map((item) => (

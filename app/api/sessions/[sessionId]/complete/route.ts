@@ -8,7 +8,6 @@ export async function POST(
   { params }: { params: { sessionId: string } }
 ) {
   const sessionId = params.sessionId;
-  console.log('🚀 [SESSION COMPLETE]', sessionId);
 
   try {
     const supabaseAdmin = createClient(
@@ -54,8 +53,6 @@ export async function POST(
 
     const fee = Math.round(rate * 0.1);
     const tutorEarning = rate - fee;
-
-    console.log('[COMPLETE] rate:', rate, 'fee:', fee, 'tutorEarning:', tutorEarning);
 
     // 3. Cari hold
     const { data: hold, error: holdErr } = await supabaseAdmin
@@ -195,8 +192,6 @@ export async function POST(
       console.error('[SESSION COMPLETE] update session error:', updateSessionErr);
       return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
     }
-
-    console.log(`✅ [SESSION COMPLETE] ${sessionId} — tutor +${tutorEarning}, platform +${fee}`);
 
     return NextResponse.json({ success: true, rate, fee, tutorEarning });
   } catch (err) {

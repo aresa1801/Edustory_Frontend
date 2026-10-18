@@ -101,8 +101,6 @@ export async function POST(req: NextRequest) {
       transaction_ref: orderId,
     };
 
-    console.log('[charge] insert payload:', JSON.stringify(insertPayload));
-
     const { data: deposit, error: insertError } = await supabase
       .from('payment_deposits')
       .insert(insertPayload)
@@ -122,8 +120,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('[charge] deposit created:', deposit.id);
 
     // ===== 6. Midtrans Snap =====
     const snap = new midtransClient.Snap({
@@ -158,8 +154,6 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    console.log('[charge] requesting snap token for order:', orderId);
-
     let transaction;
     try {
       transaction = await snap.createTransaction(parameter);
@@ -176,8 +170,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('[charge] success:', orderId);
 
     return NextResponse.json({
       snapToken: transaction.token,

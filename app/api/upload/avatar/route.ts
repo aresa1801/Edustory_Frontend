@@ -17,8 +17,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing file or userId' }, { status: 400 })
     }
 
-    console.log('[Upload] Uploading avatar for user:', userId, 'role:', role)
-
     // Konversi File ke Buffer
     const buffer = Buffer.from(await file.arrayBuffer())
     const fileExt = 'jpg'
@@ -66,7 +64,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    console.log('[Upload] ✅ Success for user:', userId, 'role:', role)
     return NextResponse.json({ success: true, url: avatarUrl })
 
   } catch (error) {

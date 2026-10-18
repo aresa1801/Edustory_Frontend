@@ -90,7 +90,6 @@ export function AvatarUploader({
     }
 
     setUploading(true)
-    console.log('🚀 Starting upload via API...')
 
     try {
       // Fetch blob
@@ -106,8 +105,6 @@ export function AvatarUploader({
       formData.append('userId', userId)
       formData.append('role', role) // 🔥 kirim role
 
-      console.log('📤 Sending to API with role:', role)
-
       // Kirim ke API route
       const uploadResponse = await fetch('/api/upload/avatar', {
         method: 'POST',
@@ -119,8 +116,6 @@ export function AvatarUploader({
       if (!uploadResponse.ok) {
         throw new Error(result.error || 'Upload failed')
       }
-
-      console.log('✅ Upload success via API:', result.url)
 
       onUploadComplete(result.url)
       onClose()

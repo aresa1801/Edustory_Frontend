@@ -35,12 +35,10 @@ export default function StudentProgressPage() {
 
     const fetchData = async () => {
       try {
-        console.log('[Progress] 🔄 Fetching data...')
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          console.log('[Progress] ⚠️ User not found')
           setProfile(null)
           setMatches([])
           return
@@ -66,7 +64,6 @@ export default function StudentProgressPage() {
         }
 
         if (!profileData) {
-          console.log('[Progress] ⚠️ No student profile yet')
           setProfile(null)
           setMatches([])
           return
@@ -100,7 +97,6 @@ export default function StudentProgressPage() {
         if (isMounted.current) {
           setMatches(matchData || [])
           setError(null)
-          console.log('[Progress] ✅ Data loaded:', matchData?.length || 0, 'matches')
         }
       } catch (err) {
         console.error('[Progress] ❌ Fetch error:', err)
@@ -113,7 +109,6 @@ export default function StudentProgressPage() {
       } finally {
         if (isMounted.current) {
           setLoading(false)
-          console.log('[Progress] 🏁 Loading selesai')
         }
       }
     }

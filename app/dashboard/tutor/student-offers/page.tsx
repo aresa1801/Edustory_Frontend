@@ -13,6 +13,7 @@ import {
   MapPin,
   BookMarked,
   Clock,
+  CalendarDays,
   Send,
   Lock,
   UserCircle,
@@ -37,6 +38,7 @@ interface Student {
   name: string
   grade_level: string
   subjects: string[]
+  available_subjects?: string[]
   budget_per_month: number
   sessions_per_month: number
   preferred_schedule: string
@@ -261,7 +263,8 @@ export default function StudentOffersPage() {
     ;(tutor.specializations_sd || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_smp || []).forEach(s => tutorSubjects.add(s))
     ;(tutor.specializations_sma || []).forEach(s => tutorSubjects.add(s))
-    return (student.subjects || []).filter(subj => tutorSubjects.has(subj))
+    const subjects = student.available_subjects ?? student.subjects ?? []
+    return subjects.filter(subj => tutorSubjects.has(subj))
   }
 
   const calculateMatchCount = (student: Student, tutor: TutorProfile): number => {
@@ -446,6 +449,7 @@ export default function StudentOffersPage() {
         throw new Error(err.error || 'Gagal mengirim penawaran')
       }
 
+      setStudents(prev => prev.filter(item => item.id !== student.id))
       alert('✅ Penawaran berhasil dikirim!')
     } catch (err: any) {
       alert('❌ Gagal: ' + err.message)
@@ -668,15 +672,15 @@ export default function StudentOffersPage() {
                       <div className="flex items-start">
                         <BookMarked className="w-4 h-4 mr-1.5 mt-0.5 text-purple-400 flex-shrink-0" />
                         <span className="text-muted-foreground">
-                          {student.subjects?.length > 0 ? (
-                            student.subjects.map((subj, idx) => {
+                          {(student.available_subjects ?? student.subjects)?.length > 0 ? (
+                            (student.available_subjects ?? student.subjects).map((subj, idx) => {
                               const isMatched = matchedSubjects.includes(subj)
                               return (
                                 <span key={idx}>
                                   <span className={isMatched ? 'text-amber-600 font-semibold bg-amber-50 px-1 rounded' : 'text-muted-foreground'}>
                                     {subj}
                                   </span>
-                                  {idx < student.subjects.length - 1 && ', '}
+                                  {idx < (student.available_subjects ?? student.subjects).length - 1 && ', '}
                                 </span>
                               )
                             })
@@ -706,6 +710,15 @@ export default function StudentOffersPage() {
                       <div className="flex items-start">
                         <Clock className="w-4 h-4 mr-1.5 mt-0.5 text-orange-400 flex-shrink-0" />
                         <span className="text-muted-foreground">{student.preferred_schedule || 'Jadwal belum ditentukan'}</span>
+                      </div>
+
+                      <div className="flex items-start">
+                        <CalendarDays className="w-4 h-4 mr-1.5 mt-0.5 text-primary flex-shrink-0" />
+                        <span className="text-muted-foreground">
+                          {student.sessions_per_month
+                            ? `${student.sessions_per_month} sesi / bulan`
+                            : 'Jumlah sesi belum ditentukan'}
+                        </span>
                       </div>
                     </div>
 

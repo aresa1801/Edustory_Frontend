@@ -8,7 +8,6 @@ export async function POST(
   { params }: { params: { sessionId: string } }
 ) {
   const sessionId = params.sessionId;
-  console.log('🚀 [SESSION CANCEL]', sessionId);
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -117,8 +116,6 @@ export async function POST(
       console.error('[SESSION CANCEL] update session error:', updateSessionErr);
       return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
     }
-
-    console.log(`✅ [SESSION CANCEL] ${sessionId} → ${newHoldStatus}`);
 
     return NextResponse.json({
       success: true,

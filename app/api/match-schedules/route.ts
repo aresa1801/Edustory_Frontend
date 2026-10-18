@@ -118,10 +118,6 @@ export async function GET(req: NextRequest) {
 
     // Update DB untuk reschedule yang expired
     if (expiredRequestIds.length > 0) {
-      console.log(
-        '[AUTO-REJECT] Expiring reschedule request(s):',
-        expiredRequestIds
-      )
       await supabaseAdmin
         .from('match_schedules')
         .update({ schedules_custom_request: null })
@@ -143,7 +139,6 @@ export async function GET(req: NextRequest) {
     })
 
     if (expiredExtIds.length > 0) {
-      console.log('[AUTO-EXPIRE] Expiring extension request(s):', expiredExtIds)
       for (const id of expiredExtIds) {
         const sch = processedSchedules.find((s: any) => s.id === id)
         await supabaseAdmin

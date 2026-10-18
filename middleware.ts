@@ -50,6 +50,32 @@ export async function middleware(request: NextRequest) {
   const { data: { user }, error } = await supabase.auth.getUser()
 
   // ============================================================
+  // API GUARD — session required + no cross-user access
+  // ============================================================
+  if (pathname.startsWith('/api/')) {
+    const PUBLIC_API = [
+      '/api/auth/callback',
+      '/api/auth/logout',
+      '/api/midtrans/webhook',
+      '/api/payouts/webhook',
+      '/api/cron/',
+    ]
+    const isPublicApi = PUBLIC_API.some((prefix) => pathname.startsWith(prefix))
+    if (isPublicApi) return response
+
+    if (!user || error) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const claimedUserId = request.nextUrl.searchParams.get('user_id')
+    if (claimedUserId && claimedUserId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    return response
+  }
+
+  // ============================================================
   // 2. CEK MAINTENANCE DENGAN PENGECUALIAN EMAIL
   // ============================================================
   const isMaintenance = process.env.MAINTENANCE_MODE === 'true'
@@ -129,5 +155,5 @@ export async function middleware(request: NextRequest) {
 // Konfigurasi matcher: middleware berjalan di SEMUA halaman (kecuali asset statis & API)
 // Ini penting agar maintenance berlaku global, tapi tetap tidak ganggu asset statis
 export const config = {
-  matcher: '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  matcher: '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
 }

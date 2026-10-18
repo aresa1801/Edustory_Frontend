@@ -3,9 +3,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { WithdrawDialog } from '@/components/wallet/withdraw-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import Script from 'next/script'
 import { createClient } from '@/lib/auth'
 import {
   Wallet,
@@ -429,6 +431,17 @@ export default function WalletClient({
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ? (
+        <Script
+          src={
+            process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true'
+              ? 'https://app.midtrans.com/snap/snap.js'
+              : 'https://app.sandbox.midtrans.com/snap/snap.js'
+          }
+          data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+          strategy="afterInteractive"
+        />
+      ) : null}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -470,6 +483,9 @@ export default function WalletClient({
                   </p>
                 </div>
               )}
+              <div className="mt-4">
+                <WithdrawDialog available={available} />
+              </div>
             </CardContent>
           </Card>
 

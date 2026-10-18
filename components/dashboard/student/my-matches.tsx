@@ -31,12 +31,10 @@ export default function StudentMyMatches() {
     setError(null)
 
     try {
-      console.log('[MyMatches] 🔄 Fetching matches...')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        console.log('[MyMatches] ⚠️ User not found')
         setMatches([])
         return
       }
@@ -53,7 +51,6 @@ export default function StudentMyMatches() {
       }
 
       if (!student) {
-        console.log('[MyMatches] ⚠️ No student profile')
         setMatches([])
         return
       }
@@ -84,7 +81,6 @@ export default function StudentMyMatches() {
 
       if (isMounted.current) {
         setMatches(data || [])
-        console.log('[MyMatches] ✅ Matches loaded:', data?.length || 0)
       }
     } catch (err: any) {
       console.error('[MyMatches] ❌ Error:', err)
@@ -94,7 +90,6 @@ export default function StudentMyMatches() {
     } finally {
       if (isMounted.current) {
         setLoading(false)
-        console.log('[MyMatches] 🏁 Loading selesai')
       }
     }
   }

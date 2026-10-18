@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { BookOpen, MapPin, Phone, Mail, MessageCircle, Facebook, Instagram, Linkedin, Twitter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BrandLogo } from '@/components/brand/logo'
 import { CONTACT_INFO } from '@/lib/constants'
 
 const Footer = () => {
@@ -15,25 +16,24 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           {/* Column 1: Logo & Tagline */}
           <div>
-            <div className="flex items-center gap-2 font-bold text-2xl mb-4">
-              <BookOpen className="w-8 h-8" />
-              <span>EduStory</span>
+            <div className="mb-4">
+              <BrandLogo size="md" />
             </div>
-            <p className="text-slate-300 mb-6">
+            <p className="text-muted-foreground mb-6">
               Platform pembelajaran privat terpercaya dengan pengajar profesional dan personalized.
             </p>
             {/* Social Media Icons */}
             <div className="flex gap-3">
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-muted-foreground hover:text-primary">
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-muted-foreground hover:text-primary">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-muted-foreground hover:text-primary">
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-slate-400 hover:text-primary">
+              <a href="#" className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-muted-foreground hover:text-primary">
                 <Linkedin className="w-5 h-5" />
               </a>
             </div>

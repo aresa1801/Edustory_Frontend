@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCreditTier } from '@/lib/credit'
+import { requireUser } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,19 +29,26 @@ export async function GET(request: NextRequest) {
 
     const { data: student, error } = await supabase
       .from('students')
-      .select('*')
+      .select('*, user_profiles:user_id(name, avatar_url, email)')
       .eq('user_id', userId)
       .maybeSingle()
-
-    console.log('[API GET] Student found:', student ? 'YES' : 'NO')
 
     if (error) {
       console.error('[API GET] Error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    const enriched = student
+      ? {
+          ...student,
+          name: (student as any).user_profiles?.name ?? null,
+          avatar_url: (student as any).user_profiles?.avatar_url ?? null,
+          email: (student as any).user_profiles?.email ?? null,
+        }
+      : null
+
     return NextResponse.json(
-      { student: student || null },
+      { student: enriched },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -58,7 +66,6 @@ export async function GET(request: NextRequest) {
 
 // === POST: Upsert data student ===
 export async function POST(request: NextRequest) {
-  console.log('[API] 📥 Received POST /api/students/onboarding')
 
   try {
     const supabase = createClient(
@@ -77,6 +84,9 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
     }
+
+    const { response: authResponse } = await requireUser(request, userId)
+    if (authResponse) return authResponse
 
     // Validasi user_id
     const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId)
@@ -182,8 +192,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('[API] 📦 Final payload keys:', Object.keys(payload))
-
     const { data, error } = await supabase
       .from('students')
       .upsert(payload, { onConflict: 'user_id' })
@@ -194,7 +202,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
-    console.log('[API] ✅ Success')
     return NextResponse.json(
       { success: true, data: data?.[0] || null },
       {

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/auth'
 
 const ADMIN_EMAIL = 'admin@edustory.com'
 
-type AppRole = 'student' | 'tutor' | 'admin' | null
+export type AppRole = 'student' | 'tutor' | 'admin' | null
 
 interface AuthContextType {
   user: User | null
@@ -38,7 +38,6 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
 
   try {
     const supabase = createClient()
-    console.log('[Auth] Fetching user profile for:', currentUser.id)
     
     const { data: profile, error } = await supabase
       .from('user_profiles')
@@ -52,7 +51,6 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     }
 
     if (profile) {
-      console.log('[Auth] Profile found:', profile)
       const roleMap: Record<string, AppRole> = {
         siswa: 'student',
         student: 'student',
@@ -104,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     keysToRemove.forEach(key => localStorage.removeItem(key))
-    console.log('[Auth] Cleared localStorage keys:', keysToRemove)
 
     const allCookies = document.cookie.split(';')
     allCookies.forEach(cookie => {
@@ -117,7 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const domain = window.location.hostname
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}`
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC`
-        console.log('[Auth] Cleared cookie:', name)
       }
     })
 
@@ -139,11 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ============================================================
   const initializeAuth = useCallback(async () => {
     if (isLoggingOut.current) {
-      console.log('[Auth] ⏸️ Skipping init during logout')
       return
     }
 
-    console.log('[Auth] 🛡️ Validasi auth...')
     
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       setInitError('Missing Supabase configuration')
@@ -162,21 +156,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         serverUser = result.data.user
         userError = result.error
         if (serverUser) break
-        console.log(`[Auth] ⏳ Session belum ready, retry ${attempt + 1}/5...`)
         await new Promise(resolve => setTimeout(resolve, 500))
       }
       
       if (!isMounted.current) return
       
       if (userError || !serverUser) {
-        console.log('[Auth] ❌ User tidak valid:', userError?.message)
         await supabase.auth.signOut({ scope: 'global' })
         clearSupabaseStorage()
         if (isMounted.current) setAsGuest()
         return
       }
       
-      console.log('[Auth] ✅ User valid:', serverUser.email)
       
       const { data: { session: currentSession } } = await supabase.auth.getSession()
       if (isMounted.current) {
@@ -200,12 +191,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeoutId)
         
         if (!role && serverUser.email !== ADMIN_EMAIL) {
-          console.log('[Auth] 🆕 First time user')
           setIsFirstTimeUser(true)
           setUserRole(null)
           setUserName(name)
         } else {
-          console.log('[Auth] ✅ User has role:', role)
           setIsFirstTimeUser(false)
           setUserRole(role)
           setUserName(name)
@@ -241,7 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isInitialized.current = true
     isMounted.current = true
 
-    console.log('[Auth] 🚀 Initializing AuthProvider...')
     initializeAuth()
 
     // -----------------------------------------------------------------
@@ -250,20 +238,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[Auth] 📡 Event:', event)
         
         if (isLoggingOut.current) {
-          console.log('[Auth] ⏸️ Ignoring event during logout')
           return
         }
         
         if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/callback')) {
-          console.log('[Auth] ⏭️ Skipping on callback page')
           return
         }
         
         if (isProcessingAuthChange.current) {
-          console.log('[Auth] ⏸️ Already processing, skip')
           return
         }
         
@@ -273,19 +257,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!isMounted.current) return
           
           if (event === 'SIGNED_OUT') {
-            console.log('[Auth] 🚪 User signed out')
             setAsGuest()
             return
           }
           
           if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            console.log('[Auth] 🔄 Re-validating...')
             await initializeAuth()
             return
           }
           
           if (event === 'SIGNED_IN' && currentSession) {
-            console.log('[Auth] ✅ SIGNED_IN - Update state')
             
             if (!currentSession.user) {
               console.warn('[Auth] ⚠️ SIGNED_IN but user is null')
@@ -310,7 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUserName(currentSession.user?.email || null)
               }
               profileTimeoutRef.current = null
-            }, 5000)
+            }, 2500)
 
             try {
               const { role, name } = await fetchUserProfile(currentSession.user)
@@ -356,7 +337,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { user: currentUser } } = await supabaseClient.auth.getUser()
       if (!currentUser) {
         if (user) {
-          console.log('[Auth] ⏱️ Session expired, auto logout')
           setAsGuest()
         }
         return
@@ -407,7 +387,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    console.log('[Auth] 🚪 Sign out...')
     isLoggingOut.current = true
     try {
       const response = await fetch('/api/auth/logout')
@@ -439,7 +418,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const forceSignOut = async () => {
-    console.log('[Auth] 🚨 Force sign out...')
     isLoggingOut.current = true
     
     try {

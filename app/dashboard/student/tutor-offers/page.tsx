@@ -164,7 +164,6 @@ export default function TutorOffersPage() {
         { cache: 'no-store' }
       )
       const data = await res.json()
-      console.log('[Offers] Wallet:', data)
       setWalletBalance(Number(data?.balance) || 0)
     } catch (err) {
       console.warn('[Offers] Fetch balance error:', err)

@@ -28,7 +28,7 @@ import { AvatarUploader } from '@/components/AvatarUploader'
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Menunggu', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border border-yellow-500/30' },
   matched:   { label: 'Dikonfirmasi', color: 'bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30' },
-  active:    { label: 'Aktif', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30' },
+  active:    { label: 'Aktif', color: 'bg-blue-500/15 text-primary border border-blue-500/30' },
   completed: { label: 'Selesai', color: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border border-slate-500/30' },
   cancelled: { label: 'Dibatalkan', color: 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30' },
 }
@@ -232,6 +232,10 @@ export default function StudentDashboard() {
           setIsOnline(true)
         }
 
+        // Render dashboard as soon as the core profile is ready.
+        // Secondary queries (matches/offers) continue in the background.
+        if (isMounted) setLoading(false)
+
         if (studentData?.id) {
           const supabase = createClient()
           const { data: md, error: mdError } = await supabase
@@ -268,7 +272,7 @@ export default function StudentDashboard() {
         console.warn('[DASHBOARD] ⚠️ Force loading false after 5s')
         setLoading(false)
       }
-    }, 5000)
+    }, 3000)
 
     return () => {
       isMounted = false
@@ -304,7 +308,6 @@ export default function StudentDashboard() {
         .eq('user_id', authUser.id)
       if (error) throw error
       setProfile((prev: any) => ({ ...prev, avatar_url: url }))
-      console.log('[DASHBOARD] Avatar updated successfully')
     } catch (err) {
       console.error('[DASHBOARD] Failed to update avatar:', err)
       alert('Gagal memperbarui foto profil')
@@ -379,11 +382,11 @@ export default function StudentDashboard() {
       )}
 
       {tutorOffers.length > 0 && (
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-blue-700 dark:text-blue-300">🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
+            <span className="text-primary">🎉 Ada <strong>{tutorOffers.length}</strong> tutor yang menawarkan diri untuk mengajar Anda!</span>
             <Link href="/dashboard/student/tutor-offers">
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button size="sm" className="bg-primary hover:opacity-90 text-primary-foreground">
                 Lihat Penawaran <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
@@ -395,8 +398,8 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-300" />
+            <div className="w-10 h-10 rounded-lg bg-primary/12 flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 text-primary" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Pengajar Aktif</p>
@@ -406,8 +409,8 @@ export default function StudentDashboard() {
         </Card>
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-              <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+            <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-5 h-5 text-accent-foreground" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Menunggu</p>
@@ -417,7 +420,7 @@ export default function StudentDashboard() {
         </Card>
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-primary/12 flex items-center justify-center flex-shrink-0">
               <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
             </div>
             <div>
@@ -428,8 +431,8 @@ export default function StudentDashboard() {
         </Card>
         <Card className="p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+            <div className="w-10 h-10 rounded-lg bg-primary/12 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5 text-primary" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Mata Pelajaran</p>
@@ -475,7 +478,7 @@ export default function StudentDashboard() {
           <CardContent className="p-5 pt-2">
             <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
+                className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-[#3ED3A3] flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-md cursor-pointer relative group"
                 onClick={() => setIsAvatarModalOpen(true)}
               >
                 {profile?.avatar_url ? (
@@ -558,8 +561,8 @@ export default function StudentDashboard() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Link href="/dashboard/student/tutor-offers" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                <Star className="w-4 h-4 text-yellow-600 dark:text-yellow-300" />
+              <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                <Star className="w-4 h-4 text-accent-foreground" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm">Penawaran Tutor</p>
@@ -580,8 +583,8 @@ export default function StudentDashboard() {
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </Link>
             <Link href="/dashboard/student/schedule" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+              <div className="w-9 h-9 rounded-lg bg-primary/12 flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm">Jadwal Belajar</p>
@@ -590,7 +593,7 @@ export default function StudentDashboard() {
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </Link>
             <Link href="/dashboard/student/analytics" className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-primary/12 flex items-center justify-center flex-shrink-0">
                 <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-300" />
               </div>
               <div className="flex-1">

@@ -114,7 +114,6 @@ export default function TutorAnalyticsPage() {
     let cancelled = false
 
     const fetchAnalytics = async () => {
-      console.log('[analytics] FETCH — start')
       try {
         const res = await fetch(
           `/api/tutors/analytics-v2?user_id=${user.id}&_t=${Date.now()}`,
@@ -126,7 +125,6 @@ export default function TutorAnalyticsPage() {
             },
           }
         )
-        console.log('[analytics] FETCH — status:', res.status)
 
         if (!res.ok) {
           console.warn('[analytics] FETCH — not ok, skip')
@@ -134,18 +132,11 @@ export default function TutorAnalyticsPage() {
         }
 
         const json = await res.json()
-        console.log('[analytics] FETCH — data:', {
-          creditScore: json.creditScore,
-          logCount: json.creditLog?.length,
-          reviewCount: json.reviews?.length,
-        })
 
         if (cancelled) {
-          console.log('[analytics] FETCH — cancelled, gak setData')
           return
         }
 
-        console.log('[analytics] setData dipanggil')
         setData(json)
       } catch (e) {
         console.error('[analytics] FETCH — error:', e)
@@ -155,13 +146,11 @@ export default function TutorAnalyticsPage() {
     fetchAnalytics()
 
     const handler = () => {
-      console.log('[analytics] event credit-updated diterima')
       fetchAnalytics()
     }
     window.addEventListener('credit-updated', handler)
 
     return () => {
-      console.log('[analytics] cleanup')
       cancelled = true
       window.removeEventListener('credit-updated', handler)
     }
