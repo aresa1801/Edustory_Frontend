@@ -98,6 +98,11 @@ export default function StudentOffersPage() {
   const [mode, setMode] = useState<ModeOption>('online')
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [curationWarning, setCurationWarning] = useState<{
+    message: string
+    missingGrade: string | null
+    missingSubjects: string[]
+  } | null>(null)
     // Suspend state
   const [suspendInfo, setSuspendInfo] = useState<{
     suspendedUntil: string
@@ -431,6 +436,21 @@ export default function StudentOffersPage() {
         }
         
         throw new Error(err.error || 'Akses ditolak')
+      }
+
+      // ⬇️ HANDLE 409 — kurasi belum sesuai
+      if (res.status === 409) {
+        const err = await res.json().catch(() => ({}))
+        if (err.error === 'CURATION_MISMATCH') {
+          setCurationWarning({
+            message: err.message || 'Anda belum melakukan kurasi ke mata pelajaran terkait.',
+            missingGrade: err.missingGrade ?? null,
+            missingSubjects: Array.isArray(err.missingSubjects) ? err.missingSubjects : [],
+          })
+          setSending(null)
+          setSelectedStudent(null)
+          return
+        }
       }
 
       if (!res.ok) {
@@ -781,6 +801,54 @@ export default function StudentOffersPage() {
               className="w-full"
             >
               Mengerti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Peringatan Kurasi */}
+      <Dialog open={!!curationWarning} onOpenChange={(open) => !open && setCurationWarning(null)}>
+        <DialogContent className="sm:max-w-md border-destructive/30">
+          <DialogHeader>
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-6" />
+            </div>
+            <DialogTitle className="text-center text-lg font-semibold text-destructive">
+              Kurasi Belum Sesuai
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2 text-sm leading-6">
+              <span className="block font-medium text-foreground">
+                {curationWarning?.message}
+              </span>
+              {curationWarning?.missingGrade ? (
+                <span className="block rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                  Kelas student: <strong>{curationWarning.missingGrade}</strong> belum ada di kurasi Anda.
+                </span>
+              ) : null}
+              {curationWarning?.missingSubjects?.length ? (
+                <span className="block rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                  Mata pelajaran yang belum dikurasi:{' '}
+                  <strong>{curationWarning.missingSubjects.join(', ')}</strong>
+                </span>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full"
+              onClick={() => {
+                setCurationWarning(null)
+                router.push('/dashboard/tutor/teaching-interest')
+              }}
+            >
+              Atur Minat Mengajar
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setCurationWarning(null)}
+            >
+              Kembali
             </Button>
           </DialogFooter>
         </DialogContent>

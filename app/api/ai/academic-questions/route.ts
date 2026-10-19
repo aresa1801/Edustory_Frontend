@@ -1,17 +1,12 @@
 /**
  * POST /api/ai/academic-questions
  *
- * Generates academic multiple-choice questions for a specific Indonesian grade level
- * using DeepSeek AI. Falls back to empty array on error so the UI can use static questions.
+ * Generates exactly 10 multiple-choice questions for every subject requested.
+ * The academic test is per grade level and per subject, so the caller sends the
+ * subjects that still need to be passed (see /api/assessments/academic/plan).
  *
- * Request body: { level: string; count?: number; subjects?: string[] }
- *   level    — one of "SD Kelas 1" … "SMA Kelas 12"
- *   count    — number of questions (5–20, default 10)
- *   subjects — optional list of the tutor's teaching fields; when given, the
- *              questions are generated only for those subjects (never spread
- *              across the whole curriculum).
- *
- * Response: { questions: AIAcademicQuestion[] }
+ * Request: { level: string; subjects: string[]; perSubject?: 10 }
+ * Response: { questions, subjects, perSubject }
  */
 
 import { createServerClient } from '@/lib/supabase/server'
@@ -27,121 +22,107 @@ export interface AIAcademicQuestion {
   correctAnswer: string
 }
 
-interface DeepSeekQuestionsResponse {
-  questions: AIAcademicQuestion[]
-}
+type DeepSeekQuestionsResponse = { questions: AIAcademicQuestion[] }
 
-const LEVEL_SUBJECTS: Record<string, string[]> = {
-  'SD Kelas 1': ['Matematika', 'Bahasa Indonesia'],
-  'SD Kelas 2': ['Matematika', 'IPA', 'Bahasa Indonesia'],
-  'SD Kelas 3': ['Matematika', 'IPA', 'Bahasa Indonesia'],
-  'SD Kelas 4': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia'],
-  'SD Kelas 5': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia'],
-  'SD Kelas 6': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia', 'PKn'],
-  'SMP Kelas 7': ['Matematika', 'IPA', 'IPS', 'Bahasa Indonesia', 'Bahasa Inggris'],
-  'SMP Kelas 8': ['Matematika', 'IPA (Fisika)', 'IPA (Biologi)', 'Bahasa Indonesia', 'Bahasa Inggris'],
-  'SMP Kelas 9': ['Matematika', 'IPA (Kimia)', 'IPA (Fisika)', 'IPS', 'Bahasa Inggris'],
-  'SMA Kelas 10': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Bahasa Indonesia', 'Bahasa Inggris'],
-  'SMA Kelas 11': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Ekonomi', 'Bahasa Inggris'],
-  'SMA Kelas 12': ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Bahasa Inggris', 'Sejarah'],
-}
+const VALID_LEVELS = [
+  'SD Kelas 1', 'SD Kelas 2', 'SD Kelas 3', 'SD Kelas 4', 'SD Kelas 5', 'SD Kelas 6',
+  'SMP Kelas 7', 'SMP Kelas 8', 'SMP Kelas 9',
+  'SMA Kelas 10', 'SMA Kelas 11', 'SMA Kelas 12',
+]
 
-const VALID_LEVELS = Object.keys(LEVEL_SUBJECTS)
+async function generateForSubject(level: string, subject: string, count: number) {
+  const systemPrompt = `Anda adalah guru berpengalaman yang membuat soal ujian untuk siswa Indonesia.
+Buat soal pilihan ganda yang akurat sesuai Kurikulum Merdeka/K-13.
+Kembalikan HANYA JSON valid dengan struktur:
+{"questions":[{"id":1,"level":"${level}","subject":"${subject}","question":"...","options":[{"value":"a","text":"..."},{"value":"b","text":"..."},{"value":"c","text":"..."},{"value":"d","text":"..."}],"correctAnswer":"a"}]}`
 
-export async function POST(req: NextRequest) {
-  try {
-    const authClient = await createServerClient()
-    const { data: { user } } = await authClient.auth.getUser()
+  const userPrompt = `Buat TEPAT ${count} soal pilihan ganda untuk mata pelajaran "${subject}" jenjang "${level}".
+Ketentuan:
+- Semua soal HARUS mata pelajaran ${subject}; jangan mencampur mata pelajaran lain.
+- Tepat ${count} soal, tidak kurang dan tidak lebih.
+- Setiap soal memiliki tepat 4 pilihan (a, b, c, d) dan satu jawaban benar.
+- Isi field "level" dengan "${level}" dan "subject" dengan "${subject}".
+- Variasikan jawaban benar, jangan selalu a.
+- Bahasa Indonesia, sesuai tingkat kemampuan ${level}.`
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await req.json().catch(() => ({}))
-    const level: string = body.level ?? ''
-    const count: number = Math.min(Math.max(Number(body.count) || 10, 5), 20)
-
-    if (!VALID_LEVELS.includes(level)) {
-      return NextResponse.json(
-        { error: `Invalid level. Must be one of: ${VALID_LEVELS.join(', ')}` },
-        { status: 400 }
-      )
-    }
-
-    const levelSubjects = LEVEL_SUBJECTS[level]
-
-    // Restrict to the tutor's declared teaching field(s) when provided.
-    const norm = (s: unknown) =>
-      String(s).toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '')
-    let subjects = levelSubjects
-    const requested = Array.isArray(body.subjects)
-      ? body.subjects.filter((s: unknown) => typeof s === 'string' && s.trim())
-      : []
-    if (requested.length > 0) {
-      const want = requested.map(norm)
-      const matched = levelSubjects.filter((ls) => want.includes(norm(ls)))
-      // If the tutor's fields don't map to a canonical label for this level,
-      // keep the tutor's own labels so the AI still targets their field.
-      subjects = matched.length > 0 ? matched : requested
-    }
-
-    const systemPrompt = `Anda adalah guru berpengalaman yang membuat soal ujian untuk siswa Indonesia.
-Buat soal pilihan ganda yang akurat, sesuai kurikulum Kemendikbud (Kurikulum Merdeka / K-13),
-dan sesuai tingkat kemampuan siswa untuk jenjang yang diminta.
-Kembalikan HANYA objek JSON dengan struktur berikut (tanpa teks lain):
-{
-  "questions": [
-    {
-      "id": 1,
-      "level": "SD Kelas 3",
-      "subject": "Matematika",
-      "question": "...",
-      "options": [
-        {"value": "a", "text": "..."},
-        {"value": "b", "text": "..."},
-        {"value": "c", "text": "..."},
-        {"value": "d", "text": "..."}
-      ],
-      "correctAnswer": "c"
-    }
-  ]
-}`
-
-    const userPrompt = `Buat ${count} soal pilihan ganda untuk jenjang "${level}" dalam Bahasa Indonesia.
-Distribusikan soal merata di antara mata pelajaran berikut: ${subjects.join(', ')}.
-PENTING: hanya buat soal untuk mata pelajaran yang disebutkan di atas. Jangan membuat
-soal dari mata pelajaran lain di luar daftar tersebut.
-Pastikan:
-- Soal sesuai dengan standar kompetensi Kemendikbud untuk ${level}
-- Jawaban yang benar bervariasi (tidak selalu jawaban yang sama)
-- Tingkat kesulitan sesuai dengan kemampuan siswa ${level}
-- Setiap soal memiliki tepat 4 pilihan (a, b, c, d)
-- Field "level" diisi "${level}" untuk setiap soal`
-
+  for (let attempt = 0; attempt < 2; attempt++) {
     const result = await deepseekJSON<DeepSeekQuestionsResponse>(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      { temperature: 0.7, max_tokens: 4096 }
+      { temperature: attempt === 0 ? 0.6 : 0.3, max_tokens: 4096 },
     )
+    const questions = Array.isArray(result?.questions) ? result.questions : []
+    if (questions.length === count) {
+      return questions.map((q, index) => ({
+        id: index + 1,
+        level,
+        subject,
+        question: String(q.question ?? ''),
+        options: Array.isArray(q.options) && q.options.length === 4
+          ? q.options
+          : [{ value: 'a', text: 'A' }, { value: 'b', text: 'B' }, { value: 'c', text: 'C' }, { value: 'd', text: 'D' }],
+        correctAnswer: String(q.correctAnswer ?? 'a').toLowerCase(),
+      }))
+    }
+  }
 
-    if (!Array.isArray(result?.questions)) {
-      throw new Error('Invalid response structure from AI')
+  throw new Error(`AI tidak menghasilkan tepat ${count} soal untuk ${subject}`)
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await req.json().catch(() => ({}))
+    const level = String(body?.level ?? '')
+    const perSubject = 10
+    const subjects: string[] = Array.isArray(body?.subjects)
+      ? [...new Set<string>(body.subjects.map((value: unknown) => String(value).trim()).filter(Boolean))]
+      : []
+
+    if (!VALID_LEVELS.includes(level)) {
+      return NextResponse.json({ error: 'Jenjang tidak valid' }, { status: 400 })
+    }
+    if (!subjects.length) {
+      return NextResponse.json({ error: 'Mata pelajaran wajib dikirim' }, { status: 400 })
     }
 
-    const questions = result.questions.slice(0, count).map((q, idx) => ({
-      id: q.id ?? idx + 1,
-      level: q.level ?? level,
-      subject: q.subject ?? subjects[idx % subjects.length],
-      question: q.question ?? '',
-      options: Array.isArray(q.options) ? q.options : [],
-      correctAnswer: q.correctAnswer ?? 'a',
-    }))
+    const settled = await Promise.allSettled(
+      subjects.map((subject) => generateForSubject(level, subject, perSubject)),
+    )
 
-    return NextResponse.json({ questions })
+    const questions: AIAcademicQuestion[] = []
+    const missingSubjects: string[] = []
+
+    settled.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        for (const question of result.value) {
+          questions.push({ ...question, id: questions.length + 1 })
+        }
+      } else {
+        missingSubjects.push(subjects[index])
+        console.error('[academic-questions]', subjects[index], result.reason)
+      }
+    })
+
+    if (missingSubjects.length) {
+      return NextResponse.json(
+        {
+          error: `Bank soal untuk ${missingSubjects.join(', ')} belum tersedia. Coba lagi atau hubungi admin.`,
+          missingSubjects,
+          questions,
+        },
+        { status: 502 },
+      )
+    }
+
+    return NextResponse.json({ questions, subjects, perSubject })
   } catch (error) {
     console.error('Error generating academic questions:', error)
-    return NextResponse.json({ questions: [], fallback: true })
+    return NextResponse.json({ error: 'Gagal menyiapkan soal akademik' }, { status: 500 })
   }
 }

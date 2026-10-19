@@ -156,6 +156,31 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ========== 3c. Auto-complete kontrak yang sudah melewati tanggal akhir ==========
+    const naturallyExpired = processedSchedules.filter((s: any) => {
+      const end = s.matches?.contract_end_date
+      if (!end) return false
+      if (s.status === 'completed') return false
+      if (s.termination_request) return false
+      return new Date(end).getTime() < nowMs
+    })
+    if (naturallyExpired.length > 0) {
+      const ids = naturallyExpired.map((s: any) => s.id)
+      const matchIds = naturallyExpired.map((s: any) => s.match_id)
+      await supabaseAdmin
+        .from('match_schedules')
+        .update({ status: 'completed', completion_type: 'natural' })
+        .in('id', ids)
+      await supabaseAdmin
+        .from('matches')
+        .update({ status: 'completed', ended_at: new Date(nowMs).toISOString(), completion_type: 'natural' })
+        .in('id', matchIds)
+      naturallyExpired.forEach((s: any) => {
+        s.status = 'completed'
+        s.completion_type = 'natural'
+      })
+    }
+
     // ========== 4. Ambil data detail student & tutor ==========
     const studentIds = [
       ...new Set(processedSchedules.map((s: any) => s.student_id)),
@@ -197,7 +222,7 @@ export async function GET(req: NextRequest) {
         schedulesCustom: item.schedules_custom,
         schedulesCustomRequest: item.schedules_custom_request || null,
         extensionRequest: item.extension_request || null,
-        completionType: (() => {
+        completionType: item.completion_type || (() => {
           const tr = item.termination_request
           if (!tr) return 'natural'
           if (tr.type === 'unilateral') return 'unilateral'

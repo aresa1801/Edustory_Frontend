@@ -247,13 +247,14 @@ export async function GET(
         .from('match_schedules')
         .update({
           status: 'completed',
+          completion_type: 'natural',
           completion_notification: completionNotif,
         })
         .eq('id', schedule.id)
 
       await supabaseAdmin
         .from('matches')
-        .update({ status: 'completed', ended_at: now.toISOString() })
+        .update({ status: 'completed', ended_at: now.toISOString(), completion_type: 'natural' })
         .eq('id', matchId)
 
       // Update local var untuk response
@@ -273,6 +274,13 @@ export async function GET(
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,
       rescheduleNotification: schedule.reschedule_notification ?? null,
       completionNotification: schedule.completion_notification ?? null,
+      completionType: schedule.completion_type || (() => {
+        const tr = schedule.termination_request
+        if (!tr) return 'natural'
+        if (tr.type === 'unilateral') return 'unilateral'
+        if (tr.type === 'mutual' && tr.status === 'approved') return 'mutual'
+        return 'natural'
+      })(),
 
       extensionRequest: schedule.extension_request ?? null,
       extensionNotification: schedule.extension_notification ?? null,
