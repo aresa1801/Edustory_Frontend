@@ -641,7 +641,7 @@ export default function StudentOffersPage() {
               return (
                 <Card key={student.id} className="border shadow-sm hover:shadow-md relative overflow-hidden">
                   {showDistance && (
-                    <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-gray-200 text-gray-700">
+                    <div className="absolute top-3 right-3 z-10 bg-card/95 backdrop-blur-sm text-xs font-medium px-2 py-1 rounded-full shadow-md border border-border text-foreground">
                       {distance! < 1 ? '< 1' : distance!.toFixed(1)} km
                     </div>
                   )}

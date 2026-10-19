@@ -38,7 +38,7 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-card rounded-2xl shadow-lg p-8">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground mb-2">Selamat Datang</h1>
           <p className="text-muted-foreground">Masuk ke akun EduStory Anda</p>

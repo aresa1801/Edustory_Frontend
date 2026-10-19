@@ -7,7 +7,6 @@ import { useAuth, AppRole } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/brand/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { AlertTriangle } from 'lucide-react'
 
@@ -494,7 +493,6 @@ export default function SharedDashboardLayout({
           </button>
 
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold text-foreground">
                 {userName || user?.email}
