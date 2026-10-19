@@ -242,6 +242,30 @@
   border-color: rgba(168, 85, 247, 0.35) !important;
 }
 
+/* Primary surfaces need dark ink, not white, on the mint accent */
+.dark .bg-primary.text-white {
+  color: var(--primary-foreground) !important;
+}
+
+/* Unify legacy blue action buttons with the Edustory primary token */
+.dark .bg-blue-600 {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.dark .border-blue-600 {
+  border-color: var(--primary) !important;
+}
+
+.dark .hover\:bg-blue-700:hover {
+  background-color: color-mix(in srgb, var(--primary) 82%, #000) !important;
+}
+
+/* Success/active chips also need dark ink on mint */
+.dark .bg-green-500.text-white {
+  color: #052e1b !important;
+}
+
 /* Opacity variants that are still light-mode surfaces */
 .dark .bg-slate-50\/50 {
   background-color: rgba(20, 40, 36, 0.55) !important;
