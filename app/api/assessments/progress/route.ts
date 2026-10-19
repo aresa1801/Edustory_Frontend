@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { buildAcademicPlan } from '@/lib/academic-plan'
 import { NextRequest, NextResponse } from 'next/server'
 
 function getAdminClient() {
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     const { data: tutor } = await supabase
       .from('tutors')
-      .select('id')
+      .select('id, verified_grade_levels, specializations_sd, specializations_smp, specializations_sma')
       .eq('user_id', user.id)
       .single()
 
@@ -44,13 +45,11 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .single()
 
-    const { data: academicRaw } = await supabase
+    const { data: academicRows } = await supabase
       .from('academic_assessments')
-      .select('score, level_targeted')
+      .select('id, score, level_targeted, subject_results, passed_subjects, failed_subjects, created_at')
       .eq('tutor_id', tutor.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+      .order('created_at', { ascending: true })
 
     const { data: microteachingRaw } = await supabase
       .from('microteaching_assessments')
@@ -76,12 +75,25 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .single()
 
+    const academicPlan = buildAcademicPlan(tutor, academicRows ?? [])
+    const completedSteps = new Set<string>(progress?.completed_steps || [])
+    if (academicPlan.allPassed) completedSteps.add('academic')
+    else completedSteps.delete('academic')
+    const normalizedProgress = progress
+      ? { ...progress, completed_steps: [...completedSteps] }
+      : progress
+
     // Normalize all score fields to a consistent `score` key for the frontend
     return NextResponse.json({
-      progress,
+      progress: normalizedProgress,
       psychology: psychologyRaw ? { score: psychologyRaw.score } : null,
-      academic: academicRaw
-        ? { score: academicRaw.score, level_targeted: academicRaw.level_targeted }
+      academic: academicRows?.length
+        ? {
+            score: academicPlan.academicScore,
+            level_targeted: academicRows[academicRows.length - 1]?.level_targeted ?? null,
+            levels: academicPlan.levels,
+            all_passed: academicPlan.allPassed,
+          }
         : null,
       microteaching: microteachingRaw ? { score: microteachingRaw.overall_score } : null,
       handwriting: handwritingRaw ? { score: handwritingRaw.overall_score } : null,
