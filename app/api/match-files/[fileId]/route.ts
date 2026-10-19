@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isValidUUID } from '@/lib/security/sanitize'
+import { requireUser } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,9 @@ export async function DELETE(
         { status: 400 }
       )
     }
+
+    const { response: authResponse } = await requireUser(req, userId)
+    if (authResponse) return authResponse
 
     // ... sisanya sama seperti sebelumnya
     const { data: fileRow, error: fetchError } = await supabaseAdmin
