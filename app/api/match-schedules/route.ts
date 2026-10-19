@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/api-auth'
 
 // Helper: parse "YYYY-MM-DD" + "HH.MM - HH.MM" jadi Date UTC
 function parseTargetDate(dateStr: string, timeSlot: string): number {
@@ -27,6 +28,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    const { response: authResponse } = await requireUser(req, userId)
+    if (authResponse) return authResponse
 
     // ========== 1. Cari profile ==========
     const profileTable = role === 'tutor' ? 'tutors' : 'students'

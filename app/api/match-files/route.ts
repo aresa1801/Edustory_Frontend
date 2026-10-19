@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,6 +23,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    const { response: authResponse } = await requireUser(req, userId)
+    if (authResponse) return authResponse
 
     // ===== 1. Resolve user_id → profile id =====
     const profileTable = role === 'tutor' ? 'tutors' : 'students'

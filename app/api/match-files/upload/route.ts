@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getRequestUser } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -51,6 +52,14 @@ export async function POST(req: NextRequest) {
     // 2. Validasi role
     if (!['tutor', 'student'].includes(role)) {
       return NextResponse.json({ error: 'role tidak valid' }, { status: 400 })
+    }
+
+    const authUser = await getRequestUser(req)
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (authUser.id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // 3. Validasi folder (private atau dari match_folders)
@@ -118,6 +127,16 @@ export async function POST(req: NextRequest) {
     }
 
     const uploaderId = profile.id
+
+    // 6b. Pastikan pengunggah benar-benar peserta match ini.
+    const { data: match } = await supabaseAdmin
+      .from('matches')
+      .select('id, tutor_id, student_id')
+      .eq('id', matchId)
+      .maybeSingle()
+    if (!match || (role === 'tutor' ? match.tutor_id !== uploaderId : match.student_id !== uploaderId)) {
+      return NextResponse.json({ error: 'Akses ditolak ke match ini' }, { status: 403 })
+    }
 
     // 7. Generate storage path
     const uniqueId = crypto.randomUUID()
