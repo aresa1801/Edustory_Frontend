@@ -144,15 +144,15 @@ const Footer = () => {
               &copy; {currentYear} EduStory. Semua hak cipta dilindungi.
             </p>
             <div className="flex gap-6 text-sm">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/privacy" className="text-muted-foreground hover:text-primary transition-colors">
                 Kebijakan Privasi
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              </Link>
+              <Link href="/terms" className="text-muted-foreground hover:text-primary transition-colors">
                 Syarat & Ketentuan
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                FAQ
-              </a>
+              </Link>
+              <Link href="/#kontak" className="text-muted-foreground hover:text-primary transition-colors">
+                Hubungi Kami
+              </Link>
             </div>
           </div>
         </div>
