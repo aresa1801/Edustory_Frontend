@@ -7,13 +7,14 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
+import { Brain, BookOpen, Video, PenLine, MessageSquare, type LucideIcon } from 'lucide-react'
 
 interface CurationStep {
   name: string
   completed: boolean
   score?: number
   weight: number
-  icon: string
+  icon: LucideIcon
   href?: string
 }
 
@@ -37,7 +38,7 @@ export default function CurationProgressPage() {
             completed: completedSteps.includes('psychology'),
             score: data.psychology?.score,
             weight: 20,
-            icon: '🧠',
+            icon: Brain,
             href: '/curation/psychology-test'
           },
           {
@@ -45,7 +46,7 @@ export default function CurationProgressPage() {
             completed: completedSteps.includes('academic'),
             score: data.academic?.score,
             weight: 30,
-            icon: '📚',
+            icon: BookOpen,
             href: completedSteps.includes('psychology') ? '/curation/academic-test' : undefined
           },
           {
@@ -53,7 +54,7 @@ export default function CurationProgressPage() {
             completed: completedSteps.includes('microteaching'),
             score: data.microteaching?.overall_score,
             weight: 25,
-            icon: '🎥',
+            icon: Video,
             href: completedSteps.includes('academic') ? '/curation/microteaching' : undefined
           },
           {
@@ -61,7 +62,7 @@ export default function CurationProgressPage() {
             completed: completedSteps.includes('handwriting'),
             score: data.handwriting?.overall_score,
             weight: 15,
-            icon: '✍️',
+            icon: PenLine,
             href: completedSteps.includes('microteaching') ? '/curation/handwriting' : undefined
           },
           {
@@ -69,7 +70,7 @@ export default function CurationProgressPage() {
             completed: completedSteps.includes('interview'),
             score: data.interview?.overall_score,
             weight: 10,
-            icon: '💬',
+            icon: MessageSquare,
             href: completedSteps.includes('handwriting') ? '/curation/interview' : undefined
           }
         ]
@@ -160,7 +161,9 @@ export default function CurationProgressPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="text-3xl">{step.icon}</div>
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <step.icon className="size-5" />
+                  </div>
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">
                       {step.name}
