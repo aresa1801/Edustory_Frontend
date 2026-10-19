@@ -242,6 +242,11 @@
   border-color: rgba(168, 85, 247, 0.35) !important;
 }
 
+/* `text-secondary` is a dark surface token; use its readable foreground on cards */
+.dark .text-secondary {
+  color: var(--secondary-foreground) !important;
+}
+
 /* Primary surfaces need dark ink, not white, on the mint accent */
 .dark .bg-primary.text-white {
   color: var(--primary-foreground) !important;

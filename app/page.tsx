@@ -159,7 +159,7 @@ export default function Home() {
                       <p className="text-[11px] text-muted-foreground">Kelas 9 · Matematika & Inggris</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-accent-foreground">
+                  <span className="rounded-full border border-accent/30 bg-accent/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-accent">
                     Aktif
                   </span>
                 </div>
@@ -258,7 +258,7 @@ export default function Home() {
                 }`}
               >
                 {program.featured ? (
-                  <span className="absolute right-4 top-4 rounded-full bg-accent/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-accent-foreground">
+                  <span className="absolute right-4 top-4 rounded-full border border-accent/30 bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-accent">
                     {program.tag}
                   </span>
                 ) : (
