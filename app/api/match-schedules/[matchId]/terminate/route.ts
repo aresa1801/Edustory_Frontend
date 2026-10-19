@@ -123,6 +123,7 @@ export async function POST(
         .from('match_schedules')
         .update({
           status: 'completed',
+          completion_type: 'unilateral',
           termination_request: {
             requested_by: role,
             requested_at: now.toISOString(),
@@ -144,7 +145,7 @@ export async function POST(
 
       await supabaseAdmin
         .from('matches')
-        .update({ status: 'completed', ended_at: now.toISOString() })
+        .update({ status: 'completed', completion_type: 'unilateral', ended_at: now.toISOString() })
         .eq('id', matchId)
 
       await supabaseAdmin
@@ -370,6 +371,7 @@ export async function PATCH(
       .from('match_schedules')
       .update({
         status: 'completed',
+        completion_type: 'mutual',
         termination_request: {
           ...currentReq,
           status: 'approved',
@@ -391,7 +393,7 @@ export async function PATCH(
 
     await supabaseAdmin
       .from('matches')
-      .update({ status: 'completed', ended_at: now.toISOString() })
+      .update({ status: 'completed', completion_type: 'mutual', ended_at: now.toISOString() })
       .eq('id', matchId)
 
     await supabaseAdmin

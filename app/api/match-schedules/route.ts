@@ -151,6 +151,39 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ========== 3c. Auto-complete kontrak yang sudah lewat tanggal akhir ==========
+    const expiredContractIds: string[] = []
+    for (const s of processedSchedules as any[]) {
+      if (s.status === 'completed') continue
+      if (s.termination_request) continue
+      const end = s.matches?.contract_end_date
+      if (!end || new Date(end).getTime() >= nowMs) continue
+      expiredContractIds.push(s.id)
+    }
+
+    if (expiredContractIds.length > 0) {
+      const completedAt = new Date().toISOString()
+      for (const id of expiredContractIds) {
+        const sch = processedSchedules.find((s: any) => s.id === id)
+        if (!sch) continue
+        const completionNotification = { type: 'natural', at: completedAt }
+        await supabaseAdmin
+          .from('match_schedules')
+          .update({ status: 'completed', completion_type: 'natural', completion_notification: completionNotification })
+          .eq('id', id)
+        if (sch.match_id) {
+          await supabaseAdmin
+            .from('matches')
+            .update({ status: 'completed', completion_type: 'natural', ended_at: completedAt })
+            .eq('id', sch.match_id)
+        }
+        sch.status = 'completed'
+        sch.completion_type = 'natural'
+        sch.completion_notification = completionNotification
+        if (sch.matches) sch.matches.status = 'completed'
+      }
+    }
+
     // ========== 4. Ambil data detail student & tutor ==========
     const studentIds = [
       ...new Set(processedSchedules.map((s: any) => s.student_id)),
@@ -192,7 +225,7 @@ export async function GET(req: NextRequest) {
         schedulesCustom: item.schedules_custom,
         schedulesCustomRequest: item.schedules_custom_request || null,
         extensionRequest: item.extension_request || null,
-        completionType: (() => {
+        completionType: item.completion_type ?? (() => {
           const tr = item.termination_request
           if (!tr) return 'natural'
           if (tr.type === 'unilateral') return 'unilateral'

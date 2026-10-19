@@ -101,7 +101,7 @@ export default function CurationProgressPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-[320px] items-center justify-center">
         <Spinner className="h-8 w-8" />
       </div>
     )
@@ -111,10 +111,10 @@ export default function CurationProgressPage() {
   const overallProgress = (completedCount / steps.length) * 100
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="space-y-6">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             Status Kurasi Tutor
           </h1>
           <p className="text-lg text-muted-foreground">

@@ -313,7 +313,7 @@ export default function PsychologyTestPage() {
 
   if (questionsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center">
+      <div className="flex min-h-[320px] items-center justify-center">
         <div className="text-center">
           <Spinner className="h-8 w-8 mx-auto mb-4" />
           <p className="text-muted-foreground">Mempersiapkan soal dengan AI...</p>
@@ -324,7 +324,7 @@ export default function PsychologyTestPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
+      <div className="flex min-h-[320px] items-center justify-center">
         <Card className="w-full max-w-2xl p-8 text-center">
           <h2 className="text-3xl font-bold mb-4">Hasil Tes Psikologi</h2>
           <div className="my-8">
@@ -377,8 +377,8 @@ export default function PsychologyTestPage() {
   const seconds = timeRemaining % 60
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="space-y-6">
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-3xl font-bold text-foreground">Tes Psikologi Tutor</h1>

@@ -87,7 +87,7 @@ export default function MicroTeachingPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
+      <div className="flex min-h-[320px] items-center justify-center">
         <Card className="w-full max-w-2xl p-8 text-center">
           <h2 className="text-3xl font-bold mb-4">Video Berhasil Diunggah</h2>
           <p className="text-lg text-muted-foreground mb-6">
@@ -100,8 +100,8 @@ export default function MicroTeachingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="space-y-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Micro Teaching: Penjelasan Video

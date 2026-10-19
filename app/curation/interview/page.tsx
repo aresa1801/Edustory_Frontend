@@ -293,7 +293,7 @@ export default function InterviewPage() {
 
   if (phase === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+      <div className="flex min-h-[320px] items-center justify-center">
         <div className="text-center">
           <Spinner className="h-10 w-10 mx-auto mb-4" />
           <p className="text-lg font-medium mb-1">Mempersiapkan AI Interviewer...</p>
@@ -314,7 +314,7 @@ export default function InterviewPage() {
 
   if (phase === 'completing') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+      <div className="flex min-h-[320px] items-center justify-center">
         <div className="text-center">
           <Spinner className="h-10 w-10 mx-auto mb-4" />
           <p className="text-lg font-semibold mb-1">Menganalisis Wawancara...</p>
@@ -332,7 +332,7 @@ export default function InterviewPage() {
 
   if (phase === 'result' && result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Score summary */}
           <Card className="p-8 text-center">
@@ -414,7 +414,7 @@ export default function InterviewPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex flex-col">
+    <div className="flex min-h-[320px] flex-col">
       {/* Sticky header */}
       <div className="bg-background/95 backdrop-blur border-b px-4 py-3 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto">

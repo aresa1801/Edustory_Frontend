@@ -110,7 +110,7 @@ export default function HandwritingPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center py-12 px-4">
+      <div className="flex min-h-[320px] items-center justify-center">
         <Card className="w-full max-w-2xl p-8 text-center">
           <div className="text-6xl mb-4">✍️</div>
           <h2 className="text-3xl font-bold mb-4">Jawaban Berhasil Dikirim</h2>
@@ -124,8 +124,8 @@ export default function HandwritingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="space-y-6">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <Badge variant="outline" className="text-primary border-primary">

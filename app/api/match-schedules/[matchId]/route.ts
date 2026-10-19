@@ -245,9 +245,12 @@ export async function GET(
 
     const isAlreadyCompleted = schedule.status === 'completed'
     const hasTermination = !!schedule.termination_request
+    const contractExpired = Boolean(
+      match?.contract_end_date && new Date(match.contract_end_date).getTime() < nowMs
+    )
 
     if (
-      allSessionsDone &&
+      (allSessionsDone || contractExpired) &&
       !isAlreadyCompleted &&
       !hasTermination
     ) {
@@ -260,13 +263,14 @@ export async function GET(
         .from('match_schedules')
         .update({
           status: 'completed',
+          completion_type: 'natural',
           completion_notification: completionNotif,
         })
         .eq('id', schedule.id)
 
       await supabaseAdmin
         .from('matches')
-        .update({ status: 'completed', ended_at: now.toISOString() })
+        .update({ status: 'completed', completion_type: 'natural', ended_at: now.toISOString() })
         .eq('id', matchId)
 
       // Update local var untuk response
@@ -280,6 +284,7 @@ export async function GET(
       id: schedule.id,
       matchId: schedule.match_id,
       status: schedule.status,
+      completionType: schedule.completion_type ?? null,
       schedulesSummaryFix: schedule.schedules_summary_fix,
       schedulesCustom: schedule.schedules_custom,
       schedulesCustomRequest: schedule.schedules_custom_request ?? null,

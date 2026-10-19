@@ -33,6 +33,9 @@ function groupSlotsToSummary(
 // HELPER — Deteksi tipe berakhirnya kontrak
 // ============================================================
 function determineCompletionType(schedule: any): 'natural' | 'unilateral' | 'mutual' {
+  if (schedule?.completion_type === 'natural' || schedule?.completion_type === 'unilateral' || schedule?.completion_type === 'mutual') {
+    return schedule.completion_type
+  }
   const tr = schedule.termination_request
   if (!tr) return 'natural'
   if (tr.type === 'unilateral') return 'unilateral'
@@ -128,7 +131,7 @@ export async function POST(
 
     const { data: schedule } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, match_id, tutor_id, student_id, status, extension_request, termination_request')
+      .select('id, match_id, tutor_id, student_id, status, completion_type, extension_request, termination_request')
       .eq('match_id', matchId)
       .maybeSingle()
 
@@ -150,19 +153,20 @@ export async function POST(
     // ===== Cek tipe berakhirnya kontrak =====
     const { data: matchCheck } = await supabaseAdmin
       .from('matches')
-      .select('termination_request')
+      .select('termination_request, completion_type')
       .eq('id', matchId)
       .single()
 
+    const completionType = schedule.completion_type || matchCheck?.completion_type
     const tr = schedule.termination_request || matchCheck?.termination_request
 
-    if (tr?.type === 'unilateral') {
+    if (completionType === 'unilateral' || tr?.type === 'unilateral') {
       return NextResponse.json(
         { error: 'Kontrak yang dihentikan sepihak tidak bisa diperpanjang' },
         { status: 400 }
       )
     }
-    if (tr?.type === 'mutual' && tr.status === 'approved') {
+    if (completionType === 'mutual' || (tr?.type === 'mutual' && tr.status === 'approved')) {
       return NextResponse.json(
         { error: 'Kontrak yang diakhiri dengan kesepakatan tidak bisa diperpanjang' },
         { status: 400 }
@@ -372,7 +376,7 @@ export async function PATCH(
 
     const { data: schedule } = await supabaseAdmin
       .from('match_schedules')
-      .select('id, match_id, tutor_id, student_id, status, extension_request, schedules_summary_fix, schedules_custom, schedules_custom_request, termination_request, ulasan')
+      .select('id, match_id, tutor_id, student_id, status, completion_type, extension_request, schedules_summary_fix, schedules_custom, schedules_custom_request, termination_request, ulasan')
       .eq('match_id', matchId)
       .maybeSingle()
 
@@ -668,6 +672,7 @@ export async function PATCH(
       .from('match_schedules')
       .update({
         status: 'active',
+        completion_type: null,
         schedules_summary_fix: newSummaryFix,
         schedules_custom: [],
         schedules_custom_request: null,
@@ -695,6 +700,7 @@ export async function PATCH(
       .from('matches')
       .update({
         status: 'active',
+        completion_type: null,
         accepted_at: firstSlotDate.toISOString(),
         contract_end_date: contractEnd.toISOString(),
         student_budget_per_month: currentReq.new_budget_per_month,

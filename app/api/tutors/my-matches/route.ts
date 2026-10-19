@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
         .from('matches')
         .update({
           status: 'completed',
+          completion_type: 'natural',
           ended_at: now.toISOString(),
         })
         .in('id', expiredIds)
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
       // Update match_schedules juga
       await supabase
         .from('match_schedules')
-        .update({ status: 'completed' })
+        .update({ status: 'completed', completion_type: 'natural' })
         .in('match_id', expiredIds)
 
       refetch = true

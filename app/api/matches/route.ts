@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCreditTier } from '@/lib/credit'
+import { checkOfferEligibility, CURATION_WARNING_MESSAGE } from '@/lib/curation-match'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
     // 1. Ambil data tutor
     const { data: tutor, error: tutorErr } = await supabase
       .from('tutors')
-      .select('full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, avatar_url, suspended_until, credit_score')
+      .select('id, full_name, bio, experience_years, hourly_rate, rating, total_reviews, verified_grade_levels, specializations_sd, specializations_smp, specializations_sma, avatar_url, suspended_until, credit_score')
       .eq('id', tutor_id)
       .single()
 
@@ -192,7 +193,43 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // ⬇️ CEK 3 (BARU): Limit 5 penawaran untuk STUDENT (tier 26-80)
+    // CEK 3: Kesesuaian kurasi akademik dengan permintaan student
+    // ============================================================
+    const initiatedBy = initiated_by || 'tutor'
+    if (initiatedBy === 'tutor' && Array.isArray(student.subjects) && student.subjects.length > 0) {
+      const { data: curation } = await supabase
+        .from('curation_results')
+        .select('verified_grade_levels, specializations_sd, specializations_smp, specializations_sma')
+        .eq('tutor_id', tutor_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const eligibility = checkOfferEligibility({
+        studentGrade: student.grade_level,
+        studentSubjects: student.subjects,
+        curatedGradeLevels: curation?.verified_grade_levels ?? tutor.verified_grade_levels,
+        specializationsSd: curation?.specializations_sd ?? tutor.specializations_sd,
+        specializationsSmp: curation?.specializations_smp ?? tutor.specializations_smp,
+        specializationsSma: curation?.specializations_sma ?? tutor.specializations_sma,
+      })
+
+      if (!eligibility.ok) {
+        return NextResponse.json(
+          {
+            error: 'CURATION_MISMATCH',
+            code: 'CURATION_MISMATCH',
+            message: CURATION_WARNING_MESSAGE,
+            missingGrade: eligibility.missingGrade,
+            missingSubjects: eligibility.missingSubjects,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
+    // ============================================================
+    // CEK 4: Limit 5 penawaran untuk STUDENT (tier 26-80)
     // Tier Aman (81-100) = unlimited
     // ============================================================
     const studentScore = Number(student.credit_score ?? 99)
