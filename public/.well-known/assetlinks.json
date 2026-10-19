@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "edu.story.app",
+      "sha256_cert_fingerprints": [
+        "D0:40:A2:D4:D9:7F:10:BB:E4:01:B0:E4:C8:79:13:BD:B5:B8:16:3F:12:C4:7D:AD:EC:6F:41:83:2D:12:5B:71"
+      ]
+    }
+  }
+]
