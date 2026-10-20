@@ -20,7 +20,7 @@ const fraunces = Fraunces({
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://v0-edustory.vercel.app'),
+  metadataBase: new URL('https://edustory.online'),
   title: {
     default: 'Edustory — Belajar privat yang terasa personal',
     template: '%s · Edustory',
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'id_ID',
-    url: 'https://v0-edustory.vercel.app',
+    url: 'https://edustory.online',
     siteName: 'Edustory',
     title: 'Edustory — Belajar privat yang terasa personal',
     description:
