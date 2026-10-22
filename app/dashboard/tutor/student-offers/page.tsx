@@ -102,7 +102,9 @@ export default function StudentOffersPage() {
     message: string
     missingGrade: string | null
     missingSubjects: string[]
+    student: Student
   } | null>(null)
+  const [curationBlocked, setCurationBlocked] = useState<{ message: string; completed: number; total: number } | null>(null)
     // Suspend state
   const [suspendInfo, setSuspendInfo] = useState<{
     suspendedUntil: string
@@ -387,10 +389,13 @@ export default function StudentOffersPage() {
   }
 
     const handleConfirmSend = async () => {
-    if (!selectedStudent || !tutorProfile) return
-
-    const student = selectedStudent
+    if (!selectedStudent) return
     setShowConfirmDialog(false)
+    await sendOffer(selectedStudent, false)
+  }
+
+  const sendOffer = async (student: Student, forceCuration: boolean) => {
+    if (!tutorProfile) return
     setSending(student.id)
 
     try {
@@ -409,6 +414,7 @@ export default function StudentOffersPage() {
           initiated_by: 'tutor',
           lesson_frequency: 'flexible',
           start_date: new Date().toISOString().split('T')[0],
+          force_curation_warning: forceCuration,
         }),
       })
 
@@ -429,6 +435,18 @@ export default function StudentOffersPage() {
           setContractLimitInfo({
             max: err.maxContracts ?? 3,
             current: err.currentContracts ?? 0,
+          })
+          setSending(null)
+          setSelectedStudent(null)
+          return
+        }
+
+        // ⬇️ Kurasi dasar belum selesai (5 tahap)
+        if (err.error === 'CURATION_INCOMPLETE') {
+          setCurationBlocked({
+            message: err.message || 'Lakukan kurasi terlebih dahulu sebelum mengajukan penawaran kepada siswa ini!',
+            completed: err.completed ?? 0,
+            total: err.total ?? 5,
           })
           setSending(null)
           setSelectedStudent(null)
@@ -456,6 +474,7 @@ export default function StudentOffersPage() {
             message: err.message || 'Anda belum melakukan kurasi ke mata pelajaran terkait.',
             missingGrade: err.missingGrade ?? null,
             missingSubjects: Array.isArray(err.missingSubjects) ? err.missingSubjects : [],
+            student,
           })
           setSending(null)
           setSelectedStudent(null)
@@ -865,6 +884,40 @@ export default function StudentOffersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Kurasi Dasar Belum Selesai */}
+      <Dialog open={!!curationBlocked} onOpenChange={(open) => !open && setCurationBlocked(null)}>
+        <DialogContent className="sm:max-w-md border-destructive/30">
+          <DialogHeader>
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <Lock className="size-6" />
+            </div>
+            <DialogTitle className="text-center text-lg font-semibold text-destructive">
+              Kurasi Belum Selesai
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2 text-sm leading-6">
+              <span className="block font-medium text-foreground">{curationBlocked?.message}</span>
+              <span className="block rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                Tahapan kurasi Anda: <strong>{curationBlocked?.completed ?? 0}/{curationBlocked?.total ?? 5}</strong>. Selesaikan kelima tahap agar bisa mengirim penawaran.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full"
+              onClick={() => {
+                setCurationBlocked(null)
+                router.push('/dashboard/tutor/applications')
+              }}
+            >
+              Lihat Tahapan Kurasi
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setCurationBlocked(null)}>
+              Nanti Saja
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog Peringatan Kurasi */}
       <Dialog open={!!curationWarning} onOpenChange={(open) => !open && setCurationWarning(null)}>
         <DialogContent className="sm:max-w-md border-destructive/30">
@@ -893,14 +946,15 @@ export default function StudentOffersPage() {
             <Button
               className="w-full"
               onClick={() => {
+                const target = curationWarning?.student
                 setCurationWarning(null)
-                router.push('/dashboard/tutor/teaching-interest')
+                if (target) void sendOffer(target, true)
               }}
             >
-              Atur Minat Mengajar
+              Tetap Kirim Penawaran
             </Button>
             <Button variant="outline" className="w-full" onClick={() => setCurationWarning(null)}>
-              Kembali
+              Batal
             </Button>
           </DialogFooter>
         </DialogContent>

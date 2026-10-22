@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { createClient } from '@/lib/auth'
+import { FeedbackToAdmin } from '@/components/feedback/feedback-dialog'
 import {
   Star, TrendingUp, BookOpen, Users, Award, MessageCircle, Shield, Info,
   AlertTriangle, History, LogIn, CheckCircle2, XCircle
@@ -255,9 +256,12 @@ export default function StudentAnalyticsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik & Performa</h1>
-        <p className="text-muted-foreground">Pantau progres belajar dan berikan penilaian kepada tutor Anda.</p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Analitik & Performa</h1>
+          <p className="text-muted-foreground">Pantau progres belajar dan berikan penilaian kepada tutor Anda.</p>
+        </div>
+        <FeedbackToAdmin role="student" />
       </div>
 
       {credit.isSuspended && credit.suspendedUntil && (

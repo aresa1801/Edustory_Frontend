@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCreditTier } from '@/lib/credit'
-import { checkOfferEligibility, CURATION_WARNING_MESSAGE } from '@/lib/curation-match'
+import { BASIC_CURATION_STEPS, checkOfferEligibility, subjectWarningMessage, CURATION_WARNING_MESSAGE } from '@/lib/curation-match'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     )
 
     const body = await request.json()
-    const { tutor_id, student_id, subject, status, initiated_by, lesson_frequency, start_date, matched_subjects } = body
+    const { tutor_id, student_id, subject, status, initiated_by, lesson_frequency, start_date, matched_subjects, force_curation_warning } = body
 
     if (!tutor_id || !student_id) {
       return NextResponse.json({ error: 'tutor_id and student_id are required' }, { status: 400 })
@@ -180,6 +180,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ============================================================
+    // CEK 2b: Kurasi dasar wajib selesai (5 tahap) sebelum menawar
+    // ============================================================
+    if ((initiated_by || 'tutor') === 'tutor') {
+      const { data: curationProgress } = await supabase
+        .from('curation_progress')
+        .select('completed_steps')
+        .eq('tutor_id', tutor_id)
+        .maybeSingle()
+
+      const completed = Array.isArray(curationProgress?.completed_steps) ? curationProgress!.completed_steps.length : 0
+      if (completed < BASIC_CURATION_STEPS) {
+        return NextResponse.json(
+          {
+            error: 'CURATION_INCOMPLETE',
+            code: 'CURATION_INCOMPLETE',
+            message: 'Lakukan kurasi terlebih dahulu sebelum mengajukan penawaran kepada siswa ini!',
+            completed,
+            total: BASIC_CURATION_STEPS,
+          },
+          { status: 403 },
+        )
+      }
+    }
+
     // 3. Ambil data student (+ credit_score untuk cek tier student)
     const { data: student, error: studentError } = await supabase
       .from('students')
@@ -214,14 +239,18 @@ export async function POST(request: NextRequest) {
         specializationsSma: curation?.specializations_sma ?? tutor.specializations_sma,
       })
 
-      if (!eligibility.ok) {
+      if (!eligibility.ok && force_curation_warning !== true) {
+        const message = eligibility.missingSubjects.length > 0
+          ? subjectWarningMessage(eligibility.missingSubjects)
+          : CURATION_WARNING_MESSAGE
         return NextResponse.json(
           {
             error: 'CURATION_MISMATCH',
             code: 'CURATION_MISMATCH',
-            message: CURATION_WARNING_MESSAGE,
+            message,
             missingGrade: eligibility.missingGrade,
             missingSubjects: eligibility.missingSubjects,
+            canForce: true,
           },
           { status: 409 },
         )

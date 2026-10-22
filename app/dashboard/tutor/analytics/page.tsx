@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { FeedbackToAdmin } from '@/components/feedback/feedback-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -226,11 +227,14 @@ export default function TutorAnalyticsPage() {
       </div>
 
       {/* ===== HEADER ===== */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
-        <p className="text-muted-foreground">
-          Ringkasan performa mengajar Anda di EduStory.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
+          <p className="text-muted-foreground">
+            Ringkasan performa mengajar Anda di EduStory.
+          </p>
+        </div>
+        <FeedbackToAdmin role="tutor" />
       </div>
 
       {/* ===== BANNER SUSPEND ===== */}

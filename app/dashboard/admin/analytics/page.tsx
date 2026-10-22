@@ -1,412 +1,181 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Shield,
-  Star,
-  Users,
-  CheckCircle,
-  TrendingUp,
-  Wallet,
-  AlertTriangle,
-  ThumbsUp,
-  Sparkles,
-} from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { BarChart3, CheckCircle2, Clock, MessageSquare, RefreshCw, Star, TrendingUp, Users, Wallet } from 'lucide-react'
 
-// ============================================================
-// DUMMY DATA — untuk preview layout
-// ============================================================
-const DUMMY_STATS = {
-  creditScore: 88,
-  isSuspended: false,
-  suspendedUntil: null as string | null,
-  rating: 4.6,
-  totalReviews: 24,
-  totalStudents: 12,
-  activeStudents: 3,
-  completedContracts: 9,
-  sessionsCompleted: 47,
-  sessionsMissed: 3,
-  totalEarnings: 18400000,
-  monthlyEarnings: 2400000,
-  avgPerContract: 2044444,
+type Feedback = { id: string; role: string; user_name: string | null; category: string; message: string; status: string; created_at: string }
+
+type Payload = {
+  stats: Record<string, number | null>
+  topSubjects: { subject: string; total: number }[]
+  growth: { date: string; users: number; matches: number }[]
+  recentUsers: { id: string; name: string | null; role: string; created_at: string }[]
+  feedback: Feedback[]
+  feedbackAvailable: boolean
 }
 
-const DUMMY_REVIEWS = [
-  {
-    id: '1',
-    student_name: 'Anaxa',
-    rating: 5,
-    comment: 'Gurunya sabar dan cara mengajarnya mudah dipahami!',
-    created_at: '2026-09-20T10:00:00Z',
-  },
-  {
-    id: '2',
-    student_name: 'Rahma',
-    rating: 5,
-    comment: 'Materi dijelaskan runtut dan latihan soalnya banyak.',
-    created_at: '2026-09-15T10:00:00Z',
-  },
-  {
-    id: '3',
-    student_name: 'Bagas',
-    rating: 4,
-    comment: 'Cukup bagus, tapi kadang agak terlalu cepat.',
-    created_at: '2026-09-10T10:00:00Z',
-  },
-  {
-    id: '4',
-    student_name: 'Sinta',
-    rating: 5,
-    comment: 'Very recommended! Saya jadi lebih paham Sejarah.',
-    created_at: '2026-09-05T10:00:00Z',
-  },
-  {
-    id: '5',
-    student_name: 'Dimas',
-    rating: 4,
-    comment: null,
-    created_at: '2026-08-28T10:00:00Z',
-  },
-  {
-    id: '6',
-    student_name: 'Laras',
-    rating: 5,
-    comment: 'Penjelasan detail, sering kasih tips ngerjain soal cepat.',
-    created_at: '2026-08-20T10:00:00Z',
-  },
-]
+const rupiah = (value: number) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`
 
-// ============================================================
-// KOMPONEN
-// ============================================================
-export default function TutorAnalyticsPage() {
-  // Dummy: pakai state biar bisa toggle preview suspend
-  const [showSuspendPreview, setShowSuspendPreview] = useState(false)
+export default function AdminAnalyticsPage() {
+  const [data, setData] = useState<Payload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const stats = {
-    ...DUMMY_STATS,
-    isSuspended: showSuspendPreview,
-    suspendedUntil: showSuspendPreview
-      ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-      : null,
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    const res = await fetch('/api/admin/analytics', { cache: 'no-store' })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) setError(body.error || 'Gagal memuat analitik')
+    else setData(body)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  async function markRead(id: string, status: 'read' | 'new') {
+    await fetch('/api/feedback', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) })
+    void load()
   }
 
-  const reviews = DUMMY_REVIEWS
+  if (loading) return <div className="flex justify-center py-20"><Spinner className="size-8" /></div>
+  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+  if (!data) return null
 
-  // ===== Credit color =====
-  const creditColor =
-    stats.creditScore >= 80
-      ? 'text-green-400'
-      : stats.creditScore >= 50
-      ? 'text-yellow-400'
-      : 'text-red-400'
-  const creditBg =
-    stats.creditScore >= 80
-      ? 'bg-green-500/20'
-      : stats.creditScore >= 50
-      ? 'bg-yellow-500/20'
-      : 'bg-red-500/20'
+  const s = data.stats
+  const maxGrowth = Math.max(1, ...data.growth.map((day) => Math.max(day.users, day.matches)))
 
   return (
-    <div className="space-y-6">
-      {/* ===== BANNER DUMMY ===== */}
-      <div className="p-3 rounded-md bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <p className="text-sm text-muted-foreground">
-            <strong>Preview Mode</strong> — data dummy, tabel belum ada.
-          </p>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Analitik Platform</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Data langsung dari database — pengguna, transaksi, dan masukan mereka.</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setShowSuspendPreview(!showSuspendPreview)}
-          className="h-7 text-xs"
-        >
-          {showSuspendPreview ? 'Sembunyikan' : 'Tampilkan'} Preview Suspend
-        </Button>
+        <Button variant="outline" onClick={() => void load()} className="gap-2"><RefreshCw className="size-4" /> Muat ulang</Button>
       </div>
 
-      {/* ===== HEADER ===== */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Analitik Saya</h1>
-        <p className="text-muted-foreground">
-          Ringkasan performa mengajar Anda di EduStory.
-        </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Siswa', value: s.students ?? 0, icon: Users },
+          { label: 'Tutor disetujui', value: `${s.approvedTutors ?? 0}/${s.tutors ?? 0}`, icon: CheckCircle2 },
+          { label: 'Kontrak aktif', value: s.matchesActive ?? 0, icon: TrendingUp },
+          { label: 'Sesi bulan ini', value: s.sessionsMonth ?? 0, icon: Clock },
+          { label: 'Pendapatan bulan ini', value: rupiah(Number(s.revenueMonth ?? 0)), icon: Wallet },
+          { label: 'Pendapatan total', value: rupiah(Number(s.revenueTotal ?? 0)), icon: Wallet },
+          { label: 'Saldo wallet pengguna', value: rupiah(Number(s.walletTotal ?? 0)), icon: Wallet },
+          { label: 'Rating rata-rata', value: s.avgRating ? `${s.avgRating}/5` : '—', icon: Star },
+        ].map(({ label, value, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <span className="grid size-9 place-items-center rounded-lg bg-purple-50 text-purple-600"><Icon className="size-4" /></span>
+              <div><p className="text-[11px] text-muted-foreground">{label}</p><p className="text-lg font-bold">{value}</p></div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* ===== BANNER SUSPEND ===== */}
-      {stats.isSuspended && stats.suspendedUntil && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Akun Anda sedang <strong>tersuspend</strong> sampai{' '}
-            <strong>
-              {new Date(stats.suspendedUntil).toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </strong>
-            . Anda tidak bisa menerima siswa baru selama periode ini, tapi
-            kontrak yang sedang berjalan tetap bisa dijalankan.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* ===== STAT CARDS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Credit Score */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-lg ${creditBg} flex items-center justify-center`}
-            >
-              <Shield className={`w-5 h-5 ${creditColor}`} />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Credit Score</p>
-              <p className={`text-2xl font-bold ${creditColor}`}>
-                {stats.creditScore}
-                <span className="text-sm text-muted-foreground font-normal">
-                  /100
-                </span>
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Rating */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Rating</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.rating.toFixed(1)}
-                <span className="text-sm text-muted-foreground font-normal">
-                  {' '}
-                  / 5
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.totalReviews} ulasan
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Total Murid */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Murid</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.totalStudents}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.activeStudents} aktif
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Sesi Selesai */}
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-300" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Sesi Selesai</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.sessionsCompleted}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.sessionsMissed} hangus
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* ===== PENDAPATAN + AKTIVITAS ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pendapatan */}
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-emerald-500" />
-              Pendapatan
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
-              <p className="text-sm text-muted-foreground mb-1">
-                Total Pendapatan
-              </p>
-              <p className="text-3xl font-bold text-emerald-300">
-                Rp {stats.totalEarnings.toLocaleString('id-ID')}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
-                <p className="text-xs text-muted-foreground mb-1">Bulan Ini</p>
-                <p className="text-lg font-semibold text-foreground">
-                  Rp {stats.monthlyEarnings.toLocaleString('id-ID')}
-                </p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/20 border border-border">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Rata-rata/Kontrak
-                </p>
-                <p className="text-lg font-semibold text-foreground">
-                  Rp {stats.avgPerContract.toLocaleString('id-ID')}
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground italic">
-              *Data dummy — angka real akan muncul setelah wallet selesai
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Aktivitas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-500" />
-              Aktivitas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
-              <span className="text-sm text-muted-foreground">
-                Kontrak Selesai
-              </span>
-              <span className="text-sm font-bold text-green-300">
-                {stats.completedContracts}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
-              <span className="text-sm text-muted-foreground">
-                Kontrak Aktif
-              </span>
-              <span className="text-sm font-bold text-blue-300">
-                {stats.activeStudents}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/30">
-              <span className="text-sm text-muted-foreground">Sesi Berhasil</span>
-              <span className="text-sm font-bold text-green-300">
-                {stats.sessionsCompleted}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Sesi Hangus</span>
-              <span className="text-sm font-bold text-red-300">
-                {stats.sessionsMissed}
-              </span>
-            </div>
-
-            {/* Progress bar sesi */}
-            <div className="pt-3">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-muted-foreground">Success Rate</span>
-                <span className="font-semibold">
-                  {Math.round(
-                    (stats.sessionsCompleted /
-                      (stats.sessionsCompleted + stats.sessionsMissed)) *
-                      100
-                  )}
-                  %
-                </span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
-                  style={{
-                    width: `${Math.round(
-                      (stats.sessionsCompleted /
-                        (stats.sessionsCompleted + stats.sessionsMissed)) *
-                        100
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ===== ULASAN ===== */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-yellow-500" />
-            Ulasan dari Murid
-            {reviews.length > 0 && (
-              <Badge variant="outline" className="ml-2">
-                {reviews.length}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
-            {reviews.map((r) => (
-              <div
-                key={r.id}
-                className="p-3 rounded-md border border-border bg-muted/10"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="font-semibold text-sm truncate">
-                    {r.student_name}
-                  </span>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star
-                        key={i}
-                        className={`w-3.5 h-3.5 ${
-                          i <= r.rating
-                            ? 'text-yellow-500 fill-yellow-500'
-                            : 'text-gray-500'
-                        }`}
-                      />
-                    ))}
+          <CardHeader className="pb-2"><CardTitle className="text-base">Pertumbuhan 7 hari</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex h-40 items-end gap-2">
+              {data.growth.map((day) => (
+                <div key={day.date} className="flex flex-1 flex-col items-center gap-1">
+                  <div className="flex w-full items-end justify-center gap-1" style={{ height: 120 }}>
+                    <div className="w-2 rounded-t bg-purple-500" style={{ height: `${(day.users / maxGrowth) * 100}%` }} title={`${day.users} pengguna baru`} />
+                    <div className="w-2 rounded-t bg-slate-300" style={{ height: `${(day.matches / maxGrowth) * 100}%` }} title={`${day.matches} penawaran`} />
                   </div>
+                  <span className="text-[10px] text-muted-foreground">{day.date.slice(5)}</span>
                 </div>
-                {r.comment ? (
-                  <p className="text-sm text-muted-foreground italic">
-                    &ldquo;{r.comment}&rdquo;
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground/60 italic">
-                    (tanpa komentar)
-                  </p>
-                )}
-                <p className="text-[11px] text-muted-foreground/60 mt-2">
-                  {new Date(r.created_at).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-4 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="size-2 rounded bg-purple-500" /> Pengguna baru</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded bg-slate-300" /> Penawaran</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Mata pelajaran terpopuler</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data.topSubjects.length === 0 ? <p className="text-sm text-muted-foreground">Belum ada data.</p> : data.topSubjects.map((row) => (
+              <div key={row.subject} className="flex items-center gap-2 text-sm">
+                <span className="w-28 truncate">{row.subject}</span>
+                <div className="h-2 flex-1 rounded bg-muted"><div className="h-2 rounded bg-purple-500" style={{ width: `${(row.total / data.topSubjects[0].total) * 100}%` }} /></div>
+                <span className="w-8 text-right text-xs text-muted-foreground">{row.total}</span>
               </div>
             ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base">Masukan pengguna</CardTitle>
+            <Badge variant="outline">{data.feedback.filter((row) => row.status === 'new').length} baru</Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!data.feedbackAvailable && <p className="text-xs text-amber-600">Tabel masukan belum tersedia di database.</p>}
+            {data.feedback.length === 0 && data.feedbackAvailable && <p className="text-sm text-muted-foreground">Belum ada masukan dari siswa atau tutor.</p>}
+            {data.feedback.map((row) => (
+              <div key={row.id} className={`rounded-xl border p-3 ${row.status === 'new' ? 'border-purple-200 bg-purple-50/50' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold">{row.user_name ?? 'Pengguna'} <span className="font-normal text-muted-foreground">· {row.role === 'tutor' ? 'Tutor' : 'Siswa'} · {row.category}</span></p>
+                    <p className="mt-1 text-sm">{row.message}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{new Date(row.created_at).toLocaleDateString('id-ID')}</span>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  {row.status === 'new'
+                    ? <Button size="sm" variant="outline" onClick={() => markRead(row.id, 'read')}><CheckCircle2 className="mr-1 size-3" /> Tandai dibaca</Button>
+                    : <Button size="sm" variant="ghost" onClick={() => markRead(row.id, 'new')}>Tandai baru</Button>}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Penarikan menunggu</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{s.pendingWithdrawals ?? 0}</p>
+              <p className="text-xs text-muted-foreground">{rupiah(Number(s.pendingWithdrawalAmount ?? 0))} perlu ditinjau</p>
+              <a href="/dashboard/admin/withdrawals" className="mt-3 inline-flex text-xs font-semibold text-purple-600">Buka halaman penarikan →</a>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Pengguna terbaru</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {data.recentUsers.map((row) => (
+                <div key={row.id} className="flex items-center justify-between text-sm">
+                  <span className="truncate">{row.name ?? 'Tanpa nama'}</span>
+                  <span className="text-[11px] text-muted-foreground">{row.role}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4" /> Ringkas</CardTitle></CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Total kontrak</span><b>{s.matchesTotal ?? 0}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Kontrak selesai</span><b>{s.matchesCompleted ?? 0}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Tutor menunggu review</span><b>{s.pendingTutors ?? 0}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Masukan baru</span><b className="flex items-center gap-1"><MessageSquare className="size-3" /> {s.newFeedback ?? 0}</b></div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

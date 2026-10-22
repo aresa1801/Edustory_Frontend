@@ -42,5 +42,12 @@ export function checkOfferEligibility(input: {
   }
 }
 
+export const BASIC_CURATION_STEPS = 5
+
+export function subjectWarningMessage(subjects: string[]): string {
+  const list = subjects.filter(Boolean).join(', ')
+  return `Anda belum pernah mengikuti kurasi ${list}. Kemungkinan Anda ditolak oleh student akan meningkat!`
+}
+
 export const CURATION_WARNING_MESSAGE =
   'Anda belum melakukan kurasi ke mata pelajaran terkait (mata pelajaran yang diinginkan student), kemungkinan ditolak oleh student akan meningkat. Disarankan melakukan kurasi terlebih dahulu!'

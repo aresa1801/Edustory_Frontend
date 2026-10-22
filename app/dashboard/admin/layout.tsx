@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   CreditCard,
   Settings,
+  Banknote,
 } from 'lucide-react'
 import SharedDashboardLayout, { NavGroup } from '@/components/dashboard/shared-layout'
 
@@ -32,6 +33,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/admin/programs', icon: DollarSign, label: 'Program & Harga' },
       { href: '/dashboard/admin/payments', icon: CreditCard, label: 'Laporan Pembayaran' },
+      { href: '/dashboard/admin/withdrawals', icon: Banknote, label: 'Penarikan Saldo' },
       { href: '/dashboard/admin/settings', icon: Settings, label: 'Pengaturan Pembayaran' },
       { href: '/dashboard/admin/analytics', icon: BarChart3, label: 'Analitik' },
     ],
