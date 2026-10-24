@@ -7,7 +7,7 @@ export const CONTACT_INFO = {
   phoneFormatted: '+62 821-1311-3063',
   whatsapp: '6282113113063',
   email: 'info@edustory.com',
-  address: 'Jl. Pendidikan No. 123, Jakarta, Indonesia 12345',
+  address: 'Jl. Gandu Prangwedanan RT.03 Potorono Banguntapan Yogyakarta',
   businessHours: 'Senin - Jumat: 08:00 - 18:00 WIB\nSabtu: 09:00 - 15:00 WIB',
 }
 

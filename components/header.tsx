@@ -132,11 +132,11 @@ const Header = () => {
   }
 
   const menuItems = [
-    { label: 'Kurasi', href: '#kurasi' },
-    { label: 'Program', href: '#program' },
-    { label: 'Cara kerja', href: '#cara-kerja' },
-    { label: 'FAQ', href: '#faq' },
-    { label: 'Kontak', href: '#kontak' },
+    { label: 'Kurasi', href: '/kurasi' },
+    { label: 'Program', href: '/program' },
+    { label: 'Cara kerja', href: '/cara-kerja' },
+    { label: 'FAQ', href: '/faq' },
+    { label: 'Kontak', href: '/kontak' },
   ]
 
   return (
@@ -154,13 +154,13 @@ const Header = () => {
 
             <nav className="hidden md:flex items-center gap-7">
               {menuItems.map((item) => (
-                <a
+                <Link
                   key={item.label}
                   href={item.href}
                   className="text-sm text-muted-foreground hover:text-foreground font-medium transition-colors"
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
             </nav>
 
@@ -236,14 +236,14 @@ const Header = () => {
             <nav className="md:hidden pb-4 border-t border-border/50">
               <div className="flex flex-col gap-1 py-3">
                 {menuItems.map((item) => (
-                  <a
+                  <Link
                     key={item.label}
                     href={item.href}
                     className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded-lg font-medium transition-colors"
                     onClick={() => setIsOpen(false)}
                   >
                     {item.label}
-                  </a>
+                  </Link>
                 ))}
                 <div className="px-4 pt-3 flex flex-col gap-2 border-t border-border/50 mt-1">
                   {user ? (

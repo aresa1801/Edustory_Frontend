@@ -44,24 +44,24 @@ const Footer = () => {
             <h4 className="font-semibold text-lg mb-6">Menu Utama</h4>
             <ul className="space-y-3">
               <li>
-                <a href="#home" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
                   Home
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#layanan" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/layanan" className="text-muted-foreground hover:text-primary transition-colors">
                   Layanan
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#program" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/program" className="text-muted-foreground hover:text-primary transition-colors">
                   Program
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#blog" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/blog" className="text-muted-foreground hover:text-primary transition-colors">
                   Blog
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -71,29 +71,29 @@ const Footer = () => {
             <h4 className="font-semibold text-lg mb-6">Layanan Kami</h4>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/les-privat" className="text-muted-foreground hover:text-primary transition-colors">
                   Les Privat
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/les-online" className="text-muted-foreground hover:text-primary transition-colors">
                   Les Online
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/homeschooling" className="text-muted-foreground hover:text-primary transition-colors">
                   Homeschooling
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/corporate-training" className="text-muted-foreground hover:text-primary transition-colors">
                   Corporate Training
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/kelas-semi-privat" className="text-muted-foreground hover:text-primary transition-colors">
                   Kelas Semi-Privat
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -105,8 +105,9 @@ const Footer = () => {
               <div className="flex gap-3">
                 <MapPin className="w-5 h-5 flex-shrink-0 text-primary" />
                 <p className="text-muted-foreground">
-                  Jl. Pendidikan No. 123<br />
-                  Jakarta, Indonesia 12345
+                  Jl. Gandu Prangwedanan RT.03
+                  <br />
+                  Potorono Banguntapan Yogyakarta
                 </p>
               </div>
               <div className="flex gap-3">
@@ -150,7 +151,7 @@ const Footer = () => {
               <Link href="/terms" className="text-muted-foreground hover:text-primary transition-colors">
                 Syarat & Ketentuan
               </Link>
-              <Link href="/#kontak" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/kontak" className="text-muted-foreground hover:text-primary transition-colors">
                 Hubungi Kami
               </Link>
             </div>
