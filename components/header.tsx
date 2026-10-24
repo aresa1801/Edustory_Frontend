@@ -164,16 +164,16 @@ const Header = () => {
               ))}
             </nav>
 
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 lg:gap-3 shrink-0">
               {user ? (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="font-medium">{maskEmail(user.email)}</span>
+                  <div className="hidden xl:flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground max-w-[180px]">
+                    <span className="w-2 h-2 shrink-0 rounded-full bg-green-500"></span>
+                    <span className="truncate font-medium">{maskEmail(user.email)}</span>
                   </div>
                   <Button
                     onClick={handleDashboardClick}
-                    className="bg-primary hover:bg-primary/90 text-white gap-2"
+                    className="bg-primary hover:bg-primary/90 text-white gap-2 whitespace-nowrap"
                     disabled={loading && !userRole}
                   >
                     <LayoutDashboard className="w-4 h-4" />
