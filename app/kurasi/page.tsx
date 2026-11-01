@@ -4,6 +4,7 @@ import Header from '@/components/header'
 import Footer from '@/components/footer'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/kurasi' },
   title: 'Kurasi Tutor — EduStory',
   description:
     'Lima tahap seleksi pengajar EduStory: akademik, psikologi, microteaching, tulisan tangan, dan wawancara. Standar yang harus dilewati sebelum seorang tutor mengajar.',

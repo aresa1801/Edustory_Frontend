@@ -4,6 +4,7 @@ import Header from '@/components/header'
 import Footer from '@/components/footer'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/cara-kerja' },
   title: 'Cara Kerja — EduStory',
   description:
     'Alur EduStory dari konsultasi sampai sesi pertama: konsultasi kebutuhan, asesmen awal, pencocokan tutor, sesi belajar, dan laporan progres.',

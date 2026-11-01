@@ -1,6 +1,7 @@
 import { LegalPage } from '@/components/legal-page'
 
 export const metadata = {
+  alternates: { canonical: '/privacy' },
   title: 'Kebijakan Privasi — EduStory',
   description:
     'Kebijakan Privasi EduStory: data apa yang kami kumpulkan, cara kami memakainya, dan hak kamu atas data pribadimu.',

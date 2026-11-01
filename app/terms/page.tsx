@@ -1,6 +1,7 @@
 import { LegalPage } from '@/components/legal-page'
 
 export const metadata = {
+  alternates: { canonical: '/terms' },
   title: 'Ketentuan Layanan — EduStory',
   description:
     'Ketentuan Layanan EduStory: aturan penggunaan platform, kewajiban tutor dan siswa, pembayaran, pembatalan, dan penyelesaian sengketa.',

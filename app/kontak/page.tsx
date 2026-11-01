@@ -6,6 +6,7 @@ import Footer from '@/components/footer'
 import { CONTACT_INFO, WHATSAPP_MESSAGES } from '@/lib/constants'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/kontak' },
   title: 'Kontak — EduStory',
   description:
     'Hubungi EduStory untuk konsultasi les privat: WhatsApp, telepon, email, dan alamat di Yogyakarta.',

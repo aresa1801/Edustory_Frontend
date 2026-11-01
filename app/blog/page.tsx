@@ -4,6 +4,7 @@ import Header from '@/components/header'
 import Footer from '@/components/footer'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/blog' },
   title: 'Blog — EduStory',
   description:
     'Artikel EduStory tentang strategi belajar, persiapan ujian, dan pendampingan belajar anak untuk orang tua dan siswa.',

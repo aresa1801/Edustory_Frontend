@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ServicePage } from '@/components/marketing/service-page'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/kelas-semi-privat' },
   title: 'Kelas Semi-Privat — EduStory',
   description:
     'Kelas semi-privat EduStory: kelompok kecil 3–5 siswa dengan level setara, tutor terkurasi, dan biaya lebih efisien.',

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ServicePage } from '@/components/marketing/service-page'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/corporate-training' },
   title: 'Corporate Training — EduStory',
   description:
     'Pelatihan untuk perusahaan, sekolah, dan komunitas: keterampilan akademik, komunikasi, dan pendampingan belajar. Materi disesuaikan dengan kebutuhan peserta.',

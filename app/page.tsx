@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -16,6 +17,13 @@ import {
 } from 'lucide-react'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  title: 'Edustory — Les Privat & Bimbingan Belajar Online Indonesia',
+  description:
+    'Les privat dengan tutor terkurasi untuk SD, SMP, dan SMA: ke rumah di Yogyakarta, online seluruh Indonesia, kelas semi-privat, dan homeschooling.',
+}
 
 const pillars = [
   {

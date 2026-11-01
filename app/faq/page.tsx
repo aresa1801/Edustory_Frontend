@@ -3,8 +3,10 @@ import type { Metadata } from 'next'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
 import { CONTACT_INFO } from '@/lib/constants'
+import { faqSchema, ld } from '@/lib/seo-jsonld'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/faq' },
   title: 'Pertanyaan Umum (FAQ) — EduStory',
   description:
     'Jawaban atas pertanyaan yang paling sering muncul tentang les privat EduStory: biaya, jadwal, tutor, laporan progres, pembatalan, dan pembayaran.',
@@ -101,6 +103,7 @@ const groups = [
 export default function FaqPage() {
   return (
     <div className="min-h-screen bg-background">
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(faqSchema())} />
       <Header />
       <main>
         <section className="border-b border-border/60 bg-card/40">

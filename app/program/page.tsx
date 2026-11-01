@@ -5,6 +5,7 @@ import Header from '@/components/header'
 import Footer from '@/components/footer'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/program' },
   title: 'Program Belajar — EduStory',
   description:
     'Tiga program EduStory: Reguler, Intensif, dan Privat. Bandingkan intensitas sesi, format, laporan progres, dan cocok untuk siapa.',

@@ -9,6 +9,26 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: ['/api/', '/dashboard/', '/curation/', '/auth/', '/maintenance'],
       },
+      // Bot mesin AI: dibuka untuk halaman materi agar Edustory bisa dikutip
+      // di ChatGPT, Perplexity, Gemini, dan Copilot (GEO/AEO).
+      {
+        userAgent: [
+          'GPTBot',
+          'OAI-SearchBot',
+          'ChatGPT-User',
+          'ClaudeBot',
+          'Claude-Web',
+          'PerplexityBot',
+          'Perplexity-User',
+          'Google-Extended',
+          'Applebot-Extended',
+          'Bingbot',
+          'CCBot',
+          'cohere-ai',
+        ],
+        allow: ['/', '/les-privat/', '/les-online', '/kelas-semi-privat', '/homeschooling', '/program', '/faq', '/blog', '/llms.txt', '/kurasi', '/cara-kerja'],
+        disallow: ['/api/', '/dashboard/', '/curation/', '/auth/'],
+      },
     ],
     sitemap: abs('/sitemap.xml'),
     host: abs('/'),

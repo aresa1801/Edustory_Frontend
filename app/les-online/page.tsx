@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ServicePage } from '@/components/marketing/service-page'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/les-online' },
   title: 'Les Online — EduStory',
   description:
     'Les privat daring EduStory dengan papan tulis digital, rekaman sesi, dan tutor terkurasi. Kualitas pendampingan sama seperti les tatap muka.',

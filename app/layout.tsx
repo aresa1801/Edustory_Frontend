@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
+import { organizationSchema, websiteSchema, ld } from '@/lib/seo-jsonld'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -74,6 +75,8 @@ export default function RootLayout({
   return (
     <html lang="id" className="dark" suppressHydrationWarning>
       <body className={`${jakarta.variable} ${fraunces.variable} font-sans antialiased`}>
+        <script type="application/ld+json" dangerouslySetInnerHTML={ld(organizationSchema())} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={ld(websiteSchema())} />
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
           <AuthProvider>
             <div>{children}</div>

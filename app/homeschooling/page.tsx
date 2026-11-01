@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ServicePage } from '@/components/marketing/service-page'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/homeschooling' },
   title: 'Homeschooling — EduStory',
   description:
     'Pendampingan homeschooling EduStory: penyusunan kurikulum, tutor multi-mapel, dan evaluasi berkala untuk keluarga yang memilih jalur belajar mandiri.',
