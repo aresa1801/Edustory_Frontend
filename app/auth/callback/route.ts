@@ -115,9 +115,20 @@ export async function GET(request: Request) {
   // 4) Role → dashboard
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('role, avatar_url')
     .eq('id', user.id)
     .maybeSingle()
+
+  // 3b) Keep profile avatar in sync with the Google account picture
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+  const googleAvatar =
+    (meta.avatar_url as string) || (meta.picture as string) || null
+  if (googleAvatar && profile && !profile.avatar_url) {
+    await supabase
+      .from('user_profiles')
+      .update({ avatar_url: googleAvatar })
+      .eq('id', user.id)
+  }
 
   const role = profile?.role ? String(profile.role).toLowerCase() : null
   const dashboard = role ? ROLE_TO_DASHBOARD[role] : null

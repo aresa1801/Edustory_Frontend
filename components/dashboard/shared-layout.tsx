@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth, AppRole } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/brand/logo'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { LogOut, Menu, X, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { AlertTriangle } from 'lucide-react'
 
@@ -66,7 +66,7 @@ const ACCENT: Record<AccentColor, {
   },
 }
 
-const ROLE_LABEL: Record<AppRole, string> = {
+const ROLE_LABEL: Record<Exclude<AppRole, null>, string> = {
   student: 'Siswa',
   tutor: 'Pengajar',
   admin: 'Administrator',
@@ -82,7 +82,7 @@ export default function SharedDashboardLayout({
 }: SharedDashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, userRole, userName, loading, signOut } = useAuth()
+  const { user, userRole, userName, avatarUrl, loading, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   // ⬇️ BARU: Banned state
@@ -104,7 +104,7 @@ export default function SharedDashboardLayout({
 
     if (userRole && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
       // Redirect to the correct dashboard for this role
-      const roleRedirectMap: Record<AppRole, string> = {
+      const roleRedirectMap: Record<Exclude<AppRole, null>, string> = {
         student: '/dashboard/student',
         tutor: '/dashboard/tutor',
         admin: '/dashboard/admin',
@@ -334,6 +334,9 @@ export default function SharedDashboardLayout({
           {sidebarOpen ? (
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               <Avatar className="w-8 h-8 flex-shrink-0">
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt={userName || 'Foto profil'} className="object-cover" />
+                ) : null}
                 <AvatarFallback className={`${colors.avatar} text-xs font-semibold`}>
                   {initials}
                 </AvatarFallback>
@@ -449,6 +452,9 @@ export default function SharedDashboardLayout({
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
             <Avatar className="w-9 h-9 flex-shrink-0">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={userName || 'Foto profil'} className="object-cover" />
+              ) : null}
               <AvatarFallback className={`${colors.avatar} text-sm font-semibold`}>
                 {initials}
               </AvatarFallback>
@@ -500,6 +506,9 @@ export default function SharedDashboardLayout({
               <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
             <Avatar className="w-8 h-8">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={userName || 'Foto profil'} className="object-cover" />
+              ) : null}
               <AvatarFallback className={`${colors.avatar} text-xs font-semibold`}>
                 {initials}
               </AvatarFallback>

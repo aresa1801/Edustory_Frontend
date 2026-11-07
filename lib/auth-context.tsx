@@ -13,6 +13,7 @@ interface AuthContextType {
   session: Session | null
   userRole: AppRole
   userName: string | null
+  avatarUrl: string | null
   loading: boolean
   isFirstTimeUser: boolean
   signUp: (email: string, password: string, role: 'student' | 'tutor') => Promise<void>
@@ -28,11 +29,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // ============================================================
 // FETCH USER PROFILE
 // ============================================================
-async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | null; name: string | null }> {
+function metaAvatar(u: User | null | undefined): string | null {
+  const m = u?.user_metadata as Record<string, unknown> | undefined
+  const raw = (m?.avatar_url as string) || (m?.picture as string) || null
+  return raw ?? null
+}
+
+async function fetchUserProfile(
+  currentUser: User
+): Promise<{ role: AppRole | null; name: string | null; avatarUrl: string | null }> {
   if (currentUser.email === ADMIN_EMAIL) {
     return {
       role: 'admin',
       name: currentUser.user_metadata?.full_name || 'Administrator',
+      avatarUrl: metaAvatar(currentUser),
     }
   }
 
@@ -41,13 +51,17 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
     
     const { data: profile, error } = await supabase
       .from('user_profiles')
-      .select('role, name')
+      .select('role, name, avatar_url')
       .eq('id', currentUser.id)
       .maybeSingle()
 
     if (error) {
       console.error('[Auth] Profile fetch error:', error)
-      return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
+      return {
+        role: null,
+        name: currentUser.user_metadata?.full_name || currentUser.email || null,
+        avatarUrl: metaAvatar(currentUser),
+      }
     }
 
     if (profile) {
@@ -60,14 +74,23 @@ async function fetchUserProfile(currentUser: User): Promise<{ role: AppRole | nu
       return {
         role: roleMap[profile.role as string] ?? null,
         name: profile.name || currentUser.email || null,
+        avatarUrl: (profile as { avatar_url?: string | null }).avatar_url || metaAvatar(currentUser),
       }
     }
     
-    return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
+    return {
+      role: null,
+      name: currentUser.user_metadata?.full_name || currentUser.email || null,
+      avatarUrl: metaAvatar(currentUser),
+    }
     
   } catch (error) {
     console.error('[Auth] Profile fetch failed:', error)
-    return { role: null, name: currentUser.user_metadata?.full_name || currentUser.email || null }
+    return {
+      role: null,
+      name: currentUser.user_metadata?.full_name || currentUser.email || null,
+      avatarUrl: metaAvatar(currentUser),
+    }
   }
 }
 
@@ -77,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<AppRole>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   
@@ -126,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
     setUserRole(null)
     setUserName(null)
+    setAvatarUrl(null)
     setIsFirstTimeUser(false)
     setLoading(false)
   }, [clearSupabaseStorage])
@@ -185,7 +210,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 3000)
       
       try {
-        const { role, name } = await fetchUserProfile(serverUser)
+        const { role, name, avatarUrl: av } = await fetchUserProfile(serverUser)
+        setAvatarUrl(av)
         
         if (!isMounted.current) return
         clearTimeout(timeoutId)
@@ -207,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeoutId)
         setIsFirstTimeUser(true)
         setUserName(serverUser.user_metadata?.full_name || serverUser.email || null)
+        setAvatarUrl(metaAvatar(serverUser))
         if (isMounted.current) setLoading(false)
       }
       
@@ -294,7 +321,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }, 2500)
 
             try {
-              const { role, name } = await fetchUserProfile(currentSession.user)
+              const { role, name, avatarUrl: av } = await fetchUserProfile(currentSession.user)
+              setAvatarUrl(av)
               if (profileTimeoutRef.current) {
                 clearTimeout(profileTimeoutRef.current)
                 profileTimeoutRef.current = null
@@ -304,6 +332,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setIsFirstTimeUser(true)
                 setUserRole(null)
                 setUserName(name || currentSession.user.email || null)
+                setAvatarUrl(av)
               } else {
                 setIsFirstTimeUser(false)
                 setUserRole(role)
@@ -488,6 +517,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session, 
       userRole, 
       userName, 
+      avatarUrl,
       loading, 
       isFirstTimeUser,
       signUp, 

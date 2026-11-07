@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import {
   User, BookOpen, MapPin, Mail, Phone, ShieldCheck,
   Target, Calendar, Wallet, CheckCircle2, Users, School, Edit
@@ -16,6 +17,7 @@ import {
 import Link from 'next/link'
 
 export default function StudentProfile() {
+  const { avatarUrl } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeProfileTab, setActiveProfileTab] = useState('siswa')
@@ -193,9 +195,18 @@ export default function StudentProfile() {
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="pt-6 pb-5">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0 ring-2 ring-primary/20">
-              {initials}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={studentData.name || 'Foto profil'}
+                className="w-16 h-16 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/20 bg-muted"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0 ring-2 ring-primary/20">
+                {initials}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-lg leading-tight truncate">
                 {displayValue(studentData.name)}
