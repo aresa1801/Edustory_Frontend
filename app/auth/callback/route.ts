@@ -31,9 +31,23 @@ export async function GET(request: Request) {
     url.searchParams.get('error_description') || url.searchParams.get('error')
   const next = safeNext(url.searchParams.get('next'))
 
+  // Map low-level Supabase errors to friendly Indonesian copy
+  const friendly = (message: string) => {
+    const m = message.toLowerCase()
+    if (m.includes('code verifier') || m.includes('pkce'))
+      return 'Sesi login sudah kedaluwarsa. Silakan coba masuk lagi.'
+    if (m.includes('invalid') && m.includes('code'))
+      return 'Kode login tidak valid atau sudah dipakai. Silakan coba lagi.'
+    if (m.includes('expired'))
+      return 'Sesi login kedaluwarsa. Silakan masuk kembali.'
+    if (m.includes('access_denied'))
+      return 'Akses dibatalkan. Silakan pilih akun Google untuk melanjutkan.'
+    return message
+  }
+
   const fail = (message: string) =>
     NextResponse.redirect(
-      new URL(`/auth/login?error=${encodeURIComponent(message)}`, origin)
+      new URL(`/auth/login?error=${encodeURIComponent(friendly(message))}`, origin)
     )
 
   if (providerError) {
