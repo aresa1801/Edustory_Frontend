@@ -12,6 +12,20 @@ const ALLOWED_EMAILS = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const isMaintenance = process.env.MAINTENANCE_MODE === 'true'
+  const needsUser =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/api/') ||
+    isMaintenance
+
+  // ============================================================
+  // 0. FAST PATH — halaman publik tidak perlu round-trip ke Supabase.
+  //    Ini memotong 1 network hop di setiap request marketing/landing.
+  // ============================================================
+  if (!needsUser) {
+    return NextResponse.next()
+  }
+
   // ============================================================
   // 1. SIAPKAN SUPABASE CLIENT UNTUK AMBIL USER
   // ============================================================
@@ -78,8 +92,6 @@ export async function middleware(request: NextRequest) {
   // ============================================================
   // 2. CEK MAINTENANCE DENGAN PENGECUALIAN EMAIL
   // ============================================================
-  const isMaintenance = process.env.MAINTENANCE_MODE === 'true'
-
   // Jika maintenance aktif DAN user belum di halaman maintenance
   if (isMaintenance && !pathname.startsWith('/maintenance')) {
     // Cek apakah user login dan emailnya ada di whitelist

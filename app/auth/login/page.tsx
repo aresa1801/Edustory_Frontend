@@ -1,33 +1,45 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/auth'
 import { BrandLogo } from '@/components/brand/logo'
 import { GoogleIcon } from '@/components/brand/google-icon'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = (() => {
+    const raw = searchParams.get('redirect') || searchParams.get('next')
+    if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
+    return raw
+  })()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(searchParams.get('error'))
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace('/dashboard')
+      if (data.session) router.replace(nextPath || '/dashboard')
     })
-  }, [router])
+  }, [router, nextPath])
 
   const handleGoogle = async () => {
     setLoading(true)
     setError(null)
     try {
+      const callbackUrl = new URL('/auth/callback', window.location.origin)
+      if (nextPath) callbackUrl.searchParams.set('next', nextPath)
+
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: callbackUrl.toString(),
+          queryParams: { prompt: 'select_account' },
+        },
       })
       if (error) throw error
     } catch (err) {
@@ -84,5 +96,13 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }
