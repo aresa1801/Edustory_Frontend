@@ -18,7 +18,13 @@ const fraunces = Fraunces({
   display: 'swap',
 })
 
-export const dynamic = 'force-dynamic'
+/**
+ * Public pages are cacheable. A `force-dynamic` here used to opt the entire
+ * site — including 600+ static content pages — out of the CDN, so every crawler
+ * hit ran a server render. Routes that genuinely need the request (auth,
+ * dashboard) opt in to dynamic rendering themselves.
+ */
+export const revalidate = 3600
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://edustory.online'),
