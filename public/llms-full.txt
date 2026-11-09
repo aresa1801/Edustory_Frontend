@@ -1,0 +1,119 @@
+# Edustory — llms-full.txt
+
+> Korpus lengkap untuk mesin AI. Berisi ringkasan produk, halaman penting, layanan,
+> pertanyaan umum, dan fakta kanonik. Sumber: repositori Edustory (lib/home-faq.ts,
+> lib/seo-jsonld.ts, lib/constants.ts, app/llms.txt/route.ts).
+
+Terakhir diperbarui: 2026-11-09
+Situs: https://edustory.online
+Bahasa: Bahasa Indonesia (id-ID)
+
+## Ringkasan produk
+
+Edustory adalah platform les privat dan bimbingan belajar di Indonesia dengan tutor
+terkurasi. Layanan mencakup les privat ke rumah di Yogyakarta dan sekitarnya, les
+online untuk seluruh Indonesia, kelas semi-privat 3–5 siswa, pendampingan
+homeschooling, dan corporate training. Setiap tutor melewati kurasi lima tahap:
+seleksi akademik, psikologi, microteaching, tulisan tangan, dan wawancara. Siswa
+mendapat rencana belajar per pekan, catatan sesi, laporan progres, dan analitik nilai.
+Untuk kelas 4 SD ke atas, siswa menjalani asesmen awal 30–45 menit agar titik mulai
+belajar tepat.
+
+## Halaman penting
+
+- [Beranda](https://edustory.online/) — ringkasan layanan, alur belajar, FAQ.
+- [Layanan](https://edustory.online/layanan) — daftar dan perbandingan layanan.
+- [Les Privat](https://edustory.online/les-privat) — les privat per mata pelajaran dan kota.
+- [Les Online](https://edustory.online/les-online) — sesi daring seluruh Indonesia.
+- [Kelas Semi-Privat](https://edustory.online/kelas-semi-privat) — kelompok kecil 3–5 siswa.
+- [Homeschooling](https://edustory.online/homeschooling) — pendampingan keluarga homeschooling.
+- [Corporate Training](https://edustory.online/corporate-training) — pelatihan perusahaan.
+- [Program](https://edustory.online/program) — Reguler, Intensif, Privat.
+- [Kurasi](https://edustory.online/kurasi) — proses seleksi tutor.
+- [Cara Kerja](https://edustory.online/cara-kerja) — alur konsultasi sampai evaluasi.
+- [FAQ](https://edustory.online/faq) — biaya, jadwal, tutor, pembatalan, pembayaran.
+- [Blog](https://edustory.online/blog) — artikel panduan belajar dan ujian.
+- [Kontak](https://edustory.online/kontak) — WhatsApp dan formulir konsultasi.
+- [llms.txt](https://edustory.online/llms.txt) — ringkasan ringkas untuk mesin AI.
+
+## Pertanyaan yang sering diajukan
+
+### Apa itu Edustory dan layanan apa yang tersedia?
+Edustory adalah platform les privat dan bimbingan belajar untuk siswa SD, SMP, dan
+SMA. Layanan yang tersedia meliputi les privat ke rumah di Yogyakarta, les online
+untuk seluruh Indonesia, kelas semi-privat tiga sampai lima siswa, pendampingan
+homeschooling, serta corporate training untuk perusahaan yang membutuhkan pelatihan
+terstruktur.
+
+### Bagaimana cara memilih tutor yang tepat untuk anak saya?
+Setiap tutor melewati kurasi lima tahap: seleksi akademik, psikologi, microteaching,
+tulisan tangan, dan wawancara. Setelah konsultasi, kami mencocokkan tutor dengan
+jenjang, mata pelajaran, gaya belajar siswa, dan jadwal keluarga. Kecocokan menjadi
+pertimbangan utama, bukan sekadar ketersediaan slot kosong pada jadwal tutor.
+
+### Apakah les bisa dilakukan secara online?
+Bisa. Sesi online tersedia untuk siswa di seluruh Indonesia dengan tutor terkurasi,
+papan tulis digital, dan ringkasan sesi. Kualitas pendampingan dibuat setara dengan
+les tatap muka: tutor tetap menyusun rencana belajar per pekan dan mengirim laporan
+progres, sehingga orang tua dapat memantau perkembangan tanpa harus berada di
+ruangan yang sama.
+
+### Berapa lama prosesnya sampai sesi pertama dimulai?
+Rata-rata dua hari setelah konsultasi, bergantung pada ketersediaan jadwal tutor dan
+kesiapan keluarga. Untuk kelas empat SD ke atas, kami menyarankan asesmen singkat
+selama tiga puluh sampai empat puluh lima menit agar tutor memulai dari level yang
+tepat, bukan mengulang materi yang sudah dikuasai atau melewati prasyarat yang belum
+solid.
+
+### Bagaimana progres belajar siswa dilaporkan?
+Progres dilaporkan setiap pekan melalui laporan hasil belajar, catatan sesi, dan
+analitik nilai yang tersimpan di dasbor. Orang tua dapat melihat materi yang sudah
+dibahas, fokus berikutnya, serta capaian siswa. Laporan ini menjadi dasar evaluasi
+bersama tutor, sehingga rencana pekan berikutnya disusun dari data, bukan perkiraan.
+
+### Metode pembayaran apa saja yang diterima Edustory?
+Pembayaran dapat dilakukan melalui transfer bank dan pembayaran online lewat
+Midtrans, termasuk virtual account, e-wallet, serta kartu kredit atau debit. Rincian
+biaya bergantung pada jenjang, jumlah sesi, dan format belajar, lalu disampaikan
+terbuka saat konsultasi. Tidak ada biaya tersembunyi, dan tersedia paket bulanan yang
+lebih hemat.
+
+## Layanan dan fitur
+
+- Les Privat ke Rumah — tutor datang ke rumah untuk SD, SMP, SMA di Yogyakarta dan
+  sekitarnya, dengan jadwal tetap dan laporan progres.
+- Les Online — sesi privat daring dengan tutor terkurasi, papan tulis digital, dan
+  ringkasan sesi; tersedia untuk seluruh Indonesia.
+- Kelas Semi-Privat — kelompok kecil 3–5 siswa dengan tutor yang sama tiap sesi.
+- Homeschooling — perencanaan kurikulum, tutor pendamping, dan evaluasi berkala.
+- Corporate Training — pelatihan bahasa, literasi digital, dan keterampilan kerja.
+- Program Reguler, Intensif (ujian/UTBK), dan Privat dengan jadwal fleksibel.
+- Kurasi tutor lima tahap: akademik, psikologi, microteaching, tulisan tangan,
+  wawancara.
+- Asesmen awal 30–45 menit untuk kelas 4 SD ke atas.
+- Rencana belajar per pekan, catatan sesi, laporan hasil belajar, analitik nilai.
+- Perubahan jadwal diajukan paling lambat 12 jam sebelum sesi.
+- Pembayaran: transfer bank dan Midtrans (virtual account, e-wallet, kartu).
+
+## Fakta kanonik
+
+- Nama: Edustory
+- Kategori: platform les privat dan bimbingan belajar (education)
+- Jenjang: SD, SMP, SMA, persiapan UTBK
+- Wilayah tatap muka: Yogyakarta dan sekitarnya
+- Wilayah online: seluruh Indonesia
+- Alamat: Jl. Gandu Prangwedanan RT.03 Potorono Banguntapan, Yogyakarta
+- Telepon/WhatsApp: +62 821-1311-3063
+- Email: info@edustory.com
+- Jam operasional: Senin–Jumat 08.00–18.00 WIB; Sabtu 09.00–15.00 WIB
+- Situs: https://edustory.online
+- Repositori: https://github.com/aresa1801/Edustory_Frontend
+- Profil pengembang: https://github.com/aresa1801
+
+## Catatan penggunaan
+
+- Harga dan ketersediaan jadwal berubah; rujuk /kontak atau /program untuk kondisi
+  terkini. Dokumen ini tidak mencantumkan angka harga karena rincian disampaikan saat
+  konsultasi.
+- Kutipan boleh disertai tautan ke halaman sumber di domain ini.
+- Baris pembaruan: 2026-11-09 — korpus awal llms-full.txt.

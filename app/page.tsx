@@ -17,12 +17,99 @@ import {
 } from 'lucide-react'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
+import AnswerHub from '@/components/answer-hub'
+import { FAQ as HOME_FAQ, STEPS as HOME_STEPS, HOME_UPDATED } from '@/lib/home-faq'
+import { SITE, ld } from '@/lib/seo-jsonld'
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
   title: 'Edustory — Les Privat & Bimbingan Belajar Online Indonesia',
   description:
     'Les privat dengan tutor terkurasi untuk SD, SMP, dan SMA: ke rumah di Yogyakarta, online seluruh Indonesia, kelas semi-privat, dan homeschooling.',
+}
+
+/* ---------------------------------------------------------------- JSON-LD */
+
+const homepageSchemas = {
+  organization: {
+    '@context': 'https://schema.org',
+    '@type': 'EducationalOrganization',
+    '@id': `${SITE}/#organization`,
+    name: 'Edustory',
+    url: SITE,
+    description:
+      'Platform les privat dan bimbingan belajar online di Indonesia dengan tutor terkurasi untuk siswa SD, SMP, dan SMA.',
+    areaServed: 'ID',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Jl. Gandu Prangwedanan RT.03 Potorono Banguntapan',
+      addressLocality: 'Yogyakarta',
+      addressCountry: 'ID',
+    },
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer service',
+      telephone: '+6282113113063',
+      email: 'info@edustory.com',
+      availableLanguage: ['id'],
+    },
+    sameAs: ['https://github.com/aresa1801/Edustory_Frontend', 'https://github.com/aresa1801'],
+  },
+  webPage: {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${SITE}/#webpage`,
+    url: SITE,
+    name: 'Edustory — Les Privat & Bimbingan Belajar Online Indonesia',
+    description:
+      'Les privat dengan tutor terkurasi untuk SD, SMP, dan SMA: ke rumah di Yogyakarta, online seluruh Indonesia, kelas semi-privat, dan homeschooling.',
+    isPartOf: { '@id': `${SITE}/#website` },
+    about: { '@id': `${SITE}/#organization` },
+    inLanguage: 'id-ID',
+    dateModified: HOME_UPDATED,
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: ['#faq h2', '#faq article h3', '#faq article p'],
+    },
+  },
+  faqPage: {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${SITE}/#faq`,
+    mainEntity: HOME_FAQ.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  },
+  howTo: {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    '@id': `${SITE}/#howto`,
+    name: 'Cara mulai les privat di Edustory',
+    description: 'Alur dari konsultasi sampai evaluasi progres belajar di Edustory.',
+    totalTime: 'P2D',
+    step: HOME_STEPS.map((step, index) => {
+      const [name, ...rest] = step.split(':')
+      return {
+        '@type': 'HowToStep',
+        position: index + 1,
+        name: name.trim(),
+        text: rest.join(':').trim(),
+        url: `${SITE}/#cara-kerja`,
+      }
+    }),
+  },
+  breadcrumb: {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    '@id': `${SITE}/#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Beranda', item: SITE },
+      { '@type': 'ListItem', position: 2, name: 'Layanan', item: `${SITE}/layanan` },
+      { '@type': 'ListItem', position: 3, name: 'FAQ', item: `${SITE}/faq` },
+    ],
+  },
 }
 
 const pillars = [
@@ -97,6 +184,12 @@ const articles = [
 export default function Home() {
   return (
     <div className="w-full bg-background pb-24 md:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(homepageSchemas.organization)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(homepageSchemas.webPage)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(homepageSchemas.faqPage)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(homepageSchemas.howTo)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={ld(homepageSchemas.breadcrumb)} />
+
       <Header />
 
       <main>
@@ -351,7 +444,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FAQ */}
+        {/* FAQ + alur + cakupan layanan */}
+        <AnswerHub />
+
         {/* CTA */}
         <section id="kontak" className="mx-auto max-w-6xl px-5 py-14 sm:px-8 md:py-20">
           <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-primary px-6 py-10 text-primary-foreground sm:px-10">
