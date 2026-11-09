@@ -33,3 +33,27 @@ To learn more, take a look at the following resources:
 - [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
 
 <a href="https://v0.app/chat/api/kiro/clone/aresa1801/Edustory_Frontend" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+
+
+## Entity (canonical)
+
+Edustory is published with a single canonical entity definition in `lib/entity.ts`
+and matching schema.org `Organization` JSON-LD on every page.
+
+| Field | Value |
+|---|---|
+| Name | Edustory |
+| Legal name | Edustory |
+| Website | https://edustory.online |
+| Tagline | Les privat dengan tutor terkurasi |
+| Category | Tutoring |
+| HQ | Yogyakarta, Indonesia |
+| Founded | 2024 |
+| Parent | Rekso Software Engineering |
+| sameAs | https://reksolabs.com |
+
+Description (use verbatim on third-party profiles):
+
+> Edustory menyediakan les privat dengan tutor terkurasi untuk SD, SMP, dan SMA: ke rumah di Yogyakarta, online di seluruh Indonesia, plus kelas semi-privat.
+
+Entity page: https://edustory.online/about
