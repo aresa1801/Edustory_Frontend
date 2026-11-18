@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { ADMIN_EMAIL } from '@/lib/constants'
+import { ensureUserProfile } from '@/lib/user-profile'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -113,21 +115,43 @@ export async function GET(request: Request) {
   }
 
   // 4) Role → dashboard
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role, avatar_url')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  // 3b) Keep profile avatar in sync with the Google account picture
+  // Pastikan profil ada. Untuk akun Google lama hasil migrasi, profil lama yang
+  // memakai email sama akan di-rebind ke auth id saat ini (lihat lib/user-profile).
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+  const googleName =
+    (meta.full_name as string) || (meta.name as string) || user.email || null
   const googleAvatar =
     (meta.avatar_url as string) || (meta.picture as string) || null
-  if (googleAvatar && profile && !profile.avatar_url) {
-    await supabase
+
+  let profile: { role?: string | null; avatar_url?: string | null } | null = null
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    )
+    const { profile: ensured, error: ensureError } = await ensureUserProfile(admin, {
+      id: user.id,
+      email: user.email || '',
+      name: googleName,
+      avatarUrl: googleAvatar,
+      // role tidak dipaksa di sini — dipilih user di /auth/select-role
+      role: user.email && user.email === ADMIN_EMAIL ? 'admin' : undefined,
+      createIfMissing: false,
+    })
+    if (ensureError) {
+      console.error('[auth/callback] ensureUserProfile failed:', ensureError)
+    }
+    profile = ensured
+  }
+
+  if (!profile) {
+    const { data } = await supabase
       .from('user_profiles')
-      .update({ avatar_url: googleAvatar })
+      .select('role, avatar_url')
       .eq('id', user.id)
+      .maybeSingle()
+    profile = data
   }
 
   const role = profile?.role ? String(profile.role).toLowerCase() : null

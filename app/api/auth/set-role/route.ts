@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/api-auth'
+import { ensureUserProfile } from '@/lib/user-profile'
 
 export async function POST(request: NextRequest) {
 
@@ -61,21 +62,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Upsert ke user_profiles
-    const { error: upsertError } = await adminSupabase
-      .from('user_profiles')
-      .upsert({
-        id: userId,
-        email: userEmail,
-        name: userName,
-        role: dbRole,
-        avatar_url: authUser.user?.user_metadata?.avatar_url || null,
-        updated_at: now,
-      }, { onConflict: 'id' })
+    // 1. Pastikan profil ada (sekaligus memperbaiki profil migrasi lama yang
+    //    memakai email sama dengan user id berbeda).
+    const { profile, error: profileError } = await ensureUserProfile(adminSupabase, {
+      id: userId,
+      email: userEmail,
+      name: userName,
+      role: dbRole,
+      avatarUrl: authUser.user?.user_metadata?.avatar_url || null,
+    })
 
-    if (upsertError) {
-      console.error('[API] ❌ Upsert failed:', upsertError)
-      return NextResponse.json({ error: upsertError.message }, { status: 500 })
+    if (profileError || !profile) {
+      console.error('[API] ❌ Profile ensure failed:', profileError)
+      return NextResponse.json(
+        { error: profileError || 'Gagal menyiapkan profil' },
+        { status: 500 }
+      )
+    }
+
+    // Kalau user lama tapi role belum final (mis. profil migrasi), set sekarang.
+    if (profile.role !== dbRole) {
+      const { error: roleError } = await adminSupabase
+        .from('user_profiles')
+        .update({ role: dbRole, updated_at: now })
+        .eq('id', userId)
+      if (roleError) {
+        console.error('[API] ❌ Role update failed:', roleError)
+        return NextResponse.json({ error: roleError.message }, { status: 500 })
+      }
     }
 
     // 2. Jika role = tutor, pastikan ada baris di tabel tutors

@@ -55,7 +55,13 @@ export async function registerUser(
     ])
 
   if (profileError) {
-    throw new Error(profileError.message)
+    // Akun lama (hasil migrasi) bisa sudah punya profil dengan email yang sama.
+    // Server akan me-rebind profil itu saat login — jangan gagalkan signup.
+    if (profileError.code === '23505') {
+      console.warn('[Auth] profile already exists for this email, akan di-rebind saat login')
+    } else {
+      throw new Error(profileError.message)
+    }
   }
 
   return authData.user
