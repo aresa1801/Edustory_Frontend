@@ -68,8 +68,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pengguna harus tetap bisa memperbesar teks (WCAG 1.4.4). Sebelumnya
+  // maximumScale 1 + userScalable false mematikan pinch-zoom, sehingga teks
+  // kecil tidak punya jalan keluar sama sekali.
+  maximumScale: 5,
+  userScalable: true,
   themeColor: '#0B201C',
 }
 
